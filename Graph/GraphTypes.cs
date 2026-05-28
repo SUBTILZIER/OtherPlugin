@@ -4,7 +4,9 @@ public enum NodeKind
 {
     Start,
     FindImage,
-    MouseLeftClick,
+    MouseClick,
+    Delay,
+    MouseMove,
 }
 
 public enum PinDirection
@@ -24,4 +26,12 @@ public enum MouseClickMode
 {
     SingleClick,
     Hold,
+}
+
+public enum MouseButton
+{
+    Left,
+    Right,
+    XButton1,
+    XButton2,
 }

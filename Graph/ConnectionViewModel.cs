@@ -1,6 +1,10 @@
 using System.ComponentModel;
-using System.Windows;
-using System.Windows.Media;
+using Point = System.Windows.Point;
+using Brush = System.Windows.Media.Brush;
+using Geometry = System.Windows.Media.Geometry;
+using PathFigure = System.Windows.Media.PathFigure;
+using BezierSegment = System.Windows.Media.BezierSegment;
+using PathGeometry = System.Windows.Media.PathGeometry;
 
 namespace AutomationStudioWpf.Graph;
 
@@ -8,8 +12,10 @@ namespace AutomationStudioWpf.Graph;
 /// Represents one graph connection line.
 /// The path is recalculated whenever either endpoint node moves.
 /// </summary>
-public sealed class ConnectionViewModel : ObservableObject
+public sealed class ConnectionViewModel : ObservableObject, IDisposable
 {
+    private bool _disposed;
+
     public ConnectionViewModel(PinViewModel sourcePin, PinViewModel targetPin)
     {
         SourcePin = sourcePin;
@@ -29,6 +35,20 @@ public sealed class ConnectionViewModel : ObservableObject
     public Brush StrokeBrush { get; }
 
     public Geometry PathGeometry => BuildPathGeometry();
+
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        SourcePin.Owner.PropertyChanged -= NodePropertyChanged;
+        TargetPin.Owner.PropertyChanged -= NodePropertyChanged;
+        SourcePin.PropertyChanged -= PinPropertyChanged;
+        TargetPin.PropertyChanged -= PinPropertyChanged;
+        _disposed = true;
+    }
 
     private void NodePropertyChanged(object? sender, PropertyChangedEventArgs e)
     {

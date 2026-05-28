@@ -1,12 +1,26 @@
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Text.Json;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Input;
 using System.Windows.Media;
 using AutomationStudioWpf.Graph;
+using AutomationStudioWpf.Runtime;
 using Microsoft.Win32;
+using Point = System.Windows.Point;
+using MouseButtonEventArgs = System.Windows.Input.MouseButtonEventArgs;
+using MouseEventArgs = System.Windows.Input.MouseEventArgs;
+using MouseWheelEventArgs = System.Windows.Input.MouseWheelEventArgs;
+using KeyEventArgs = System.Windows.Input.KeyEventArgs;
+using Key = System.Windows.Input.Key;
+using Keyboard = System.Windows.Input.Keyboard;
+using ModifierKeys = System.Windows.Input.ModifierKeys;
+using MouseButtonState = System.Windows.Input.MouseButtonState;
+using WpfOpenFileDialog = Microsoft.Win32.OpenFileDialog;
+using WpfSaveFileDialog = Microsoft.Win32.SaveFileDialog;
+using WpfMessageBox = System.Windows.MessageBox;
+using TextBox = System.Windows.Controls.TextBox;
 
 namespace AutomationStudioWpf;
 
@@ -17,6 +31,7 @@ namespace AutomationStudioWpf;
 public partial class MainWindow : Window
 {
     private readonly JsonSerializerOptions _jsonOptions = new() { WriteIndented = true };
+    private readonly GraphRuntimeExecutor _runtimeExecutor = new();
     private string? _currentGraphPath;
     private NodeBaseViewModel? _selectedNode;
     private PinViewModel? _pendingOutputPin;
@@ -34,7 +49,9 @@ public partial class MainWindow : Window
     private double _zoomLevel = 1.0;
     private readonly ScaleTransform _zoomTransform = new(1.0, 1.0);
     private List<NodeFileModel> _clipboardNodes = [];
+    private List<ConnectionFileModel> _clipboardConnections = [];
     private Point _lastMousePosition;
+    private bool _isLoadingInspector;
 
     public MainWindow()
     {
@@ -53,12 +70,7 @@ public partial class MainWindow : Window
         Nodes.Clear();
         Connections.Clear();
         _nodeSequence = 1;
-        StartNodeViewModel startNode = new(CreateNodeId())
-        {
-            Title = "事件开始运行",
-            X = 80,
-            Y = 210,
-        };
+        StartNodeViewModel startNode = CreateDefaultStartNode();
         FindImageNodeViewModel findNode = new(CreateNodeId())
         {
             Title = "找图：继续游戏",
@@ -70,11 +82,10 @@ public partial class MainWindow : Window
 
         MouseLeftClickNodeViewModel mouseNode = new(CreateNodeId())
         {
-            Title = "鼠标左键：点击目标",
+            Title = "鼠标点击：点击目标",
             ClickMode = MouseClickMode.SingleClick,
             PositionX = 1280,
             PositionY = 720,
-            HoldDurationMs = 600,
             X = 790,
             Y = 210,
         };
@@ -89,6 +100,16 @@ public partial class MainWindow : Window
         SelectNode(startNode);
         EnsureCanvasLargeEnough();
         SetStatus("已创建示例图谱。左键空白处框选，右键空白处拖动画布。");
+    }
+
+    private StartNodeViewModel CreateDefaultStartNode()
+    {
+        return new StartNodeViewModel(CreateNodeId())
+        {
+            Title = "事件开始运行",
+            X = 80,
+            Y = 210,
+        };
     }
 
     private string CreateNodeId()
@@ -121,7 +142,35 @@ public partial class MainWindow : Window
         Nodes.Add(node);
         SelectNode(node);
         EnsureCanvasLargeEnough();
-        SetStatus("已添加鼠标左键节点。");
+        SetStatus("已添加鼠标点击节点。");
+    }
+
+    private void AddDelayNode_Click(object sender, RoutedEventArgs e)
+    {
+        DelayNodeViewModel node = new(CreateNodeId())
+        {
+            Title = "延迟节点",
+            X = 360 + Nodes.Count * 40,
+            Y = 260 + Nodes.Count * 30,
+        };
+        Nodes.Add(node);
+        SelectNode(node);
+        EnsureCanvasLargeEnough();
+        SetStatus("已添加延迟节点。");
+    }
+
+    private void AddMouseMoveNode_Click(object sender, RoutedEventArgs e)
+    {
+        MouseMoveNodeViewModel node = new(CreateNodeId())
+        {
+            Title = "鼠标移动节点",
+            X = 420 + Nodes.Count * 40,
+            Y = 300 + Nodes.Count * 30,
+        };
+        Nodes.Add(node);
+        SelectNode(node);
+        EnsureCanvasLargeEnough();
+        SetStatus("已添加鼠标移动节点。");
     }
 
     private void DeleteSelectedNode_Click(object sender, RoutedEventArgs e)
@@ -140,8 +189,11 @@ public partial class MainWindow : Window
         Connections.Clear();
         _currentGraphPath = null;
         _nodeSequence = 1;
-        SelectNode(null);
-        SetStatus("已新建空白图谱。");
+        StartNodeViewModel startNode = CreateDefaultStartNode();
+        Nodes.Add(startNode);
+        SelectNode(startNode);
+        EnsureCanvasLargeEnough();
+        SetStatus("已新建图谱，并创建开始节点。");
     }
 
     private void SaveGraph_Click(object sender, RoutedEventArgs e)
@@ -149,7 +201,7 @@ public partial class MainWindow : Window
         string? path = _currentGraphPath;
         if (string.IsNullOrWhiteSpace(path))
         {
-            SaveFileDialog dialog = new()
+            WpfSaveFileDialog dialog = new()
             {
                 Title = "保存图谱",
                 Filter = "图谱文件 (*.json)|*.json",
@@ -184,7 +236,7 @@ public partial class MainWindow : Window
 
     private void OpenGraph_Click(object sender, RoutedEventArgs e)
     {
-        OpenFileDialog dialog = new()
+        WpfOpenFileDialog dialog = new()
         {
             Title = "打开图谱",
             Filter = "图谱文件 (*.json)|*.json",
@@ -198,13 +250,33 @@ public partial class MainWindow : Window
         GraphFileModel? file = JsonSerializer.Deserialize<GraphFileModel>(File.ReadAllText(dialog.FileName));
         if (file is null)
         {
-            MessageBox.Show(this, "图谱文件解析失败。", "打开失败", MessageBoxButton.OK, MessageBoxImage.Error);
+            WpfMessageBox.Show(this, "图谱文件解析失败。", "打开失败", MessageBoxButton.OK, MessageBoxImage.Error);
             return;
         }
 
         LoadGraph(file);
         _currentGraphPath = dialog.FileName;
         SetStatus($"图谱已加载：{Path.GetFileName(dialog.FileName)}");
+    }
+
+    private async void RunGraph_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            GraphExecutionPlan plan = BuildExecutionPlan();
+            string baseDirectory = !string.IsNullOrWhiteSpace(_currentGraphPath)
+                ? Path.GetDirectoryName(_currentGraphPath) ?? Environment.CurrentDirectory
+                : Environment.CurrentDirectory;
+
+            SetStatus("执行开始...");
+            GraphExecutionResult result = await Task.Run(() => _runtimeExecutor.Execute(plan, baseDirectory));
+            SetStatus(result.Message);
+        }
+        catch (Exception ex)
+        {
+            WpfMessageBox.Show(this, ex.Message, "执行失败", MessageBoxButton.OK, MessageBoxImage.Error);
+            SetStatus("执行失败。");
+        }
     }
 
     private void LoadGraph(GraphFileModel file)
@@ -232,15 +304,30 @@ public partial class MainWindow : Window
                     ImagePath = nodeFile.ImagePath ?? string.Empty,
                     SimilarityThresholdPercent = nodeFile.SimilarityThresholdPercent,
                 },
-                "mouse_left_click" => new MouseLeftClickNodeViewModel(nodeFile.Id)
+                "mouse_left_click" or "mouse_click" => new MouseLeftClickNodeViewModel(nodeFile.Id)
                 {
                     Title = nodeFile.Title,
                     X = nodeFile.X,
                     Y = nodeFile.Y,
                     ClickMode = Enum.TryParse(nodeFile.ClickMode, true, out MouseClickMode mode) ? mode : MouseClickMode.SingleClick,
+                    MouseButton = Enum.TryParse(nodeFile.MouseButton, true, out MouseButton button) ? button : MouseButton.Left,
                     PositionX = nodeFile.PositionX,
                     PositionY = nodeFile.PositionY,
-                    HoldDurationMs = nodeFile.HoldDurationMs,
+                },
+                "delay" => new DelayNodeViewModel(nodeFile.Id)
+                {
+                    Title = nodeFile.Title,
+                    X = nodeFile.X,
+                    Y = nodeFile.Y,
+                    DelayMs = nodeFile.DelayMs,
+                },
+                "mouse_move" => new MouseMoveNodeViewModel(nodeFile.Id)
+                {
+                    Title = nodeFile.Title,
+                    X = nodeFile.X,
+                    Y = nodeFile.Y,
+                    PositionX = nodeFile.PositionX,
+                    PositionY = nodeFile.PositionY,
                 },
                 _ => null,
             };
@@ -302,7 +389,16 @@ public partial class MainWindow : Window
             file.ClickMode = mouseNode.ClickMode.ToString();
             file.PositionX = mouseNode.PositionX;
             file.PositionY = mouseNode.PositionY;
-            file.HoldDurationMs = mouseNode.HoldDurationMs;
+            file.MouseButton = mouseNode.MouseButton.ToString();
+        }
+        else if (node is DelayNodeViewModel delayNode)
+        {
+            file.DelayMs = delayNode.DelayMs;
+        }
+        else if (node is MouseMoveNodeViewModel mouseMoveNode)
+        {
+            file.PositionX = mouseMoveNode.PositionX;
+            file.PositionY = mouseMoveNode.PositionY;
         }
 
         return file;
@@ -670,7 +766,7 @@ public partial class MainWindow : Window
         {
             if (Connections[i].TargetPin == targetPin)
             {
-                Connections.RemoveAt(i);
+                RemoveConnectionAt(i);
             }
         }
 
@@ -733,7 +829,7 @@ public partial class MainWindow : Window
         {
             if (Connections[i].SourcePin == pin || Connections[i].TargetPin == pin)
             {
-                Connections.RemoveAt(i);
+                RemoveConnectionAt(i);
             }
         }
 
@@ -776,7 +872,7 @@ public partial class MainWindow : Window
         List<NodeBaseViewModel> selectedNodes = [];
         foreach (NodeBaseViewModel node in Nodes)
         {
-            Rect nodeBounds = new(node.X, node.Y, node.Width, 120);
+            Rect nodeBounds = new(node.X, node.Y, node.Width, node.Height);
             bool isSelected = selectionBounds.IntersectsWith(nodeBounds);
             node.IsSelected = isSelected;
             if (isSelected)
@@ -809,22 +905,27 @@ public partial class MainWindow : Window
     {
         if (node is null)
         {
+            _isLoadingInspector = true;
             NodeIdTextBox.Text = string.Empty;
             NodeTitleTextBox.Text = string.Empty;
             FindImageInspectorPanel.Visibility = Visibility.Collapsed;
             MouseLeftInspectorPanel.Visibility = Visibility.Collapsed;
+            DelayInspectorPanel.Visibility = Visibility.Collapsed;
+            MouseMoveInspectorPanel.Visibility = Visibility.Collapsed;
             InspectorHintTextBlock.Text = "请选择一个节点进行编辑。";
-            ApplyNodeChangesButton.IsEnabled = false;
+            _isLoadingInspector = false;
             return;
         }
 
-        ApplyNodeChangesButton.IsEnabled = true;
+        _isLoadingInspector = true;
         NodeIdTextBox.Text = node.Id;
         NodeTitleTextBox.Text = node.Title;
         InspectorHintTextBlock.Text = $"当前选中：{node.Title}";
 
         FindImageInspectorPanel.Visibility = node is FindImageNodeViewModel ? Visibility.Visible : Visibility.Collapsed;
         MouseLeftInspectorPanel.Visibility = node is MouseLeftClickNodeViewModel ? Visibility.Visible : Visibility.Collapsed;
+        DelayInspectorPanel.Visibility = node is DelayNodeViewModel ? Visibility.Visible : Visibility.Collapsed;
+        MouseMoveInspectorPanel.Visibility = node is MouseMoveNodeViewModel ? Visibility.Visible : Visibility.Collapsed;
 
         if (node is FindImageNodeViewModel findImage)
         {
@@ -836,54 +937,104 @@ public partial class MainWindow : Window
         {
             MousePositionXTextBox.Text = mouseNode.PositionX.ToString("0.##");
             MousePositionYTextBox.Text = mouseNode.PositionY.ToString("0.##");
-            MouseHoldDurationTextBox.Text = mouseNode.HoldDurationMs.ToString();
             MouseClickModeComboBox.SelectedIndex = mouseNode.ClickMode == MouseClickMode.SingleClick ? 0 : 1;
-            MouseHoldDurationTextBox.IsEnabled = mouseNode.IsHoldDurationEnabled;
+            MouseButtonComboBox.SelectedIndex = mouseNode.MouseButton switch
+            {
+                MouseButton.Left => 0,
+                MouseButton.Right => 1,
+                MouseButton.XButton1 => 2,
+                MouseButton.XButton2 => 3,
+                _ => 0,
+            };
         }
+
+        if (node is DelayNodeViewModel delayNode)
+        {
+            DelayMsTextBox.Text = delayNode.DelayMs.ToString();
+        }
+
+        if (node is MouseMoveNodeViewModel moveNode)
+        {
+            MouseMovePositionXTextBox.Text = moveNode.PositionX.ToString("0.##");
+            MouseMovePositionYTextBox.Text = moveNode.PositionY.ToString("0.##");
+        }
+
+        _isLoadingInspector = false;
     }
 
-    private void ApplyNodeChanges_Click(object sender, RoutedEventArgs e)
+    private void ApplyInspectorChanges()
     {
-        if (_selectedNode is null)
+        if (_selectedNode is null || _isLoadingInspector)
         {
             return;
         }
 
-        try
-        {
-            _selectedNode.Title = NodeTitleTextBox.Text.Trim();
+        _selectedNode.Title = NodeTitleTextBox.Text.Trim();
 
-            if (_selectedNode is FindImageNodeViewModel findImage)
-            {
-                findImage.ImagePath = FindImagePathTextBox.Text.Trim();
-                findImage.SimilarityThresholdPercent = int.Parse(FindImageThresholdTextBox.Text.Trim());
-            }
-            else if (_selectedNode is MouseLeftClickNodeViewModel mouseNode)
-            {
-                mouseNode.ClickMode = MouseClickModeComboBox.SelectedIndex == 1 ? MouseClickMode.Hold : MouseClickMode.SingleClick;
-                mouseNode.PositionX = double.Parse(MousePositionXTextBox.Text.Trim());
-                mouseNode.PositionY = double.Parse(MousePositionYTextBox.Text.Trim());
-                mouseNode.HoldDurationMs = int.Parse(MouseHoldDurationTextBox.Text.Trim());
-            }
-
-            _selectedNode.RefreshDescription();
-            NodeTitleTextBox.Text = _selectedNode.Title;
-            SetStatus($"节点已更新：{_selectedNode.Title}");
-        }
-        catch (Exception ex)
+        if (_selectedNode is FindImageNodeViewModel findImage)
         {
-            MessageBox.Show(this, ex.Message, "节点参数错误", MessageBoxButton.OK, MessageBoxImage.Warning);
+            findImage.ImagePath = FindImagePathTextBox.Text.Trim();
+            if (int.TryParse(FindImageThresholdTextBox.Text.Trim(), out int threshold))
+            {
+                findImage.SimilarityThresholdPercent = threshold;
+            }
         }
+        else if (_selectedNode is MouseLeftClickNodeViewModel mouseNode)
+        {
+            mouseNode.ClickMode = MouseClickModeComboBox.SelectedIndex == 1 ? MouseClickMode.Hold : MouseClickMode.SingleClick;
+            mouseNode.MouseButton = MouseButtonComboBox.SelectedIndex switch
+            {
+                1 => MouseButton.Right,
+                2 => MouseButton.XButton1,
+                3 => MouseButton.XButton2,
+                _ => MouseButton.Left,
+            };
+            if (double.TryParse(MousePositionXTextBox.Text.Trim(), out double x))
+            {
+                mouseNode.PositionX = x;
+            }
+            if (double.TryParse(MousePositionYTextBox.Text.Trim(), out double y))
+            {
+                mouseNode.PositionY = y;
+            }
+        }
+        else if (_selectedNode is DelayNodeViewModel delayNode)
+        {
+            if (int.TryParse(DelayMsTextBox.Text.Trim(), out int delayMs))
+            {
+                delayNode.DelayMs = delayMs;
+            }
+        }
+        else if (_selectedNode is MouseMoveNodeViewModel moveNode)
+        {
+            if (double.TryParse(MouseMovePositionXTextBox.Text.Trim(), out double moveX))
+            {
+                moveNode.PositionX = moveX;
+            }
+            if (double.TryParse(MouseMovePositionYTextBox.Text.Trim(), out double moveY))
+            {
+                moveNode.PositionY = moveY;
+            }
+        }
+
+        _selectedNode.RefreshDescription();
+        InspectorHintTextBlock.Text = $"当前选中：{_selectedNode.Title}（已自动保存）";
+        SetStatus($"节点已自动保存：{_selectedNode.Title}");
     }
 
-    private void MouseClickModeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    private void InspectorField_TextChanged(object sender, TextChangedEventArgs e)
     {
-        MouseHoldDurationTextBox.IsEnabled = MouseClickModeComboBox.SelectedIndex == 1;
+        ApplyInspectorChanges();
+    }
+
+    private void InspectorField_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        ApplyInspectorChanges();
     }
 
     private void BrowseFindImagePath_Click(object sender, RoutedEventArgs e)
     {
-        OpenFileDialog dialog = new()
+        WpfOpenFileDialog dialog = new()
         {
             Title = "选择图片文件",
             Filter = "图片文件 (*.png;*.jpg;*.jpeg;*.bmp)|*.png;*.jpg;*.jpeg;*.bmp|所有文件 (*.*)|*.*",
@@ -892,6 +1043,7 @@ public partial class MainWindow : Window
         if (dialog.ShowDialog(this) == true)
         {
             FindImagePathTextBox.Text = dialog.FileName;
+            ApplyInspectorChanges();
         }
     }
 
@@ -907,7 +1059,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        Connections.Remove(connection);
+        RemoveConnection(connection);
         UpdatePinConnectionStates();
         SetStatus("已断开连接。");
         e.Handled = true;
@@ -1089,14 +1241,25 @@ public partial class MainWindow : Window
 
     private void CopySelectedNodes()
     {
-        var selectedNodes = Nodes.Where(n => n.IsSelected).ToList();
+        var selectedNodes = Nodes.Where(n => n.IsSelected && n.CanDelete).ToList();
         if (selectedNodes.Count == 0)
         {
             return;
         }
 
         _clipboardNodes = selectedNodes.Select(ToFileModel).ToList();
-        SetStatus($"已复制 {_clipboardNodes.Count} 个节点。");
+        HashSet<string> selectedIds = selectedNodes.Select(n => n.Id).ToHashSet();
+        _clipboardConnections = Connections
+            .Where(c => selectedIds.Contains(c.SourcePin.Owner.Id) && selectedIds.Contains(c.TargetPin.Owner.Id))
+            .Select(c => new ConnectionFileModel
+            {
+                SourceNodeId = c.SourcePin.Owner.Id,
+                SourcePinName = c.SourcePin.Name,
+                TargetNodeId = c.TargetPin.Owner.Id,
+                TargetPinName = c.TargetPin.Name,
+            })
+            .ToList();
+        SetStatus($"已复制 {_clipboardNodes.Count} 个节点，{_clipboardConnections.Count} 条内部连线。");
     }
 
     private void PasteNodesAtMouse()
@@ -1110,6 +1273,7 @@ public partial class MainWindow : Window
         double centerY = _clipboardNodes.Average(n => n.Y);
 
         ClearSelection();
+        Dictionary<string, NodeBaseViewModel> pastedNodeMap = [];
 
         foreach (NodeFileModel source in _clipboardNodes)
         {
@@ -1123,28 +1287,54 @@ public partial class MainWindow : Window
             node.IsSelected = true;
 
             Nodes.Add(node);
+            pastedNodeMap[source.Id] = node;
+        }
+
+        foreach (ConnectionFileModel sourceConnection in _clipboardConnections)
+        {
+            if (!pastedNodeMap.TryGetValue(sourceConnection.SourceNodeId, out NodeBaseViewModel? sourceNode) ||
+                !pastedNodeMap.TryGetValue(sourceConnection.TargetNodeId, out NodeBaseViewModel? targetNode))
+            {
+                continue;
+            }
+
+            PinViewModel? sourcePin = sourceNode.FindPin(sourceConnection.SourcePinName);
+            PinViewModel? targetPin = targetNode.FindPin(sourceConnection.TargetPinName);
+            if (sourcePin is not null && targetPin is not null)
+            {
+                CreateConnection(sourcePin, targetPin);
+            }
         }
 
         EnsureCanvasLargeEnough();
-        SetStatus($"已粘贴 {_clipboardNodes.Count} 个节点。");
+        SetStatus($"已粘贴 {_clipboardNodes.Count} 个节点，恢复 {_clipboardConnections.Count} 条内部连线。");
     }
 
     private NodeBaseViewModel CreateNodeFromFileModel(NodeFileModel source, string newId)
     {
         NodeBaseViewModel node = source.NodeTypeKey switch
         {
-            "start" => new StartNodeViewModel(newId),
+            "start" => throw new InvalidOperationException("不允许复制开始节点。"),
             "find_image" => new FindImageNodeViewModel(newId)
             {
                 ImagePath = source.ImagePath ?? string.Empty,
                 SimilarityThresholdPercent = source.SimilarityThresholdPercent,
             },
-            "mouse_left_click" => new MouseLeftClickNodeViewModel(newId)
+            "mouse_left_click" or "mouse_click" => new MouseLeftClickNodeViewModel(newId)
             {
                 ClickMode = Enum.TryParse(source.ClickMode, true, out MouseClickMode mode) ? mode : MouseClickMode.SingleClick,
+                MouseButton = Enum.TryParse(source.MouseButton, true, out MouseButton button) ? button : MouseButton.Left,
                 PositionX = source.PositionX,
                 PositionY = source.PositionY,
-                HoldDurationMs = source.HoldDurationMs,
+            },
+            "delay" => new DelayNodeViewModel(newId)
+            {
+                DelayMs = source.DelayMs,
+            },
+            "mouse_move" => new MouseMoveNodeViewModel(newId)
+            {
+                PositionX = source.PositionX,
+                PositionY = source.PositionY,
             },
             _ => throw new InvalidOperationException($"未知节点类型: {source.NodeTypeKey}"),
         };
@@ -1167,7 +1357,7 @@ public partial class MainWindow : Window
             {
                 if (Connections[i].SourcePin.Owner == node || Connections[i].TargetPin.Owner == node)
                 {
-                    Connections.RemoveAt(i);
+                    RemoveConnectionAt(i);
                 }
             }
 
@@ -1177,6 +1367,69 @@ public partial class MainWindow : Window
         UpdatePinConnectionStates();
         SelectNode(null);
         SetStatus($"已删除 {nodesToDelete.Count} 个节点。");
+    }
+
+    private GraphExecutionPlan BuildExecutionPlan()
+    {
+        List<GraphRuntimeNode> nodes = [];
+        foreach (NodeBaseViewModel node in Nodes)
+        {
+            GraphRuntimeNode runtimeNode = node switch
+            {
+                StartNodeViewModel startNode => GraphRuntimeNode.ForStart(startNode.Id, startNode.Title),
+                FindImageNodeViewModel findImageNode => GraphRuntimeNode.ForFindImage(
+                    findImageNode.Id,
+                    findImageNode.Title,
+                    findImageNode.ImagePath,
+                    findImageNode.SimilarityThresholdPercent),
+                MouseLeftClickNodeViewModel mouseNode => GraphRuntimeNode.ForMouseLeftClick(
+                    mouseNode.Id,
+                    mouseNode.Title,
+                    mouseNode.ClickMode,
+                    mouseNode.MouseButton,
+                    mouseNode.PositionX,
+                    mouseNode.PositionY),
+                DelayNodeViewModel delayNode => GraphRuntimeNode.ForDelay(
+                    delayNode.Id,
+                    delayNode.Title,
+                    delayNode.DelayMs),
+                MouseMoveNodeViewModel moveNode => GraphRuntimeNode.ForMouseMove(
+                    moveNode.Id,
+                    moveNode.Title,
+                    moveNode.PositionX,
+                    moveNode.PositionY),
+                _ => throw new InvalidOperationException($"不支持执行的节点类型: {node.GetType().Name}"),
+            };
+            nodes.Add(runtimeNode);
+        }
+
+        List<GraphRuntimeConnection> connections = Connections
+            .Select(connection => new GraphRuntimeConnection(
+                connection.SourcePin.Owner.Id,
+                connection.SourcePin.Name,
+                connection.SourcePin.Kind,
+                connection.TargetPin.Owner.Id,
+                connection.TargetPin.Name,
+                connection.TargetPin.Kind))
+            .ToList();
+
+        return new GraphExecutionPlan(nodes, connections);
+    }
+
+    private void RemoveConnection(ConnectionViewModel connection)
+    {
+        int index = Connections.IndexOf(connection);
+        if (index >= 0)
+        {
+            RemoveConnectionAt(index);
+        }
+    }
+
+    private void RemoveConnectionAt(int index)
+    {
+        ConnectionViewModel connection = Connections[index];
+        Connections.RemoveAt(index);
+        connection.Dispose();
     }
 
     private void SetStatus(string message)

@@ -1,6 +1,8 @@
 using System.Collections.ObjectModel;
-using System.Windows;
-using System.Windows.Media;
+using Point = System.Windows.Point;
+using Brush = System.Windows.Media.Brush;
+using SolidColorBrush = System.Windows.Media.SolidColorBrush;
+using Color = System.Windows.Media.Color;
 
 namespace AutomationStudioWpf.Graph;
 
@@ -32,6 +34,15 @@ public abstract class NodeBaseViewModel : ObservableObject
     public virtual bool CanDelete => true;
 
     public virtual double Width => NodeWidth;
+
+    public virtual double Height
+    {
+        get
+        {
+            int rows = Math.Max(InputPins.Count, OutputPins.Count);
+            return HeaderHeight + PinAreaTopPadding + rows * PinViewModel.PinRowHeight + 16;
+        }
+    }
 
     public ObservableCollection<PinViewModel> InputPins { get; } = [];
 
@@ -77,7 +88,9 @@ public abstract class NodeBaseViewModel : ObservableObject
     {
         NodeKind.Start => new SolidColorBrush(Color.FromRgb(122, 24, 31)),
         NodeKind.FindImage => new SolidColorBrush(Color.FromRgb(34, 102, 143)),
-        NodeKind.MouseLeftClick => new SolidColorBrush(Color.FromRgb(148, 90, 40)),
+        NodeKind.MouseClick => new SolidColorBrush(Color.FromRgb(148, 90, 40)),
+        NodeKind.Delay => new SolidColorBrush(Color.FromRgb(94, 58, 153)),
+        NodeKind.MouseMove => new SolidColorBrush(Color.FromRgb(35, 120, 91)),
         _ => new SolidColorBrush(Color.FromRgb(70, 70, 70)),
     };
 

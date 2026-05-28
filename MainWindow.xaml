@@ -20,9 +20,12 @@
             <Button Content="新建图谱" Margin="2" Padding="10,4" Click="NewGraph_Click" />
             <Button Content="打开图谱" Margin="2" Padding="10,4" Click="OpenGraph_Click" />
             <Button Content="保存图谱" Margin="2" Padding="10,4" Click="SaveGraph_Click" />
+            <Button Content="执行图谱" Margin="2" Padding="10,4" Click="RunGraph_Click" />
             <Separator />
             <Button Content="添加找图节点" Margin="2" Padding="10,4" Click="AddFindImageNode_Click" />
-            <Button Content="添加鼠标左键节点" Margin="2" Padding="10,4" Click="AddMouseLeftNode_Click" />
+            <Button Content="添加鼠标点击节点" Margin="2" Padding="10,4" Click="AddMouseLeftNode_Click" />
+            <Button Content="添加延迟节点" Margin="2" Padding="10,4" Click="AddDelayNode_Click" />
+            <Button Content="添加鼠标移动节点" Margin="2" Padding="10,4" Click="AddMouseMoveNode_Click" />
             <Button Content="删除所选节点" Margin="2" Padding="10,4" Click="DeleteSelectedNode_Click" />
             <Separator />
             <Button Content="清除待连接引脚" Margin="2" Padding="10,4" Click="ClearPendingConnection_Click" />
@@ -63,7 +66,7 @@
                                FontSize="18"
                                FontWeight="Bold" />
                     <TextBlock Margin="0,6,0,14"
-                               Text="先做两个基础节点：找图、鼠标左键。后续可按同样结构继续扩展。"
+                               Text="当前基础节点：找图、鼠标点击、延迟、鼠标移动。后续可按同样结构继续扩展。"
                                TextWrapping="Wrap"
                                Foreground="#B7C0CD" />
 
@@ -71,10 +74,18 @@
                             Margin="0,0,0,8"
                             Padding="10,8"
                             Click="AddFindImageNode_Click" />
-                    <Button Content="添加鼠标左键节点"
+                    <Button Content="添加鼠标点击节点"
                             Margin="0,0,0,18"
                             Padding="10,8"
                             Click="AddMouseLeftNode_Click" />
+                    <Button Content="添加延迟节点"
+                            Margin="0,0,0,8"
+                            Padding="10,8"
+                            Click="AddDelayNode_Click" />
+                    <Button Content="添加鼠标移动节点"
+                            Margin="0,0,0,18"
+                            Padding="10,8"
+                            Click="AddMouseMoveNode_Click" />
 
                     <Separator Margin="0,4,0,14" />
 
@@ -401,7 +412,8 @@
 
                         <TextBlock Text="节点名称" Foreground="White" />
                         <TextBox x:Name="NodeTitleTextBox"
-                                 Margin="0,4,0,12" />
+                                 Margin="0,4,0,12"
+                                 TextChanged="InspectorField_TextChanged" />
 
                         <StackPanel x:Name="FindImageInspectorPanel"
                                     Visibility="Collapsed">
@@ -412,12 +424,14 @@
                                         Padding="12,4"
                                         Click="BrowseFindImagePath_Click" />
                                 <TextBox x:Name="FindImagePathTextBox"
-                                         Margin="0,0,8,0" />
+                                         Margin="0,0,8,0"
+                                         TextChanged="InspectorField_TextChanged" />
                             </DockPanel>
 
                             <TextBlock Text="相似度阈值 (%)" Foreground="White" />
                             <TextBox x:Name="FindImageThresholdTextBox"
-                                     Margin="0,4,0,12" />
+                                     Margin="0,4,0,12"
+                                     TextChanged="InspectorField_TextChanged" />
 
                             <TextBlock Text="说明"
                                        Foreground="#A7B1BF"
@@ -430,25 +444,33 @@
 
                         <StackPanel x:Name="MouseLeftInspectorPanel"
                                     Visibility="Collapsed">
+                            <TextBlock Text="鼠标按键" Foreground="White" />
+                            <ComboBox x:Name="MouseButtonComboBox"
+                                      Margin="0,4,0,12"
+                                      SelectionChanged="InspectorField_SelectionChanged">
+                                <ComboBoxItem Content="左键" Tag="Left" />
+                                <ComboBoxItem Content="右键" Tag="Right" />
+                                <ComboBoxItem Content="侧键1" Tag="XButton1" />
+                                <ComboBoxItem Content="侧键2" Tag="XButton2" />
+                            </ComboBox>
+
                             <TextBlock Text="点击模式" Foreground="White" />
                             <ComboBox x:Name="MouseClickModeComboBox"
                                       Margin="0,4,0,12"
-                                      SelectionChanged="MouseClickModeComboBox_SelectionChanged">
+                                      SelectionChanged="InspectorField_SelectionChanged">
                                 <ComboBoxItem Content="单击" Tag="SingleClick" />
                                 <ComboBoxItem Content="长按" Tag="Hold" />
                             </ComboBox>
 
                             <TextBlock Text="点击位置 X" Foreground="White" />
                             <TextBox x:Name="MousePositionXTextBox"
-                                     Margin="0,4,0,10" />
+                                     Margin="0,4,0,10"
+                                     TextChanged="InspectorField_TextChanged" />
 
                             <TextBlock Text="点击位置 Y" Foreground="White" />
                             <TextBox x:Name="MousePositionYTextBox"
-                                     Margin="0,4,0,10" />
-
-                            <TextBlock Text="长按时长 (ms)" Foreground="White" />
-                            <TextBox x:Name="MouseHoldDurationTextBox"
-                                     Margin="0,4,0,12" />
+                                     Margin="0,4,0,10"
+                                     TextChanged="InspectorField_TextChanged" />
 
                             <TextBlock Text="说明"
                                        Foreground="#A7B1BF"
@@ -459,11 +481,27 @@
                                        TextWrapping="Wrap" />
                         </StackPanel>
 
-                        <Button x:Name="ApplyNodeChangesButton"
-                                Margin="0,20,0,0"
-                                Padding="12,8"
-                                Content="应用节点修改"
-                                Click="ApplyNodeChanges_Click" />
+                        <StackPanel x:Name="DelayInspectorPanel"
+                                    Visibility="Collapsed">
+                            <TextBlock Text="延迟时长 (ms)" Foreground="White" />
+                            <TextBox x:Name="DelayMsTextBox"
+                                     Margin="0,4,0,12"
+                                     TextChanged="InspectorField_TextChanged" />
+                        </StackPanel>
+
+                        <StackPanel x:Name="MouseMoveInspectorPanel"
+                                    Visibility="Collapsed">
+                            <TextBlock Text="目标坐标 X" Foreground="White" />
+                            <TextBox x:Name="MouseMovePositionXTextBox"
+                                     Margin="0,4,0,10"
+                                     TextChanged="InspectorField_TextChanged" />
+
+                            <TextBlock Text="目标坐标 Y" Foreground="White" />
+                            <TextBox x:Name="MouseMovePositionYTextBox"
+                                     Margin="0,4,0,12"
+                                     TextChanged="InspectorField_TextChanged" />
+                        </StackPanel>
+
                     </StackPanel>
                 </ScrollViewer>
             </Border>

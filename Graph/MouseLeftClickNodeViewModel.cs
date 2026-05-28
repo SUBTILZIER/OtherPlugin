@@ -1,17 +1,18 @@
 namespace AutomationStudioWpf.Graph;
 
 /// <summary>
-/// Blueprint-style node for left mouse button actions.
-/// Supports single click and hold, and accepts a Vector2D position input.
+/// Mouse click node.
+/// Supports single click and hold.
+/// Position can be configured directly or fed from a Vector2D upstream pin.
 /// </summary>
 public sealed class MouseLeftClickNodeViewModel : NodeBaseViewModel
 {
     private MouseClickMode _clickMode = MouseClickMode.SingleClick;
+    private MouseButton _mouseButton = MouseButton.Left;
     private double _positionX = 960;
     private double _positionY = 540;
-    private int _holdDurationMs = 600;
 
-    public MouseLeftClickNodeViewModel(string id) : base(id, "鼠标左键")
+    public MouseLeftClickNodeViewModel(string id) : base(id, "鼠标点击")
     {
         AddInput("exec_in", "执行输入", PinKind.Execution);
         AddInput("position", "点击位置", PinKind.Vector2D);
@@ -20,9 +21,9 @@ public sealed class MouseLeftClickNodeViewModel : NodeBaseViewModel
         RefreshDescription();
     }
 
-    public override NodeKind NodeKind => NodeKind.MouseLeftClick;
+    public override NodeKind NodeKind => NodeKind.MouseClick;
 
-    public override string NodeTypeKey => "mouse_left_click";
+    public override string NodeTypeKey => "mouse_click";
 
     public MouseClickMode ClickMode
     {
@@ -31,7 +32,18 @@ public sealed class MouseLeftClickNodeViewModel : NodeBaseViewModel
         {
             if (SetProperty(ref _clickMode, value))
             {
-                OnPropertyChanged(nameof(IsHoldDurationEnabled));
+                RefreshDescription();
+            }
+        }
+    }
+
+    public MouseButton MouseButton
+    {
+        get => _mouseButton;
+        set
+        {
+            if (SetProperty(ref _mouseButton, value))
+            {
                 RefreshDescription();
             }
         }
@@ -61,26 +73,17 @@ public sealed class MouseLeftClickNodeViewModel : NodeBaseViewModel
         }
     }
 
-    public int HoldDurationMs
-    {
-        get => _holdDurationMs;
-        set
-        {
-            int clamped = Math.Max(0, value);
-            if (SetProperty(ref _holdDurationMs, clamped))
-            {
-                RefreshDescription();
-            }
-        }
-    }
-
-    public bool IsHoldDurationEnabled => ClickMode == MouseClickMode.Hold;
-
     public override void RefreshDescription()
     {
         string modeLabel = ClickMode == MouseClickMode.SingleClick ? "单击" : "长按";
-        string durationLabel = ClickMode == MouseClickMode.SingleClick ? "无" : $"{HoldDurationMs}ms";
-        Description = $"模式：{modeLabel}\n位置：({PositionX:0}, {PositionY:0})\n时长：{durationLabel}\n输出：bool";
+        string buttonLabel = MouseButton switch
+        {
+            MouseButton.Left => "左键",
+            MouseButton.Right => "右键",
+            MouseButton.XButton1 => "侧键1",
+            MouseButton.XButton2 => "侧键2",
+            _ => "左键",
+        };
+        Description = $"按键：{buttonLabel}\n模式：{modeLabel}\n位置：({PositionX:0}, {PositionY:0})\n输出：bool";
     }
 }
-

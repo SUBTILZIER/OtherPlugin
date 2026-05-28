@@ -36,6 +36,10 @@ public sealed class NodeFileModel
     public double PositionY { get; set; }
 
     public int HoldDurationMs { get; set; } = 600;
+
+    public int DelayMs { get; set; }
+
+    public string? MouseButton { get; set; }
 }
 
 public sealed class ConnectionFileModel

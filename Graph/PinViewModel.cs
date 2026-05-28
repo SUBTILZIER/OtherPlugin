@@ -1,5 +1,8 @@
-using System.Windows;
-using System.Windows.Media;
+using Point = System.Windows.Point;
+using Brush = System.Windows.Media.Brush;
+using Brushes = System.Windows.Media.Brushes;
+using SolidColorBrush = System.Windows.Media.SolidColorBrush;
+using Color = System.Windows.Media.Color;
 
 namespace AutomationStudioWpf.Graph;
 
