@@ -40,6 +40,7 @@ public enum PressReleaseMode
 {
     Press,
     Release,
+    Click,
 }
 
 public enum ScrollWheelAction

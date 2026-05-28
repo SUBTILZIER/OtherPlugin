@@ -53,7 +53,13 @@ public sealed class MouseClickNodeViewModel : InputNodeBase
 
     public override void RefreshDescription()
     {
-        string modeLabel = OperationMode == PressReleaseMode.Press ? "按下" : "抬起";
+        string modeLabel = OperationMode switch
+        {
+            PressReleaseMode.Press => "按下",
+            PressReleaseMode.Release => "抬起",
+            PressReleaseMode.Click => "点击",
+            _ => "按下",
+        };
         string buttonLabel = MouseButton switch
         {
             MouseButton.Left => "左键",

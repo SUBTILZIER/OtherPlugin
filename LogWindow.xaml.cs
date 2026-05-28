@@ -1,5 +1,4 @@
 using System.Collections.Specialized;
-using System.Text;
 using System.Windows;
 using AutomationStudioWpf.Logging;
 
@@ -11,35 +10,49 @@ public partial class LogWindow : Window
     {
         InitializeComponent();
         LogDirText.Text = $"日志目录：{Logger.GetLogDirectory()}";
-        RebuildText();
+        RefreshLogList();
         Logger.Entries.CollectionChanged += OnEntriesChanged;
         Closed += (_, _) => Logger.Entries.CollectionChanged -= OnEntriesChanged;
     }
 
     private void OnEntriesChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
-        RebuildText();
+        RefreshLogList();
     }
 
-    private void RebuildText()
+    private void RefreshLogList()
     {
-        StringBuilder sb = new();
-        foreach (LogEntry entry in Logger.Entries)
-        {
-            sb.AppendLine($"[{entry.Timestamp}] [{entry.Level}] {entry.Message}");
-        }
-        LogTextBox.Text = sb.ToString();
-        LogTextBox.ScrollToEnd();
+        if (LogListBox is null) return;
+        List<LogEntry> filtered = LoggingModule.Filter(Logger.Entries).ToList();
+        LogListBox.ItemsSource = filtered;
+        if (filtered.Count > 0)
+            LogListBox.ScrollIntoView(filtered[^1]);
+    }
+
+    private void FilterRadio_Checked(object sender, RoutedEventArgs e)
+    {
+        if (FilterAllRadio.IsChecked == true)
+            LoggingModule.FilterLevel = null;
+        else if (FilterInfoRadio.IsChecked == true)
+            LoggingModule.FilterLevel = LogLevel.Info;
+        else if (FilterWarnRadio.IsChecked == true)
+            LoggingModule.FilterLevel = LogLevel.Warn;
+        else if (FilterErrorRadio.IsChecked == true)
+            LoggingModule.FilterLevel = LogLevel.Error;
+
+        RefreshLogList();
     }
 
     private void CopyAll_Click(object sender, RoutedEventArgs e)
     {
-        System.Windows.Clipboard.SetText(LogTextBox.Text);
+        var text = string.Join(Environment.NewLine,
+            LoggingModule.Filter(Logger.Entries).Select(e => e.DisplayText));
+        System.Windows.Clipboard.SetText(text);
     }
 
     private void Clear_Click(object sender, RoutedEventArgs e)
     {
         Logger.Entries.Clear();
-        LogTextBox.Text = string.Empty;
+        LogListBox.ItemsSource = null;
     }
 }

@@ -15,11 +15,18 @@ public static class Logger
         Directory.CreateDirectory(LogDir);
     }
 
-    public static void Info(string message) => Write("INFO", message);
-    public static void Error(string message) => Write("ERROR", message);
-    public static void Warn(string message) => Write("WARN", message);
+    public static void Info(string message) => Write(LogLevel.Info, message);
+    public static void Error(string message) => Write(LogLevel.Error, message);
+    public static void Warn(string message) => Write(LogLevel.Warn, message);
 
-    private static void Write(string level, string message)
+    private static string LevelLabel(LogLevel level) => level switch
+    {
+        LogLevel.Warn => "WARN",
+        LogLevel.Error => "ERROR",
+        _ => "INFO",
+    };
+
+    private static void Write(LogLevel level, string message)
     {
         string timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff");
         LogEntry entry = new(timestamp, level, message);
@@ -30,7 +37,7 @@ public static class Logger
             try
             {
                 string logFile = Path.Combine(LogDir, $"Log_{DateTime.Now:yyyy_MM_dd_HH_mm}.txt");
-                File.AppendAllText(logFile, $"[{entry.Timestamp}] [{entry.Level}] {entry.Message}{Environment.NewLine}");
+                File.AppendAllText(logFile, $"[{entry.Timestamp}] [{LevelLabel(entry.Level)}] {entry.Message}{Environment.NewLine}");
             }
             catch
             {
@@ -44,5 +51,3 @@ public static class Logger
 
     public static string GetLogDirectory() => LogDir;
 }
-
-public record LogEntry(string Timestamp, string Level, string Message);

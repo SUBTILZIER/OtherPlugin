@@ -15,7 +15,7 @@ public sealed class GraphRuntimeExecutor
     private readonly HashSet<byte> _pressedKeys = [];
     public GraphExecutionResult Execute(GraphExecutionPlan plan, string baseDirectory, CancellationToken ct = default)
     {
-        Logger.Info("===== 开始执行图谱 =====");
+        Logger.Info("--------开始执行---------");
         GraphRuntimeNode? startNode = plan.Nodes.FirstOrDefault(node => node.NodeKind == NodeKind.Start);
         if (startNode is null)
         {
@@ -24,7 +24,9 @@ public sealed class GraphRuntimeExecutor
         }
 
         Dictionary<string, object> context = [];
-        return ExecuteChain(plan, startNode.Id, "exec_out", context, baseDirectory, [], ct);
+        GraphExecutionResult result = ExecuteChain(plan, startNode.Id, "exec_out", context, baseDirectory, [], ct);
+        Logger.Info("--------执行结束---------");
+        return result;
     }
 
     private GraphExecutionResult ExecuteChain(GraphExecutionPlan plan, string startNodeId, string startPinName,
@@ -168,16 +170,32 @@ public sealed class GraphRuntimeExecutor
             MouseButton.XButton1 => "侧键1", MouseButton.XButton2 => "侧键2",
             _ => "左键",
         };
-        string modeLabel = node.OperationMode == PressReleaseMode.Press ? "按下" : "抬起";
+        string modeLabel = node.OperationMode switch
+        {
+            PressReleaseMode.Press => "按下",
+            PressReleaseMode.Release => "抬起",
+            PressReleaseMode.Click => "点击",
+            _ => "点击",
+        };
         Logger.Info($"鼠标点击：{buttonLabel} {modeLabel} ({targetPoint.X},{targetPoint.Y})");
 
         SetCursorPos(targetPoint.X, targetPoint.Y);
         (uint downFlag, uint upFlag, uint xButtonData) = GetMouseEventFlags(node.MouseButton);
 
-        if (node.OperationMode == PressReleaseMode.Press)
-            mouse_event(downFlag, 0, 0, xButtonData, UIntPtr.Zero);
-        else
-            mouse_event(upFlag, 0, 0, xButtonData, UIntPtr.Zero);
+        switch (node.OperationMode)
+        {
+            case PressReleaseMode.Click:
+                mouse_event(downFlag, 0, 0, xButtonData, UIntPtr.Zero);
+                Thread.Sleep(50);
+                mouse_event(upFlag, 0, 0, xButtonData, UIntPtr.Zero);
+                break;
+            case PressReleaseMode.Press:
+                mouse_event(downFlag, 0, 0, xButtonData, UIntPtr.Zero);
+                break;
+            case PressReleaseMode.Release:
+                mouse_event(upFlag, 0, 0, xButtonData, UIntPtr.Zero);
+                break;
+        }
 
         context[$"{node.Id}:result"] = true;
         Logger.Info($"鼠标点击完成：{buttonLabel} {modeLabel}");

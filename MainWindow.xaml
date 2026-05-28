@@ -4,6 +4,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:graph="clr-namespace:AutomationStudioWpf.Graph"
+        xmlns:logging="clr-namespace:AutomationStudioWpf.Logging"
         mc:Ignorable="d"
         Title="自动化蓝图编辑器"
         Width="1680"
@@ -527,6 +528,7 @@
                                       SelectionChanged="InspectorField_SelectionChanged">
                                 <ComboBoxItem Content="按下" Tag="Press" />
                                 <ComboBoxItem Content="抬起" Tag="Release" />
+                                <ComboBoxItem Content="点击" Tag="Click" />
                             </ComboBox>
 
                             <TextBlock Text="点击位置 X" Foreground="White" />
@@ -655,18 +657,58 @@
                 BorderBrush="#2E3440" BorderThickness="0,1,0,0">
             <DockPanel>
                 <StackPanel DockPanel.Dock="Top" Orientation="Horizontal"
-                            Background="#20242B" Height="24">
+                            Background="#20242B" Height="26">
                     <TextBlock Text="日志" Foreground="White" FontWeight="SemiBold"
                                Margin="10,0,0,0" VerticalAlignment="Center" FontSize="12" />
                     <TextBlock x:Name="StatusTextBlock" Foreground="#7A8797"
                                Margin="16,0,0,0" VerticalAlignment="Center" FontSize="11" />
+                    <Border Margin="10,0,0,0" Background="#2E3440" Height="18" VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal">
+                            <RadioButton x:Name="FilterAllRadio" Content="无" IsChecked="True"
+                                         Checked="FilterRadio_Checked"
+                                         Margin="4,0" Padding="6,0" FontSize="11"
+                                         Foreground="#D0D7E2" />
+                            <RadioButton x:Name="FilterInfoRadio" Content="普通"
+                                         Checked="FilterRadio_Checked"
+                                         Margin="4,0" Padding="6,0" FontSize="11"
+                                         Foreground="#D0D7E2" />
+                            <RadioButton x:Name="FilterWarnRadio" Content="警告"
+                                         Checked="FilterRadio_Checked"
+                                         Margin="4,0" Padding="6,0" FontSize="11"
+                                         Foreground="#FFD700" />
+                            <RadioButton x:Name="FilterErrorRadio" Content="错误"
+                                         Checked="FilterRadio_Checked"
+                                         Margin="4,0" Padding="6,0" FontSize="11"
+                                         Foreground="#FF6B6B" />
+                        </StackPanel>
+                    </Border>
                     <Button Content="清空" Click="ClearLog_Click" Margin="8,2,8,2"
                             Padding="8,2" Height="20" FontSize="11" />
                 </StackPanel>
-                <TextBox x:Name="LogTextBox" Background="#11151A" Foreground="#D0D7E2"
-                         BorderThickness="0" FontFamily="Consolas" FontSize="11"
-                         IsReadOnly="True" VerticalScrollBarVisibility="Auto"
-                         TextWrapping="NoWrap" />
+                <ListBox x:Name="LogListBox" Background="#11151A" BorderThickness="0"
+                         VirtualizingStackPanel.IsVirtualizing="True"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock TextWrapping="NoWrap" FontFamily="Consolas" FontSize="11"
+                                       Text="{Binding DisplayText}">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="#D0D7E2" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Level}" Value="{x:Static logging:LogLevel.Warn}">
+                                                <Setter Property="Foreground" Value="#FFD700" />
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding Level}" Value="{x:Static logging:LogLevel.Error}">
+                                                <Setter Property="Foreground" Value="#FF6B6B" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
             </DockPanel>
         </Border>
     </Grid>

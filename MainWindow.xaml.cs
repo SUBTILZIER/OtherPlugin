@@ -63,23 +63,37 @@ public partial class MainWindow : Window
         InitializeComponent();
         GraphSurface.LayoutTransform = _zoomTransform;
         Closing += (_, _) => _runtimeExecutor.ReleaseAllKeys();
-        Logger.Entries.CollectionChanged += (_, _) => RefreshLogTextBox();
+        Logger.Entries.CollectionChanged += (_, _) => RefreshLogList();
         SeedDemoGraph();
     }
 
-    private void RefreshLogTextBox()
+    private void RefreshLogList()
     {
-        StringBuilder sb = new();
-        foreach (LogEntry entry in Logger.Entries)
-            sb.AppendLine($"[{entry.Timestamp}] [{entry.Level}] {entry.Message}");
-        LogTextBox.Text = sb.ToString();
-        LogTextBox.ScrollToEnd();
+        if (LogListBox is null) return;
+        List<LogEntry> filtered = LoggingModule.Filter(Logger.Entries).ToList();
+        LogListBox.ItemsSource = filtered;
+        if (filtered.Count > 0)
+            LogListBox.ScrollIntoView(filtered[^1]);
+    }
+
+    private void FilterRadio_Checked(object sender, RoutedEventArgs e)
+    {
+        if (FilterAllRadio.IsChecked == true)
+            LoggingModule.FilterLevel = null;
+        else if (FilterInfoRadio.IsChecked == true)
+            LoggingModule.FilterLevel = LogLevel.Info;
+        else if (FilterWarnRadio.IsChecked == true)
+            LoggingModule.FilterLevel = LogLevel.Warn;
+        else if (FilterErrorRadio.IsChecked == true)
+            LoggingModule.FilterLevel = LogLevel.Error;
+
+        RefreshLogList();
     }
 
     private void ClearLog_Click(object sender, RoutedEventArgs e)
     {
         Logger.Entries.Clear();
-        LogTextBox.Text = string.Empty;
+        LogListBox.ItemsSource = null;
     }
 
     public ObservableCollection<NodeBaseViewModel> Nodes { get; } = [];
@@ -1198,7 +1212,13 @@ public partial class MainWindow : Window
             MousePositionYTextBox.IsEnabled = !hasPositionInput;
             MousePositionXTextBox.Text = hasPositionInput ? "来自前置节点" : mouseNode.PositionX.ToString("0.##");
             MousePositionYTextBox.Text = hasPositionInput ? "来自前置节点" : mouseNode.PositionY.ToString("0.##");
-            MouseClickOperationModeComboBox.SelectedIndex = mouseNode.OperationMode == PressReleaseMode.Press ? 0 : 1;
+            MouseClickOperationModeComboBox.SelectedIndex = mouseNode.OperationMode switch
+            {
+                PressReleaseMode.Press => 0,
+                PressReleaseMode.Release => 1,
+                PressReleaseMode.Click => 2,
+                _ => 0,
+            };
             MouseButtonComboBox.SelectedIndex = mouseNode.MouseButton switch
             {
                 MouseButton.Left => 0,
@@ -1285,8 +1305,12 @@ public partial class MainWindow : Window
         }
         else if (_selectedNode is MouseClickNodeViewModel mouseNode)
         {
-            mouseNode.OperationMode = MouseClickOperationModeComboBox.SelectedIndex == 1
-                ? PressReleaseMode.Release : PressReleaseMode.Press;
+            mouseNode.OperationMode = MouseClickOperationModeComboBox.SelectedIndex switch
+            {
+                1 => PressReleaseMode.Release,
+                2 => PressReleaseMode.Click,
+                _ => PressReleaseMode.Press,
+            };
             mouseNode.MouseButton = MouseButtonComboBox.SelectedIndex switch
             {
                 1 => MouseButton.Right,
