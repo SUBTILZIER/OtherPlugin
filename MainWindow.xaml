@@ -22,10 +22,14 @@
             <Button Content="保存图谱" Margin="2" Padding="10,4" Click="SaveGraph_Click" />
             <Button Content="执行图谱" Margin="2" Padding="10,4" Click="RunGraph_Click" />
             <Separator />
-            <Button Content="添加找图节点" Margin="2" Padding="10,4" Click="AddFindImageNode_Click" />
             <Button Content="添加鼠标点击节点" Margin="2" Padding="10,4" Click="AddMouseLeftNode_Click" />
+            <Button Content="添加键盘节点" Margin="2" Padding="10,4" Click="AddKeyboardNode_Click" />
+            <Button Content="添加滚轮节点" Margin="2" Padding="10,4" Click="AddScrollWheelNode_Click" />
             <Button Content="添加延迟节点" Margin="2" Padding="10,4" Click="AddDelayNode_Click" />
+            <Separator />
+            <Button Content="添加找图节点" Margin="2" Padding="10,4" Click="AddFindImageNode_Click" />
             <Button Content="添加鼠标移动节点" Margin="2" Padding="10,4" Click="AddMouseMoveNode_Click" />
+            <Separator />
             <Button Content="删除所选节点" Margin="2" Padding="10,4" Click="DeleteSelectedNode_Click" />
             <Separator />
             <Button Content="清除待连接引脚" Margin="2" Padding="10,4" Click="ClearPendingConnection_Click" />
@@ -60,30 +64,53 @@
                     BorderBrush="#303744"
                     BorderThickness="1"
                     CornerRadius="8">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
                 <StackPanel>
                     <TextBlock Text="节点工具箱"
                                Foreground="White"
                                FontSize="18"
                                FontWeight="Bold" />
                     <TextBlock Margin="0,6,0,14"
-                               Text="当前基础节点：找图、鼠标点击、延迟、鼠标移动。后续可按同样结构继续扩展。"
+                               Text="模块化节点分类。后续可按同样结构继续扩展。"
                                TextWrapping="Wrap"
                                Foreground="#B7C0CD" />
 
-                    <Button Content="添加找图节点"
-                            Margin="0,0,0,8"
-                            Padding="10,8"
-                            Click="AddFindImageNode_Click" />
+                    <TextBlock Text="输入节点"
+                               Foreground="White"
+                               FontWeight="SemiBold"
+                               Margin="0,0,0,6" />
                     <Button Content="添加鼠标点击节点"
-                            Margin="0,0,0,18"
+                            Margin="0,0,0,6"
                             Padding="10,8"
                             Click="AddMouseLeftNode_Click" />
+                    <Button Content="添加键盘节点"
+                            Margin="0,0,0,6"
+                            Padding="10,8"
+                            Click="AddKeyboardNode_Click" />
+                    <Button Content="添加滚轮节点"
+                            Margin="0,0,0,14"
+                            Padding="10,8"
+                            Click="AddScrollWheelNode_Click" />
+
+                    <TextBlock Text="逻辑节点"
+                               Foreground="White"
+                               FontWeight="SemiBold"
+                               Margin="0,0,0,6" />
                     <Button Content="添加延迟节点"
-                            Margin="0,0,0,8"
+                            Margin="0,0,0,14"
                             Padding="10,8"
                             Click="AddDelayNode_Click" />
+
+                    <TextBlock Text="插件节点"
+                               Foreground="White"
+                               FontWeight="SemiBold"
+                               Margin="0,0,0,6" />
+                    <Button Content="添加找图节点"
+                            Margin="0,0,0,6"
+                            Padding="10,8"
+                            Click="AddFindImageNode_Click" />
                     <Button Content="添加鼠标移动节点"
-                            Margin="0,0,0,18"
+                            Margin="0,0,0,14"
                             Padding="10,8"
                             Click="AddMouseMoveNode_Click" />
 
@@ -121,6 +148,7 @@
                                Foreground="#D0D7E2"
                                TextWrapping="Wrap" />
                 </StackPanel>
+                </ScrollViewer>
             </Border>
 
             <Border Grid.Column="1"
@@ -454,12 +482,12 @@
                                 <ComboBoxItem Content="侧键2" Tag="XButton2" />
                             </ComboBox>
 
-                            <TextBlock Text="点击模式" Foreground="White" />
-                            <ComboBox x:Name="MouseClickModeComboBox"
+                            <TextBlock Text="操作模式" Foreground="White" />
+                            <ComboBox x:Name="MouseClickOperationModeComboBox"
                                       Margin="0,4,0,12"
                                       SelectionChanged="InspectorField_SelectionChanged">
-                                <ComboBoxItem Content="单击" Tag="SingleClick" />
-                                <ComboBoxItem Content="长按" Tag="Hold" />
+                                <ComboBoxItem Content="按下" Tag="Press" />
+                                <ComboBoxItem Content="抬起" Tag="Release" />
                             </ComboBox>
 
                             <TextBlock Text="点击位置 X" Foreground="White" />
@@ -487,6 +515,43 @@
                             <TextBox x:Name="DelayMsTextBox"
                                      Margin="0,4,0,12"
                                      TextChanged="InspectorField_TextChanged" />
+                        </StackPanel>
+
+                        <StackPanel x:Name="KeyboardInspectorPanel"
+                                    Visibility="Collapsed">
+                            <TextBlock Text="按键" Foreground="White" />
+                            <ComboBox x:Name="KeyboardKeyComboBox"
+                                      Margin="0,4,0,12"
+                                      SelectionChanged="InspectorField_SelectionChanged" />
+
+                            <TextBlock Text="操作模式" Foreground="White" />
+                            <ComboBox x:Name="KeyboardOperationModeComboBox"
+                                      Margin="0,4,0,12"
+                                      SelectionChanged="InspectorField_SelectionChanged">
+                                <ComboBoxItem Content="按下" Tag="Press" />
+                                <ComboBoxItem Content="抬起" Tag="Release" />
+                            </ComboBox>
+                        </StackPanel>
+
+                        <StackPanel x:Name="ScrollWheelInspectorPanel"
+                                    Visibility="Collapsed">
+                            <TextBlock Text="滚轮动作" Foreground="White" />
+                            <ComboBox x:Name="ScrollWheelActionComboBox"
+                                      Margin="0,4,0,12"
+                                      SelectionChanged="InspectorField_SelectionChanged">
+                                <ComboBoxItem Content="中键按下" Tag="Press" />
+                                <ComboBoxItem Content="中键抬起" Tag="Release" />
+                                <ComboBoxItem Content="向前滚动" Tag="ScrollForward" />
+                                <ComboBoxItem Content="向后滚动" Tag="ScrollBackward" />
+                            </ComboBox>
+
+                            <TextBlock Text="滚动速度" Foreground="White" />
+                            <TextBox x:Name="ScrollWheelSpeedTextBox"
+                                     Margin="0,4,0,12"
+                                     TextChanged="InspectorField_TextChanged" />
+                            <TextBlock Text="120 = 一个滚轮刻度，数值越大滚动越快。"
+                                       Foreground="#A7B1BF"
+                                       TextWrapping="Wrap" />
                         </StackPanel>
 
                         <StackPanel x:Name="MouseMoveInspectorPanel"

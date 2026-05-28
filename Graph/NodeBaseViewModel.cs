@@ -91,6 +91,8 @@ public abstract class NodeBaseViewModel : ObservableObject
         NodeKind.MouseClick => new SolidColorBrush(Color.FromRgb(148, 90, 40)),
         NodeKind.Delay => new SolidColorBrush(Color.FromRgb(94, 58, 153)),
         NodeKind.MouseMove => new SolidColorBrush(Color.FromRgb(35, 120, 91)),
+        NodeKind.Keyboard => new SolidColorBrush(Color.FromRgb(200, 130, 60)),
+        NodeKind.ScrollWheel => new SolidColorBrush(Color.FromRgb(160, 110, 180)),
         _ => new SolidColorBrush(Color.FromRgb(70, 70, 70)),
     };
 

@@ -80,10 +80,11 @@ public partial class MainWindow : Window
             Y = 180,
         };
 
-        MouseLeftClickNodeViewModel mouseNode = new(CreateNodeId())
+        MouseClickNodeViewModel mouseNode = new(CreateNodeId())
         {
             Title = "鼠标点击：点击目标",
-            ClickMode = MouseClickMode.SingleClick,
+            OperationMode = PressReleaseMode.Press,
+            MouseButton = MouseButton.Left,
             PositionX = 1280,
             PositionY = 720,
             X = 790,
@@ -133,9 +134,9 @@ public partial class MainWindow : Window
 
     private void AddMouseLeftNode_Click(object sender, RoutedEventArgs e)
     {
-        MouseLeftClickNodeViewModel node = new(CreateNodeId())
+        MouseClickNodeViewModel node = new(CreateNodeId())
         {
-            Title = "鼠标左键节点",
+            Title = "鼠标点击节点",
             X = 320 + Nodes.Count * 40,
             Y = 220 + Nodes.Count * 30,
         };
@@ -143,6 +144,34 @@ public partial class MainWindow : Window
         SelectNode(node);
         EnsureCanvasLargeEnough();
         SetStatus("已添加鼠标点击节点。");
+    }
+
+    private void AddKeyboardNode_Click(object sender, RoutedEventArgs e)
+    {
+        KeyboardNodeViewModel node = new(CreateNodeId())
+        {
+            Title = "键盘节点",
+            X = 340 + Nodes.Count * 40,
+            Y = 240 + Nodes.Count * 30,
+        };
+        Nodes.Add(node);
+        SelectNode(node);
+        EnsureCanvasLargeEnough();
+        SetStatus("已添加键盘节点。");
+    }
+
+    private void AddScrollWheelNode_Click(object sender, RoutedEventArgs e)
+    {
+        ScrollWheelNodeViewModel node = new(CreateNodeId())
+        {
+            Title = "滚轮节点",
+            X = 360 + Nodes.Count * 40,
+            Y = 260 + Nodes.Count * 30,
+        };
+        Nodes.Add(node);
+        SelectNode(node);
+        EnsureCanvasLargeEnough();
+        SetStatus("已添加滚轮节点。");
     }
 
     private void AddDelayNode_Click(object sender, RoutedEventArgs e)
@@ -304,15 +333,31 @@ public partial class MainWindow : Window
                     ImagePath = nodeFile.ImagePath ?? string.Empty,
                     SimilarityThresholdPercent = nodeFile.SimilarityThresholdPercent,
                 },
-                "mouse_left_click" or "mouse_click" => new MouseLeftClickNodeViewModel(nodeFile.Id)
+                "mouse_left_click" or "mouse_click" => new MouseClickNodeViewModel(nodeFile.Id)
                 {
                     Title = nodeFile.Title,
                     X = nodeFile.X,
                     Y = nodeFile.Y,
-                    ClickMode = Enum.TryParse(nodeFile.ClickMode, true, out MouseClickMode mode) ? mode : MouseClickMode.SingleClick,
+                    OperationMode = DeserializeOperationMode(nodeFile.OperationMode, nodeFile.ClickMode),
                     MouseButton = Enum.TryParse(nodeFile.MouseButton, true, out MouseButton button) ? button : MouseButton.Left,
                     PositionX = nodeFile.PositionX,
                     PositionY = nodeFile.PositionY,
+                },
+                "keyboard" => new KeyboardNodeViewModel(nodeFile.Id)
+                {
+                    Title = nodeFile.Title,
+                    X = nodeFile.X,
+                    Y = nodeFile.Y,
+                    OperationMode = Enum.TryParse(nodeFile.OperationMode, true, out PressReleaseMode kbdMode) ? kbdMode : PressReleaseMode.Press,
+                    Key = nodeFile.Key ?? "A",
+                },
+                "scroll_wheel" => new ScrollWheelNodeViewModel(nodeFile.Id)
+                {
+                    Title = nodeFile.Title,
+                    X = nodeFile.X,
+                    Y = nodeFile.Y,
+                    ScrollAction = Enum.TryParse(nodeFile.ScrollAction, true, out ScrollWheelAction sa) ? sa : ScrollWheelAction.ScrollForward,
+                    ScrollSpeed = nodeFile.ScrollSpeed > 0 ? nodeFile.ScrollSpeed : 120,
                 },
                 "delay" => new DelayNodeViewModel(nodeFile.Id)
                 {
@@ -368,6 +413,17 @@ public partial class MainWindow : Window
         SelectNode(Nodes.FirstOrDefault());
     }
 
+    private static PressReleaseMode DeserializeOperationMode(string? newMode, string? oldMode)
+    {
+        if (Enum.TryParse<PressReleaseMode>(newMode, true, out var mode))
+            return mode;
+
+        if (!string.IsNullOrWhiteSpace(oldMode))
+            return PressReleaseMode.Press;
+
+        return PressReleaseMode.Press;
+    }
+
     private static NodeFileModel ToFileModel(NodeBaseViewModel node)
     {
         NodeFileModel file = new()
@@ -384,12 +440,22 @@ public partial class MainWindow : Window
             file.ImagePath = findImage.ImagePath;
             file.SimilarityThresholdPercent = findImage.SimilarityThresholdPercent;
         }
-        else if (node is MouseLeftClickNodeViewModel mouseNode)
+        else if (node is MouseClickNodeViewModel mouseNode)
         {
-            file.ClickMode = mouseNode.ClickMode.ToString();
+            file.OperationMode = mouseNode.OperationMode.ToString();
             file.PositionX = mouseNode.PositionX;
             file.PositionY = mouseNode.PositionY;
             file.MouseButton = mouseNode.MouseButton.ToString();
+        }
+        else if (node is KeyboardNodeViewModel keyboardNode)
+        {
+            file.OperationMode = keyboardNode.OperationMode.ToString();
+            file.Key = keyboardNode.Key;
+        }
+        else if (node is ScrollWheelNodeViewModel scrollNode)
+        {
+            file.ScrollAction = scrollNode.ScrollAction.ToString();
+            file.ScrollSpeed = scrollNode.ScrollSpeed;
         }
         else if (node is DelayNodeViewModel delayNode)
         {
@@ -910,6 +976,8 @@ public partial class MainWindow : Window
             NodeTitleTextBox.Text = string.Empty;
             FindImageInspectorPanel.Visibility = Visibility.Collapsed;
             MouseLeftInspectorPanel.Visibility = Visibility.Collapsed;
+            KeyboardInspectorPanel.Visibility = Visibility.Collapsed;
+            ScrollWheelInspectorPanel.Visibility = Visibility.Collapsed;
             DelayInspectorPanel.Visibility = Visibility.Collapsed;
             MouseMoveInspectorPanel.Visibility = Visibility.Collapsed;
             InspectorHintTextBlock.Text = "请选择一个节点进行编辑。";
@@ -923,7 +991,9 @@ public partial class MainWindow : Window
         InspectorHintTextBlock.Text = $"当前选中：{node.Title}";
 
         FindImageInspectorPanel.Visibility = node is FindImageNodeViewModel ? Visibility.Visible : Visibility.Collapsed;
-        MouseLeftInspectorPanel.Visibility = node is MouseLeftClickNodeViewModel ? Visibility.Visible : Visibility.Collapsed;
+        MouseLeftInspectorPanel.Visibility = node is MouseClickNodeViewModel ? Visibility.Visible : Visibility.Collapsed;
+        KeyboardInspectorPanel.Visibility = node is KeyboardNodeViewModel ? Visibility.Visible : Visibility.Collapsed;
+        ScrollWheelInspectorPanel.Visibility = node is ScrollWheelNodeViewModel ? Visibility.Visible : Visibility.Collapsed;
         DelayInspectorPanel.Visibility = node is DelayNodeViewModel ? Visibility.Visible : Visibility.Collapsed;
         MouseMoveInspectorPanel.Visibility = node is MouseMoveNodeViewModel ? Visibility.Visible : Visibility.Collapsed;
 
@@ -933,11 +1003,11 @@ public partial class MainWindow : Window
             FindImageThresholdTextBox.Text = findImage.SimilarityThresholdPercent.ToString();
         }
 
-        if (node is MouseLeftClickNodeViewModel mouseNode)
+        if (node is MouseClickNodeViewModel mouseNode)
         {
             MousePositionXTextBox.Text = mouseNode.PositionX.ToString("0.##");
             MousePositionYTextBox.Text = mouseNode.PositionY.ToString("0.##");
-            MouseClickModeComboBox.SelectedIndex = mouseNode.ClickMode == MouseClickMode.SingleClick ? 0 : 1;
+            MouseClickOperationModeComboBox.SelectedIndex = mouseNode.OperationMode == PressReleaseMode.Press ? 0 : 1;
             MouseButtonComboBox.SelectedIndex = mouseNode.MouseButton switch
             {
                 MouseButton.Left => 0,
@@ -946,6 +1016,25 @@ public partial class MainWindow : Window
                 MouseButton.XButton2 => 3,
                 _ => 0,
             };
+        }
+
+        if (node is KeyboardNodeViewModel keyboardNode)
+        {
+            PopulateKeyboardKeyComboBox(keyboardNode.Key);
+            KeyboardOperationModeComboBox.SelectedIndex = keyboardNode.OperationMode == PressReleaseMode.Press ? 0 : 1;
+        }
+
+        if (node is ScrollWheelNodeViewModel scrollNode)
+        {
+            ScrollWheelActionComboBox.SelectedIndex = scrollNode.ScrollAction switch
+            {
+                ScrollWheelAction.Press => 0,
+                ScrollWheelAction.Release => 1,
+                ScrollWheelAction.ScrollForward => 2,
+                ScrollWheelAction.ScrollBackward => 3,
+                _ => 2,
+            };
+            ScrollWheelSpeedTextBox.Text = scrollNode.ScrollSpeed.ToString();
         }
 
         if (node is DelayNodeViewModel delayNode)
@@ -979,9 +1068,10 @@ public partial class MainWindow : Window
                 findImage.SimilarityThresholdPercent = threshold;
             }
         }
-        else if (_selectedNode is MouseLeftClickNodeViewModel mouseNode)
+        else if (_selectedNode is MouseClickNodeViewModel mouseNode)
         {
-            mouseNode.ClickMode = MouseClickModeComboBox.SelectedIndex == 1 ? MouseClickMode.Hold : MouseClickMode.SingleClick;
+            mouseNode.OperationMode = MouseClickOperationModeComboBox.SelectedIndex == 1
+                ? PressReleaseMode.Release : PressReleaseMode.Press;
             mouseNode.MouseButton = MouseButtonComboBox.SelectedIndex switch
             {
                 1 => MouseButton.Right,
@@ -990,13 +1080,29 @@ public partial class MainWindow : Window
                 _ => MouseButton.Left,
             };
             if (double.TryParse(MousePositionXTextBox.Text.Trim(), out double x))
-            {
                 mouseNode.PositionX = x;
-            }
             if (double.TryParse(MousePositionYTextBox.Text.Trim(), out double y))
-            {
                 mouseNode.PositionY = y;
-            }
+        }
+        else if (_selectedNode is KeyboardNodeViewModel keyboardNode)
+        {
+            keyboardNode.OperationMode = KeyboardOperationModeComboBox.SelectedIndex == 1
+                ? PressReleaseMode.Release : PressReleaseMode.Press;
+            if (KeyboardKeyComboBox.SelectedItem is ComboBoxItem keyItem && keyItem.Tag is string keyStr)
+                keyboardNode.Key = keyStr;
+        }
+        else if (_selectedNode is ScrollWheelNodeViewModel scrollNode)
+        {
+            scrollNode.ScrollAction = ScrollWheelActionComboBox.SelectedIndex switch
+            {
+                0 => ScrollWheelAction.Press,
+                1 => ScrollWheelAction.Release,
+                2 => ScrollWheelAction.ScrollForward,
+                3 => ScrollWheelAction.ScrollBackward,
+                _ => ScrollWheelAction.ScrollForward,
+            };
+            if (int.TryParse(ScrollWheelSpeedTextBox.Text.Trim(), out int speed))
+                scrollNode.ScrollSpeed = Math.Max(0, speed);
         }
         else if (_selectedNode is DelayNodeViewModel delayNode)
         {
@@ -1320,12 +1426,22 @@ public partial class MainWindow : Window
                 ImagePath = source.ImagePath ?? string.Empty,
                 SimilarityThresholdPercent = source.SimilarityThresholdPercent,
             },
-            "mouse_left_click" or "mouse_click" => new MouseLeftClickNodeViewModel(newId)
+            "mouse_left_click" or "mouse_click" => new MouseClickNodeViewModel(newId)
             {
-                ClickMode = Enum.TryParse(source.ClickMode, true, out MouseClickMode mode) ? mode : MouseClickMode.SingleClick,
+                OperationMode = DeserializeOperationMode(source.OperationMode, source.ClickMode),
                 MouseButton = Enum.TryParse(source.MouseButton, true, out MouseButton button) ? button : MouseButton.Left,
                 PositionX = source.PositionX,
                 PositionY = source.PositionY,
+            },
+            "keyboard" => new KeyboardNodeViewModel(newId)
+            {
+                OperationMode = Enum.TryParse(source.OperationMode, true, out PressReleaseMode kbdOpMode) ? kbdOpMode : PressReleaseMode.Press,
+                Key = source.Key ?? "A",
+            },
+            "scroll_wheel" => new ScrollWheelNodeViewModel(newId)
+            {
+                ScrollAction = Enum.TryParse(source.ScrollAction, true, out ScrollWheelAction sa) ? sa : ScrollWheelAction.ScrollForward,
+                ScrollSpeed = source.ScrollSpeed > 0 ? source.ScrollSpeed : 120,
             },
             "delay" => new DelayNodeViewModel(newId)
             {
@@ -1382,13 +1498,23 @@ public partial class MainWindow : Window
                     findImageNode.Title,
                     findImageNode.ImagePath,
                     findImageNode.SimilarityThresholdPercent),
-                MouseLeftClickNodeViewModel mouseNode => GraphRuntimeNode.ForMouseLeftClick(
+                MouseClickNodeViewModel mouseNode => GraphRuntimeNode.ForMouseClick(
                     mouseNode.Id,
                     mouseNode.Title,
-                    mouseNode.ClickMode,
+                    mouseNode.OperationMode,
                     mouseNode.MouseButton,
                     mouseNode.PositionX,
                     mouseNode.PositionY),
+                KeyboardNodeViewModel keyboardNode => GraphRuntimeNode.ForKeyboard(
+                    keyboardNode.Id,
+                    keyboardNode.Title,
+                    keyboardNode.OperationMode,
+                    keyboardNode.Key),
+                ScrollWheelNodeViewModel scrollNode => GraphRuntimeNode.ForScrollWheel(
+                    scrollNode.Id,
+                    scrollNode.Title,
+                    scrollNode.ScrollAction,
+                    scrollNode.ScrollSpeed),
                 DelayNodeViewModel delayNode => GraphRuntimeNode.ForDelay(
                     delayNode.Id,
                     delayNode.Title,
@@ -1430,6 +1556,34 @@ public partial class MainWindow : Window
         ConnectionViewModel connection = Connections[index];
         Connections.RemoveAt(index);
         connection.Dispose();
+    }
+
+    private void PopulateKeyboardKeyComboBox(string selectedKey)
+    {
+        KeyboardKeyComboBox.Items.Clear();
+        string[] keys =
+        {
+            "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M",
+            "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z",
+            "D0", "D1", "D2", "D3", "D4", "D5", "D6", "D7", "D8", "D9",
+            "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12",
+            "Enter", "Escape", "Space", "Tab", "Backspace",
+            "Shift", "Control", "Alt",
+            "Left", "Up", "Right", "Down",
+            "Insert", "DeleteKey", "Home", "End", "PageUp", "PageDown",
+            "NumPad0", "NumPad1", "NumPad2", "NumPad3", "NumPad4",
+            "NumPad5", "NumPad6", "NumPad7", "NumPad8", "NumPad9",
+            "Add", "Subtract", "Multiply", "Divide",
+            "LWin", "RWin",
+        };
+
+        foreach (string key in keys)
+        {
+            ComboBoxItem item = new() { Content = key, Tag = key };
+            KeyboardKeyComboBox.Items.Add(item);
+            if (key == selectedKey)
+                KeyboardKeyComboBox.SelectedItem = item;
+        }
     }
 
     private void SetStatus(string message)

@@ -40,6 +40,14 @@ public sealed class NodeFileModel
     public int DelayMs { get; set; }
 
     public string? MouseButton { get; set; }
+
+    public string? OperationMode { get; set; }
+
+    public string? Key { get; set; }
+
+    public string? ScrollAction { get; set; }
+
+    public int ScrollSpeed { get; set; } = 120;
 }
 
 public sealed class ConnectionFileModel
