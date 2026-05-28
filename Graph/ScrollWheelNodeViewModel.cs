@@ -4,6 +4,8 @@ public sealed class ScrollWheelNodeViewModel : NodeBaseViewModel
 {
     private ScrollWheelAction _scrollAction = ScrollWheelAction.ScrollForward;
     private int _scrollSpeed = 120;
+    private int _scrollInterval = 100;
+    private int _scrollDuration = 1000;
 
     public ScrollWheelNodeViewModel(string id) : base(id, "滚轮")
     {
@@ -23,7 +25,7 @@ public sealed class ScrollWheelNodeViewModel : NodeBaseViewModel
         {
             if (SetProperty(ref _scrollAction, value))
             {
-                OnPropertyChanged(nameof(IsScrollSpeedVisible));
+                OnPropertyChanged(nameof(IsScrolling));
                 RefreshDescription();
             }
         }
@@ -42,7 +44,33 @@ public sealed class ScrollWheelNodeViewModel : NodeBaseViewModel
         }
     }
 
-    public bool IsScrollSpeedVisible =>
+    public int ScrollInterval
+    {
+        get => _scrollInterval;
+        set
+        {
+            int clamped = Math.Max(1, value);
+            if (SetProperty(ref _scrollInterval, clamped))
+            {
+                RefreshDescription();
+            }
+        }
+    }
+
+    public int ScrollDuration
+    {
+        get => _scrollDuration;
+        set
+        {
+            int clamped = Math.Max(0, value);
+            if (SetProperty(ref _scrollDuration, clamped))
+            {
+                RefreshDescription();
+            }
+        }
+    }
+
+    public bool IsScrolling =>
         ScrollAction == ScrollWheelAction.ScrollForward ||
         ScrollAction == ScrollWheelAction.ScrollBackward;
 
@@ -56,7 +84,9 @@ public sealed class ScrollWheelNodeViewModel : NodeBaseViewModel
             ScrollWheelAction.ScrollBackward => "向后滚动",
             _ => ScrollAction.ToString(),
         };
-        string speedPart = IsScrollSpeedVisible ? $"\n速度：{ScrollSpeed}" : "";
-        Description = $"动作：{actionLabel}{speedPart}\n输出：bool";
+        if (IsScrolling)
+            Description = $"{actionLabel}\n速度 {ScrollSpeed} · 间隔 {ScrollInterval}ms · 持续 {ScrollDuration}ms";
+        else
+            Description = actionLabel;
     }
 }

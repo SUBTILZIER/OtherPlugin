@@ -9,6 +9,10 @@ public enum NodeKind
     MouseMove,
     Keyboard,
     ScrollWheel,
+    Reroute,
+    If,
+    ForLoop,
+    WhileLoop,
 }
 
 public enum PinDirection

@@ -79,7 +79,7 @@ public sealed class PinViewModel : ObservableObject
         SolidColorBrush brush = kind switch
         {
             PinKind.Execution => new SolidColorBrush(Color.FromRgb(244, 244, 244)),
-            PinKind.Boolean => new SolidColorBrush(Color.FromRgb(89, 197, 117)),
+            PinKind.Boolean => new SolidColorBrush(Color.FromRgb(180, 60, 60)),
             PinKind.Vector2D => new SolidColorBrush(Color.FromRgb(88, 188, 255)),
             _ => new SolidColorBrush(Color.FromRgb(190, 190, 190)),
         };

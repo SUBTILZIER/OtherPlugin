@@ -62,6 +62,9 @@ public sealed class MouseClickNodeViewModel : InputNodeBase
             MouseButton.XButton2 => "侧键2",
             _ => "左键",
         };
-        Description = $"按键：{buttonLabel}\n模式：{modeLabel}\n位置：({PositionX:0}, {PositionY:0})\n输出：bool";
+        string posLabel = InputPins.FirstOrDefault(p => p.Name == "position")?.HasConnection == true
+            ? "前置输入"
+            : $"({PositionX:0}, {PositionY:0})";
+        Description = $"{buttonLabel} · {modeLabel}\n{posLabel}";
     }
 }

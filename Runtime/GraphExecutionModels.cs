@@ -47,8 +47,17 @@ public sealed record GraphRuntimeNode(
     public static GraphRuntimeNode ForKeyboard(string id, string title, PressReleaseMode operationMode, string key) =>
         new(id, title, NodeKind.Keyboard, null, 0, operationMode, MouseButton.Left, 0, 0, 0, key, ScrollWheelAction.ScrollForward, 120);
 
-    public static GraphRuntimeNode ForScrollWheel(string id, string title, ScrollWheelAction scrollAction, int scrollSpeed) =>
-        new(id, title, NodeKind.ScrollWheel, null, 0, PressReleaseMode.Press, MouseButton.Left, 0, 0, 0, null, scrollAction, scrollSpeed);
+    public static GraphRuntimeNode ForScrollWheel(string id, string title, ScrollWheelAction scrollAction, int scrollSpeed, int scrollInterval, int scrollDuration) =>
+        new(id, title, NodeKind.ScrollWheel, null, 0, PressReleaseMode.Press, MouseButton.Left, scrollDuration, 0, scrollInterval, null, scrollAction, scrollSpeed);
+
+    public static GraphRuntimeNode ForIf(string id, string title, bool conditionValue) =>
+        new(id, title, NodeKind.If, null, conditionValue ? 100 : 0, PressReleaseMode.Press, MouseButton.Left, 0, 0, 0, null, ScrollWheelAction.ScrollForward, 120);
+
+    public static GraphRuntimeNode ForForLoop(string id, string title, int loopCount) =>
+        new(id, title, NodeKind.ForLoop, null, 0, PressReleaseMode.Press, MouseButton.Left, 0, 0, loopCount, null, ScrollWheelAction.ScrollForward, 120);
+
+    public static GraphRuntimeNode ForWhileLoop(string id, string title, bool conditionValue) =>
+        new(id, title, NodeKind.WhileLoop, null, conditionValue ? 100 : 0, PressReleaseMode.Press, MouseButton.Left, 0, 0, 0, null, ScrollWheelAction.ScrollForward, 120);
 }
 
 public sealed record GraphExecutionResult(bool Success, string Message);

@@ -1,11 +1,13 @@
 using System.Collections.ObjectModel;
 using System.IO;
+using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using AutomationStudioWpf.Graph;
+using AutomationStudioWpf.Logging;
 using AutomationStudioWpf.Runtime;
 using Microsoft.Win32;
 using Point = System.Windows.Point;
@@ -32,10 +34,12 @@ public partial class MainWindow : Window
 {
     private readonly JsonSerializerOptions _jsonOptions = new() { WriteIndented = true };
     private readonly GraphRuntimeExecutor _runtimeExecutor = new();
+    private CancellationTokenSource? _executionCts;
     private string? _currentGraphPath;
     private NodeBaseViewModel? _selectedNode;
     private PinViewModel? _pendingOutputPin;
     private bool _isConnecting;
+    private bool _wireWasDragged;
     private NodeBaseViewModel? _dragNode;
     private Point _dragOffset;
     private List<(NodeBaseViewModel Node, double OffsetX, double OffsetY)> _dragGroup = [];
@@ -58,7 +62,24 @@ public partial class MainWindow : Window
         DataContext = this;
         InitializeComponent();
         GraphSurface.LayoutTransform = _zoomTransform;
+        Closing += (_, _) => _runtimeExecutor.ReleaseAllKeys();
+        Logger.Entries.CollectionChanged += (_, _) => RefreshLogTextBox();
         SeedDemoGraph();
+    }
+
+    private void RefreshLogTextBox()
+    {
+        StringBuilder sb = new();
+        foreach (LogEntry entry in Logger.Entries)
+            sb.AppendLine($"[{entry.Timestamp}] [{entry.Level}] {entry.Message}");
+        LogTextBox.Text = sb.ToString();
+        LogTextBox.ScrollToEnd();
+    }
+
+    private void ClearLog_Click(object sender, RoutedEventArgs e)
+    {
+        Logger.Entries.Clear();
+        LogTextBox.Text = string.Empty;
     }
 
     public ObservableCollection<NodeBaseViewModel> Nodes { get; } = [];
@@ -71,36 +92,10 @@ public partial class MainWindow : Window
         Connections.Clear();
         _nodeSequence = 1;
         StartNodeViewModel startNode = CreateDefaultStartNode();
-        FindImageNodeViewModel findNode = new(CreateNodeId())
-        {
-            Title = "找图：继续游戏",
-            ImagePath = @"D:\Images\continue_game.png",
-            SimilarityThresholdPercent = 80,
-            X = 360,
-            Y = 180,
-        };
-
-        MouseClickNodeViewModel mouseNode = new(CreateNodeId())
-        {
-            Title = "鼠标点击：点击目标",
-            OperationMode = PressReleaseMode.Press,
-            MouseButton = MouseButton.Left,
-            PositionX = 1280,
-            PositionY = 720,
-            X = 790,
-            Y = 210,
-        };
-
         Nodes.Add(startNode);
-        Nodes.Add(findNode);
-        Nodes.Add(mouseNode);
-
-        CreateConnection(startNode.FindPin("exec_out")!, findNode.FindPin("exec_in")!);
-        CreateConnection(findNode.FindPin("exec_out")!, mouseNode.FindPin("exec_in")!);
-        CreateConnection(findNode.FindPin("center")!, mouseNode.FindPin("position")!);
         SelectNode(startNode);
         EnsureCanvasLargeEnough();
-        SetStatus("已创建示例图谱。左键空白处框选，右键空白处拖动画布。");
+        SetStatus("已创建开始节点。");
     }
 
     private StartNodeViewModel CreateDefaultStartNode()
@@ -174,6 +169,48 @@ public partial class MainWindow : Window
         SetStatus("已添加滚轮节点。");
     }
 
+    private void AddIfNode_Click(object sender, RoutedEventArgs e)
+    {
+        IfNodeViewModel node = new(CreateNodeId())
+        {
+            Title = "分支节点",
+            X = 380 + Nodes.Count * 40,
+            Y = 280 + Nodes.Count * 30,
+        };
+        Nodes.Add(node);
+        SelectNode(node);
+        EnsureCanvasLargeEnough();
+        SetStatus("已添加分支节点。");
+    }
+
+    private void AddForLoopNode_Click(object sender, RoutedEventArgs e)
+    {
+        ForLoopNodeViewModel node = new(CreateNodeId())
+        {
+            Title = "循环节点",
+            X = 400 + Nodes.Count * 40,
+            Y = 300 + Nodes.Count * 30,
+        };
+        Nodes.Add(node);
+        SelectNode(node);
+        EnsureCanvasLargeEnough();
+        SetStatus("已添加循环节点。");
+    }
+
+    private void AddWhileLoopNode_Click(object sender, RoutedEventArgs e)
+    {
+        WhileLoopNodeViewModel node = new(CreateNodeId())
+        {
+            Title = "While循环",
+            X = 420 + Nodes.Count * 40,
+            Y = 320 + Nodes.Count * 30,
+        };
+        Nodes.Add(node);
+        SelectNode(node);
+        EnsureCanvasLargeEnough();
+        SetStatus("已添加 While 循环节点。");
+    }
+
     private void AddDelayNode_Click(object sender, RoutedEventArgs e)
     {
         DelayNodeViewModel node = new(CreateNodeId())
@@ -233,8 +270,9 @@ public partial class MainWindow : Window
             WpfSaveFileDialog dialog = new()
             {
                 Title = "保存图谱",
-                Filter = "图谱文件 (*.json)|*.json",
+                Filter = "图谱文件 (*.json)|*.json|所有文件 (*.*)|*.*",
                 FileName = "graph.json",
+                InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.Desktop),
             };
 
             if (dialog.ShowDialog(this) != true)
@@ -268,7 +306,8 @@ public partial class MainWindow : Window
         WpfOpenFileDialog dialog = new()
         {
             Title = "打开图谱",
-            Filter = "图谱文件 (*.json)|*.json",
+            Filter = "图谱文件 (*.json)|*.json|所有文件 (*.*)|*.*",
+            InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.Desktop),
         };
 
         if (dialog.ShowDialog(this) != true)
@@ -288,21 +327,86 @@ public partial class MainWindow : Window
         SetStatus($"图谱已加载：{Path.GetFileName(dialog.FileName)}");
     }
 
+    private void Window_DragEnter(object sender, System.Windows.DragEventArgs e)
+    {
+        if (e.Data.GetDataPresent(System.Windows.DataFormats.FileDrop))
+        {
+            string[] files = (string[])e.Data.GetData(System.Windows.DataFormats.FileDrop);
+            if (files.Length == 1 && Path.GetExtension(files[0]).Equals(".json", StringComparison.OrdinalIgnoreCase))
+            {
+                e.Effects = System.Windows.DragDropEffects.Copy;
+                return;
+            }
+        }
+        e.Effects = System.Windows.DragDropEffects.None;
+    }
+
+    private void Window_Drop(object sender, System.Windows.DragEventArgs e)
+    {
+        if (!e.Data.GetDataPresent(System.Windows.DataFormats.FileDrop))
+            return;
+
+        string[] files = (string[])e.Data.GetData(System.Windows.DataFormats.FileDrop);
+        if (files.Length != 1)
+            return;
+
+        string filePath = files[0];
+        if (!Path.GetExtension(filePath).Equals(".json", StringComparison.OrdinalIgnoreCase))
+            return;
+
+        MessageBoxResult result = WpfMessageBox.Show(
+            this,
+            $"是否导入图谱？\n\n{Path.GetFileName(filePath)}",
+            "导入图谱",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Question);
+
+        if (result != MessageBoxResult.Yes)
+            return;
+
+        GraphFileModel? file = JsonSerializer.Deserialize<GraphFileModel>(File.ReadAllText(filePath));
+        if (file is null)
+        {
+            WpfMessageBox.Show(this, "图谱文件解析失败。", "导入失败", MessageBoxButton.OK, MessageBoxImage.Error);
+            return;
+        }
+
+        LoadGraph(file);
+        _currentGraphPath = filePath;
+        SetStatus($"图谱已导入：{Path.GetFileName(filePath)}");
+    }
+
+    private void OpenLogWindow_Click(object sender, RoutedEventArgs e)
+    {
+        LogWindow window = new() { Owner = this };
+        window.Show();
+    }
+
     private async void RunGraph_Click(object sender, RoutedEventArgs e)
     {
         try
         {
+            _executionCts = new CancellationTokenSource();
             GraphExecutionPlan plan = BuildExecutionPlan();
             string baseDirectory = !string.IsNullOrWhiteSpace(_currentGraphPath)
                 ? Path.GetDirectoryName(_currentGraphPath) ?? Environment.CurrentDirectory
                 : Environment.CurrentDirectory;
 
             SetStatus("执行开始...");
-            GraphExecutionResult result = await Task.Run(() => _runtimeExecutor.Execute(plan, baseDirectory));
+            CancellationToken ct = _executionCts.Token;
+            GraphExecutionResult result = await Task.Run(() => _runtimeExecutor.Execute(plan, baseDirectory, ct), ct);
+            _executionCts = null;
             SetStatus(result.Message);
+        }
+        catch (OperationCanceledException)
+        {
+            Logger.Info("===== 执行已取消 =====");
+            _runtimeExecutor.ReleaseAllKeys();
+            SetStatus("执行已取消。");
         }
         catch (Exception ex)
         {
+            _executionCts = null;
             WpfMessageBox.Show(this, ex.Message, "执行失败", MessageBoxButton.OK, MessageBoxImage.Error);
             SetStatus("执行失败。");
         }
@@ -358,6 +462,28 @@ public partial class MainWindow : Window
                     Y = nodeFile.Y,
                     ScrollAction = Enum.TryParse(nodeFile.ScrollAction, true, out ScrollWheelAction sa) ? sa : ScrollWheelAction.ScrollForward,
                     ScrollSpeed = nodeFile.ScrollSpeed > 0 ? nodeFile.ScrollSpeed : 120,
+                    ScrollInterval = nodeFile.ScrollInterval > 0 ? nodeFile.ScrollInterval : 100,
+                    ScrollDuration = nodeFile.ScrollDuration > 0 ? nodeFile.ScrollDuration : 1000,
+                },
+                "reroute" => CreateRerouteFromFile(nodeFile),
+                "if" => new IfNodeViewModel(nodeFile.Id)
+                {
+                    Title = nodeFile.Title,
+                    X = nodeFile.X,
+                    Y = nodeFile.Y,
+                },
+                "for_loop" => new ForLoopNodeViewModel(nodeFile.Id)
+                {
+                    Title = nodeFile.Title,
+                    X = nodeFile.X,
+                    Y = nodeFile.Y,
+                    LoopCount = nodeFile.DelayMs > 0 ? nodeFile.DelayMs : 5,
+                },
+                "while_loop" => new WhileLoopNodeViewModel(nodeFile.Id)
+                {
+                    Title = nodeFile.Title,
+                    X = nodeFile.X,
+                    Y = nodeFile.Y,
                 },
                 "delay" => new DelayNodeViewModel(nodeFile.Id)
                 {
@@ -394,8 +520,8 @@ public partial class MainWindow : Window
                 continue;
             }
 
-            PinViewModel? sourcePin = sourceNode.FindPin(connectionFile.SourcePinName);
-            PinViewModel? targetPin = targetNode.FindPin(connectionFile.TargetPinName);
+            PinViewModel? sourcePin = sourceNode.OutputPins.FirstOrDefault(p => p.Name == connectionFile.SourcePinName);
+            PinViewModel? targetPin = targetNode.InputPins.FirstOrDefault(p => p.Name == connectionFile.TargetPinName);
             if (sourcePin is not null && targetPin is not null)
             {
                 CreateConnection(sourcePin, targetPin);
@@ -411,6 +537,17 @@ public partial class MainWindow : Window
             .Max() + 1;
 
         SelectNode(Nodes.FirstOrDefault());
+    }
+
+    private static RerouteNodeViewModel CreateRerouteFromFile(NodeFileModel file)
+    {
+        PinKind kind = Enum.TryParse(file.RoutedKind, true, out PinKind pk) ? pk : PinKind.Execution;
+        return new RerouteNodeViewModel(file.Id, kind)
+        {
+            Title = file.Title,
+            X = file.X,
+            Y = file.Y,
+        };
     }
 
     private static PressReleaseMode DeserializeOperationMode(string? newMode, string? oldMode)
@@ -456,6 +593,20 @@ public partial class MainWindow : Window
         {
             file.ScrollAction = scrollNode.ScrollAction.ToString();
             file.ScrollSpeed = scrollNode.ScrollSpeed;
+            file.ScrollInterval = scrollNode.ScrollInterval;
+            file.ScrollDuration = scrollNode.ScrollDuration;
+        }
+        else if (node is RerouteNodeViewModel rerouteNode)
+        {
+            file.RoutedKind = rerouteNode.RoutedKind.ToString();
+        }
+        else if (node is IfNodeViewModel or WhileLoopNodeViewModel)
+        {
+            // No extra data.
+        }
+        else if (node is ForLoopNodeViewModel forNode)
+        {
+            file.DelayMs = forNode.LoopCount;
         }
         else if (node is DelayNodeViewModel delayNode)
         {
@@ -602,6 +753,7 @@ public partial class MainWindow : Window
 
         if (_isConnecting && _pendingOutputPin is not null)
         {
+            _wireWasDragged = true;
             UpdatePreviewConnectionGeometry(_pendingOutputPin, _lastMousePosition);
         }
 
@@ -632,6 +784,10 @@ public partial class MainWindow : Window
                 targetPin != _pendingOutputPin)
             {
                 TryConnectPending(targetPin);
+            }
+            else if (_wireWasDragged && _pendingOutputPin is not null)
+            {
+                CancelPendingConnection("已取消连线。");
             }
 
             ReleasePreviewWire();
@@ -760,6 +916,7 @@ public partial class MainWindow : Window
         {
             _pendingOutputPin = pin;
             _isConnecting = true;
+            _wireWasDragged = false;
             GraphSurface.CaptureMouse();
             Point pos = e.GetPosition(GraphSurface);
             UpdatePreviewConnectionGeometry(pin, pos);
@@ -827,12 +984,28 @@ public partial class MainWindow : Window
 
     private void CreateConnection(PinViewModel sourcePin, PinViewModel targetPin)
     {
-        // Each input pin keeps at most one incoming connection.
-        for (int i = Connections.Count - 1; i >= 0; i--)
+        // Execution output pin: at most one outgoing connection (no fan-out).
+        if (sourcePin.Kind == PinKind.Execution)
         {
-            if (Connections[i].TargetPin == targetPin)
+            for (int i = Connections.Count - 1; i >= 0; i--)
             {
-                RemoveConnectionAt(i);
+                if (Connections[i].SourcePin == sourcePin)
+                {
+                    RemoveConnectionAt(i);
+                }
+            }
+        }
+
+        // Data input pin: at most one incoming connection.
+        // Execution input pin: allow multiple (supports loops like D→B while A→B).
+        if (targetPin.Kind != PinKind.Execution)
+        {
+            for (int i = Connections.Count - 1; i >= 0; i--)
+            {
+                if (Connections[i].TargetPin == targetPin)
+                {
+                    RemoveConnectionAt(i);
+                }
             }
         }
 
@@ -914,6 +1087,11 @@ public partial class MainWindow : Window
         }
     }
 
+    private static bool IsInputPinConnected(NodeBaseViewModel node, string pinName)
+    {
+        return node.InputPins.FirstOrDefault(p => p.Name == pinName)?.HasConnection ?? false;
+    }
+
     private void UpdatePinConnectionStates()
     {
         foreach (NodeBaseViewModel node in Nodes)
@@ -922,6 +1100,12 @@ public partial class MainWindow : Window
             {
                 pin.HasConnection = Connections.Any(connection => connection.SourcePin == pin || connection.TargetPin == pin);
             }
+            node.RefreshDescription();
+        }
+
+        if (_selectedNode is not null)
+        {
+            LoadNodeToInspector(_selectedNode);
         }
     }
 
@@ -972,12 +1156,14 @@ public partial class MainWindow : Window
         if (node is null)
         {
             _isLoadingInspector = true;
-            NodeIdTextBox.Text = string.Empty;
             NodeTitleTextBox.Text = string.Empty;
             FindImageInspectorPanel.Visibility = Visibility.Collapsed;
             MouseLeftInspectorPanel.Visibility = Visibility.Collapsed;
             KeyboardInspectorPanel.Visibility = Visibility.Collapsed;
             ScrollWheelInspectorPanel.Visibility = Visibility.Collapsed;
+            IfInspectorPanel.Visibility = Visibility.Collapsed;
+            ForLoopInspectorPanel.Visibility = Visibility.Collapsed;
+            WhileLoopInspectorPanel.Visibility = Visibility.Collapsed;
             DelayInspectorPanel.Visibility = Visibility.Collapsed;
             MouseMoveInspectorPanel.Visibility = Visibility.Collapsed;
             InspectorHintTextBlock.Text = "请选择一个节点进行编辑。";
@@ -986,7 +1172,6 @@ public partial class MainWindow : Window
         }
 
         _isLoadingInspector = true;
-        NodeIdTextBox.Text = node.Id;
         NodeTitleTextBox.Text = node.Title;
         InspectorHintTextBlock.Text = $"当前选中：{node.Title}";
 
@@ -994,6 +1179,9 @@ public partial class MainWindow : Window
         MouseLeftInspectorPanel.Visibility = node is MouseClickNodeViewModel ? Visibility.Visible : Visibility.Collapsed;
         KeyboardInspectorPanel.Visibility = node is KeyboardNodeViewModel ? Visibility.Visible : Visibility.Collapsed;
         ScrollWheelInspectorPanel.Visibility = node is ScrollWheelNodeViewModel ? Visibility.Visible : Visibility.Collapsed;
+        IfInspectorPanel.Visibility = node is IfNodeViewModel ? Visibility.Visible : Visibility.Collapsed;
+        ForLoopInspectorPanel.Visibility = node is ForLoopNodeViewModel ? Visibility.Visible : Visibility.Collapsed;
+        WhileLoopInspectorPanel.Visibility = node is WhileLoopNodeViewModel ? Visibility.Visible : Visibility.Collapsed;
         DelayInspectorPanel.Visibility = node is DelayNodeViewModel ? Visibility.Visible : Visibility.Collapsed;
         MouseMoveInspectorPanel.Visibility = node is MouseMoveNodeViewModel ? Visibility.Visible : Visibility.Collapsed;
 
@@ -1005,8 +1193,11 @@ public partial class MainWindow : Window
 
         if (node is MouseClickNodeViewModel mouseNode)
         {
-            MousePositionXTextBox.Text = mouseNode.PositionX.ToString("0.##");
-            MousePositionYTextBox.Text = mouseNode.PositionY.ToString("0.##");
+            bool hasPositionInput = IsInputPinConnected(mouseNode, "position");
+            MousePositionXTextBox.IsEnabled = !hasPositionInput;
+            MousePositionYTextBox.IsEnabled = !hasPositionInput;
+            MousePositionXTextBox.Text = hasPositionInput ? "来自前置节点" : mouseNode.PositionX.ToString("0.##");
+            MousePositionYTextBox.Text = hasPositionInput ? "来自前置节点" : mouseNode.PositionY.ToString("0.##");
             MouseClickOperationModeComboBox.SelectedIndex = mouseNode.OperationMode == PressReleaseMode.Press ? 0 : 1;
             MouseButtonComboBox.SelectedIndex = mouseNode.MouseButton switch
             {
@@ -1024,6 +1215,25 @@ public partial class MainWindow : Window
             KeyboardOperationModeComboBox.SelectedIndex = keyboardNode.OperationMode == PressReleaseMode.Press ? 0 : 1;
         }
 
+        if (node is IfNodeViewModel ifNode)
+        {
+            bool hasCondInput = IsInputPinConnected(ifNode, "condition");
+            IfConditionComboBox.IsEnabled = !hasCondInput;
+            IfConditionComboBox.SelectedIndex = ifNode.ConditionValue ? 1 : 0;
+        }
+
+        if (node is WhileLoopNodeViewModel whileNode)
+        {
+            bool hasCondInput = IsInputPinConnected(whileNode, "condition");
+            WhileLoopConditionComboBox.IsEnabled = !hasCondInput;
+            WhileLoopConditionComboBox.SelectedIndex = whileNode.ConditionValue ? 1 : 0;
+        }
+
+        if (node is ForLoopNodeViewModel forLoopNode)
+        {
+            ForLoopCountTextBox.Text = forLoopNode.LoopCount.ToString();
+        }
+
         if (node is ScrollWheelNodeViewModel scrollNode)
         {
             ScrollWheelActionComboBox.SelectedIndex = scrollNode.ScrollAction switch
@@ -1035,6 +1245,8 @@ public partial class MainWindow : Window
                 _ => 2,
             };
             ScrollWheelSpeedTextBox.Text = scrollNode.ScrollSpeed.ToString();
+            ScrollWheelIntervalTextBox.Text = scrollNode.ScrollInterval.ToString();
+            ScrollWheelDurationTextBox.Text = scrollNode.ScrollDuration.ToString();
         }
 
         if (node is DelayNodeViewModel delayNode)
@@ -1044,8 +1256,11 @@ public partial class MainWindow : Window
 
         if (node is MouseMoveNodeViewModel moveNode)
         {
-            MouseMovePositionXTextBox.Text = moveNode.PositionX.ToString("0.##");
-            MouseMovePositionYTextBox.Text = moveNode.PositionY.ToString("0.##");
+            bool hasPositionInput = IsInputPinConnected(moveNode, "position");
+            MouseMovePositionXTextBox.IsEnabled = !hasPositionInput;
+            MouseMovePositionYTextBox.IsEnabled = !hasPositionInput;
+            MouseMovePositionXTextBox.Text = hasPositionInput ? "来自前置节点" : moveNode.PositionX.ToString("0.##");
+            MouseMovePositionYTextBox.Text = hasPositionInput ? "来自前置节点" : moveNode.PositionY.ToString("0.##");
         }
 
         _isLoadingInspector = false;
@@ -1091,6 +1306,19 @@ public partial class MainWindow : Window
             if (KeyboardKeyComboBox.SelectedItem is ComboBoxItem keyItem && keyItem.Tag is string keyStr)
                 keyboardNode.Key = keyStr;
         }
+        else if (_selectedNode is IfNodeViewModel ifNode)
+        {
+            ifNode.ConditionValue = IfConditionComboBox.SelectedIndex == 1;
+        }
+        else if (_selectedNode is WhileLoopNodeViewModel whileNode)
+        {
+            whileNode.ConditionValue = WhileLoopConditionComboBox.SelectedIndex == 1;
+        }
+        else if (_selectedNode is ForLoopNodeViewModel forLoopNode)
+        {
+            if (int.TryParse(ForLoopCountTextBox.Text.Trim(), out int count))
+                forLoopNode.LoopCount = Math.Max(1, count);
+        }
         else if (_selectedNode is ScrollWheelNodeViewModel scrollNode)
         {
             scrollNode.ScrollAction = ScrollWheelActionComboBox.SelectedIndex switch
@@ -1103,6 +1331,10 @@ public partial class MainWindow : Window
             };
             if (int.TryParse(ScrollWheelSpeedTextBox.Text.Trim(), out int speed))
                 scrollNode.ScrollSpeed = Math.Max(0, speed);
+            if (int.TryParse(ScrollWheelIntervalTextBox.Text.Trim(), out int interval))
+                scrollNode.ScrollInterval = Math.Max(1, interval);
+            if (int.TryParse(ScrollWheelDurationTextBox.Text.Trim(), out int duration))
+                scrollNode.ScrollDuration = Math.Max(0, duration);
         }
         else if (_selectedNode is DelayNodeViewModel delayNode)
         {
@@ -1151,6 +1383,51 @@ public partial class MainWindow : Window
             FindImagePathTextBox.Text = dialog.FileName;
             ApplyInspectorChanges();
         }
+    }
+
+    private void ConnectionPath_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        DependencyObject? source = e.OriginalSource as DependencyObject;
+        ConnectionViewModel? connection = null;
+        while (source is not null)
+        {
+            if (source is FrameworkElement fe && fe.DataContext is ConnectionViewModel c)
+            {
+                connection = c;
+                break;
+            }
+            source = VisualTreeHelper.GetParent(source);
+        }
+
+        if (connection is null)
+            return;
+
+        Point clickPos = e.GetPosition(GraphSurface);
+        PinKind routedKind = connection.SourcePin.Kind;
+
+        RerouteNodeViewModel reroute = new(CreateNodeId(), routedKind)
+        {
+            X = clickPos.X - 10,
+            Y = clickPos.Y - 10,
+        };
+
+        PinViewModel sourcePin = connection.SourcePin;
+        PinViewModel targetPin = connection.TargetPin;
+
+        Nodes.Add(reroute);
+        RemoveConnection(connection);
+
+        PinViewModel? rerouteIn = reroute.FindPin("in");
+        PinViewModel? rerouteOut = reroute.FindPin("out");
+        if (rerouteIn is not null && rerouteOut is not null)
+        {
+            CreateConnection(sourcePin, rerouteIn);
+            CreateConnection(rerouteOut, targetPin);
+        }
+
+        UpdatePinConnectionStates();
+        SetStatus("已添加路由节点。");
+        e.Handled = true;
     }
 
     private void ConnectionPath_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -1267,6 +1544,19 @@ public partial class MainWindow : Window
 
     private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
     {
+        if (e.Key == Key.Escape)
+        {
+            if (_executionCts is not null)
+            {
+                Logger.Info("===== 用户取消执行 (ESC) =====");
+                _executionCts.Cancel();
+                _runtimeExecutor.ReleaseAllKeys();
+                SetStatus("正在停止执行...");
+            }
+            e.Handled = true;
+            return;
+        }
+
         if (Keyboard.FocusedElement is TextBox)
         {
             return;
@@ -1404,8 +1694,8 @@ public partial class MainWindow : Window
                 continue;
             }
 
-            PinViewModel? sourcePin = sourceNode.FindPin(sourceConnection.SourcePinName);
-            PinViewModel? targetPin = targetNode.FindPin(sourceConnection.TargetPinName);
+            PinViewModel? sourcePin = sourceNode.OutputPins.FirstOrDefault(p => p.Name == sourceConnection.SourcePinName);
+            PinViewModel? targetPin = targetNode.InputPins.FirstOrDefault(p => p.Name == sourceConnection.TargetPinName);
             if (sourcePin is not null && targetPin is not null)
             {
                 CreateConnection(sourcePin, targetPin);
@@ -1442,7 +1732,23 @@ public partial class MainWindow : Window
             {
                 ScrollAction = Enum.TryParse(source.ScrollAction, true, out ScrollWheelAction sa) ? sa : ScrollWheelAction.ScrollForward,
                 ScrollSpeed = source.ScrollSpeed > 0 ? source.ScrollSpeed : 120,
+                ScrollInterval = source.ScrollInterval > 0 ? source.ScrollInterval : 100,
+                ScrollDuration = source.ScrollDuration > 0 ? source.ScrollDuration : 1000,
             },
+            "reroute" => CreateRerouteFromFile(new NodeFileModel
+            {
+                Id = newId,
+                RoutedKind = source.RoutedKind,
+                Title = source.Title,
+                X = source.X,
+                Y = source.Y,
+            }),
+            "if" => new IfNodeViewModel(newId),
+            "for_loop" => new ForLoopNodeViewModel(newId)
+            {
+                LoopCount = source.DelayMs > 0 ? source.DelayMs : 5,
+            },
+            "while_loop" => new WhileLoopNodeViewModel(newId),
             "delay" => new DelayNodeViewModel(newId)
             {
                 DelayMs = source.DelayMs,
@@ -1514,7 +1820,9 @@ public partial class MainWindow : Window
                     scrollNode.Id,
                     scrollNode.Title,
                     scrollNode.ScrollAction,
-                    scrollNode.ScrollSpeed),
+                    scrollNode.ScrollSpeed,
+                    scrollNode.ScrollInterval,
+                    scrollNode.ScrollDuration),
                 DelayNodeViewModel delayNode => GraphRuntimeNode.ForDelay(
                     delayNode.Id,
                     delayNode.Title,
@@ -1524,6 +1832,10 @@ public partial class MainWindow : Window
                     moveNode.Title,
                     moveNode.PositionX,
                     moveNode.PositionY),
+                RerouteNodeViewModel rerouteNode => GraphRuntimeNode.ForStart(rerouteNode.Id, rerouteNode.Title),
+                IfNodeViewModel ifNode => GraphRuntimeNode.ForIf(ifNode.Id, ifNode.Title, ifNode.ConditionValue),
+                ForLoopNodeViewModel forNode => GraphRuntimeNode.ForForLoop(forNode.Id, forNode.Title, forNode.LoopCount),
+                WhileLoopNodeViewModel whileNode => GraphRuntimeNode.ForWhileLoop(whileNode.Id, whileNode.Title, whileNode.ConditionValue),
                 _ => throw new InvalidOperationException($"不支持执行的节点类型: {node.GetType().Name}"),
             };
             nodes.Add(runtimeNode);

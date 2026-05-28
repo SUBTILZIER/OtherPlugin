@@ -30,6 +30,6 @@ public sealed class DelayNodeViewModel : NodeBaseViewModel
 
     public override void RefreshDescription()
     {
-        Description = $"延迟：{DelayMs}ms";
+        Description = $"{DelayMs}ms";
     }
 }

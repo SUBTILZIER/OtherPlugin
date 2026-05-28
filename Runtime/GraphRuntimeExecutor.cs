@@ -1,88 +1,177 @@
+using System.Diagnostics;
 using System.Drawing;
-using System.Drawing.Imaging;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Text.Json;
 using System.Threading;
 using System.Windows.Forms;
 using AutomationStudioWpf.Graph;
+using AutomationStudioWpf.Logging;
 
 namespace AutomationStudioWpf.Runtime;
 
 public sealed class GraphRuntimeExecutor
 {
-    public GraphExecutionResult Execute(GraphExecutionPlan plan, string baseDirectory)
+    private readonly HashSet<byte> _pressedKeys = [];
+    public GraphExecutionResult Execute(GraphExecutionPlan plan, string baseDirectory, CancellationToken ct = default)
     {
+        Logger.Info("===== 开始执行图谱 =====");
         GraphRuntimeNode? startNode = plan.Nodes.FirstOrDefault(node => node.NodeKind == NodeKind.Start);
         if (startNode is null)
         {
+            Logger.Error("执行失败：图中没有开始节点。");
             return new GraphExecutionResult(false, "执行失败：图中没有开始节点。");
         }
 
         Dictionary<string, object> context = [];
-        HashSet<string> visitedNodes = [];
-        GraphRuntimeNode? currentNode = GetNextExecutionNode(plan, startNode.Id);
+        return ExecuteChain(plan, startNode.Id, "exec_out", context, baseDirectory, [], ct);
+    }
+
+    private GraphExecutionResult ExecuteChain(GraphExecutionPlan plan, string startNodeId, string startPinName,
+        Dictionary<string, object> context, string baseDirectory, HashSet<string> visitedNodes, CancellationToken ct)
+    {
+        GraphRuntimeNode? currentNode = GetNextExecutionNode(plan, startNodeId, startPinName);
 
         while (currentNode is not null)
         {
+            ct.ThrowIfCancellationRequested();
             if (!visitedNodes.Add(currentNode.Id))
             {
                 return new GraphExecutionResult(false, $"执行失败：检测到执行环路，节点 {currentNode.Title} 被重复访问。");
             }
 
-            GraphExecutionResult nodeResult = ExecuteNode(plan, currentNode, context, baseDirectory);
-            if (!nodeResult.Success)
+            var (result, nextPinName) = ExecuteNode(plan, currentNode, context, baseDirectory, ct);
+            if (!result.Success)
             {
-                return nodeResult;
+                return result;
             }
 
-            currentNode = GetNextExecutionNode(plan, currentNode.Id);
+            if (nextPinName is null)
+            {
+                break;
+            }
+
+            currentNode = GetNextExecutionNode(plan, currentNode.Id, nextPinName);
         }
 
         return new GraphExecutionResult(true, "执行完成。");
     }
 
-    private GraphExecutionResult ExecuteNode(GraphExecutionPlan plan, GraphRuntimeNode node, Dictionary<string, object> context, string baseDirectory)
+    private (GraphExecutionResult Result, string? NextPinName) ExecuteNode(GraphExecutionPlan plan, GraphRuntimeNode node,
+        Dictionary<string, object> context, string baseDirectory, CancellationToken ct)
     {
         return node.NodeKind switch
         {
-            NodeKind.FindImage => ExecuteFindImageNode(node, context, baseDirectory),
-            NodeKind.MouseClick => ExecuteMouseClickNode(plan, node, context),
-            NodeKind.Delay => ExecuteDelayNode(node),
-            NodeKind.MouseMove => ExecuteMouseMoveNode(node),
-            NodeKind.Keyboard => ExecuteKeyboardNode(node, context),
-            NodeKind.ScrollWheel => ExecuteScrollWheelNode(node, context),
-            _ => new GraphExecutionResult(true, $"已跳过节点：{node.Title}")
+            NodeKind.FindImage => (ExecuteFindImageNode(node, context, baseDirectory), "exec_out"),
+            NodeKind.MouseClick => (ExecuteMouseClickNode(plan, node, context), "exec_out"),
+            NodeKind.Delay => (ExecuteDelayNode(node), "exec_out"),
+            NodeKind.MouseMove => (ExecuteMouseMoveNode(plan, node, context), "exec_out"),
+            NodeKind.Keyboard => (ExecuteKeyboardNode(node, context), "exec_out"),
+            NodeKind.ScrollWheel => (ExecuteScrollWheelNode(node, context, ct), "exec_out"),
+            NodeKind.Reroute => (new GraphExecutionResult(true, string.Empty), "exec_out"),
+            NodeKind.If => ExecuteIfNode(plan, node, context, baseDirectory),
+            NodeKind.ForLoop => ExecuteForLoopNode(plan, node, context, baseDirectory, ct),
+            NodeKind.WhileLoop => ExecuteWhileLoopNode(plan, node, context, baseDirectory, ct),
+            _ => (new GraphExecutionResult(true, $"已跳过节点：{node.Title}"), null),
         };
     }
 
     private GraphExecutionResult ExecuteFindImageNode(GraphRuntimeNode node, Dictionary<string, object> context, string baseDirectory)
     {
+        if (string.IsNullOrWhiteSpace(node.ImagePath))
+        {
+            context[$"{node.Id}:result"] = false;
+            Logger.Error("找图失败：图片路径为空。");
+            return new GraphExecutionResult(false, "执行失败：找图节点图片路径为空。");
+        }
+
         string imagePath = ResolvePath(node.ImagePath, baseDirectory);
         if (!File.Exists(imagePath))
         {
+            context[$"{node.Id}:result"] = false;
             return new GraphExecutionResult(false, $"执行失败：找图节点图片不存在：{imagePath}");
         }
 
-        using Bitmap template = new(imagePath);
-        using Bitmap screenshot = CapturePrimaryScreen();
-        ImageMatchResult match = FindTemplate(screenshot, template, node.SimilarityThresholdPercent / 100.0);
-
-        context[$"{node.Id}:success"] = match.Found;
-        context[$"{node.Id}:center"] = match.Center;
-
-        if (!match.Found)
+        string scriptPath = Path.Combine(AppContext.BaseDirectory, "Python", "find_image.py");
+        if (!File.Exists(scriptPath))
         {
-            return new GraphExecutionResult(false, $"执行失败：未找到图像：{Path.GetFileName(imagePath)}");
+            context[$"{node.Id}:result"] = false;
+            return new GraphExecutionResult(false, $"执行失败：Python 脚本不存在：{scriptPath}");
         }
 
-        return new GraphExecutionResult(true, $"找图成功：{node.Title} -> ({match.Center.X},{match.Center.Y})");
+        try
+        {
+            Logger.Info($"找图开始：{imagePath}，相似度阈值：{node.SimilarityThresholdPercent}%");
+
+            string pythonExe = ResolvePythonPath();
+            using Process process = new()
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = pythonExe,
+                    Arguments = $"\"{scriptPath}\" \"{imagePath}\" {node.SimilarityThresholdPercent}",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true,
+                },
+            };
+
+            process.Start();
+            string output = process.StandardOutput.ReadToEnd();
+            string stderr = process.StandardError.ReadToEnd();
+            process.WaitForExit(30000);
+
+            if (process.ExitCode != 0)
+                Logger.Error($"Python 退出码：{process.ExitCode}");
+
+            if (!string.IsNullOrWhiteSpace(stderr))
+                Logger.Error($"Python stderr: {stderr}");
+
+            if (!string.IsNullOrWhiteSpace(output))
+                Logger.Info($"Python stdout: {output}");
+            else
+                Logger.Error("Python stdout 为空");
+
+            using JsonDocument doc = JsonDocument.Parse(output);
+            JsonElement root = doc.RootElement;
+
+            bool found = root.GetProperty("found").GetBoolean();
+            context[$"{node.Id}:result"] = found;
+
+            if (found)
+            {
+                int cx = root.GetProperty("centerX").GetInt32();
+                int cy = root.GetProperty("centerY").GetInt32();
+                context[$"{node.Id}:center"] = new Point(cx, cy);
+                Logger.Info($"找图成功：({cx},{cy})");
+                return new GraphExecutionResult(true, $"找图成功：{node.Title} -> ({cx},{cy})");
+            }
+
+            Logger.Error($"找图失败：未找到 {Path.GetFileName(imagePath)}");
+            return new GraphExecutionResult(false, $"执行失败：未找到图像：{Path.GetFileName(imagePath)}");
+        }
+        catch (Exception ex)
+        {
+            Logger.Error($"找图失败：{ex.Message}");
+            context[$"{node.Id}:result"] = false;
+            return new GraphExecutionResult(false, $"执行失败：Python 脚本错误：{ex.Message}");
+        }
     }
 
     private GraphExecutionResult ExecuteMouseClickNode(GraphExecutionPlan plan, GraphRuntimeNode node, Dictionary<string, object> context)
     {
         Point targetPoint = ResolveMouseTargetPoint(plan, node, context);
-        SetCursorPos(targetPoint.X, targetPoint.Y);
+        string buttonLabel = node.MouseButton switch
+        {
+            MouseButton.Left => "左键", MouseButton.Right => "右键",
+            MouseButton.XButton1 => "侧键1", MouseButton.XButton2 => "侧键2",
+            _ => "左键",
+        };
+        string modeLabel = node.OperationMode == PressReleaseMode.Press ? "按下" : "抬起";
+        Logger.Info($"鼠标点击：{buttonLabel} {modeLabel} ({targetPoint.X},{targetPoint.Y})");
 
+        SetCursorPos(targetPoint.X, targetPoint.Y);
         (uint downFlag, uint upFlag, uint xButtonData) = GetMouseEventFlags(node.MouseButton);
 
         if (node.OperationMode == PressReleaseMode.Press)
@@ -91,36 +180,48 @@ public sealed class GraphRuntimeExecutor
             mouse_event(upFlag, 0, 0, xButtonData, UIntPtr.Zero);
 
         context[$"{node.Id}:result"] = true;
-
-        string buttonLabel = node.MouseButton switch
-        {
-            MouseButton.Left => "左键",
-            MouseButton.Right => "右键",
-            MouseButton.XButton1 => "侧键1",
-            MouseButton.XButton2 => "侧键2",
-            _ => "左键",
-        };
-        string modeLabel = node.OperationMode == PressReleaseMode.Press ? "按下" : "抬起";
+        Logger.Info($"鼠标点击完成：{buttonLabel} {modeLabel}");
         return new GraphExecutionResult(true, $"鼠标{buttonLabel}{modeLabel}：({targetPoint.X},{targetPoint.Y})");
     }
 
     private GraphExecutionResult ExecuteKeyboardNode(GraphRuntimeNode node, Dictionary<string, object> context)
     {
+        string modeLabel = node.OperationMode == PressReleaseMode.Press ? "按下" : "抬起";
+        Logger.Info($"键盘：{node.Key} {modeLabel}");
+
         byte vkCode = MapKeyToVirtualKeyCode(node.Key ?? "A");
 
         if (node.OperationMode == PressReleaseMode.Press)
+        {
             keybd_event(vkCode, 0, 0, UIntPtr.Zero);
+            lock (_pressedKeys) { _pressedKeys.Add(vkCode); }
+        }
         else
+        {
             keybd_event(vkCode, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
+            lock (_pressedKeys) { _pressedKeys.Remove(vkCode); }
+        }
 
         context[$"{node.Id}:result"] = true;
-
-        string modeLabel = node.OperationMode == PressReleaseMode.Press ? "按下" : "抬起";
+        Logger.Info($"键盘完成：{node.Key} {modeLabel}");
         return new GraphExecutionResult(true, $"键盘{node.Key}{modeLabel}");
     }
 
-    private GraphExecutionResult ExecuteScrollWheelNode(GraphRuntimeNode node, Dictionary<string, object> context)
+    public void ReleaseAllKeys()
     {
+        lock (_pressedKeys)
+        {
+            foreach (byte vk in _pressedKeys)
+            {
+                keybd_event(vk, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
+            }
+            _pressedKeys.Clear();
+        }
+    }
+
+    private GraphExecutionResult ExecuteScrollWheelNode(GraphRuntimeNode node, Dictionary<string, object> context, CancellationToken ct)
+    {
+        Logger.Info($"滚轮：{node.ScrollAction}");
         switch (node.ScrollAction)
         {
             case ScrollWheelAction.Press:
@@ -132,15 +233,26 @@ public sealed class GraphRuntimeExecutor
             case ScrollWheelAction.ScrollForward:
             case ScrollWheelAction.ScrollBackward:
             {
-                int delta = node.ScrollAction == ScrollWheelAction.ScrollForward
-                    ? (node.ScrollSpeed > 0 ? node.ScrollSpeed : 120)
-                    : -(node.ScrollSpeed > 0 ? node.ScrollSpeed : 120);
-                mouse_event(MOUSEEVENTF_WHEEL, 0, 0, unchecked((uint)delta), UIntPtr.Zero);
+                int speed = node.ScrollSpeed > 0 ? node.ScrollSpeed : 120;
+                int delta = node.ScrollAction == ScrollWheelAction.ScrollForward ? speed : -speed;
+                int interval = node.DelayMs > 0 ? node.DelayMs : 100;
+                int duration = (int)(node.PositionX > 0 ? node.PositionX : 1000);
+                int elapsed = 0;
+
+                while (duration == 0 || elapsed < duration)
+                {
+                    ct.ThrowIfCancellationRequested();
+                    mouse_event(MOUSEEVENTF_WHEEL, 0, 0, unchecked((uint)delta), UIntPtr.Zero);
+                    Thread.Sleep(interval);
+                    if (duration > 0)
+                        elapsed += interval;
+                }
                 break;
             }
         }
 
         context[$"{node.Id}:result"] = true;
+        Logger.Info($"滚轮完成：{node.ScrollAction}");
         return new GraphExecutionResult(true, $"滚轮：{node.ScrollAction}");
     }
 
@@ -158,28 +270,132 @@ public sealed class GraphRuntimeExecutor
 
     private GraphExecutionResult ExecuteDelayNode(GraphRuntimeNode node)
     {
+        Logger.Info($"延迟：{node.DelayMs}ms");
         Thread.Sleep(Math.Max(0, node.DelayMs));
+        Logger.Info($"延迟完成：{node.DelayMs}ms");
         return new GraphExecutionResult(true, $"延迟完成：{node.DelayMs}ms");
     }
 
-    private GraphExecutionResult ExecuteMouseMoveNode(GraphRuntimeNode node)
+    private GraphExecutionResult ExecuteMouseMoveNode(GraphExecutionPlan plan, GraphRuntimeNode node, Dictionary<string, object> context)
     {
-        Point targetPoint = new((int)Math.Round(node.PositionX), (int)Math.Round(node.PositionY));
+        Point targetPoint = ResolveMouseTargetPoint(plan, node, context);
+        Logger.Info($"鼠标移动：({targetPoint.X},{targetPoint.Y})");
         SetCursorPos(targetPoint.X, targetPoint.Y);
+
+        context[$"{node.Id}:result"] = true;
+        context[$"{node.Id}:position"] = targetPoint;
+
+        Logger.Info($"鼠标移动完成：({targetPoint.X},{targetPoint.Y})");
         return new GraphExecutionResult(true, $"移动完成：{node.Title} -> ({targetPoint.X},{targetPoint.Y})");
     }
 
-    private static GraphRuntimeNode? GetNextExecutionNode(GraphExecutionPlan plan, string sourceNodeId)
+    private static GraphRuntimeNode? GetNextExecutionNode(GraphExecutionPlan plan, string sourceNodeId, string sourcePinName)
     {
         GraphRuntimeConnection? connection = plan.Connections.FirstOrDefault(connection =>
             connection.SourceNodeId == sourceNodeId &&
-            connection.SourcePinKind == PinKind.Execution &&
+            connection.SourcePinName == sourcePinName &&
             connection.TargetPinKind == PinKind.Execution);
 
         if (connection is null)
             return null;
 
         return plan.Nodes.FirstOrDefault(node => node.Id == connection.TargetNodeId);
+    }
+
+    private (GraphExecutionResult, string?) ExecuteIfNode(GraphExecutionPlan plan, GraphRuntimeNode node,
+        Dictionary<string, object> context, string baseDirectory)
+    {
+        bool condition = node.SimilarityThresholdPercent >= 50;
+        var condConn = plan.Connections.FirstOrDefault(c =>
+            c.TargetNodeId == node.Id && c.TargetPinName == "condition");
+        if (condConn is not null &&
+            context.TryGetValue($"{condConn.SourceNodeId}:{condConn.SourcePinName}", out object? val) &&
+            val is bool b)
+        {
+            condition = b;
+        }
+
+        string nextPin = condition ? "exec_true" : "exec_false";
+        Logger.Info($"分支：{(condition ? "True" : "False")}");
+        return (new GraphExecutionResult(true, $"分支：{(condition ? "True" : "False")}"), nextPin);
+    }
+
+    private (GraphExecutionResult, string?) ExecuteForLoopNode(GraphExecutionPlan plan, GraphRuntimeNode node,
+        Dictionary<string, object> context, string baseDirectory, CancellationToken ct)
+    {
+        int count = node.DelayMs > 0 ? node.DelayMs : 5;
+        Logger.Info($"For 循环开始：{count} 次");
+        for (int i = 0; i < count; i++)
+        {
+            context[$"{node.Id}:index"] = i;
+
+            GraphRuntimeNode? bodyNode = GetNextExecutionNode(plan, node.Id, "exec_loop_body");
+            if (bodyNode is not null)
+            {
+                HashSet<string> bodyVisited = [];
+                GraphExecutionResult bodyResult = ExecuteChain(plan, node.Id, "exec_loop_body", context, baseDirectory, bodyVisited, ct);
+                if (!bodyResult.Success)
+                    return (bodyResult, null);
+            }
+        }
+
+        Logger.Info($"For 循环完成：{count} 次");
+        return (new GraphExecutionResult(true, $"循环完成：{count} 次"), "exec_completed");
+    }
+
+    private (GraphExecutionResult, string?) ExecuteWhileLoopNode(GraphExecutionPlan plan, GraphRuntimeNode node,
+        Dictionary<string, object> context, string baseDirectory, CancellationToken ct)
+    {
+        Logger.Info("While 循环开始");
+        int iteration = 0;
+        const int maxIterations = 10000;
+        GraphRuntimeNode? conditionSource = null;
+        string conditionKey = string.Empty;
+
+        while (iteration < maxIterations)
+        {
+            var condConn = plan.Connections.FirstOrDefault(c =>
+                c.TargetNodeId == node.Id && c.TargetPinName == "condition");
+            if (condConn is not null)
+            {
+                conditionSource ??= plan.Nodes.FirstOrDefault(n => n.Id == condConn.SourceNodeId);
+                conditionKey = conditionKey.Length == 0
+                    ? $"{condConn.SourceNodeId}:{condConn.SourcePinName}"
+                    : conditionKey;
+            }
+
+            bool exit = node.SimilarityThresholdPercent >= 50;
+            if (!string.IsNullOrEmpty(conditionKey) &&
+                context.TryGetValue(conditionKey, out object? val) &&
+                val is bool b)
+            {
+                exit = b;
+            }
+
+            if (exit)
+                break;
+
+            context[$"{node.Id}:index"] = iteration;
+            GraphRuntimeNode? bodyNode = GetNextExecutionNode(plan, node.Id, "exec_loop_body");
+            if (bodyNode is not null)
+            {
+                HashSet<string> bodyVisited = [];
+                GraphExecutionResult bodyResult = ExecuteChain(plan, node.Id, "exec_loop_body", context, baseDirectory, bodyVisited, ct);
+                if (!bodyResult.Success)
+                    return (bodyResult, null);
+            }
+
+            iteration++;
+        }
+
+        if (iteration >= maxIterations)
+        {
+            Logger.Error($"While 循环超过最大迭代次数 {maxIterations}，强制终止。");
+            return (new GraphExecutionResult(false, $"执行失败：While 循环超过最大迭代次数。"), null);
+        }
+
+        Logger.Info($"While 循环完成：{iteration} 次");
+        return (new GraphExecutionResult(true, $"While 循环完成：{iteration} 次"), "exec_completed");
     }
 
     private static Point ResolveMouseTargetPoint(GraphExecutionPlan plan, GraphRuntimeNode node, Dictionary<string, object> context)
@@ -207,13 +423,21 @@ public sealed class GraphRuntimeExecutor
         return Path.IsPathRooted(path) ? path : Path.GetFullPath(Path.Combine(baseDirectory, path));
     }
 
-    private static Bitmap CapturePrimaryScreen()
+    private static string ResolvePythonPath()
     {
-        Rectangle bounds = Screen.PrimaryScreen?.Bounds ?? throw new InvalidOperationException("无法获取主屏幕。");
-        Bitmap bitmap = new(bounds.Width, bounds.Height, PixelFormat.Format24bppRgb);
-        using Graphics graphics = Graphics.FromImage(bitmap);
-        graphics.CopyFromScreen(bounds.Location, Point.Empty, bounds.Size);
-        return bitmap;
+        string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        string programsPython = Path.Combine(localAppData, "Programs", "Python");
+        if (Directory.Exists(programsPython))
+        {
+            var dirs = Directory.GetDirectories(programsPython, "Python3*");
+            if (dirs.Length > 0)
+            {
+                string exe = Path.Combine(dirs[0], "python.exe");
+                if (File.Exists(exe))
+                    return exe;
+            }
+        }
+        return "python";
     }
 
     private static byte MapKeyToVirtualKeyCode(string key)
@@ -243,85 +467,6 @@ public sealed class GraphRuntimeExecutor
         };
     }
 
-    private static ImageMatchResult FindTemplate(Bitmap screen, Bitmap template, double similarityThreshold)
-    {
-        Rectangle searchBounds = new(0, 0, screen.Width - template.Width + 1, screen.Height - template.Height + 1);
-        if (searchBounds.Width <= 0 || searchBounds.Height <= 0)
-        {
-            return ImageMatchResult.NotFound;
-        }
-
-        BitmapData screenData = screen.LockBits(new Rectangle(0, 0, screen.Width, screen.Height), ImageLockMode.ReadOnly, PixelFormat.Format24bppRgb);
-        BitmapData templateData = template.LockBits(new Rectangle(0, 0, template.Width, template.Height), ImageLockMode.ReadOnly, PixelFormat.Format24bppRgb);
-
-        try
-        {
-            unsafe
-            {
-                byte* screenBase = (byte*)screenData.Scan0;
-                byte* templateBase = (byte*)templateData.Scan0;
-
-                int step = template.Width * template.Height > 12000 ? 2 : 1;
-                double bestScore = double.MinValue;
-                Point bestCenter = Point.Empty;
-                double maxAverageDiff = (1.0 - similarityThreshold) * 255.0;
-
-                for (int y = 0; y < searchBounds.Height; y += step)
-                {
-                    for (int x = 0; x < searchBounds.Width; x += step)
-                    {
-                        double totalDiff = 0;
-                        int sampleCount = 0;
-                        bool reject = false;
-
-                        for (int ty = 0; ty < template.Height && !reject; ty += step)
-                        {
-                            byte* templateRow = templateBase + ty * templateData.Stride;
-                            byte* screenRow = screenBase + (y + ty) * screenData.Stride + x * 3;
-
-                            for (int tx = 0; tx < template.Width; tx += step)
-                            {
-                                int templateOffset = tx * 3;
-                                int bDiff = Math.Abs(screenRow[templateOffset] - templateRow[templateOffset]);
-                                int gDiff = Math.Abs(screenRow[templateOffset + 1] - templateRow[templateOffset + 1]);
-                                int rDiff = Math.Abs(screenRow[templateOffset + 2] - templateRow[templateOffset + 2]);
-                                totalDiff += bDiff + gDiff + rDiff;
-                                sampleCount++;
-
-                                double currentAverageDiff = totalDiff / (sampleCount * 3.0);
-                                if (currentAverageDiff > maxAverageDiff && bestScore >= similarityThreshold)
-                                {
-                                    reject = true;
-                                    break;
-                                }
-                            }
-                        }
-
-                        if (reject || sampleCount == 0)
-                            continue;
-
-                        double score = 1.0 - (totalDiff / (sampleCount * 3.0 * 255.0));
-                        if (score > bestScore)
-                        {
-                            bestScore = score;
-                            bestCenter = new Point(x + template.Width / 2, y + template.Height / 2);
-                        }
-                    }
-                }
-
-                if (bestScore >= similarityThreshold)
-                    return new ImageMatchResult(true, bestCenter, bestScore);
-            }
-        }
-        finally
-        {
-            screen.UnlockBits(screenData);
-            template.UnlockBits(templateData);
-        }
-
-        return ImageMatchResult.NotFound;
-    }
-
     [DllImport("user32.dll")]
     private static extern bool SetCursorPos(int x, int y);
 
@@ -344,8 +489,4 @@ public sealed class GraphRuntimeExecutor
     private const uint XBUTTON2 = 0x0002;
     private const uint KEYEVENTF_KEYUP = 0x0002;
 
-    private readonly record struct ImageMatchResult(bool Found, Point Center, double Score)
-    {
-        public static ImageMatchResult NotFound => new(false, Point.Empty, 0);
-    }
 }

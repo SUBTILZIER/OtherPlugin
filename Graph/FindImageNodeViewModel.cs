@@ -15,7 +15,7 @@ public sealed class FindImageNodeViewModel : NodeBaseViewModel
     {
         AddInput("exec_in", "执行输入", PinKind.Execution);
         AddOutput("exec_out", "执行输出", PinKind.Execution);
-        AddOutput("success", "成功", PinKind.Boolean);
+        AddOutput("result", "结果", PinKind.Boolean);
         AddOutput("center", "中心点", PinKind.Vector2D);
         RefreshDescription();
     }
@@ -52,6 +52,6 @@ public sealed class FindImageNodeViewModel : NodeBaseViewModel
     public override void RefreshDescription()
     {
         string fileName = string.IsNullOrWhiteSpace(ImagePath) ? "未设置" : Path.GetFileName(ImagePath);
-        Description = $"图像：{fileName}\n相似度阈值：{SimilarityThresholdPercent}%\n输出：bool + Vector2D";
+        Description = $"{fileName}\n阈值 {SimilarityThresholdPercent}%";
     }
 }

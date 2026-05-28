@@ -27,6 +27,6 @@ public sealed class KeyboardNodeViewModel : InputNodeBase
     public override void RefreshDescription()
     {
         string modeLabel = OperationMode == PressReleaseMode.Press ? "按下" : "抬起";
-        Description = $"按键：{Key}\n模式：{modeLabel}\n输出：bool";
+        Description = $"{Key} · {modeLabel}";
     }
 }

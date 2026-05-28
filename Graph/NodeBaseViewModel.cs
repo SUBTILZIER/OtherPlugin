@@ -93,6 +93,10 @@ public abstract class NodeBaseViewModel : ObservableObject
         NodeKind.MouseMove => new SolidColorBrush(Color.FromRgb(35, 120, 91)),
         NodeKind.Keyboard => new SolidColorBrush(Color.FromRgb(200, 130, 60)),
         NodeKind.ScrollWheel => new SolidColorBrush(Color.FromRgb(160, 110, 180)),
+        NodeKind.Reroute => new SolidColorBrush(Color.FromRgb(244, 244, 244)),
+        NodeKind.If => new SolidColorBrush(Color.FromRgb(50, 140, 80)),
+        NodeKind.ForLoop => new SolidColorBrush(Color.FromRgb(180, 120, 40)),
+        NodeKind.WhileLoop => new SolidColorBrush(Color.FromRgb(160, 80, 120)),
         _ => new SolidColorBrush(Color.FromRgb(70, 70, 70)),
     };
 
@@ -124,7 +128,8 @@ public abstract class NodeBaseViewModel : ObservableObject
 
     public PinViewModel? FindPin(string pinName)
     {
-        return InputPins.Concat(OutputPins).FirstOrDefault(pin => pin.Name == pinName);
+        return OutputPins.FirstOrDefault(pin => pin.Name == pinName)
+            ?? InputPins.FirstOrDefault(pin => pin.Name == pinName);
     }
 
     protected PinViewModel AddInput(string name, string displayName, PinKind kind)

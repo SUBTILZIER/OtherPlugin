@@ -48,6 +48,12 @@ public sealed class NodeFileModel
     public string? ScrollAction { get; set; }
 
     public int ScrollSpeed { get; set; } = 120;
+
+    public int ScrollInterval { get; set; } = 100;
+
+    public int ScrollDuration { get; set; } = 1000;
+
+    public string? RoutedKind { get; set; }
 }
 
 public sealed class ConnectionFileModel

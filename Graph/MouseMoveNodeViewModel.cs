@@ -8,7 +8,10 @@ public sealed class MouseMoveNodeViewModel : NodeBaseViewModel
     public MouseMoveNodeViewModel(string id) : base(id, "鼠标移动")
     {
         AddInput("exec_in", "执行输入", PinKind.Execution);
+        AddInput("position", "目标坐标", PinKind.Vector2D);
         AddOutput("exec_out", "执行输出", PinKind.Execution);
+        AddOutput("position", "目标坐标", PinKind.Vector2D);
+        AddOutput("result", "结果", PinKind.Boolean);
         RefreshDescription();
     }
 
@@ -42,6 +45,9 @@ public sealed class MouseMoveNodeViewModel : NodeBaseViewModel
 
     public override void RefreshDescription()
     {
-        Description = $"目标坐标：({PositionX:0}, {PositionY:0})";
+        string posLabel = InputPins.FirstOrDefault(p => p.Name == "position")?.HasConnection == true
+            ? "前置输入"
+            : $"({PositionX:0}, {PositionY:0})";
+        Description = posLabel;
     }
 }
