@@ -25,10 +25,12 @@ public sealed class NodeFileModel
 
     public double Y { get; set; }
 
+    // FindImage 节点属性
     public string? ImagePath { get; set; }
 
     public int SimilarityThresholdPercent { get; set; } = 80;
 
+    // MouseClick 节点属性
     public string? ClickMode { get; set; }
 
     public double PositionX { get; set; }
@@ -37,14 +39,14 @@ public sealed class NodeFileModel
 
     public int HoldDurationMs { get; set; } = 600;
 
-    public int DelayMs { get; set; }
-
     public string? MouseButton { get; set; }
 
     public string? OperationMode { get; set; }
 
+    // Keyboard 节点属性
     public string? Key { get; set; }
 
+    // ScrollWheel 节点属性
     public string? ScrollAction { get; set; }
 
     public int ScrollSpeed { get; set; } = 120;
@@ -53,6 +55,16 @@ public sealed class NodeFileModel
 
     public int ScrollDuration { get; set; } = 1000;
 
+    // Delay 节点属性
+    public int DelayMs { get; set; }
+
+    // ForLoop 节点属性
+    public int LoopCount { get; set; } = 5;
+
+    // If/WhileLoop 节点属性
+    public bool ConditionValue { get; set; }
+
+    // Reroute 节点属性
     public string? RoutedKind { get; set; }
 }
 

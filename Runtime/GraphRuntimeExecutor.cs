@@ -83,7 +83,7 @@ public sealed class GraphRuntimeExecutor
         if (string.IsNullOrWhiteSpace(node.ImagePath))
         {
             context[$"{node.Id}:result"] = false;
-            Logger.Error("找图失败：图片路径为空。");
+            Logger.Warn("找图失败：图片路径为空。");
             return new GraphExecutionResult(false, "执行失败：找图节点图片路径为空。");
         }
 
@@ -91,6 +91,7 @@ public sealed class GraphRuntimeExecutor
         if (!File.Exists(imagePath))
         {
             context[$"{node.Id}:result"] = false;
+            Logger.Warn($"找图失败：图片不存在：{imagePath}");
             return new GraphExecutionResult(false, $"执行失败：找图节点图片不存在：{imagePath}");
         }
 
@@ -98,6 +99,7 @@ public sealed class GraphRuntimeExecutor
         if (!File.Exists(scriptPath))
         {
             context[$"{node.Id}:result"] = false;
+            Logger.Error($"找图失败：Python 脚本不存在：{scriptPath}");
             return new GraphExecutionResult(false, $"执行失败：Python 脚本不存在：{scriptPath}");
         }
 
@@ -153,6 +155,12 @@ public sealed class GraphRuntimeExecutor
             Logger.Error($"找图失败：未找到 {Path.GetFileName(imagePath)}");
             return new GraphExecutionResult(false, $"执行失败：未找到图像：{Path.GetFileName(imagePath)}");
         }
+        catch (Exception ex) when (ex.Message.Contains("系统找不到指定的文件"))
+        {
+            Logger.Error("找图失败：未找到 Python 环境。请重启程序以自动安装。");
+            context[$"{node.Id}:result"] = false;
+            return new GraphExecutionResult(false, "执行失败：未找到 Python 环境，请重启程序");
+        }
         catch (Exception ex)
         {
             Logger.Error($"找图失败：{ex.Message}");
@@ -163,6 +171,15 @@ public sealed class GraphRuntimeExecutor
 
     private GraphExecutionResult ExecuteMouseClickNode(GraphExecutionPlan plan, GraphRuntimeNode node, Dictionary<string, object> context)
     {
+        // 检查是否有有效位置（手动设置或来自前置节点）
+        bool hasValidPosition = node.PositionX != 0 || node.PositionY != 0;
+        var positionConn = plan.Connections.FirstOrDefault(c =>
+            c.TargetNodeId == node.Id && c.TargetPinName == "position");
+        if (positionConn is null && !hasValidPosition)
+        {
+            Logger.Warn("鼠标点击：未设置点击位置，也未连接位置输入。");
+        }
+
         Point targetPoint = ResolveMouseTargetPoint(plan, node, context);
         string buttonLabel = node.MouseButton switch
         {
@@ -204,6 +221,11 @@ public sealed class GraphRuntimeExecutor
 
     private GraphExecutionResult ExecuteKeyboardNode(GraphRuntimeNode node, Dictionary<string, object> context)
     {
+        if (string.IsNullOrWhiteSpace(node.Key))
+        {
+            Logger.Warn("键盘节点：未设置按键，将使用默认值 A。");
+        }
+
         string modeLabel = node.OperationMode == PressReleaseMode.Press ? "按下" : "抬起";
         Logger.Info($"键盘：{node.Key} {modeLabel}");
 
@@ -239,6 +261,11 @@ public sealed class GraphRuntimeExecutor
 
     private GraphExecutionResult ExecuteScrollWheelNode(GraphRuntimeNode node, Dictionary<string, object> context, CancellationToken ct)
     {
+        if (node.ScrollSpeed <= 0)
+        {
+            Logger.Warn("滚轮节点：滚动速度未设置或无效，将使用默认值 120。");
+        }
+
         Logger.Info($"滚轮：{node.ScrollAction}");
         switch (node.ScrollAction)
         {
@@ -253,8 +280,8 @@ public sealed class GraphRuntimeExecutor
             {
                 int speed = node.ScrollSpeed > 0 ? node.ScrollSpeed : 120;
                 int delta = node.ScrollAction == ScrollWheelAction.ScrollForward ? speed : -speed;
-                int interval = node.DelayMs > 0 ? node.DelayMs : 100;
-                int duration = (int)(node.PositionX > 0 ? node.PositionX : 1000);
+                int interval = node.ScrollInterval > 0 ? node.ScrollInterval : 100;
+                int duration = node.ScrollDuration > 0 ? node.ScrollDuration : 1000;
                 int elapsed = 0;
 
                 while (duration == 0 || elapsed < duration)
@@ -288,14 +315,29 @@ public sealed class GraphRuntimeExecutor
 
     private GraphExecutionResult ExecuteDelayNode(GraphRuntimeNode node)
     {
-        Logger.Info($"延迟：{node.DelayMs}ms");
-        Thread.Sleep(Math.Max(0, node.DelayMs));
-        Logger.Info($"延迟完成：{node.DelayMs}ms");
-        return new GraphExecutionResult(true, $"延迟完成：{node.DelayMs}ms");
+        if (node.DelayMs <= 0)
+        {
+            Logger.Warn($"延迟节点：延迟时间未设置或无效 ({node.DelayMs}ms)，将使用默认值 500ms。");
+        }
+
+        int delayMs = node.DelayMs > 0 ? node.DelayMs : 500;
+        Logger.Info($"延迟：{delayMs}ms");
+        Thread.Sleep(delayMs);
+        Logger.Info($"延迟完成：{delayMs}ms");
+        return new GraphExecutionResult(true, $"延迟完成：{delayMs}ms");
     }
 
     private GraphExecutionResult ExecuteMouseMoveNode(GraphExecutionPlan plan, GraphRuntimeNode node, Dictionary<string, object> context)
     {
+        // 检查是否有有效位置（手动设置或来自前置节点）
+        bool hasValidPosition = node.PositionX != 0 || node.PositionY != 0;
+        var positionConn = plan.Connections.FirstOrDefault(c =>
+            c.TargetNodeId == node.Id && c.TargetPinName == "position");
+        if (positionConn is null && !hasValidPosition)
+        {
+            Logger.Warn("鼠标移动：未设置目标位置，也未连接位置输入。");
+        }
+
         Point targetPoint = ResolveMouseTargetPoint(plan, node, context);
         Logger.Info($"鼠标移动：({targetPoint.X},{targetPoint.Y})");
         SetCursorPos(targetPoint.X, targetPoint.Y);
@@ -323,7 +365,7 @@ public sealed class GraphRuntimeExecutor
     private (GraphExecutionResult, string?) ExecuteIfNode(GraphExecutionPlan plan, GraphRuntimeNode node,
         Dictionary<string, object> context, string baseDirectory)
     {
-        bool condition = node.SimilarityThresholdPercent >= 50;
+        bool condition = node.ConditionValue;
         var condConn = plan.Connections.FirstOrDefault(c =>
             c.TargetNodeId == node.Id && c.TargetPinName == "condition");
         if (condConn is not null &&
@@ -341,7 +383,7 @@ public sealed class GraphRuntimeExecutor
     private (GraphExecutionResult, string?) ExecuteForLoopNode(GraphExecutionPlan plan, GraphRuntimeNode node,
         Dictionary<string, object> context, string baseDirectory, CancellationToken ct)
     {
-        int count = node.DelayMs > 0 ? node.DelayMs : 5;
+        int count = Math.Max(1, node.LoopCount);
         Logger.Info($"For 循环开始：{count} 次");
         for (int i = 0; i < count; i++)
         {
@@ -382,7 +424,7 @@ public sealed class GraphRuntimeExecutor
                     : conditionKey;
             }
 
-            bool exit = node.SimilarityThresholdPercent >= 50;
+            bool exit = node.ConditionValue;
             if (!string.IsNullOrEmpty(conditionKey) &&
                 context.TryGetValue(conditionKey, out object? val) &&
                 val is bool b)

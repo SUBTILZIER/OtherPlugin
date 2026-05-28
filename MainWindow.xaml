@@ -690,10 +690,16 @@
                          ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                     <ListBox.ItemTemplate>
                         <DataTemplate>
-                            <TextBlock TextWrapping="NoWrap" FontFamily="Consolas" FontSize="11"
-                                       Text="{Binding DisplayText}">
-                                <TextBlock.Style>
-                                    <Style TargetType="TextBlock">
+                            <TextBox Text="{Binding DisplayText, Mode=OneWay}"
+                                     TextWrapping="NoWrap"
+                                     FontFamily="Consolas"
+                                     FontSize="11"
+                                     IsReadOnly="True"
+                                     BorderThickness="0"
+                                     Background="Transparent"
+                                     Padding="0">
+                                <TextBox.Style>
+                                    <Style TargetType="TextBox">
                                         <Setter Property="Foreground" Value="#D0D7E2" />
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding Level}" Value="{x:Static logging:LogLevel.Warn}">
@@ -704,8 +710,8 @@
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
-                                </TextBlock.Style>
-                            </TextBlock>
+                                </TextBox.Style>
+                            </TextBox>
                         </DataTemplate>
                     </ListBox.ItemTemplate>
                 </ListBox>
