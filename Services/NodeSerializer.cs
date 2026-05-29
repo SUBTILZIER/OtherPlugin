@@ -62,10 +62,13 @@ public static class NodeSerializer
 
             case WhileLoopNodeViewModel whileNode:
                 file.ConditionValue = whileNode.ConditionValue;
+                file.ScrollAction = whileNode.LoopMode.ToString();
+                file.DelayMs = whileNode.MaxIterations;
                 break;
 
             case ForLoopNodeViewModel forNode:
                 file.LoopCount = forNode.LoopCount;
+                file.ConditionValue = forNode.EndConditionValue;
                 break;
 
             case DelayNodeViewModel delayNode:
@@ -83,6 +86,11 @@ public static class NodeSerializer
 
             case SelectWindowNodeViewModel selectWindowNode:
                 file.ProcessName = selectWindowNode.ProcessName;
+                break;
+
+            case FindTextNodeViewModel findTextNode:
+                file.ImagePath = findTextNode.Text;
+                file.SimilarityThresholdPercent = findTextNode.SimilarityThresholdPercent;
                 break;
         }
 
@@ -106,6 +114,15 @@ public static class NodeSerializer
                 X = file.X,
                 Y = file.Y,
                 ImagePath = file.ImagePath ?? string.Empty,
+                SimilarityThresholdPercent = file.SimilarityThresholdPercent,
+            },
+
+            "find_text" => new FindTextNodeViewModel(file.Id)
+            {
+                Title = file.Title,
+                X = file.X,
+                Y = file.Y,
+                Text = file.ImagePath ?? string.Empty,
                 SimilarityThresholdPercent = file.SimilarityThresholdPercent,
             },
 
@@ -174,6 +191,7 @@ public static class NodeSerializer
                 X = file.X,
                 Y = file.Y,
                 LoopCount = file.LoopCount > 0 ? file.LoopCount : 5,
+                EndConditionValue = file.ConditionValue,
             },
 
             "while_loop" => new WhileLoopNodeViewModel(file.Id)
@@ -182,6 +200,8 @@ public static class NodeSerializer
                 X = file.X,
                 Y = file.Y,
                 ConditionValue = file.ConditionValue,
+                LoopMode = Enum.TryParse<WhileLoopMode>(file.ScrollAction, true, out var lm) ? lm : WhileLoopMode.Finite,
+                MaxIterations = file.DelayMs > 0 ? file.DelayMs : 10000,
             },
 
             "delay" => new DelayNodeViewModel(file.Id)
@@ -231,6 +251,10 @@ public static class NodeSerializer
                 findImageNode.Id, findImageNode.Title,
                 findImageNode.ImagePath, findImageNode.SimilarityThresholdPercent),
 
+            FindTextNodeViewModel findTextNode => GraphRuntimeNode.ForFindText(
+                findTextNode.Id, findTextNode.Title,
+                findTextNode.Text, findTextNode.SimilarityThresholdPercent),
+
             StartProgramNodeViewModel startProg => GraphRuntimeNode.ForStartProgram(
                 startProg.Id, startProg.Title,
                 startProg.ProgramPath, startProg.WaitTimeoutMs,
@@ -261,9 +285,11 @@ public static class NodeSerializer
 
             IfNodeViewModel ifNode => GraphRuntimeNode.ForIf(ifNode.Id, ifNode.Title, ifNode.ConditionValue),
 
-            ForLoopNodeViewModel forNode => GraphRuntimeNode.ForForLoop(forNode.Id, forNode.Title, forNode.LoopCount),
+            ForLoopNodeViewModel forNode => GraphRuntimeNode.ForForLoop(
+                forNode.Id, forNode.Title, forNode.LoopCount, forNode.EndConditionValue),
 
-            WhileLoopNodeViewModel whileNode => GraphRuntimeNode.ForWhileLoop(whileNode.Id, whileNode.Title, whileNode.ConditionValue),
+            WhileLoopNodeViewModel whileNode => GraphRuntimeNode.ForWhileLoop(
+                whileNode.Id, whileNode.Title, whileNode.ConditionValue, whileNode.LoopMode, whileNode.MaxIterations),
 
             PrintLogNodeViewModel printNode => GraphRuntimeNode.ForPrintLog(printNode.Id, printNode.Title, printNode.Message),
 

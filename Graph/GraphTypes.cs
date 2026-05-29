@@ -16,6 +16,7 @@ public enum NodeKind
     StartProgram,
     PrintLog,
     SelectWindow,
+    FindText,
 }
 
 public enum PinDirection
@@ -59,6 +60,12 @@ public enum ProgramStartFailureAction
 {
     None,
     Retry,
+}
+
+public enum WhileLoopMode
+{
+    Infinite,
+    Finite,
 }
 
 public enum VirtualKeyCode

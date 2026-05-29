@@ -594,6 +594,18 @@
                                            TextWrapping="Wrap" />
                             </StackPanel>
 
+                            <StackPanel x:Name="FindTextInspectorPanel" Visibility="Collapsed">
+                                <TextBlock x:Name="FindTextLabel" Text="文字" Foreground="White" />
+                                <TextBox x:Name="FindTextTextBox" Margin="0,4,0,10" TextChanged="InspectorField_TextChanged" />
+                                <TextBlock Text="相似阈值 (%)" Foreground="White" />
+                                <TextBox x:Name="FindTextThresholdTextBox" Margin="0,4,0,12" TextChanged="InspectorField_TextChanged" />
+                                <TextBlock Text="说明" Foreground="#A7B1BF" FontWeight="SemiBold" />
+                                <TextBlock Margin="0,4,0,0"
+                                           Foreground="#A7B1BF"
+                                           Text="EasyOCR 屏幕文字识别。达到阈值即认为找到了文字。输出 bool + 中心点 Vector2D。"
+                                           TextWrapping="Wrap" />
+                            </StackPanel>
+
                             <StackPanel x:Name="MouseLeftInspectorPanel" Visibility="Collapsed">
                                 <TextBlock Text="鼠标按键" Foreground="White" />
                                 <ComboBox x:Name="MouseButtonComboBox" Margin="0,4,0,12" SelectionChanged="InspectorField_SelectionChanged">
@@ -628,7 +640,7 @@
                             </StackPanel>
 
                             <StackPanel x:Name="IfInspectorPanel" Visibility="Collapsed">
-                                <TextBlock x:Name="IfConditionLabel" Text="条件值" Foreground="White" />
+                                <TextBlock x:Name="IfConditionLabel" Text="结束条件" Foreground="White" />
                                 <ComboBox x:Name="IfConditionComboBox" Margin="0,4,0,12" SelectionChanged="InspectorField_SelectionChanged">
                                     <ComboBoxItem Content="False" />
                                     <ComboBoxItem Content="True" />
@@ -637,15 +649,27 @@
 
                             <StackPanel x:Name="ForLoopInspectorPanel" Visibility="Collapsed">
                                 <TextBlock Text="循环次数" Foreground="White" />
-                                <TextBox x:Name="ForLoopCountTextBox" Margin="0,4,0,12" TextChanged="InspectorField_TextChanged" />
-                            </StackPanel>
-
-                            <StackPanel x:Name="WhileLoopInspectorPanel" Visibility="Collapsed">
-                                <TextBlock x:Name="WhileConditionLabel" Text="条件值（为真时跳出）" Foreground="White" />
-                                <ComboBox x:Name="WhileLoopConditionComboBox" Margin="0,4,0,12" SelectionChanged="InspectorField_SelectionChanged">
+                                <TextBox x:Name="ForLoopCountTextBox" Margin="0,4,0,10" TextChanged="InspectorField_TextChanged" />
+                                <TextBlock x:Name="ForLoopEndConditionLabel" Text="结束条件（为真时跳出）" Foreground="White" />
+                                <ComboBox x:Name="ForLoopEndConditionComboBox" Margin="0,4,0,12" SelectionChanged="InspectorField_SelectionChanged">
                                     <ComboBoxItem Content="False" />
                                     <ComboBoxItem Content="True" />
                                 </ComboBox>
+                            </StackPanel>
+
+                            <StackPanel x:Name="WhileLoopInspectorPanel" Visibility="Collapsed">
+                                <TextBlock x:Name="WhileConditionLabel" Text="结束条件（为真时跳出）" Foreground="White" />
+                                <ComboBox x:Name="WhileLoopConditionComboBox" Margin="0,4,0,10" SelectionChanged="InspectorField_SelectionChanged">
+                                    <ComboBoxItem Content="False" />
+                                    <ComboBoxItem Content="True" />
+                                </ComboBox>
+                                <TextBlock Text="循环模式" Foreground="White" />
+                                <ComboBox x:Name="WhileLoopModeComboBox" Margin="0,4,0,10" SelectionChanged="InspectorField_SelectionChanged">
+                                    <ComboBoxItem Content="有限" Tag="Finite" />
+                                    <ComboBoxItem Content="无限" Tag="Infinite" />
+                                </ComboBox>
+                                <TextBlock x:Name="WhileMaxIterationsLabel" Text="最大循环次数" Foreground="White" />
+                                <TextBox x:Name="WhileMaxIterationsTextBox" Margin="0,4,0,12" TextChanged="InspectorField_TextChanged" />
                             </StackPanel>
 
                             <StackPanel x:Name="StartProgramInspectorPanel" Visibility="Collapsed">

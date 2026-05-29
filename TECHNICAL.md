@@ -126,19 +126,25 @@ public abstract class NodeBaseViewModel : ObservableObject
 - **PinKind**: Execution / Boolean / Vector2D / String
 - 支持动态引脚位置计算
 
-#### 当前主要节点
-- **Start**：图谱执行入口
-- **FindImage**：找图，输出 `result` 和 `center`
-- **MouseClick**：鼠标点击，支持前置 `position`
-- **MouseMove**：鼠标移动，支持前置 `position`
-- **Keyboard**：键盘按下/抬起
-- **ScrollWheel**：滚轮/中键
-- **Delay**：延迟
-- **If / ForLoop / WhileLoop**：基础流程控制
-- **StartProgram**：启动程序，输出 `process_name` 和 `result`
-- **SelectWindow**：按进程名选中窗口，输出 `process_name` 和 `result`
-- **PrintLog**：打印字符串或前置输入值
-- **Reroute**：连线整理路由点
+#### 当前全部节点 (16个)
+
+| 节点 | NodeKind | 分类 | 引脚 |
+|------|----------|------|------|
+| Start | Start | - | exec_out |
+| FindImage | FindImage | 插件节点 | exec, result(bool), center(V2D) |
+| FindText | FindText | 插件节点 | exec, text(String in), result(bool), center(V2D) |
+| MouseClick | MouseClick | 输入节点 | exec, position(V2D in), result(bool) |
+| MouseMove | MouseMove | 输入节点 | exec, position(V2D in), result(bool) |
+| Keyboard | Keyboard | 输入节点 | exec, result(bool) |
+| ScrollWheel | ScrollWheel | 输入节点 | exec, result(bool) |
+| Delay | Delay | 逻辑节点 | exec |
+| If | If | 逻辑节点 | exec, condition(bool in), exec_true/false |
+| ForLoop | ForLoop | 逻辑节点 | exec, end_condition(bool in), exec_loop_body/completed |
+| WhileLoop | WhileLoop | 逻辑节点 | exec, condition(bool in), exec_loop_body/completed |
+| StartProgram | StartProgram | 功能节点 | exec, process_name(String out), result(bool) |
+| SelectWindow | SelectWindow | 功能节点 | exec, process_name(String in/out), result(bool) |
+| PrintLog | PrintLog | 调试 | exec, message(String in) |
+| Reroute | Reroute | 连线 | in/out (同类型透传) |
 
 ### 3. Runtime 层（执行引擎）
 
@@ -184,6 +190,17 @@ static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int x, int 
 - 进程名支持 `notepad` 或 `notepad.exe`，运行时会去掉 `.exe`
 - 空进程名、找不到窗口：`Warn + continue`
 - Win32 异常：`Error + stop`
+
+#### 找字节点
+`FindTextNodeViewModel` 通过 EasyOCR 进行屏幕文字识别：
+- 属性：`Text` (搜索文字，支持前置 String 输入), `SimilarityThresholdPercent` (置信度阈值, 默认 80)
+- 输出 `result` bool 和 `center` Vector2D
+- Python 脚本：`Python/find_text.py`，使用 EasyOCR 中英文模型
+- 首次运行加载模型 ~15s，后续 ~5s
+- 文字为空、Python 缺失、EasyOCR 未安装、找字未命中：`Warn + continue`
+- 脚本退出码非 0 不阻塞，转为 Warn + 继续执行
+- Debug 输出：stderr 打印前 10 个检测文字块及置信度到 log
+- EasyOCR 安装：`pip install easyocr torch torchvision`
 
 ### 4. Logging 层
 

@@ -1357,6 +1357,13 @@ public partial class MainWindow : Window
                 FindImageThresholdTextBox.Text = findImage.SimilarityThresholdPercent.ToString();
                 break;
 
+            case FindTextNodeViewModel findTextNode:
+                FindTextInspectorPanel.Visibility = Visibility.Visible;
+                bool hasTextInput = IsInputPinConnected(findTextNode, "text");
+                FindTextTextBox.Text = hasTextInput ? "前置输入" : findTextNode.Text;
+                FindTextThresholdTextBox.Text = findTextNode.SimilarityThresholdPercent.ToString();
+                break;
+
             case MouseClickNodeViewModel mouseNode:
                 MouseLeftInspectorPanel.Visibility = Visibility.Visible;
                 MousePositionXTextBox.Text = mouseNode.PositionX.ToString("0.##");
@@ -1379,11 +1386,16 @@ public partial class MainWindow : Window
             case WhileLoopNodeViewModel whileNode:
                 WhileLoopInspectorPanel.Visibility = Visibility.Visible;
                 WhileLoopConditionComboBox.SelectedIndex = whileNode.ConditionValue ? 1 : 0;
+                WhileLoopModeComboBox.SelectedIndex = whileNode.LoopMode == WhileLoopMode.Infinite ? 1 : 0;
+                WhileMaxIterationsTextBox.Text = whileNode.MaxIterations.ToString();
+                WhileMaxIterationsLabel.Visibility = whileNode.LoopMode == WhileLoopMode.Infinite ? Visibility.Collapsed : Visibility.Visible;
+                WhileMaxIterationsTextBox.Visibility = whileNode.LoopMode == WhileLoopMode.Infinite ? Visibility.Collapsed : Visibility.Visible;
                 break;
 
             case ForLoopNodeViewModel forLoopNode:
                 ForLoopInspectorPanel.Visibility = Visibility.Visible;
                 ForLoopCountTextBox.Text = forLoopNode.LoopCount.ToString();
+                ForLoopEndConditionComboBox.SelectedIndex = forLoopNode.EndConditionValue ? 1 : 0;
                 break;
 
             case ScrollWheelNodeViewModel scrollNode:
@@ -1433,6 +1445,7 @@ public partial class MainWindow : Window
     private void HideAllInspectorPanels()
     {
         FindImageInspectorPanel.Visibility = Visibility.Collapsed;
+        FindTextInspectorPanel.Visibility = Visibility.Collapsed;
         MouseLeftInspectorPanel.Visibility = Visibility.Collapsed;
         KeyboardInspectorPanel.Visibility = Visibility.Collapsed;
         ScrollWheelInspectorPanel.Visibility = Visibility.Collapsed;
@@ -1461,6 +1474,13 @@ public partial class MainWindow : Window
                     findImage.SimilarityThresholdPercent = threshold;
                 break;
 
+            case FindTextNodeViewModel findTextNode:
+                if (!IsInputPinConnected(findTextNode, "text"))
+                    findTextNode.Text = FindTextTextBox.Text;
+                if (int.TryParse(FindTextThresholdTextBox.Text.Trim(), out var tt))
+                    findTextNode.SimilarityThresholdPercent = tt;
+                break;
+
             case MouseClickNodeViewModel mouseNode:
                 mouseNode.OperationMode = (PressReleaseMode)MouseClickOperationModeComboBox.SelectedIndex;
                 mouseNode.MouseButton = (Graph.MouseButton)MouseButtonComboBox.SelectedIndex;
@@ -1483,11 +1503,20 @@ public partial class MainWindow : Window
 
             case WhileLoopNodeViewModel whileNode:
                 whileNode.ConditionValue = WhileLoopConditionComboBox.SelectedIndex == 1;
+                whileNode.LoopMode = WhileLoopModeComboBox.SelectedIndex == 1
+                    ? WhileLoopMode.Infinite : WhileLoopMode.Finite;
+                if (int.TryParse(WhileMaxIterationsTextBox.Text.Trim(), out var wm))
+                    whileNode.MaxIterations = Math.Max(1, wm);
+                // Toggle max iterations visibility based on loop mode
+                bool isInfinite = whileNode.LoopMode == WhileLoopMode.Infinite;
+                WhileMaxIterationsLabel.Visibility = isInfinite ? Visibility.Collapsed : Visibility.Visible;
+                WhileMaxIterationsTextBox.Visibility = isInfinite ? Visibility.Collapsed : Visibility.Visible;
                 break;
 
             case ForLoopNodeViewModel forLoopNode:
                 if (int.TryParse(ForLoopCountTextBox.Text.Trim(), out var count))
                     forLoopNode.LoopCount = Math.Max(1, count);
+                forLoopNode.EndConditionValue = ForLoopEndConditionComboBox.SelectedIndex == 1;
                 break;
 
             case ScrollWheelNodeViewModel scrollNode:
@@ -1769,6 +1798,16 @@ public partial class MainWindow : Window
             LockConditionCombo(WhileLoopConditionComboBox, false, false);
         }
 
+        if (node is ForLoopNodeViewModel flNode)
+        {
+            bool locked = IsInputPinConnected(flNode, "end_condition");
+            LockConditionCombo(ForLoopEndConditionComboBox, locked, flNode.EndConditionValue);
+        }
+        else
+        {
+            LockConditionCombo(ForLoopEndConditionComboBox, false, false);
+        }
+
         if (node is PrintLogNodeViewModel plNode)
         {
             bool locked = IsInputPinConnected(plNode, "message");
@@ -1787,6 +1826,16 @@ public partial class MainWindow : Window
         else
         {
             LockTextBox(SelectWindowProcessNameTextBox, false, "");
+        }
+
+        if (node is FindTextNodeViewModel ftNode)
+        {
+            bool locked = IsInputPinConnected(ftNode, "text");
+            LockTextBox(FindTextTextBox, locked, ftNode.Text);
+        }
+        else
+        {
+            LockTextBox(FindTextTextBox, false, "");
         }
     }
 
@@ -1993,6 +2042,7 @@ public partial class MainWindow : Window
             new("功能节点", "选中窗口", (x, y) => _nodeFactory.CreateSelectWindowNode(x, y)),
             new("调试", "打印log", (x, y) => _nodeFactory.CreatePrintLogNode(x, y)),
             new("插件节点", "找图", (x, y) => _nodeFactory.CreateFindImageNode(x, y)),
+            new("插件节点", "找字", (x, y) => _nodeFactory.CreateFindTextNode(x, y)),
         ];
     }
 

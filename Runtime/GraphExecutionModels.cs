@@ -75,11 +75,14 @@ public sealed record GraphRuntimeNode(
     public static GraphRuntimeNode ForIf(string id, string title, bool conditionValue) =>
         new(id, title, NodeKind.If, null, 0, PressReleaseMode.Press, MouseButton.Left, 0, 0, 0, null, ScrollWheelAction.ScrollForward, 120, 100, 1000, 0, conditionValue, PinKind.Execution, ProgramStartFailureAction.None, 0, null);
 
-    public static GraphRuntimeNode ForForLoop(string id, string title, int loopCount) =>
-        new(id, title, NodeKind.ForLoop, null, 0, PressReleaseMode.Press, MouseButton.Left, 0, 0, 0, null, ScrollWheelAction.ScrollForward, 120, 100, 1000, loopCount, false, PinKind.Execution, ProgramStartFailureAction.None, 0, null);
+    public static GraphRuntimeNode ForForLoop(string id, string title, int loopCount, bool endConditionValue) =>
+        new(id, title, NodeKind.ForLoop, null, 0, PressReleaseMode.Press, MouseButton.Left, 0, 0, 0, null, ScrollWheelAction.ScrollForward, 120, 100, 1000, loopCount, endConditionValue, PinKind.Execution, ProgramStartFailureAction.None, 0, null);
 
-    public static GraphRuntimeNode ForWhileLoop(string id, string title, bool conditionValue) =>
-        new(id, title, NodeKind.WhileLoop, null, 0, PressReleaseMode.Press, MouseButton.Left, 0, 0, 0, null, ScrollWheelAction.ScrollForward, 120, 100, 1000, 0, conditionValue, PinKind.Execution, ProgramStartFailureAction.None, 0, null);
+    public static GraphRuntimeNode ForWhileLoop(string id, string title, bool conditionValue, WhileLoopMode loopMode,
+        int maxIterations) =>
+        new(id, title, NodeKind.WhileLoop, null, 0, PressReleaseMode.Press, MouseButton.Left, 0, 0,
+            maxIterations, null, ScrollWheelAction.ScrollForward, (int)loopMode, 100, 1000, 0,
+            conditionValue, PinKind.Execution, ProgramStartFailureAction.None, 0, null);
 
     public static GraphRuntimeNode ForReroute(string id, string title, PinKind routedKind) =>
         new(id, title, NodeKind.Reroute, null, 0, PressReleaseMode.Press, MouseButton.Left, 0, 0, 0, null, ScrollWheelAction.ScrollForward, 120, 100, 1000, 0, false, routedKind, ProgramStartFailureAction.None, 0, null);
@@ -99,6 +102,12 @@ public sealed record GraphRuntimeNode(
         new(id, title, NodeKind.SelectWindow, null, 0, PressReleaseMode.Press, MouseButton.Left,
             0, 0, 0, null, ScrollWheelAction.ScrollForward, 0, 100, 1000,
             0, false, PinKind.Execution, ProgramStartFailureAction.None, 0, processName);
+
+    public static GraphRuntimeNode ForFindText(string id, string title, string text, int similarityThresholdPercent) =>
+        new(id, title, NodeKind.FindText, text, similarityThresholdPercent,
+            PressReleaseMode.Press, MouseButton.Left,
+            0, 0, 0, null, ScrollWheelAction.ScrollForward, 120, 100, 1000,
+            0, false, PinKind.Execution, ProgramStartFailureAction.None, 0, null);
 }
 
 public sealed record GraphExecutionResult(bool Success, string Message, bool ContinueExecution = true);

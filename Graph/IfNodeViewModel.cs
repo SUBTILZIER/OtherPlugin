@@ -7,7 +7,7 @@ public sealed class IfNodeViewModel : NodeBaseViewModel
     public IfNodeViewModel(string id) : base(id, "分支")
     {
         AddInput("exec_in", string.Empty, PinKind.Execution);
-        AddInput("condition", "条件", PinKind.Boolean);
+        AddInput("condition", "判断条件", PinKind.Boolean);
         AddOutput("exec_true", "True", PinKind.Execution);
         AddOutput("exec_false", "False", PinKind.Execution);
         RefreshDescription();

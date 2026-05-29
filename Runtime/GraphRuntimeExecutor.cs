@@ -93,6 +93,7 @@ public sealed class GraphRuntimeExecutor
             NodeKind.StartProgram => (ExecuteStartProgramNode(node, context, ct), "exec_out"),
             NodeKind.PrintLog => (ExecutePrintLogNode(plan, node, context), "exec_out"),
             NodeKind.SelectWindow => (ExecuteSelectWindowNode(plan, node, context), "exec_out"),
+            NodeKind.FindText => (ExecuteFindTextNode(plan, node, context, baseDirectory, ct), "exec_out"),
             _ => (new GraphExecutionResult(true, $"已跳过节点：{node.Title}"), null),
         };
     }
@@ -488,6 +489,124 @@ public sealed class GraphRuntimeExecutor
         }
     }
 
+    private GraphExecutionResult ExecuteFindTextNode(GraphExecutionPlan plan, GraphRuntimeNode node,
+        Dictionary<string, object> context, string baseDirectory, CancellationToken ct)
+    {
+        string searchText = node.ImagePath ?? string.Empty;
+
+        // Check if text comes from a connected input pin
+        var textConn = plan.Connections.FirstOrDefault(c =>
+            c.TargetNodeId == node.Id && c.TargetPinName == "text");
+        if (textConn is not null &&
+            context.TryGetValue($"{textConn.SourceNodeId}:{textConn.SourcePinName}", out var val))
+        {
+            searchText = val?.ToString() ?? string.Empty;
+        }
+
+        if (string.IsNullOrWhiteSpace(searchText))
+        {
+            context[$"{node.Id}:result"] = false;
+            Logger.Warn("找字警告：文字为空。继续执行。");
+            return new GraphExecutionResult(true, $"找字未执行：{node.Title} 未设置文字");
+        }
+
+        string scriptPath = Path.Combine(AppContext.BaseDirectory, "Python", "find_text.py");
+        if (!File.Exists(scriptPath))
+        {
+            context[$"{node.Id}:result"] = false;
+            Logger.Error($"找字失败：Python 脚本不存在：{scriptPath}");
+            return new GraphExecutionResult(false, $"执行失败：Python 脚本不存在：{scriptPath}", false);
+        }
+
+        try
+        {
+            int threshold = node.SimilarityThresholdPercent > 0 ? node.SimilarityThresholdPercent : 80;
+            Logger.Info($"找字开始：\"{searchText}\"，相似度阈值：{threshold}%");
+
+            string pythonExe = ResolvePythonPath();
+            using Process process = new()
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = pythonExe,
+                    Arguments = $"\"{scriptPath}\" \"{searchText}\" {threshold}",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true,
+                },
+            };
+
+            process.Start();
+            Task<string> outputTask = process.StandardOutput.ReadToEndAsync();
+            Task<string> errorTask = process.StandardError.ReadToEndAsync();
+            DateTime deadline = DateTime.UtcNow.AddSeconds(60);
+
+            while (!process.WaitForExit(100))
+            {
+                ct.ThrowIfCancellationRequested();
+                if (DateTime.UtcNow >= deadline)
+                {
+                    try { process.Kill(entireProcessTree: true); } catch { }
+                    context[$"{node.Id}:result"] = false;
+                    Logger.Error("找字失败：Python 脚本执行超时。");
+                    return new GraphExecutionResult(false, "执行失败：找字脚本超时。", false);
+                }
+            }
+
+            string output = outputTask.GetAwaiter().GetResult();
+            string stderr = errorTask.GetAwaiter().GetResult();
+
+            if (!string.IsNullOrWhiteSpace(stderr))
+                Logger.Info($"找字 Python stderr:\n{stderr}");
+
+            if (!string.IsNullOrWhiteSpace(output))
+                Logger.Info($"找字 Python stdout: {output}");
+
+            if (process.ExitCode != 0 || string.IsNullOrWhiteSpace(output))
+            {
+                context[$"{node.Id}:result"] = false;
+                Logger.Warn($"找字未命中：\"{searchText}\"（脚本退出码 {process.ExitCode}）。继续执行。");
+                return new GraphExecutionResult(true, $"未找到文字：\"{searchText}\"，继续执行");
+            }
+
+            try
+            {
+                using JsonDocument doc = JsonDocument.Parse(output);
+                JsonElement root = doc.RootElement;
+
+                if (root.TryGetProperty("found", out var foundProp) && foundProp.GetBoolean())
+                {
+                    int cx = root.TryGetProperty("centerX", out var cxProp) ? cxProp.GetInt32() : 0;
+                    int cy = root.TryGetProperty("centerY", out var cyProp) ? cyProp.GetInt32() : 0;
+                    double score = root.TryGetProperty("score", out var sc) ? sc.GetDouble() : 0;
+                    string matchedText = root.TryGetProperty("matchedText", out var mt) ? mt.GetString() ?? "" : "";
+                    context[$"{node.Id}:result"] = true;
+                    context[$"{node.Id}:center"] = new System.Drawing.Point(cx, cy);
+                    Logger.Info($"找字成功：\"{matchedText}\"，({cx},{cy})，置信度：{score:F2}");
+                    return new GraphExecutionResult(true, $"找字成功：\"{matchedText}\" -> ({cx},{cy})");
+                }
+            }
+            catch (JsonException) { /* fall through to not-found */ }
+
+            context[$"{node.Id}:result"] = false;
+            Logger.Warn($"找字未命中：\"{searchText}\"。继续执行。");
+            return new GraphExecutionResult(true, $"未找到文字：\"{searchText}\"，继续执行");
+        }
+        catch (Exception ex) when (ex.Message.Contains("系统找不到指定的文件"))
+        {
+            context[$"{node.Id}:result"] = false;
+            Logger.Warn("找字警告：未找到 Python 环境。继续执行。");
+            return new GraphExecutionResult(true, $"找字未执行：未找到 Python 环境，继续执行");
+        }
+        catch (Exception ex)
+        {
+            Logger.Error($"找字失败：{ex.Message}");
+            context[$"{node.Id}:result"] = false;
+            return new GraphExecutionResult(false, $"执行失败：找字脚本错误：{ex.Message}");
+        }
+    }
+
     public void ReleaseAllKeys()
     {
         lock (_pressedKeys)
@@ -647,8 +766,32 @@ public sealed class GraphRuntimeExecutor
         }
 
         Logger.Info($"For 循环开始：{count} 次");
+
+        // Resolve end condition input connection once
+        var endConn = plan.Connections.FirstOrDefault(c =>
+            c.TargetNodeId == node.Id && c.TargetPinName == "end_condition");
+        string endConditionKey = endConn is not null
+            ? $"{endConn.SourceNodeId}:{endConn.SourcePinName}"
+            : string.Empty;
+
         for (int i = 0; i < count; i++)
         {
+            ct.ThrowIfCancellationRequested();
+
+            // Check end condition
+            bool shouldEnd = node.ConditionValue;
+            if (!string.IsNullOrEmpty(endConditionKey) &&
+                context.TryGetValue(endConditionKey, out object? endVal) &&
+                endVal is bool eb)
+            {
+                shouldEnd = eb;
+            }
+            if (shouldEnd)
+            {
+                Logger.Info($"For 循环提前结束：结束条件为真（第 {i} 次）");
+                break;
+            }
+
             context[$"{node.Id}:index"] = i;
 
             GraphRuntimeNode? bodyNode = GetNextExecutionNode(plan, node.Id, "exec_loop_body");
@@ -672,13 +815,17 @@ public sealed class GraphRuntimeExecutor
         string baseDirectory,
         CancellationToken ct)
     {
-        Logger.Info("While 循环开始");
+        WhileLoopMode loopMode = (WhileLoopMode)node.ScrollSpeed;
+        int maxIterations = loopMode == WhileLoopMode.Infinite ? int.MaxValue : (node.DelayMs > 0 ? node.DelayMs : 10000);
+        string modeLabel = loopMode == WhileLoopMode.Infinite ? "无限" : $"最多 {maxIterations} 次";
+        Logger.Info($"While 循环开始：{modeLabel}");
         int iteration = 0;
-        const int maxIterations = 10000;
         string conditionKey = string.Empty;
 
         while (iteration < maxIterations)
         {
+            ct.ThrowIfCancellationRequested();
+
             GraphRuntimeConnection? condConn = plan.Connections.FirstOrDefault(c =>
                 c.TargetNodeId == node.Id && c.TargetPinName == "condition");
 
@@ -711,7 +858,7 @@ public sealed class GraphRuntimeExecutor
             iteration++;
         }
 
-        if (iteration >= maxIterations)
+        if (loopMode != WhileLoopMode.Infinite && iteration >= maxIterations)
         {
             Logger.Error($"While 循环超过最大迭代次数 {maxIterations}，强制终止。");
             return (new GraphExecutionResult(false, "执行失败：While 循环超过最大迭代次数。", false), null);
