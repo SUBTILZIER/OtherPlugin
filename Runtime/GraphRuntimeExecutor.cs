@@ -13,37 +13,49 @@ namespace AutomationStudioWpf.Runtime;
 public sealed class GraphRuntimeExecutor
 {
     private readonly HashSet<byte> _pressedKeys = [];
+
     public GraphExecutionResult Execute(GraphExecutionPlan plan, string baseDirectory, CancellationToken ct = default)
     {
-        Logger.Info("--------开始执行---------");
+        Logger.Info("--------开始执行--------");
+
         GraphRuntimeNode? startNode = plan.Nodes.FirstOrDefault(node => node.NodeKind == NodeKind.Start);
         if (startNode is null)
         {
             Logger.Error("执行失败：图中没有开始节点。");
-            return new GraphExecutionResult(false, "执行失败：图中没有开始节点。");
+            return new GraphExecutionResult(false, "执行失败：图中没有开始节点。", false);
         }
 
         Dictionary<string, object> context = [];
         GraphExecutionResult result = ExecuteChain(plan, startNode.Id, "exec_out", context, baseDirectory, [], ct);
-        Logger.Info("--------执行结束---------");
+
+        Logger.Info("--------执行结束--------");
         return result;
     }
 
-    private GraphExecutionResult ExecuteChain(GraphExecutionPlan plan, string startNodeId, string startPinName,
-        Dictionary<string, object> context, string baseDirectory, HashSet<string> visitedNodes, CancellationToken ct)
+    private GraphExecutionResult ExecuteChain(
+        GraphExecutionPlan plan,
+        string startNodeId,
+        string startPinName,
+        Dictionary<string, object> context,
+        string baseDirectory,
+        HashSet<string> visitedNodes,
+        CancellationToken ct)
     {
         GraphRuntimeNode? currentNode = GetNextExecutionNode(plan, startNodeId, startPinName);
 
         while (currentNode is not null)
         {
             ct.ThrowIfCancellationRequested();
+
             if (!visitedNodes.Add(currentNode.Id))
             {
-                return new GraphExecutionResult(false, $"执行失败：检测到执行环路，节点 {currentNode.Title} 被重复访问。");
+                string message = $"执行失败：检测到执行环路，节点 {currentNode.Title} 被重复访问。";
+                Logger.Error(message);
+                return new GraphExecutionResult(false, message, false);
             }
 
             var (result, nextPinName) = ExecuteNode(plan, currentNode, context, baseDirectory, ct);
-            if (!result.Success)
+            if (!result.ContinueExecution)
             {
                 return result;
             }
@@ -59,40 +71,48 @@ public sealed class GraphRuntimeExecutor
         return new GraphExecutionResult(true, "执行完成。");
     }
 
-    private (GraphExecutionResult Result, string? NextPinName) ExecuteNode(GraphExecutionPlan plan, GraphRuntimeNode node,
-        Dictionary<string, object> context, string baseDirectory, CancellationToken ct)
+    private (GraphExecutionResult Result, string? NextPinName) ExecuteNode(
+        GraphExecutionPlan plan,
+        GraphRuntimeNode node,
+        Dictionary<string, object> context,
+        string baseDirectory,
+        CancellationToken ct)
     {
         return node.NodeKind switch
         {
-            NodeKind.FindImage => (ExecuteFindImageNode(node, context, baseDirectory), "exec_out"),
+            NodeKind.FindImage => (ExecuteFindImageNode(node, context, baseDirectory, ct), "exec_out"),
             NodeKind.MouseClick => (ExecuteMouseClickNode(plan, node, context), "exec_out"),
             NodeKind.Delay => (ExecuteDelayNode(node), "exec_out"),
             NodeKind.MouseMove => (ExecuteMouseMoveNode(plan, node, context), "exec_out"),
             NodeKind.Keyboard => (ExecuteKeyboardNode(node, context), "exec_out"),
             NodeKind.ScrollWheel => (ExecuteScrollWheelNode(node, context, ct), "exec_out"),
-            NodeKind.Reroute => (new GraphExecutionResult(true, string.Empty), "exec_out"),
-            NodeKind.If => ExecuteIfNode(plan, node, context, baseDirectory),
+            NodeKind.Reroute => (new GraphExecutionResult(true, string.Empty), node.RoutedKind == PinKind.Execution ? "out" : null),
+            NodeKind.If => ExecuteIfNode(plan, node, context),
             NodeKind.ForLoop => ExecuteForLoopNode(plan, node, context, baseDirectory, ct),
             NodeKind.WhileLoop => ExecuteWhileLoopNode(plan, node, context, baseDirectory, ct),
             _ => (new GraphExecutionResult(true, $"已跳过节点：{node.Title}"), null),
         };
     }
 
-    private GraphExecutionResult ExecuteFindImageNode(GraphRuntimeNode node, Dictionary<string, object> context, string baseDirectory)
+    private GraphExecutionResult ExecuteFindImageNode(
+        GraphRuntimeNode node,
+        Dictionary<string, object> context,
+        string baseDirectory,
+        CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(node.ImagePath))
         {
             context[$"{node.Id}:result"] = false;
-            Logger.Warn("找图失败：图片路径为空。");
-            return new GraphExecutionResult(false, "执行失败：找图节点图片路径为空。");
+            Logger.Warn("找图警告：图片路径为空。继续执行。");
+            return new GraphExecutionResult(true, $"找图未执行：{node.Title} 未设置图片路径");
         }
 
         string imagePath = ResolvePath(node.ImagePath, baseDirectory);
         if (!File.Exists(imagePath))
         {
             context[$"{node.Id}:result"] = false;
-            Logger.Warn($"找图失败：图片不存在：{imagePath}");
-            return new GraphExecutionResult(false, $"执行失败：找图节点图片不存在：{imagePath}");
+            Logger.Warn($"找图警告：图片不存在：{imagePath}。继续执行。");
+            return new GraphExecutionResult(true, $"找图未执行：{Path.GetFileName(imagePath)} 不存在");
         }
 
         string scriptPath = Path.Combine(AppContext.BaseDirectory, "Python", "find_image.py");
@@ -100,7 +120,7 @@ public sealed class GraphRuntimeExecutor
         {
             context[$"{node.Id}:result"] = false;
             Logger.Error($"找图失败：Python 脚本不存在：{scriptPath}");
-            return new GraphExecutionResult(false, $"执行失败：Python 脚本不存在：{scriptPath}");
+            return new GraphExecutionResult(false, $"执行失败：Python 脚本不存在：{scriptPath}", false);
         }
 
         try
@@ -122,20 +142,50 @@ public sealed class GraphRuntimeExecutor
             };
 
             process.Start();
-            string output = process.StandardOutput.ReadToEnd();
-            string stderr = process.StandardError.ReadToEnd();
-            process.WaitForExit(30000);
+
+            Task<string> outputTask = process.StandardOutput.ReadToEndAsync();
+            Task<string> errorTask = process.StandardError.ReadToEndAsync();
+            DateTime deadline = DateTime.UtcNow.AddSeconds(30);
+
+            while (!process.WaitForExit(100))
+            {
+                ct.ThrowIfCancellationRequested();
+
+                if (DateTime.UtcNow >= deadline)
+                {
+                    try { process.Kill(entireProcessTree: true); } catch { }
+                    context[$"{node.Id}:result"] = false;
+                    Logger.Error("找图失败：Python 脚本执行超时。");
+                    return new GraphExecutionResult(false, "执行失败：找图脚本超时。", false);
+                }
+            }
+
+            string output = outputTask.GetAwaiter().GetResult();
+            string stderr = errorTask.GetAwaiter().GetResult();
 
             if (process.ExitCode != 0)
+            {
                 Logger.Error($"Python 退出码：{process.ExitCode}");
+            }
 
             if (!string.IsNullOrWhiteSpace(stderr))
-                Logger.Error($"Python stderr: {stderr}");
+            {
+                if (process.ExitCode == 0)
+                    Logger.Warn($"Python stderr: {stderr}");
+                else
+                    Logger.Error($"Python stderr: {stderr}");
+            }
+
+            if (process.ExitCode != 0)
+            {
+                context[$"{node.Id}:result"] = false;
+                return new GraphExecutionResult(false, $"执行失败：找图脚本退出码 {process.ExitCode}", false);
+            }
 
             if (!string.IsNullOrWhiteSpace(output))
                 Logger.Info($"Python stdout: {output}");
             else
-                Logger.Error("Python stdout 为空");
+                Logger.Warn("Python stdout 为空");
 
             using JsonDocument doc = JsonDocument.Parse(output);
             JsonElement root = doc.RootElement;
@@ -152,71 +202,86 @@ public sealed class GraphRuntimeExecutor
                 return new GraphExecutionResult(true, $"找图成功：{node.Title} -> ({cx},{cy})");
             }
 
-            Logger.Error($"找图失败：未找到 {Path.GetFileName(imagePath)}");
-            return new GraphExecutionResult(false, $"执行失败：未找到图像：{Path.GetFileName(imagePath)}");
+            Logger.Warn($"找图未命中：{Path.GetFileName(imagePath)}。继续执行。");
+            return new GraphExecutionResult(true, $"未找到图像：{Path.GetFileName(imagePath)}，继续执行");
+        }
+        catch (OperationCanceledException)
+        {
+            Logger.Warn("找图执行已取消。");
+            throw;
         }
         catch (Exception ex) when (ex.Message.Contains("系统找不到指定的文件"))
         {
-            Logger.Error("找图失败：未找到 Python 环境。请重启程序以自动安装。");
             context[$"{node.Id}:result"] = false;
-            return new GraphExecutionResult(false, "执行失败：未找到 Python 环境，请重启程序");
+            Logger.Error("找图失败：未找到 Python 环境。请重启程序以自动安装。");
+            return new GraphExecutionResult(false, "执行失败：未找到 Python 环境，请重启程序", false);
         }
         catch (Exception ex)
         {
-            Logger.Error($"找图失败：{ex.Message}");
             context[$"{node.Id}:result"] = false;
-            return new GraphExecutionResult(false, $"执行失败：Python 脚本错误：{ex.Message}");
+            Logger.Error($"找图失败：{ex.Message}");
+            return new GraphExecutionResult(false, $"执行失败：Python 脚本错误：{ex.Message}", false);
         }
     }
 
     private GraphExecutionResult ExecuteMouseClickNode(GraphExecutionPlan plan, GraphRuntimeNode node, Dictionary<string, object> context)
     {
-        // 检查是否有有效位置（手动设置或来自前置节点）
-        bool hasValidPosition = node.PositionX != 0 || node.PositionY != 0;
-        var positionConn = plan.Connections.FirstOrDefault(c =>
-            c.TargetNodeId == node.Id && c.TargetPinName == "position");
-        if (positionConn is null && !hasValidPosition)
+        bool hasPositionInput = plan.Connections.Any(c => c.TargetNodeId == node.Id && c.TargetPinName == "position");
+        if (!hasPositionInput && !HasUsablePosition(node.PositionX, node.PositionY))
         {
-            Logger.Warn("鼠标点击：未设置点击位置，也未连接位置输入。");
+            context[$"{node.Id}:result"] = false;
+            Logger.Warn("鼠标点击：未设置点击位置，也未连接位置输入。继续执行。");
+            return new GraphExecutionResult(true, $"已跳过节点：{node.Title} 缺少点击位置");
         }
 
-        Point targetPoint = ResolveMouseTargetPoint(plan, node, context);
-        string buttonLabel = node.MouseButton switch
+        try
         {
-            MouseButton.Left => "左键", MouseButton.Right => "右键",
-            MouseButton.XButton1 => "侧键1", MouseButton.XButton2 => "侧键2",
-            _ => "左键",
-        };
-        string modeLabel = node.OperationMode switch
-        {
-            PressReleaseMode.Press => "按下",
-            PressReleaseMode.Release => "抬起",
-            PressReleaseMode.Click => "点击",
-            _ => "点击",
-        };
-        Logger.Info($"鼠标点击：{buttonLabel} {modeLabel} ({targetPoint.X},{targetPoint.Y})");
+            Point targetPoint = ResolveMouseTargetPoint(plan, node, context);
+            string buttonLabel = node.MouseButton switch
+            {
+                MouseButton.Left => "左键",
+                MouseButton.Right => "右键",
+                MouseButton.XButton1 => "侧键1",
+                MouseButton.XButton2 => "侧键2",
+                _ => "左键",
+            };
+            string modeLabel = node.OperationMode switch
+            {
+                PressReleaseMode.Press => "按下",
+                PressReleaseMode.Release => "抬起",
+                PressReleaseMode.Click => "点击",
+                _ => "点击",
+            };
 
-        SetCursorPos(targetPoint.X, targetPoint.Y);
-        (uint downFlag, uint upFlag, uint xButtonData) = GetMouseEventFlags(node.MouseButton);
+            Logger.Info($"鼠标点击：{buttonLabel} {modeLabel} ({targetPoint.X},{targetPoint.Y})");
 
-        switch (node.OperationMode)
-        {
-            case PressReleaseMode.Click:
-                mouse_event(downFlag, 0, 0, xButtonData, UIntPtr.Zero);
-                Thread.Sleep(50);
-                mouse_event(upFlag, 0, 0, xButtonData, UIntPtr.Zero);
-                break;
-            case PressReleaseMode.Press:
-                mouse_event(downFlag, 0, 0, xButtonData, UIntPtr.Zero);
-                break;
-            case PressReleaseMode.Release:
-                mouse_event(upFlag, 0, 0, xButtonData, UIntPtr.Zero);
-                break;
+            SetCursorPos(targetPoint.X, targetPoint.Y);
+            (uint downFlag, uint upFlag, uint xButtonData) = GetMouseEventFlags(node.MouseButton);
+
+            switch (node.OperationMode)
+            {
+                case PressReleaseMode.Click:
+                    mouse_event(downFlag, 0, 0, xButtonData, UIntPtr.Zero);
+                    Thread.Sleep(50);
+                    mouse_event(upFlag, 0, 0, xButtonData, UIntPtr.Zero);
+                    break;
+                case PressReleaseMode.Press:
+                    mouse_event(downFlag, 0, 0, xButtonData, UIntPtr.Zero);
+                    break;
+                case PressReleaseMode.Release:
+                    mouse_event(upFlag, 0, 0, xButtonData, UIntPtr.Zero);
+                    break;
+            }
+
+            context[$"{node.Id}:result"] = true;
+            return new GraphExecutionResult(true, $"鼠标{buttonLabel}{modeLabel}：({targetPoint.X},{targetPoint.Y})");
         }
-
-        context[$"{node.Id}:result"] = true;
-        Logger.Info($"鼠标点击完成：{buttonLabel} {modeLabel}");
-        return new GraphExecutionResult(true, $"鼠标{buttonLabel}{modeLabel}：({targetPoint.X},{targetPoint.Y})");
+        catch (Exception ex)
+        {
+            context[$"{node.Id}:result"] = false;
+            Logger.Error($"鼠标点击失败：{ex.Message}");
+            return new GraphExecutionResult(false, $"执行失败：鼠标点击错误：{ex.Message}", false);
+        }
     }
 
     private GraphExecutionResult ExecuteKeyboardNode(GraphRuntimeNode node, Dictionary<string, object> context)
@@ -255,6 +320,7 @@ public sealed class GraphRuntimeExecutor
             {
                 keybd_event(vk, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
             }
+
             _pressedKeys.Clear();
         }
     }
@@ -329,24 +395,32 @@ public sealed class GraphRuntimeExecutor
 
     private GraphExecutionResult ExecuteMouseMoveNode(GraphExecutionPlan plan, GraphRuntimeNode node, Dictionary<string, object> context)
     {
-        // 检查是否有有效位置（手动设置或来自前置节点）
-        bool hasValidPosition = node.PositionX != 0 || node.PositionY != 0;
-        var positionConn = plan.Connections.FirstOrDefault(c =>
-            c.TargetNodeId == node.Id && c.TargetPinName == "position");
-        if (positionConn is null && !hasValidPosition)
+        bool hasPositionInput = plan.Connections.Any(c => c.TargetNodeId == node.Id && c.TargetPinName == "position");
+        if (!hasPositionInput && !HasUsablePosition(node.PositionX, node.PositionY))
         {
-            Logger.Warn("鼠标移动：未设置目标位置，也未连接位置输入。");
+            context[$"{node.Id}:result"] = false;
+            Logger.Warn("鼠标移动：未设置目标位置，也未连接位置输入。继续执行。");
+            return new GraphExecutionResult(true, $"已跳过节点：{node.Title} 缺少目标位置");
         }
 
-        Point targetPoint = ResolveMouseTargetPoint(plan, node, context);
-        Logger.Info($"鼠标移动：({targetPoint.X},{targetPoint.Y})");
-        SetCursorPos(targetPoint.X, targetPoint.Y);
+        try
+        {
+            Point targetPoint = ResolveMouseTargetPoint(plan, node, context);
+            Logger.Info($"鼠标移动：({targetPoint.X},{targetPoint.Y})");
+            SetCursorPos(targetPoint.X, targetPoint.Y);
 
-        context[$"{node.Id}:result"] = true;
-        context[$"{node.Id}:position"] = targetPoint;
+            context[$"{node.Id}:result"] = true;
+            context[$"{node.Id}:position"] = targetPoint;
 
-        Logger.Info($"鼠标移动完成：({targetPoint.X},{targetPoint.Y})");
-        return new GraphExecutionResult(true, $"移动完成：{node.Title} -> ({targetPoint.X},{targetPoint.Y})");
+            Logger.Info($"鼠标移动完成：({targetPoint.X},{targetPoint.Y})");
+            return new GraphExecutionResult(true, $"移动完成：{node.Title} -> ({targetPoint.X},{targetPoint.Y})");
+        }
+        catch (Exception ex)
+        {
+            context[$"{node.Id}:result"] = false;
+            Logger.Error($"鼠标移动失败：{ex.Message}");
+            return new GraphExecutionResult(false, $"执行失败：鼠标移动错误：{ex.Message}", false);
+        }
     }
 
     private static GraphRuntimeNode? GetNextExecutionNode(GraphExecutionPlan plan, string sourceNodeId, string sourcePinName)
@@ -362,12 +436,15 @@ public sealed class GraphRuntimeExecutor
         return plan.Nodes.FirstOrDefault(node => node.Id == connection.TargetNodeId);
     }
 
-    private (GraphExecutionResult, string?) ExecuteIfNode(GraphExecutionPlan plan, GraphRuntimeNode node,
-        Dictionary<string, object> context, string baseDirectory)
+    private (GraphExecutionResult, string?) ExecuteIfNode(
+        GraphExecutionPlan plan,
+        GraphRuntimeNode node,
+        Dictionary<string, object> context)
     {
         bool condition = node.ConditionValue;
-        var condConn = plan.Connections.FirstOrDefault(c =>
+        GraphRuntimeConnection? condConn = plan.Connections.FirstOrDefault(c =>
             c.TargetNodeId == node.Id && c.TargetPinName == "condition");
+
         if (condConn is not null &&
             context.TryGetValue($"{condConn.SourceNodeId}:{condConn.SourcePinName}", out object? val) &&
             val is bool b)
@@ -380,10 +457,19 @@ public sealed class GraphRuntimeExecutor
         return (new GraphExecutionResult(true, $"分支：{(condition ? "True" : "False")}"), nextPin);
     }
 
-    private (GraphExecutionResult, string?) ExecuteForLoopNode(GraphExecutionPlan plan, GraphRuntimeNode node,
-        Dictionary<string, object> context, string baseDirectory, CancellationToken ct)
+    private (GraphExecutionResult, string?) ExecuteForLoopNode(
+        GraphExecutionPlan plan,
+        GraphRuntimeNode node,
+        Dictionary<string, object> context,
+        string baseDirectory,
+        CancellationToken ct)
     {
-        int count = Math.Max(1, node.LoopCount);
+        int count = node.LoopCount > 0 ? node.LoopCount : 1;
+        if (node.LoopCount <= 0)
+        {
+            Logger.Warn($"For 循环节点：循环次数无效 ({node.LoopCount})，将使用默认值 1。");
+        }
+
         Logger.Info($"For 循环开始：{count} 次");
         for (int i = 0; i < count; i++)
         {
@@ -394,7 +480,7 @@ public sealed class GraphRuntimeExecutor
             {
                 HashSet<string> bodyVisited = [];
                 GraphExecutionResult bodyResult = ExecuteChain(plan, node.Id, "exec_loop_body", context, baseDirectory, bodyVisited, ct);
-                if (!bodyResult.Success)
+                if (!bodyResult.ContinueExecution)
                     return (bodyResult, null);
             }
         }
@@ -403,25 +489,26 @@ public sealed class GraphRuntimeExecutor
         return (new GraphExecutionResult(true, $"循环完成：{count} 次"), "exec_completed");
     }
 
-    private (GraphExecutionResult, string?) ExecuteWhileLoopNode(GraphExecutionPlan plan, GraphRuntimeNode node,
-        Dictionary<string, object> context, string baseDirectory, CancellationToken ct)
+    private (GraphExecutionResult, string?) ExecuteWhileLoopNode(
+        GraphExecutionPlan plan,
+        GraphRuntimeNode node,
+        Dictionary<string, object> context,
+        string baseDirectory,
+        CancellationToken ct)
     {
         Logger.Info("While 循环开始");
         int iteration = 0;
         const int maxIterations = 10000;
-        GraphRuntimeNode? conditionSource = null;
         string conditionKey = string.Empty;
 
         while (iteration < maxIterations)
         {
-            var condConn = plan.Connections.FirstOrDefault(c =>
+            GraphRuntimeConnection? condConn = plan.Connections.FirstOrDefault(c =>
                 c.TargetNodeId == node.Id && c.TargetPinName == "condition");
-            if (condConn is not null)
+
+            if (condConn is not null && conditionKey.Length == 0)
             {
-                conditionSource ??= plan.Nodes.FirstOrDefault(n => n.Id == condConn.SourceNodeId);
-                conditionKey = conditionKey.Length == 0
-                    ? $"{condConn.SourceNodeId}:{condConn.SourcePinName}"
-                    : conditionKey;
+                conditionKey = $"{condConn.SourceNodeId}:{condConn.SourcePinName}";
             }
 
             bool exit = node.ConditionValue;
@@ -441,7 +528,7 @@ public sealed class GraphRuntimeExecutor
             {
                 HashSet<string> bodyVisited = [];
                 GraphExecutionResult bodyResult = ExecuteChain(plan, node.Id, "exec_loop_body", context, baseDirectory, bodyVisited, ct);
-                if (!bodyResult.Success)
+                if (!bodyResult.ContinueExecution)
                     return (bodyResult, null);
             }
 
@@ -451,7 +538,7 @@ public sealed class GraphRuntimeExecutor
         if (iteration >= maxIterations)
         {
             Logger.Error($"While 循环超过最大迭代次数 {maxIterations}，强制终止。");
-            return (new GraphExecutionResult(false, $"执行失败：While 循环超过最大迭代次数。"), null);
+            return (new GraphExecutionResult(false, "执行失败：While 循环超过最大迭代次数。", false), null);
         }
 
         Logger.Info($"While 循环完成：{iteration} 次");
@@ -475,6 +562,14 @@ public sealed class GraphRuntimeExecutor
         return new Point((int)Math.Round(node.PositionX), (int)Math.Round(node.PositionY));
     }
 
+    private static bool HasUsablePosition(double x, double y)
+    {
+        if (double.IsNaN(x) || double.IsNaN(y) || double.IsInfinity(x) || double.IsInfinity(y))
+            return false;
+
+        return Math.Abs(x) > 0.001 || Math.Abs(y) > 0.001;
+    }
+
     private static string ResolvePath(string? path, string baseDirectory)
     {
         if (string.IsNullOrWhiteSpace(path))
@@ -489,7 +584,7 @@ public sealed class GraphRuntimeExecutor
         string programsPython = Path.Combine(localAppData, "Programs", "Python");
         if (Directory.Exists(programsPython))
         {
-            var dirs = Directory.GetDirectories(programsPython, "Python3*");
+            string[] dirs = Directory.GetDirectories(programsPython, "Python3*");
             if (dirs.Length > 0)
             {
                 string exe = Path.Combine(dirs[0], "python.exe");
@@ -497,6 +592,7 @@ public sealed class GraphRuntimeExecutor
                     return exe;
             }
         }
+
         return "python";
     }
 
@@ -548,5 +644,4 @@ public sealed class GraphRuntimeExecutor
     private const uint XBUTTON1 = 0x0001;
     private const uint XBUTTON2 = 0x0002;
     private const uint KEYEVENTF_KEYUP = 0x0002;
-
 }

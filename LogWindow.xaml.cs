@@ -45,8 +45,7 @@ public partial class LogWindow : Window
 
     private void CopyAll_Click(object sender, RoutedEventArgs e)
     {
-        var text = string.Join(Environment.NewLine,
-            LoggingModule.Filter(Logger.Entries).Select(e => e.DisplayText));
+        string text = string.Join(Environment.NewLine, LoggingModule.Filter(Logger.Entries).Select(e => e.DisplayText));
         System.Windows.Clipboard.SetText(text);
     }
 

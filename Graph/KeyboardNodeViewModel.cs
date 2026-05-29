@@ -18,15 +18,13 @@ public sealed class KeyboardNodeViewModel : InputNodeBase
         set
         {
             if (SetProperty(ref _key, value))
-            {
                 RefreshDescription();
-            }
         }
     }
 
     public override void RefreshDescription()
     {
         string modeLabel = OperationMode == PressReleaseMode.Press ? "按下" : "抬起";
-        Description = $"{Key} · {modeLabel}";
+        Description = $"{Key} / {modeLabel}";
     }
 }

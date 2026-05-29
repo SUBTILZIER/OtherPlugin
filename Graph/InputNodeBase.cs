@@ -17,9 +17,7 @@ public abstract class InputNodeBase : NodeBaseViewModel
         set
         {
             if (SetProperty(ref _operationMode, value))
-            {
                 RefreshDescription();
-            }
         }
     }
 }

@@ -24,7 +24,7 @@
             <Button Content="新建图谱" Margin="2" Padding="10,4" Click="NewGraph_Click" />
             <Button Content="打开图谱" Margin="2" Padding="10,4" Click="OpenGraph_Click" />
             <Button Content="保存图谱" Margin="2" Padding="10,4" Click="SaveGraph_Click" />
-            <Button Content="执行图谱" Margin="2" Padding="10,4" Click="RunGraph_Click" />
+            <Button x:Name="RunGraphButton" Content="执行图谱" Margin="2" Padding="10,4" Click="RunGraph_Click" />
             <Button Content="日志" Margin="2" Padding="10,4" Click="OpenLogWindow_Click" />
             <Separator />
             <Button Content="添加鼠标点击节点" Margin="2" Padding="10,4" Click="AddMouseLeftNode_Click" />
@@ -32,7 +32,7 @@
             <Button Content="添加滚轮节点" Margin="2" Padding="10,4" Click="AddScrollWheelNode_Click" />
             <Button Content="添加延迟节点" Margin="2" Padding="10,4" Click="AddDelayNode_Click" />
             <Button Content="添加分支节点" Margin="2" Padding="10,4" Click="AddIfNode_Click" />
-            <Button Content="添加循环节点" Margin="2" Padding="10,4" Click="AddForLoopNode_Click" />
+            <Button Content="添加For循环节点" Margin="2" Padding="10,4" Click="AddForLoopNode_Click" />
             <Button Content="添加While循环" Margin="2" Padding="10,4" Click="AddWhileLoopNode_Click" />
             <Separator />
             <Button Content="添加找图节点" Margin="2" Padding="10,4" Click="AddFindImageNode_Click" />
@@ -51,147 +51,39 @@
             </Grid.RowDefinitions>
 
             <Grid Grid.Row="0">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="220" />
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="360" />
-            </Grid.ColumnDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="360" />
+                </Grid.ColumnDefinitions>
 
-            <Border Grid.Column="0"
-                    Margin="10"
-                    Padding="12"
-                    Background="#20242B"
-                    BorderBrush="#303744"
-                    BorderThickness="1"
-                    CornerRadius="8">
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                <StackPanel>
-                    <TextBlock Text="节点工具箱"
-                               Foreground="White"
-                               FontSize="18"
-                               FontWeight="Bold" />
-                    <TextBlock Margin="0,6,0,14"
-                               Text="模块化节点分类。后续可按同样结构继续扩展。"
-                               TextWrapping="Wrap"
-                               Foreground="#B7C0CD" />
-
-                    <TextBlock Text="输入节点"
-                               Foreground="White"
-                               FontWeight="SemiBold"
-                               Margin="0,0,0,6" />
-                    <Button Content="添加鼠标点击节点"
-                            Margin="0,0,0,6"
-                            Padding="10,8"
-                            Click="AddMouseLeftNode_Click" />
-                    <Button Content="添加键盘节点"
-                            Margin="0,0,0,6"
-                            Padding="10,8"
-                            Click="AddKeyboardNode_Click" />
-                    <Button Content="添加滚轮节点"
-                            Margin="0,0,0,14"
-                            Padding="10,8"
-                            Click="AddScrollWheelNode_Click" />
-
-                    <TextBlock Text="逻辑节点"
-                               Foreground="White"
-                               FontWeight="SemiBold"
-                               Margin="0,0,0,6" />
-                    <Button Content="添加延迟节点"
-                            Margin="0,0,0,6"
-                            Padding="10,8"
-                            Click="AddDelayNode_Click" />
-                    <Button Content="添加分支节点"
-                            Margin="0,0,0,6"
-                            Padding="10,8"
-                            Click="AddIfNode_Click" />
-                    <Button Content="添加循环节点"
-                            Margin="0,0,0,6"
-                            Padding="10,8"
-                            Click="AddForLoopNode_Click" />
-                    <Button Content="添加While循环"
-                            Margin="0,0,0,14"
-                            Padding="10,8"
-                            Click="AddWhileLoopNode_Click" />
-
-                    <TextBlock Text="功能节点"
-                               Foreground="White"
-                               FontWeight="SemiBold"
-                               Margin="0,0,0,6" />
-                    <Button Content="添加鼠标移动节点"
-                            Margin="0,0,0,14"
-                            Padding="10,8"
-                            Click="AddMouseMoveNode_Click" />
-
-                    <TextBlock Text="插件节点"
-                               Foreground="White"
-                               FontWeight="SemiBold"
-                               Margin="0,0,0,6" />
-                    <Button Content="添加找图节点"
-                            Margin="0,0,0,14"
-                            Padding="10,8"
-                            Click="AddFindImageNode_Click" />
-
-                    <Separator Margin="0,4,0,14" />
-
-                    <TextBlock Text="使用说明"
-                               Foreground="White"
-                               FontWeight="SemiBold" />
-                    <TextBlock Margin="0,8,0,0"
-                               Text="1. 点击左侧按钮添加节点。"
-                               Foreground="#D0D7E2"
-                               TextWrapping="Wrap" />
-                    <TextBlock Margin="0,4,0,0"
-                               Text="2. 左键拖动节点标题可移动节点位置。"
-                               Foreground="#D0D7E2"
-                               TextWrapping="Wrap" />
-                    <TextBlock Margin="0,4,0,0"
-                               Text="3. 左键空白处按住可框选多个节点。"
-                               Foreground="#D0D7E2"
-                               TextWrapping="Wrap" />
-                    <TextBlock Margin="0,4,0,0"
-                               Text="4. 右键按住空白处可拖动画布。"
-                               Foreground="#D0D7E2"
-                               TextWrapping="Wrap" />
-                    <TextBlock Margin="0,4,0,0"
-                               Text="5. 拖拽输出引脚到输入引脚完成连线。"
-                               Foreground="#D0D7E2"
-                               TextWrapping="Wrap" />
-                    <TextBlock Margin="0,4,0,0"
-                               Text="6. Alt+点击连线可断开。"
-                               Foreground="#D0D7E2"
-                               TextWrapping="Wrap" />
-                    <TextBlock Margin="0,4,0,0"
-                               Text="7. 右侧属性面板用于编辑当前选中节点。"
-                               Foreground="#D0D7E2"
-                               TextWrapping="Wrap" />
-                </StackPanel>
-                </ScrollViewer>
-            </Border>
-
-            <Border Grid.Column="1"
-                    Margin="0,10,10,10"
-                    Background="#11151A"
-                    BorderBrush="#303744"
-                    BorderThickness="1"
-                    CornerRadius="8">
-                <ScrollViewer x:Name="GraphScrollViewer"
-                              HorizontalScrollBarVisibility="Auto"
-                              VerticalScrollBarVisibility="Auto"
-                              Background="#11151A"
-                              PreviewMouseWheel="GraphScrollViewer_PreviewMouseWheel">
-                    <Canvas x:Name="GraphSurface"
-                            Width="80000"
-                            Height="60000"
-                            PreviewMouseLeftButtonDown="GraphSurface_PreviewMouseLeftButtonDown"
-                            PreviewMouseMove="GraphSurface_PreviewMouseMove"
-                            PreviewMouseLeftButtonUp="GraphSurface_PreviewMouseLeftButtonUp"
-                            PreviewMouseRightButtonDown="GraphSurface_PreviewMouseRightButtonDown"
-                            PreviewMouseRightButtonUp="GraphSurface_PreviewMouseRightButtonUp">
-                        <Canvas.Background>
+                <Border Grid.Column="0"
+                        Margin="0,10,10,10"
+                        Background="#11151A"
+                        BorderBrush="#303744"
+                        BorderThickness="1"
+                        CornerRadius="8">
+                    <Border x:Name="GraphViewport"
+                            ClipToBounds="True"
+                            Focusable="True"
+                            PreviewMouseWheel="GraphViewport_PreviewMouseWheel"
+                            PreviewMouseLeftButtonDown="GraphViewport_PreviewMouseLeftButtonDown"
+                            PreviewMouseMove="GraphViewport_PreviewMouseMove"
+                            PreviewMouseLeftButtonUp="GraphViewport_PreviewMouseLeftButtonUp"
+                            PreviewMouseRightButtonDown="GraphViewport_PreviewMouseRightButtonDown"
+                            PreviewMouseRightButtonUp="GraphViewport_PreviewMouseRightButtonUp">
+                        <Border.Background>
                             <DrawingBrush TileMode="Tile"
                                           Viewport="0,0,32,32"
                                           ViewportUnits="Absolute"
                                           Stretch="None">
+                                <DrawingBrush.Transform>
+                                    <TransformGroup>
+                                        <ScaleTransform ScaleX="{Binding ElementName=GraphZoomTransform, Path=ScaleX}"
+                                                        ScaleY="{Binding ElementName=GraphZoomTransform, Path=ScaleY}"/>
+                                        <TranslateTransform X="{Binding ElementName=GraphPanTransform, Path=X}"
+                                                            Y="{Binding ElementName=GraphPanTransform, Path=Y}"/>
+                                    </TransformGroup>
+                                </DrawingBrush.Transform>
                                 <DrawingBrush.Drawing>
                                     <DrawingGroup>
                                         <GeometryDrawing Brush="#171B22">
@@ -213,510 +105,484 @@
                                     </DrawingGroup>
                                 </DrawingBrush.Drawing>
                             </DrawingBrush>
-                        </Canvas.Background>
+                        </Border.Background>
+                        <Canvas>
+                            <Canvas x:Name="GraphSurface"
+                                    Canvas.Left="0" Canvas.Top="0"
+                                    Width="400000"
+                                    Height="400000">
+                                <Canvas.RenderTransform>
+                                    <TransformGroup>
+                                        <ScaleTransform x:Name="GraphZoomTransform" ScaleX="1" ScaleY="1" />
+                                        <TranslateTransform x:Name="GraphPanTransform" X="0" Y="0" />
+                                    </TransformGroup>
+                                </Canvas.RenderTransform>
 
-                        <!-- Connections layer -->
-                        <ItemsControl ItemsSource="{Binding Connections}">
-                            <ItemsControl.ItemsPanel>
-                                <ItemsPanelTemplate>
-                                    <Canvas />
-                                </ItemsPanelTemplate>
-                            </ItemsControl.ItemsPanel>
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate DataType="{x:Type graph:ConnectionViewModel}">
-                                    <ContentControl MouseDoubleClick="ConnectionPath_MouseDoubleClick"
-                                                    Background="Transparent"
-                                                    BorderThickness="0">
-                                        <Path Data="{Binding PathGeometry}"
-                                              Stroke="{Binding StrokeBrush}"
-                                              StrokeThickness="4"
-                                              SnapsToDevicePixels="True"
-                                              StrokeStartLineCap="Round"
-                                              StrokeEndLineCap="Round"
-                                              Cursor="Hand"
-                                              PreviewMouseLeftButtonDown="ConnectionPath_PreviewMouseLeftButtonDown" />
-                                    </ContentControl>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
+                                <ItemsControl ItemsSource="{Binding Connections}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <Canvas />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type graph:ConnectionViewModel}">
+                                        <ContentControl MouseDoubleClick="ConnectionPath_MouseDoubleClick"
+                                                        Background="Transparent"
+                                                        BorderThickness="0">
+                                            <Path Data="{Binding PathGeometry}"
+                                                  Stroke="{Binding StrokeBrush}"
+                                                  StrokeThickness="4"
+                                                  SnapsToDevicePixels="True"
+                                                  StrokeStartLineCap="Round"
+                                                  StrokeEndLineCap="Round"
+                                                  Cursor="Hand"
+                                                  PreviewMouseLeftButtonDown="ConnectionPath_PreviewMouseLeftButtonDown" />
+                                        </ContentControl>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
 
-                        <!-- Preview connection wire -->
-                        <Path x:Name="PreviewConnectionPath"
-                              Visibility="Collapsed"
-                              Stroke="#F5F5F5"
-                              StrokeThickness="4"
-                              StrokeStartLineCap="Round"
-                              StrokeEndLineCap="Round"
-                              StrokeDashArray="4,4"
-                              IsHitTestVisible="False"
-                              Panel.ZIndex="450" />
+                            <Path x:Name="PreviewConnectionPath"
+                                  Visibility="Collapsed"
+                                  Stroke="#F5F5F5"
+                                  StrokeThickness="4"
+                                  StrokeStartLineCap="Round"
+                                  StrokeEndLineCap="Round"
+                                  StrokeDashArray="4,4"
+                                  IsHitTestVisible="False"
+                                  Panel.ZIndex="450" />
 
-                        <!-- Nodes layer (UE4-style layout) -->
-                        <ItemsControl ItemsSource="{Binding Nodes}">
-                            <ItemsControl.ItemsPanel>
-                                <ItemsPanelTemplate>
-                                    <Canvas />
-                                </ItemsPanelTemplate>
-                            </ItemsControl.ItemsPanel>
-                            <ItemsControl.ItemContainerStyle>
-                                <Style TargetType="ContentPresenter">
-                                    <Setter Property="Canvas.Left" Value="{Binding X}" />
-                                    <Setter Property="Canvas.Top" Value="{Binding Y}" />
-                                </Style>
-                            </ItemsControl.ItemContainerStyle>
-                            <ItemsControl.Resources>
-                                <DataTemplate DataType="{x:Type graph:RerouteNodeViewModel}">
-                                    <Border Width="20" Height="20"
-                                            Background="Transparent"
-                                            BorderThickness="0"
-                                            Panel.ZIndex="100"
-                                            PreviewMouseLeftButtonDown="NodeHeader_PreviewMouseLeftButtonDown"
-                                            PreviewMouseMove="NodeHeader_PreviewMouseMove"
-                                            PreviewMouseLeftButtonUp="NodeHeader_PreviewMouseLeftButtonUp">
-                                        <Grid>
-                                            <Grid Width="6" Height="6"
-                                                  HorizontalAlignment="Left"
-                                                  VerticalAlignment="Center"
-                                                  Loaded="PinAnchor_Loaded"
-                                                  LayoutUpdated="PinAnchor_LayoutUpdated"
-                                                  DataContext="{Binding InputPins[0]}" />
-                                            <Ellipse Width="14" Height="14"
-                                                     Fill="{Binding CircleFill}"
-                                                     Stroke="#0D0F12"
-                                                     StrokeThickness="1.5" />
-                                            <Grid Width="6" Height="6"
-                                                  HorizontalAlignment="Right"
-                                                  VerticalAlignment="Center"
-                                                  Loaded="PinAnchor_Loaded"
-                                                  LayoutUpdated="PinAnchor_LayoutUpdated"
-                                                  DataContext="{Binding OutputPins[0]}" />
-                                        </Grid>
-                                    </Border>
-                                </DataTemplate>
-                                <DataTemplate DataType="{x:Type graph:NodeBaseViewModel}">
-                                    <Border Width="{Binding Width}"
-                                            Background="#20242A"
-                                            BorderBrush="{Binding BorderBrush}"
-                                            BorderThickness="2"
-                                            CornerRadius="6"
-                                            Opacity="0.8"
-                                            Panel.ZIndex="100"
-                                            PreviewMouseLeftButtonDown="NodeHeader_PreviewMouseLeftButtonDown"
-                                            PreviewMouseMove="NodeHeader_PreviewMouseMove"
-                                            PreviewMouseLeftButtonUp="NodeHeader_PreviewMouseLeftButtonUp"
-                                            MouseLeftButtonDown="NodeCard_MouseLeftButtonDown">
-                                        <Grid>
-                                            <Grid.RowDefinitions>
-                                                <RowDefinition Height="30" />
-                                                <RowDefinition Height="Auto" />
-                                            </Grid.RowDefinitions>
-
-                                            <!-- Title bar -->
-                                            <Border Grid.Row="0"
-                                                    Background="{Binding HeaderBrush}"
-                                                    CornerRadius="4,4,0,0"
-                                                    Padding="10,4">
-                                                <TextBlock Text="{Binding Title}"
-                                                           FontSize="14"
-                                                           FontWeight="Bold"
-                                                           Foreground="White" />
-                                            </Border>
-
-                                            <!-- Pin area: left inputs, center info, right outputs -->
-                                            <Grid Grid.Row="1" Margin="4,6,4,6">
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="Auto" />
-                                                    <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="Auto" />
-                                                </Grid.ColumnDefinitions>
-
-                                                <!-- Left: input pins -->
-                                                <ItemsControl Grid.Column="0"
-                                                              ItemsSource="{Binding InputPins}">
-                                                    <ItemsControl.ItemsPanel>
-                                                        <ItemsPanelTemplate>
-                                                            <StackPanel Orientation="Vertical" />
-                                                        </ItemsPanelTemplate>
-                                                    </ItemsControl.ItemsPanel>
-                                                    <ItemsControl.ItemTemplate>
-                                                        <DataTemplate DataType="{x:Type graph:PinViewModel}">
-                                                            <Button PreviewMouseLeftButtonDown="PinButton_PreviewMouseLeftButtonDown"
-                                                                    PreviewMouseLeftButtonUp="PinButton_PreviewMouseLeftButtonUp"
-                                                                    Height="28" Padding="0" Margin="6,0,0,3"
-                                                                    Background="Transparent" BorderThickness="0"
-                                                                    HorizontalAlignment="Left" Cursor="Hand">
-                                                                <StackPanel Orientation="Horizontal">
-                                                                    <!-- Pin icon grid -->
-                                                                    <Grid Width="12" Height="12"
-                                                                          Loaded="PinAnchor_Loaded"
-                                                                          LayoutUpdated="PinAnchor_LayoutUpdated">
-                                                                        <Path x:Name="ExecTriangle"
-                                                                              Data="{Binding TriangleGeometry}"
-                                                                              Fill="{Binding PinFillBrush}"
-                                                                              Stroke="{Binding PinBrush}"
-                                                                              StrokeThickness="1.2"
-                                                                              Visibility="Collapsed" />
-                                                                        <Ellipse x:Name="DataCircle"
-                                                                                 Width="10" Height="10"
-                                                                                 Fill="{Binding PinFillBrush}"
-                                                                                 Stroke="{Binding PinBrush}"
-                                                                                 StrokeThickness="1.1"
-                                                                                 Visibility="Visible" />
-                                                                    </Grid>
-                                                                    <TextBlock Text="{Binding DisplayName}"
-                                                                               Margin="6,0,0,0"
-                                                                               VerticalAlignment="Center"
-                                                                               Foreground="#E9EEF6"
-                                                                               FontSize="12" />
-                                                                </StackPanel>
-                                                            </Button>
-                                                            <DataTemplate.Triggers>
-                                                                <DataTrigger Binding="{Binding IsExecution}" Value="True">
-                                                                    <Setter TargetName="ExecTriangle" Property="Visibility" Value="Visible" />
-                                                                    <Setter TargetName="DataCircle" Property="Visibility" Value="Collapsed" />
-                                                                </DataTrigger>
-                                                            </DataTemplate.Triggers>
-                                                        </DataTemplate>
-                                                    </ItemsControl.ItemTemplate>
-                                                </ItemsControl>
-
-                                                <!-- Center: node info -->
-                                                <TextBlock Grid.Column="1"
-                                                           Text="{Binding Description}"
-                                                           Foreground="#C8D0DB"
-                                                           FontSize="11"
-                                                           Margin="8,0"
-                                                           VerticalAlignment="Center"
-                                                           HorizontalAlignment="Left"
-                                                           TextAlignment="Left"
-                                                           TextWrapping="Wrap" />
-
-                                                <!-- Right: output pins -->
-                                                <ItemsControl Grid.Column="2"
-                                                              ItemsSource="{Binding OutputPins}">
-                                                    <ItemsControl.ItemsPanel>
-                                                        <ItemsPanelTemplate>
-                                                            <StackPanel Orientation="Vertical" />
-                                                        </ItemsPanelTemplate>
-                                                    </ItemsControl.ItemsPanel>
-                                                    <ItemsControl.ItemTemplate>
-                                                        <DataTemplate DataType="{x:Type graph:PinViewModel}">
-                                                            <Button PreviewMouseLeftButtonDown="PinButton_PreviewMouseLeftButtonDown"
-                                                                    PreviewMouseLeftButtonUp="PinButton_PreviewMouseLeftButtonUp"
-                                                                    Height="28" Padding="0" Margin="0,0,6,3"
-                                                                    Background="Transparent" BorderThickness="0"
-                                                                    HorizontalAlignment="Right" Cursor="Hand">
-                                                                <StackPanel Orientation="Horizontal">
-                                                                    <TextBlock Text="{Binding DisplayName}"
-                                                                               Margin="0,0,6,0"
-                                                                               VerticalAlignment="Center"
-                                                                               Foreground="#E9EEF6"
-                                                                               FontSize="12" />
-                                                                    <!-- Pin icon grid -->
-                                                                    <Grid Width="12" Height="12"
-                                                                          Loaded="PinAnchor_Loaded"
-                                                                          LayoutUpdated="PinAnchor_LayoutUpdated">
-                                                                        <Path x:Name="ExecTriangle"
-                                                                              Data="{Binding TriangleGeometry}"
-                                                                              Fill="{Binding PinFillBrush}"
-                                                                              Stroke="{Binding PinBrush}"
-                                                                              StrokeThickness="1.2"
-                                                                              Visibility="Collapsed" />
-                                                                        <Ellipse x:Name="DataCircle"
-                                                                                 Width="10" Height="10"
-                                                                                 Fill="{Binding PinFillBrush}"
-                                                                                 Stroke="{Binding PinBrush}"
-                                                                                 StrokeThickness="1.1"
-                                                                                 Visibility="Visible" />
-                                                                    </Grid>
-                                                                </StackPanel>
-                                                            </Button>
-                                                            <DataTemplate.Triggers>
-                                                                <DataTrigger Binding="{Binding IsExecution}" Value="True">
-                                                                    <Setter TargetName="ExecTriangle" Property="Visibility" Value="Visible" />
-                                                                    <Setter TargetName="DataCircle" Property="Visibility" Value="Collapsed" />
-                                                                </DataTrigger>
-                                                            </DataTemplate.Triggers>
-                                                        </DataTemplate>
-                                                    </ItemsControl.ItemTemplate>
-                                                </ItemsControl>
+                            <ItemsControl ItemsSource="{Binding Nodes}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <Canvas />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemContainerStyle>
+                                    <Style TargetType="ContentPresenter">
+                                        <Setter Property="Canvas.Left" Value="{Binding X}" />
+                                        <Setter Property="Canvas.Top" Value="{Binding Y}" />
+                                    </Style>
+                                </ItemsControl.ItemContainerStyle>
+                                <ItemsControl.Resources>
+                                    <DataTemplate DataType="{x:Type graph:RerouteNodeViewModel}">
+                                        <Border Width="20" Height="20"
+                                                Background="Transparent"
+                                                BorderThickness="0"
+                                                Panel.ZIndex="100"
+                                                PreviewMouseLeftButtonDown="NodeHeader_PreviewMouseLeftButtonDown"
+                                                PreviewMouseMove="NodeHeader_PreviewMouseMove"
+                                                PreviewMouseLeftButtonUp="NodeHeader_PreviewMouseLeftButtonUp">
+                                            <Grid>
+                                                <Grid Width="6" Height="6"
+                                                      HorizontalAlignment="Left"
+                                                      VerticalAlignment="Center"
+                                                      Loaded="PinAnchor_Loaded"
+                                                      LayoutUpdated="PinAnchor_LayoutUpdated"
+                                                      DataContext="{Binding InputPins[0]}" />
+                                                <Ellipse Width="14" Height="14"
+                                                         Fill="{Binding CircleFill}"
+                                                         Stroke="#0D0F12"
+                                                         StrokeThickness="1.5" />
+                                                <Grid Width="6" Height="6"
+                                                      HorizontalAlignment="Right"
+                                                      VerticalAlignment="Center"
+                                                      Loaded="PinAnchor_Loaded"
+                                                      LayoutUpdated="PinAnchor_LayoutUpdated"
+                                                      DataContext="{Binding OutputPins[0]}" />
                                             </Grid>
-                                        </Grid>
-                                    </Border>
-                                </DataTemplate>
-                            </ItemsControl.Resources>
-                        </ItemsControl>
+                                        </Border>
+                                    </DataTemplate>
 
-                        <Rectangle x:Name="SelectionRectangle"
-                                   Visibility="Collapsed"
-                                   Stroke="#66A8D5FF"
-                                   StrokeThickness="1.5"
-                                   Fill="#2258AFFF"
-                                   RadiusX="2"
-                                   RadiusY="2"
-                                   Panel.ZIndex="500" />
-                    </Canvas>
-                </ScrollViewer>
-            </Border>
+                                    <DataTemplate DataType="{x:Type graph:NodeBaseViewModel}">
+                                        <Border Width="{Binding Width}"
+                                                Background="#20242A"
+                                                BorderBrush="{Binding BorderBrush}"
+                                                BorderThickness="2"
+                                                CornerRadius="6"
+                                                Opacity="0.8"
+                                                Panel.ZIndex="100"
+                                                PreviewMouseLeftButtonDown="NodeHeader_PreviewMouseLeftButtonDown"
+                                                PreviewMouseMove="NodeHeader_PreviewMouseMove"
+                                                PreviewMouseLeftButtonUp="NodeHeader_PreviewMouseLeftButtonUp"
+                                                MouseLeftButtonDown="NodeCard_MouseLeftButtonDown">
+                                            <Grid>
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="30" />
+                                                    <RowDefinition Height="Auto" />
+                                                </Grid.RowDefinitions>
 
-            <Border Grid.Column="2"
-                    Margin="0,10,10,10"
-                    Padding="14"
-                    Background="#20242B"
-                    BorderBrush="#303744"
-                    BorderThickness="1"
-                    CornerRadius="8">
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel>
-                        <TextBlock Text="节点属性"
-                                   Foreground="White"
-                                   FontSize="18"
-                                   FontWeight="Bold" />
-                        <TextBlock x:Name="InspectorHintTextBlock"
-                                   Margin="0,8,0,14"
-                                   Text="请选择一个节点进行编辑。"
-                                   Foreground="#B7C0CD"
-                                   TextWrapping="Wrap" />
+                                                <Border Grid.Row="0"
+                                                        Background="{Binding HeaderBrush}"
+                                                        CornerRadius="4,4,0,0"
+                                                        Padding="10,4">
+                                                    <TextBlock Text="{Binding Title}"
+                                                               FontSize="14"
+                                                               FontWeight="Bold"
+                                                               Foreground="White" />
+                                                </Border>
 
-                        <TextBlock Text="节点名称" Foreground="White" />
-                        <TextBox x:Name="NodeTitleTextBox"
-                                 Margin="0,4,0,12"
-                                 TextChanged="InspectorField_TextChanged" />
+                                                <Grid Grid.Row="1" Margin="4,6,4,6">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto" />
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
 
-                        <StackPanel x:Name="FindImageInspectorPanel"
-                                    Visibility="Collapsed">
-                            <TextBlock Text="图像路径" Foreground="White" />
-                            <DockPanel Margin="0,4,0,10">
-                                <Button Content="浏览"
-                                        DockPanel.Dock="Right"
-                                        Padding="12,4"
-                                        Click="BrowseFindImagePath_Click" />
-                                <TextBox x:Name="FindImagePathTextBox"
-                                         Margin="0,0,8,0"
-                                         TextChanged="InspectorField_TextChanged" />
-                            </DockPanel>
+                                                    <ItemsControl Grid.Column="0" ItemsSource="{Binding InputPins}">
+                                                        <ItemsControl.ItemsPanel>
+                                                            <ItemsPanelTemplate>
+                                                                <StackPanel Orientation="Vertical" />
+                                                            </ItemsPanelTemplate>
+                                                        </ItemsControl.ItemsPanel>
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate DataType="{x:Type graph:PinViewModel}">
+                                                                <Button PreviewMouseLeftButtonDown="PinButton_PreviewMouseLeftButtonDown"
+                                                                        PreviewMouseLeftButtonUp="PinButton_PreviewMouseLeftButtonUp"
+                                                                        Height="28"
+                                                                        Padding="0"
+                                                                        Margin="6,0,0,3"
+                                                                        Background="Transparent"
+                                                                        BorderThickness="0"
+                                                                        HorizontalAlignment="Left"
+                                                                        Cursor="Hand">
+                                                                    <StackPanel Orientation="Horizontal">
+                                                                        <Grid Width="12" Height="12"
+                                                                              Loaded="PinAnchor_Loaded"
+                                                                              LayoutUpdated="PinAnchor_LayoutUpdated">
+                                                                            <Path x:Name="ExecTriangle"
+                                                                                  Data="{Binding TriangleGeometry}"
+                                                                                  Fill="{Binding PinFillBrush}"
+                                                                                  Stroke="{Binding PinBrush}"
+                                                                                  StrokeThickness="1.2"
+                                                                                  Visibility="Collapsed" />
+                                                                            <Ellipse x:Name="DataCircle"
+                                                                                     Width="10"
+                                                                                     Height="10"
+                                                                                     Fill="{Binding PinFillBrush}"
+                                                                                     Stroke="{Binding PinBrush}"
+                                                                                     StrokeThickness="1.1"
+                                                                                     Visibility="Visible" />
+                                                                        </Grid>
+                                                                        <TextBlock Text="{Binding DisplayName}"
+                                                                                   Margin="6,0,0,0"
+                                                                                   VerticalAlignment="Center"
+                                                                                   Foreground="#E9EEF6"
+                                                                                   FontSize="12" />
+                                                                    </StackPanel>
+                                                                </Button>
+                                                                <DataTemplate.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsExecution}" Value="True">
+                                                                        <Setter TargetName="ExecTriangle" Property="Visibility" Value="Visible" />
+                                                                        <Setter TargetName="DataCircle" Property="Visibility" Value="Collapsed" />
+                                                                    </DataTrigger>
+                                                                </DataTemplate.Triggers>
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
 
-                            <TextBlock Text="相似度阈值 (%)" Foreground="White" />
-                            <TextBox x:Name="FindImageThresholdTextBox"
-                                     Margin="0,4,0,12"
-                                     TextChanged="InspectorField_TextChanged" />
+                                                    <TextBlock Grid.Column="1"
+                                                               Text="{Binding Description}"
+                                                               Foreground="#C8D0DB"
+                                                               FontSize="11"
+                                                               Margin="8,0"
+                                                               VerticalAlignment="Center"
+                                                               HorizontalAlignment="Left"
+                                                               TextAlignment="Left"
+                                                               TextWrapping="Wrap" />
 
-                            <TextBlock Text="说明"
-                                       Foreground="#A7B1BF"
-                                       FontWeight="SemiBold" />
-                            <TextBlock Margin="0,4,0,0"
-                                       Foreground="#A7B1BF"
-                                       Text="达到阈值即认为找到了图像。节点输出会提供成功 bool 和中心点 Vector2D。"
+                                                    <ItemsControl Grid.Column="2" ItemsSource="{Binding OutputPins}">
+                                                        <ItemsControl.ItemsPanel>
+                                                            <ItemsPanelTemplate>
+                                                                <StackPanel Orientation="Vertical" />
+                                                            </ItemsPanelTemplate>
+                                                        </ItemsControl.ItemsPanel>
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate DataType="{x:Type graph:PinViewModel}">
+                                                                <Button PreviewMouseLeftButtonDown="PinButton_PreviewMouseLeftButtonDown"
+                                                                        PreviewMouseLeftButtonUp="PinButton_PreviewMouseLeftButtonUp"
+                                                                        Height="28"
+                                                                        Padding="0"
+                                                                        Margin="0,0,6,3"
+                                                                        Background="Transparent"
+                                                                        BorderThickness="0"
+                                                                        HorizontalAlignment="Right"
+                                                                        Cursor="Hand">
+                                                                    <StackPanel Orientation="Horizontal">
+                                                                        <TextBlock Text="{Binding DisplayName}"
+                                                                                   Margin="0,0,6,0"
+                                                                                   VerticalAlignment="Center"
+                                                                                   Foreground="#E9EEF6"
+                                                                                   FontSize="12" />
+                                                                        <Grid Width="12" Height="12"
+                                                                              Loaded="PinAnchor_Loaded"
+                                                                              LayoutUpdated="PinAnchor_LayoutUpdated">
+                                                                            <Path x:Name="ExecTriangle"
+                                                                                  Data="{Binding TriangleGeometry}"
+                                                                                  Fill="{Binding PinFillBrush}"
+                                                                                  Stroke="{Binding PinBrush}"
+                                                                                  StrokeThickness="1.2"
+                                                                                  Visibility="Collapsed" />
+                                                                            <Ellipse x:Name="DataCircle"
+                                                                                     Width="10"
+                                                                                     Height="10"
+                                                                                     Fill="{Binding PinFillBrush}"
+                                                                                     Stroke="{Binding PinBrush}"
+                                                                                     StrokeThickness="1.1"
+                                                                                     Visibility="Visible" />
+                                                                        </Grid>
+                                                                    </StackPanel>
+                                                                </Button>
+                                                                <DataTemplate.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsExecution}" Value="True">
+                                                                        <Setter TargetName="ExecTriangle" Property="Visibility" Value="Visible" />
+                                                                        <Setter TargetName="DataCircle" Property="Visibility" Value="Collapsed" />
+                                                                    </DataTrigger>
+                                                                </DataTemplate.Triggers>
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
+                                                </Grid>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.Resources>
+                            </ItemsControl>
+
+                            <Rectangle x:Name="SelectionRectangle"
+                                       Visibility="Collapsed"
+                                       Stroke="#66A8D5FF"
+                                       StrokeThickness="1.5"
+                                       Fill="#2258AFFF"
+                                       RadiusX="2"
+                                       RadiusY="2"
+                                       Panel.ZIndex="500" />
+                            </Canvas>
+
+                            <Border x:Name="NodePalette"
+                                    Visibility="Collapsed"
+                                    Width="260"
+                                    MaxHeight="500"
+                                    Background="#20242B"
+                                    BorderBrush="#303744"
+                                    BorderThickness="1"
+                                    CornerRadius="8"
+                                    Panel.ZIndex="1000">
+                                <Border.Effect>
+                                    <DropShadowEffect ShadowDepth="4" BlurRadius="12" Opacity="0.5" Color="Black"/>
+                                </Border.Effect>
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="*"/>
+                                    </Grid.RowDefinitions>
+                                    <TextBox x:Name="NodePaletteSearchBox"
+                                             Grid.Row="0"
+                                             Margin="8,8,8,0"
+                                             Padding="8,4"
+                                             Background="#181B20"
+                                             Foreground="White"
+                                             BorderBrush="#303744"
+                                             BorderThickness="1"
+                                             CaretBrush="White"
+                                             TextChanged="NodePaletteSearchBox_TextChanged"/>
+                                    <ScrollViewer Grid.Row="1"
+                                                  VerticalScrollBarVisibility="Auto"
+                                                  Margin="0,4,0,8">
+                                        <StackPanel x:Name="NodePaletteContent">
+                                            <!-- 动态生成节点列表 -->
+                                        </StackPanel>
+                                    </ScrollViewer>
+                                </Grid>
+                            </Border>
+                        </Canvas>
+                    </Border>
+                </Border>
+
+                <Border Grid.Column="1"
+                        Margin="0,10,10,10"
+                        Padding="14"
+                        Background="#20242B"
+                        BorderBrush="#303744"
+                        BorderThickness="1"
+                        CornerRadius="8">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel>
+                            <TextBlock Text="节点属性" Foreground="White" FontSize="18" FontWeight="Bold" />
+                            <TextBlock x:Name="InspectorHintTextBlock"
+                                       Margin="0,8,0,14"
+                                       Text="请选择一个节点进行编辑。"
+                                       Foreground="#B7C0CD"
                                        TextWrapping="Wrap" />
+
+                            <TextBlock Text="节点名称" Foreground="White" />
+                            <TextBox x:Name="NodeTitleTextBox" Margin="0,4,0,12" TextChanged="InspectorField_TextChanged" />
+
+                            <StackPanel x:Name="FindImageInspectorPanel" Visibility="Collapsed">
+                                <TextBlock Text="图像路径" Foreground="White" />
+                                <DockPanel Margin="0,4,0,10">
+                                    <Button Content="浏览" DockPanel.Dock="Right" Padding="12,4" Click="BrowseFindImagePath_Click" />
+                                    <TextBox x:Name="FindImagePathTextBox" Margin="0,0,8,0" TextChanged="InspectorField_TextChanged" />
+                                </DockPanel>
+                                <TextBlock Text="相似度阈值 (%)" Foreground="White" />
+                                <TextBox x:Name="FindImageThresholdTextBox" Margin="0,4,0,12" TextChanged="InspectorField_TextChanged" />
+                                <TextBlock Text="说明" Foreground="#A7B1BF" FontWeight="SemiBold" />
+                                <TextBlock Margin="0,4,0,0"
+                                           Foreground="#A7B1BF"
+                                           Text="达到阈值即认为找到了图像。节点输出会提供成功 bool 和中心点 Vector2D。"
+                                           TextWrapping="Wrap" />
+                            </StackPanel>
+
+                            <StackPanel x:Name="MouseLeftInspectorPanel" Visibility="Collapsed">
+                                <TextBlock Text="鼠标按键" Foreground="White" />
+                                <ComboBox x:Name="MouseButtonComboBox" Margin="0,4,0,12" SelectionChanged="InspectorField_SelectionChanged">
+                                    <ComboBoxItem Content="左键" Tag="Left" />
+                                    <ComboBoxItem Content="右键" Tag="Right" />
+                                    <ComboBoxItem Content="侧键1" Tag="XButton1" />
+                                    <ComboBoxItem Content="侧键2" Tag="XButton2" />
+                                </ComboBox>
+
+                                <TextBlock Text="操作模式" Foreground="White" />
+                                <ComboBox x:Name="MouseClickOperationModeComboBox" Margin="0,4,0,12" SelectionChanged="InspectorField_SelectionChanged">
+                                    <ComboBoxItem Content="按下" Tag="Press" />
+                                    <ComboBoxItem Content="抬起" Tag="Release" />
+                                    <ComboBoxItem Content="点击" Tag="Click" />
+                                </ComboBox>
+
+                                <TextBlock x:Name="MousePositionXLabel" Text="点击位置 X" Foreground="White" />
+                                <TextBox x:Name="MousePositionXTextBox" Margin="0,4,0,10" TextChanged="InspectorField_TextChanged" />
+                                <TextBlock x:Name="MousePositionYLabel" Text="点击位置 Y" Foreground="White" />
+                                <TextBox x:Name="MousePositionYTextBox" Margin="0,4,0,10" TextChanged="InspectorField_TextChanged" />
+
+                                <TextBlock Text="说明" Foreground="#A7B1BF" FontWeight="SemiBold" />
+                                <TextBlock Margin="0,4,0,0"
+                                           Foreground="#A7B1BF"
+                                           Text="位置可手动填写，也可由前序节点的 Vector2D 输出引脚连接提供。"
+                                           TextWrapping="Wrap" />
+                            </StackPanel>
+
+                            <StackPanel x:Name="DelayInspectorPanel" Visibility="Collapsed">
+                                <TextBlock Text="延迟时长 (ms)" Foreground="White" />
+                                <TextBox x:Name="DelayMsTextBox" Margin="0,4,0,12" TextChanged="InspectorField_TextChanged" />
+                            </StackPanel>
+
+                            <StackPanel x:Name="IfInspectorPanel" Visibility="Collapsed">
+                                <TextBlock x:Name="IfConditionLabel" Text="条件值" Foreground="White" />
+                                <ComboBox x:Name="IfConditionComboBox" Margin="0,4,0,12" SelectionChanged="InspectorField_SelectionChanged">
+                                    <ComboBoxItem Content="False" />
+                                    <ComboBoxItem Content="True" />
+                                </ComboBox>
+                            </StackPanel>
+
+                            <StackPanel x:Name="ForLoopInspectorPanel" Visibility="Collapsed">
+                                <TextBlock Text="循环次数" Foreground="White" />
+                                <TextBox x:Name="ForLoopCountTextBox" Margin="0,4,0,12" TextChanged="InspectorField_TextChanged" />
+                            </StackPanel>
+
+                            <StackPanel x:Name="WhileLoopInspectorPanel" Visibility="Collapsed">
+                                <TextBlock x:Name="WhileConditionLabel" Text="条件值（为真时跳出）" Foreground="White" />
+                                <ComboBox x:Name="WhileLoopConditionComboBox" Margin="0,4,0,12" SelectionChanged="InspectorField_SelectionChanged">
+                                    <ComboBoxItem Content="False" />
+                                    <ComboBoxItem Content="True" />
+                                </ComboBox>
+                            </StackPanel>
+
+                            <StackPanel x:Name="KeyboardInspectorPanel" Visibility="Collapsed">
+                                <TextBlock Text="按键" Foreground="White" />
+                                <ComboBox x:Name="KeyboardKeyComboBox" Margin="0,4,0,12" SelectionChanged="InspectorField_SelectionChanged" />
+                                <TextBlock Text="操作模式" Foreground="White" />
+                                <ComboBox x:Name="KeyboardOperationModeComboBox" Margin="0,4,0,12" SelectionChanged="InspectorField_SelectionChanged">
+                                    <ComboBoxItem Content="按下" Tag="Press" />
+                                    <ComboBoxItem Content="抬起" Tag="Release" />
+                                </ComboBox>
+                            </StackPanel>
+
+                            <StackPanel x:Name="ScrollWheelInspectorPanel" Visibility="Collapsed">
+                                <TextBlock Text="滚轮动作" Foreground="White" />
+                                <ComboBox x:Name="ScrollWheelActionComboBox" Margin="0,4,0,12" SelectionChanged="InspectorField_SelectionChanged">
+                                    <ComboBoxItem Content="中键按下" Tag="Press" />
+                                    <ComboBoxItem Content="中键抬起" Tag="Release" />
+                                    <ComboBoxItem Content="向前滚动" Tag="ScrollForward" />
+                                    <ComboBoxItem Content="向后滚动" Tag="ScrollBackward" />
+                                </ComboBox>
+                                <TextBlock Text="滚动速度 (120=一个刻度)" Foreground="White" />
+                                <TextBox x:Name="ScrollWheelSpeedTextBox" Margin="0,4,0,10" TextChanged="InspectorField_TextChanged" />
+                                <TextBlock Text="滚动间隔 (ms)" Foreground="White" />
+                                <TextBox x:Name="ScrollWheelIntervalTextBox" Margin="0,4,0,10" TextChanged="InspectorField_TextChanged" />
+                                <TextBlock Text="滚动时长 (ms, 0=永久)" Foreground="White" />
+                                <TextBox x:Name="ScrollWheelDurationTextBox" Margin="0,4,0,12" TextChanged="InspectorField_TextChanged" />
+                            </StackPanel>
+
+                            <StackPanel x:Name="MouseMoveInspectorPanel" Visibility="Collapsed">
+                                <TextBlock x:Name="MouseMovePositionXLabel" Text="目标坐标 X" Foreground="White" />
+                                <TextBox x:Name="MouseMovePositionXTextBox" Margin="0,4,0,10" TextChanged="InspectorField_TextChanged" />
+                                <TextBlock x:Name="MouseMovePositionYLabel" Text="目标坐标 Y" Foreground="White" />
+                                <TextBox x:Name="MouseMovePositionYTextBox" Margin="0,4,0,12" TextChanged="InspectorField_TextChanged" />
+                            </StackPanel>
                         </StackPanel>
-
-                        <StackPanel x:Name="MouseLeftInspectorPanel"
-                                    Visibility="Collapsed">
-                            <TextBlock Text="鼠标按键" Foreground="White" />
-                            <ComboBox x:Name="MouseButtonComboBox"
-                                      Margin="0,4,0,12"
-                                      SelectionChanged="InspectorField_SelectionChanged">
-                                <ComboBoxItem Content="左键" Tag="Left" />
-                                <ComboBoxItem Content="右键" Tag="Right" />
-                                <ComboBoxItem Content="侧键1" Tag="XButton1" />
-                                <ComboBoxItem Content="侧键2" Tag="XButton2" />
-                            </ComboBox>
-
-                            <TextBlock Text="操作模式" Foreground="White" />
-                            <ComboBox x:Name="MouseClickOperationModeComboBox"
-                                      Margin="0,4,0,12"
-                                      SelectionChanged="InspectorField_SelectionChanged">
-                                <ComboBoxItem Content="按下" Tag="Press" />
-                                <ComboBoxItem Content="抬起" Tag="Release" />
-                                <ComboBoxItem Content="点击" Tag="Click" />
-                            </ComboBox>
-
-                            <TextBlock Text="点击位置 X" Foreground="White" />
-                            <TextBox x:Name="MousePositionXTextBox"
-                                     Margin="0,4,0,10"
-                                     TextChanged="InspectorField_TextChanged" />
-
-                            <TextBlock Text="点击位置 Y" Foreground="White" />
-                            <TextBox x:Name="MousePositionYTextBox"
-                                     Margin="0,4,0,10"
-                                     TextChanged="InspectorField_TextChanged" />
-
-                            <TextBlock Text="说明"
-                                       Foreground="#A7B1BF"
-                                       FontWeight="SemiBold" />
-                            <TextBlock Margin="0,4,0,0"
-                                       Foreground="#A7B1BF"
-                                       Text="位置可手动填写，也可由前序节点的 Vector2D 输出引脚连接提供。"
-                                       TextWrapping="Wrap" />
-                        </StackPanel>
-
-                        <StackPanel x:Name="DelayInspectorPanel"
-                                    Visibility="Collapsed">
-                            <TextBlock Text="延迟时长 (ms)" Foreground="White" />
-                            <TextBox x:Name="DelayMsTextBox"
-                                     Margin="0,4,0,12"
-                                     TextChanged="InspectorField_TextChanged" />
-                        </StackPanel>
-
-                        <StackPanel x:Name="IfInspectorPanel"
-                                    Visibility="Collapsed">
-                            <TextBlock Text="条件值" Foreground="White" />
-                            <ComboBox x:Name="IfConditionComboBox"
-                                      Margin="0,4,0,12"
-                                      SelectionChanged="InspectorField_SelectionChanged">
-                                <ComboBoxItem Content="False" />
-                                <ComboBoxItem Content="True" />
-                            </ComboBox>
-                        </StackPanel>
-
-                        <StackPanel x:Name="ForLoopInspectorPanel"
-                                    Visibility="Collapsed">
-                            <TextBlock Text="循环次数" Foreground="White" />
-                            <TextBox x:Name="ForLoopCountTextBox"
-                                     Margin="0,4,0,12"
-                                     TextChanged="InspectorField_TextChanged" />
-                        </StackPanel>
-
-                        <StackPanel x:Name="WhileLoopInspectorPanel"
-                                    Visibility="Collapsed">
-                            <TextBlock Text="条件值 (为真时跳出)" Foreground="White" />
-                            <ComboBox x:Name="WhileLoopConditionComboBox"
-                                      Margin="0,4,0,12"
-                                      SelectionChanged="InspectorField_SelectionChanged">
-                                <ComboBoxItem Content="False" />
-                                <ComboBoxItem Content="True" />
-                            </ComboBox>
-                        </StackPanel>
-
-                        <StackPanel x:Name="KeyboardInspectorPanel"
-                                    Visibility="Collapsed">
-                            <TextBlock Text="按键" Foreground="White" />
-                            <ComboBox x:Name="KeyboardKeyComboBox"
-                                      Margin="0,4,0,12"
-                                      SelectionChanged="InspectorField_SelectionChanged" />
-
-                            <TextBlock Text="操作模式" Foreground="White" />
-                            <ComboBox x:Name="KeyboardOperationModeComboBox"
-                                      Margin="0,4,0,12"
-                                      SelectionChanged="InspectorField_SelectionChanged">
-                                <ComboBoxItem Content="按下" Tag="Press" />
-                                <ComboBoxItem Content="抬起" Tag="Release" />
-                            </ComboBox>
-                        </StackPanel>
-
-                        <StackPanel x:Name="ScrollWheelInspectorPanel"
-                                    Visibility="Collapsed">
-                            <TextBlock Text="滚轮动作" Foreground="White" />
-                            <ComboBox x:Name="ScrollWheelActionComboBox"
-                                      Margin="0,4,0,12"
-                                      SelectionChanged="InspectorField_SelectionChanged">
-                                <ComboBoxItem Content="中键按下" Tag="Press" />
-                                <ComboBoxItem Content="中键抬起" Tag="Release" />
-                                <ComboBoxItem Content="向前滚动" Tag="ScrollForward" />
-                                <ComboBoxItem Content="向后滚动" Tag="ScrollBackward" />
-                            </ComboBox>
-
-                            <TextBlock Text="滚动速度 (120=一个刻度)" Foreground="White" />
-                            <TextBox x:Name="ScrollWheelSpeedTextBox"
-                                     Margin="0,4,0,10"
-                                     TextChanged="InspectorField_TextChanged" />
-
-                            <TextBlock Text="滚动间隔 (ms)" Foreground="White" />
-                            <TextBox x:Name="ScrollWheelIntervalTextBox"
-                                     Margin="0,4,0,10"
-                                     TextChanged="InspectorField_TextChanged" />
-
-                            <TextBlock Text="滚动时长 (ms, 0=永久)" Foreground="White" />
-                            <TextBox x:Name="ScrollWheelDurationTextBox"
-                                     Margin="0,4,0,12"
-                                     TextChanged="InspectorField_TextChanged" />
-                        </StackPanel>
-
-                        <StackPanel x:Name="MouseMoveInspectorPanel"
-                                    Visibility="Collapsed">
-                            <TextBlock Text="目标坐标 X" Foreground="White" />
-                            <TextBox x:Name="MouseMovePositionXTextBox"
-                                     Margin="0,4,0,10"
-                                     TextChanged="InspectorField_TextChanged" />
-
-                            <TextBlock Text="目标坐标 Y" Foreground="White" />
-                            <TextBox x:Name="MouseMovePositionYTextBox"
-                                     Margin="0,4,0,12"
-                                     TextChanged="InspectorField_TextChanged" />
-                        </StackPanel>
-
-                    </StackPanel>
-                </ScrollViewer>
-            </Border>
+                    </ScrollViewer>
+                </Border>
             </Grid>
 
-        <GridSplitter Grid.Row="1" Height="4" HorizontalAlignment="Stretch"
-                      Background="#2E3440" ResizeDirection="Rows" />
+            <GridSplitter Grid.Row="1"
+                          Height="4"
+                          HorizontalAlignment="Stretch"
+                          Background="#2E3440"
+                          ResizeDirection="Rows" />
 
-        <Border Grid.Row="2" Background="#11151A"
-                BorderBrush="#2E3440" BorderThickness="0,1,0,0">
-            <DockPanel>
-                <StackPanel DockPanel.Dock="Top" Orientation="Horizontal"
-                            Background="#20242B" Height="26">
-                    <TextBlock Text="日志" Foreground="White" FontWeight="SemiBold"
-                               Margin="10,0,0,0" VerticalAlignment="Center" FontSize="12" />
-                    <TextBlock x:Name="StatusTextBlock" Foreground="#7A8797"
-                               Margin="16,0,0,0" VerticalAlignment="Center" FontSize="11" />
-                    <Border Margin="10,0,0,0" Background="#2E3440" Height="18" VerticalAlignment="Center">
-                        <StackPanel Orientation="Horizontal">
-                            <RadioButton x:Name="FilterAllRadio" Content="无" IsChecked="True"
-                                         Checked="FilterRadio_Checked"
-                                         Margin="4,0" Padding="6,0" FontSize="11"
-                                         Foreground="#D0D7E2" />
-                            <RadioButton x:Name="FilterInfoRadio" Content="普通"
-                                         Checked="FilterRadio_Checked"
-                                         Margin="4,0" Padding="6,0" FontSize="11"
-                                         Foreground="#D0D7E2" />
-                            <RadioButton x:Name="FilterWarnRadio" Content="警告"
-                                         Checked="FilterRadio_Checked"
-                                         Margin="4,0" Padding="6,0" FontSize="11"
-                                         Foreground="#FFD700" />
-                            <RadioButton x:Name="FilterErrorRadio" Content="错误"
-                                         Checked="FilterRadio_Checked"
-                                         Margin="4,0" Padding="6,0" FontSize="11"
-                                         Foreground="#FF6B6B" />
-                        </StackPanel>
-                    </Border>
-                    <Button Content="清空" Click="ClearLog_Click" Margin="8,2,8,2"
-                            Padding="8,2" Height="20" FontSize="11" />
-                </StackPanel>
-                <ListBox x:Name="LogListBox" Background="#11151A" BorderThickness="0"
-                         VirtualizingStackPanel.IsVirtualizing="True"
-                         ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-                    <ListBox.ItemTemplate>
-                        <DataTemplate>
-                            <TextBox Text="{Binding DisplayText, Mode=OneWay}"
-                                     TextWrapping="NoWrap"
-                                     FontFamily="Consolas"
-                                     FontSize="11"
-                                     IsReadOnly="True"
-                                     BorderThickness="0"
-                                     Background="Transparent"
-                                     Padding="0">
-                                <TextBox.Style>
-                                    <Style TargetType="TextBox">
-                                        <Setter Property="Foreground" Value="#D0D7E2" />
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding Level}" Value="{x:Static logging:LogLevel.Warn}">
-                                                <Setter Property="Foreground" Value="#FFD700" />
-                                            </DataTrigger>
-                                            <DataTrigger Binding="{Binding Level}" Value="{x:Static logging:LogLevel.Error}">
-                                                <Setter Property="Foreground" Value="#FF6B6B" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </TextBox.Style>
-                            </TextBox>
-                        </DataTemplate>
-                    </ListBox.ItemTemplate>
-                </ListBox>
-            </DockPanel>
-        </Border>
-    </Grid>
+            <Border Grid.Row="2"
+                    Background="#11151A"
+                    BorderBrush="#2E3440"
+                    BorderThickness="0,1,0,0">
+                <DockPanel>
+                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Background="#20242B" Height="26">
+                        <TextBlock Text="日志" Foreground="White" FontWeight="SemiBold" Margin="10,0,0,0" VerticalAlignment="Center" FontSize="12" />
+                        <TextBlock x:Name="StatusTextBlock" Foreground="#7A8797" Margin="16,0,0,0" VerticalAlignment="Center" FontSize="11" />
+                        <Border Margin="10,0,0,0" Background="#2E3440" Height="18" VerticalAlignment="Center">
+                            <StackPanel Orientation="Horizontal">
+                                <RadioButton x:Name="FilterAllRadio" Content="全部" IsChecked="True" Checked="FilterRadio_Checked" Margin="4,0" Padding="6,0" FontSize="11" Foreground="#D0D7E2" />
+                                <RadioButton x:Name="FilterInfoRadio" Content="信息" Checked="FilterRadio_Checked" Margin="4,0" Padding="6,0" FontSize="11" Foreground="#D0D7E2" />
+                                <RadioButton x:Name="FilterWarnRadio" Content="警告" Checked="FilterRadio_Checked" Margin="4,0" Padding="6,0" FontSize="11" Foreground="#FFD700" />
+                                <RadioButton x:Name="FilterErrorRadio" Content="错误" Checked="FilterRadio_Checked" Margin="4,0" Padding="6,0" FontSize="11" Foreground="#FF6B6B" />
+                            </StackPanel>
+                        </Border>
+                        <Button Content="清空" Click="ClearLog_Click" Margin="8,2,8,2" Padding="8,2" Height="20" FontSize="11" />
+                    </StackPanel>
+
+                    <ListBox x:Name="LogListBox"
+                             Background="#11151A"
+                             BorderThickness="0"
+                             VirtualizingStackPanel.IsVirtualizing="True"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBox Text="{Binding DisplayText, Mode=OneWay}"
+                                         TextWrapping="NoWrap"
+                                         FontFamily="Consolas"
+                                         FontSize="11"
+                                         IsReadOnly="True"
+                                         BorderThickness="0"
+                                         Background="Transparent"
+                                         Padding="0">
+                                    <TextBox.Style>
+                                        <Style TargetType="TextBox">
+                                            <Setter Property="Foreground" Value="#D0D7E2" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Level}" Value="{x:Static logging:LogLevel.Warn}">
+                                                    <Setter Property="Foreground" Value="#FFD700" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding Level}" Value="{x:Static logging:LogLevel.Error}">
+                                                    <Setter Property="Foreground" Value="#FF6B6B" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBox.Style>
+                                </TextBox>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </Border>
+        </Grid>
     </DockPanel>
 </Window>

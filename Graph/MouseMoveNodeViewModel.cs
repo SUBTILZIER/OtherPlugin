@@ -16,7 +16,6 @@ public sealed class MouseMoveNodeViewModel : NodeBaseViewModel
     }
 
     public override NodeKind NodeKind => NodeKind.MouseMove;
-
     public override string NodeTypeKey => "mouse_move";
 
     public double PositionX
@@ -25,9 +24,7 @@ public sealed class MouseMoveNodeViewModel : NodeBaseViewModel
         set
         {
             if (SetProperty(ref _positionX, value))
-            {
                 RefreshDescription();
-            }
         }
     }
 
@@ -37,9 +34,7 @@ public sealed class MouseMoveNodeViewModel : NodeBaseViewModel
         set
         {
             if (SetProperty(ref _positionY, value))
-            {
                 RefreshDescription();
-            }
         }
     }
 

@@ -12,7 +12,6 @@ public sealed class DelayNodeViewModel : NodeBaseViewModel
     }
 
     public override NodeKind NodeKind => NodeKind.Delay;
-
     public override string NodeTypeKey => "delay";
 
     public int DelayMs
@@ -22,9 +21,7 @@ public sealed class DelayNodeViewModel : NodeBaseViewModel
         {
             int clamped = Math.Max(0, value);
             if (SetProperty(ref _delayMs, clamped))
-            {
                 RefreshDescription();
-            }
         }
     }
 

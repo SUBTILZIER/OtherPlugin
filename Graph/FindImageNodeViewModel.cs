@@ -2,10 +2,6 @@ using System.IO;
 
 namespace AutomationStudioWpf.Graph;
 
-/// <summary>
-/// Blueprint-style node for image matching.
-/// Returns execution flow, success state, and the matched center point.
-/// </summary>
 public sealed class FindImageNodeViewModel : NodeBaseViewModel
 {
     private string _imagePath = string.Empty;
@@ -21,7 +17,6 @@ public sealed class FindImageNodeViewModel : NodeBaseViewModel
     }
 
     public override NodeKind NodeKind => NodeKind.FindImage;
-
     public override string NodeTypeKey => "find_image";
 
     public string ImagePath
@@ -30,9 +25,7 @@ public sealed class FindImageNodeViewModel : NodeBaseViewModel
         set
         {
             if (SetProperty(ref _imagePath, value))
-            {
                 RefreshDescription();
-            }
         }
     }
 
@@ -43,9 +36,7 @@ public sealed class FindImageNodeViewModel : NodeBaseViewModel
         {
             int clamped = Math.Clamp(value, 0, 100);
             if (SetProperty(ref _similarityThresholdPercent, clamped))
-            {
                 RefreshDescription();
-            }
         }
     }
 

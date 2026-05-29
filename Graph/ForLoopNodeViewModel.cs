@@ -4,7 +4,7 @@ public sealed class ForLoopNodeViewModel : NodeBaseViewModel
 {
     private int _loopCount = 5;
 
-    public ForLoopNodeViewModel(string id) : base(id, "循环")
+    public ForLoopNodeViewModel(string id) : base(id, "For循环")
     {
         AddInput("exec_in", string.Empty, PinKind.Execution);
         AddOutput("exec_loop_body", "循环体", PinKind.Execution);
@@ -22,9 +22,7 @@ public sealed class ForLoopNodeViewModel : NodeBaseViewModel
         {
             int clamped = Math.Max(1, value);
             if (SetProperty(ref _loopCount, clamped))
-            {
                 RefreshDescription();
-            }
         }
     }
 

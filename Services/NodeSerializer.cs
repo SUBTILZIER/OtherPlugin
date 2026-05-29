@@ -210,7 +210,7 @@ public static class NodeSerializer
                 moveNode.Id, moveNode.Title,
                 moveNode.PositionX, moveNode.PositionY),
 
-            RerouteNodeViewModel rerouteNode => GraphRuntimeNode.ForStart(rerouteNode.Id, rerouteNode.Title),
+            RerouteNodeViewModel rerouteNode => GraphRuntimeNode.ForReroute(rerouteNode.Id, rerouteNode.Title, rerouteNode.RoutedKind),
 
             IfNodeViewModel ifNode => GraphRuntimeNode.ForIf(ifNode.Id, ifNode.Title, ifNode.ConditionValue),
 

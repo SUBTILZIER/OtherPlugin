@@ -38,9 +38,7 @@ public sealed class ScrollWheelNodeViewModel : NodeBaseViewModel
         {
             int clamped = Math.Max(0, value);
             if (SetProperty(ref _scrollSpeed, clamped))
-            {
                 RefreshDescription();
-            }
         }
     }
 
@@ -51,9 +49,7 @@ public sealed class ScrollWheelNodeViewModel : NodeBaseViewModel
         {
             int clamped = Math.Max(1, value);
             if (SetProperty(ref _scrollInterval, clamped))
-            {
                 RefreshDescription();
-            }
         }
     }
 
@@ -64,9 +60,7 @@ public sealed class ScrollWheelNodeViewModel : NodeBaseViewModel
         {
             int clamped = Math.Max(0, value);
             if (SetProperty(ref _scrollDuration, clamped))
-            {
                 RefreshDescription();
-            }
         }
     }
 
@@ -84,9 +78,9 @@ public sealed class ScrollWheelNodeViewModel : NodeBaseViewModel
             ScrollWheelAction.ScrollBackward => "向后滚动",
             _ => ScrollAction.ToString(),
         };
-        if (IsScrolling)
-            Description = $"{actionLabel}\n速度 {ScrollSpeed} · 间隔 {ScrollInterval}ms · 持续 {ScrollDuration}ms";
-        else
-            Description = actionLabel;
+
+        Description = IsScrolling
+            ? $"{actionLabel}\n速度 {ScrollSpeed} / 间隔 {ScrollInterval}ms / 持续 {ScrollDuration}ms"
+            : actionLabel;
     }
 }

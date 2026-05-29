@@ -16,11 +16,11 @@
             <Button Content="清空" Click="Clear_Click" Padding="12,4" />
             <Border Margin="8,0,0,0" Background="#2E3440" CornerRadius="3" Height="22" VerticalAlignment="Center">
                 <StackPanel Orientation="Horizontal">
-                    <RadioButton x:Name="FilterAllRadio" Content="无" IsChecked="True"
+                    <RadioButton x:Name="FilterAllRadio" Content="全部" IsChecked="True"
                                  Checked="FilterRadio_Checked"
                                  Margin="4,0" Padding="6,0" FontSize="11"
                                  Foreground="#D0D7E2" />
-                    <RadioButton x:Name="FilterInfoRadio" Content="普通"
+                    <RadioButton x:Name="FilterInfoRadio" Content="信息"
                                  Checked="FilterRadio_Checked"
                                  Margin="4,0" Padding="6,0" FontSize="11"
                                  Foreground="#D0D7E2" />

@@ -12,7 +12,6 @@ namespace AutomationStudioWpf.Services;
 public sealed class GraphEditorService
 {
     private readonly JsonSerializerOptions _jsonOptions = new() { WriteIndented = true };
-    private int _nodeSequence = 1;
 
     public ObservableCollection<NodeBaseViewModel> Nodes { get; } = [];
     public ObservableCollection<ConnectionViewModel> Connections { get; } = [];
@@ -27,7 +26,6 @@ public sealed class GraphEditorService
         Nodes.Clear();
         Connections.Clear();
         CurrentGraphPath = null;
-        _nodeSequence = 1;
 
         var startNode = CreateDefaultStartNode();
         Nodes.Add(startNode);
@@ -113,12 +111,6 @@ public sealed class GraphEditorService
             }
         }
 
-        _nodeSequence = Nodes
-            .Select(n => n.Id)
-            .Select(id => id.StartsWith("node_") && int.TryParse(id[5..], out var num) ? num : 0)
-            .DefaultIfEmpty(0)
-            .Max() + 1;
-
         GraphChanged?.Invoke();
     }
 
@@ -136,11 +128,6 @@ public sealed class GraphEditorService
             .ToList();
 
         return new GraphExecutionPlan(runtimeNodes, runtimeConnections);
-    }
-
-    public string CreateNodeId()
-    {
-        return $"node_{_nodeSequence++:000}";
     }
 
     public void AddNode(NodeBaseViewModel node)

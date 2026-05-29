@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Text.Json;
 using AutomationStudioWpf.Graph;
 using Point = System.Windows.Point;
 
@@ -82,31 +83,8 @@ public sealed class NodeClipboardService
             double offsetY = source.Y - centerY;
 
             // 创建新的文件模型副本，使用新的ID
-            var newModel = new NodeFileModel
-            {
-                Id = newId,
-                NodeTypeKey = source.NodeTypeKey,
-                Title = source.Title,
-                X = source.X,
-                Y = source.Y,
-                ImagePath = source.ImagePath,
-                SimilarityThresholdPercent = source.SimilarityThresholdPercent,
-                ClickMode = source.ClickMode,
-                PositionX = source.PositionX,
-                PositionY = source.PositionY,
-                HoldDurationMs = source.HoldDurationMs,
-                MouseButton = source.MouseButton,
-                OperationMode = source.OperationMode,
-                Key = source.Key,
-                ScrollAction = source.ScrollAction,
-                ScrollSpeed = source.ScrollSpeed,
-                ScrollInterval = source.ScrollInterval,
-                ScrollDuration = source.ScrollDuration,
-                DelayMs = source.DelayMs,
-                LoopCount = source.LoopCount,
-                ConditionValue = source.ConditionValue,
-                RoutedKind = source.RoutedKind,
-            };
+            var newModel = JsonSerializer.Deserialize<NodeFileModel>(JsonSerializer.Serialize(source))!;
+            newModel.Id = newId;
             var node = NodeSerializer.FromFileModel(newModel);
             if (node is null) continue;
 

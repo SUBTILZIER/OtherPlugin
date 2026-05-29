@@ -1,9 +1,10 @@
-using System.IO;
+﻿using System.IO;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Threading;
 using AutomationStudioWpf.Graph;
 using AutomationStudioWpf.Logging;
 using AutomationStudioWpf.Runtime;
@@ -35,7 +36,7 @@ public partial class MainWindow : Window
     private readonly NodeFactory _nodeFactory = new();
     private readonly GraphRuntimeExecutor _runtimeExecutor = new();
 
-    // 运行时状态
+    // 运行状态
     private CancellationTokenSource? _executionCts;
     private Point _lastMousePosition;
     private bool _isLoadingInspector;
@@ -57,12 +58,15 @@ public partial class MainWindow : Window
     // 画布平移状态
     private bool _isPanning;
     private Point _panStart;
-    private double _panHorizontalOffset;
-    private double _panVerticalOffset;
+    private Point _panStartOffset;
+    private bool _isCanvasFocusActive;
 
     // 缩放
     private double _zoomLevel = 1.0;
-    private readonly ScaleTransform _zoomTransform = new(1.0, 1.0);
+
+    // 右键菜单状态
+    private bool _rightClickPending;
+    private Point _rightClickStartPos;
 
     public MainWindow()
     {
@@ -76,7 +80,6 @@ public partial class MainWindow : Window
 
     private void InitializeServices()
     {
-        GraphSurface.LayoutTransform = _zoomTransform;
 
         // 绑定服务事件
         _editorService.GraphChanged += OnGraphChanged;
@@ -87,12 +90,16 @@ public partial class MainWindow : Window
 
         // 窗口关闭时释放按键
         Closing += (_, _) => _runtimeExecutor.ReleaseAllKeys();
+
+        // 全局鼠标点击检测：点击节点菜单外部时关闭菜单
+        PreviewMouseDown += Window_PreviewMouseDown;
     }
 
     private void InitializeEditor()
     {
         _editorService.NewGraph();
         _nodeFactory.ResetCounter(1);
+        InitializeNodePalette();
         EnsureCanvasLargeEnough();
     }
 
@@ -138,7 +145,7 @@ public partial class MainWindow : Window
         var dialog = new SaveFileDialog
         {
             Title = "保存图谱",
-            Filter = "图谱文件 (*.json)|*.json|所有文件 (*.*)|*.*",
+            Filter = "图谱文件 (*.json)|*.json|所有文件(*.*)|*.*",
             FileName = "graph.json",
             InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.Desktop),
         };
@@ -154,7 +161,7 @@ public partial class MainWindow : Window
         var dialog = new OpenFileDialog
         {
             Title = "打开图谱",
-            Filter = "图谱文件 (*.json)|*.json|所有文件 (*.*)|*.*",
+            Filter = "图谱文件 (*.json)|*.json|所有文件(*.*)|*.*",
             InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.Desktop),
         };
 
@@ -191,7 +198,7 @@ public partial class MainWindow : Window
         _editorService.AddNode(node);
         SelectNode(node);
         EnsureCanvasLargeEnough();
-        SetStatus($"已添加 {node.Title}。");
+        SetStatus($"已添加节点：{node.Title}");
     }
 
     #endregion
@@ -200,31 +207,53 @@ public partial class MainWindow : Window
 
     private async void RunGraph_Click(object sender, RoutedEventArgs e)
     {
+        if (_executionCts is not null)
+        {
+            SetStatus("已有图谱正在执行。");
+            return;
+        }
+
         try
         {
+            RunGraphButton.IsEnabled = false;
             _executionCts = new CancellationTokenSource();
             var plan = _editorService.BuildExecutionPlan();
             var baseDirectory = !string.IsNullOrWhiteSpace(_editorService.CurrentGraphPath)
                 ? Path.GetDirectoryName(_editorService.CurrentGraphPath) ?? Environment.CurrentDirectory
                 : Environment.CurrentDirectory;
 
+            if (plan.Nodes.Any(n => n.NodeKind == NodeKind.FindImage))
+            {
+                bool pythonReady = await PythonAutoInstaller.EnsurePythonAsync(new Progress<string>(SetStatus));
+                if (!pythonReady)
+                {
+                    _executionCts = null;
+                    RunGraphButton.IsEnabled = true;
+                    SetStatus("Python 环境未就绪，执行已取消。");
+                    return;
+                }
+            }
+
             SetStatus("执行开始...");
             var ct = _executionCts.Token;
             var result = await Task.Run(() => _runtimeExecutor.Execute(plan, baseDirectory, ct), ct);
-            _executionCts = null;
             SetStatus(result.Message);
         }
         catch (OperationCanceledException)
         {
-            Logger.Info("===== 执行已取消 =====");
+            Logger.Info("===== 执行已取消=====");
             _runtimeExecutor.ReleaseAllKeys();
             SetStatus("执行已取消。");
         }
         catch (Exception ex)
         {
-            _executionCts = null;
             WpfMessageBox.Show(this, ex.Message, "执行失败", MessageBoxButton.OK, MessageBoxImage.Error);
             SetStatus("执行失败。");
+        }
+        finally
+        {
+            _executionCts = null;
+            RunGraphButton.IsEnabled = true;
         }
     }
 
@@ -258,6 +287,7 @@ public partial class MainWindow : Window
         if (sender is not FrameworkElement element || element.DataContext is not NodeBaseViewModel node)
             return;
 
+        _isCanvasFocusActive = false;
         SelectNode(node);
         e.Handled = true;
     }
@@ -269,12 +299,13 @@ public partial class MainWindow : Window
         if (sender is not FrameworkElement element || element.DataContext is not NodeBaseViewModel node)
             return;
 
+        _isCanvasFocusActive = false;
         if (!node.IsSelected)
             SelectNode(node);
         else
             LoadNodeToInspector(node);
 
-        var point = e.GetPosition(GraphSurface);
+        var point = ViewportToGraph(e.GetPosition(GraphViewport));
         _dragNode = node;
         _dragOffset = new Point(point.X - node.X, point.Y - node.Y);
 
@@ -300,11 +331,11 @@ public partial class MainWindow : Window
         if (_isConnecting) return;
         if (_dragNode is null || e.LeftButton != MouseButtonState.Pressed) return;
 
-        var point = e.GetPosition(GraphSurface);
+        var point = ViewportToGraph(e.GetPosition(GraphViewport));
         foreach (var (item, offsetX, offsetY) in _dragGroup)
         {
-            item.X = Math.Max(0, point.X - offsetX);
-            item.Y = Math.Max(0, point.Y - offsetY);
+            item.X = point.X - offsetX;
+            item.Y = point.Y - offsetY;
         }
     }
 
@@ -317,9 +348,20 @@ public partial class MainWindow : Window
         _dragGroup.Clear();
     }
 
-    private void GraphSurface_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    private void GraphViewport_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        if (e.OriginalSource != GraphSurface) return;
+        // 节点菜单打开时，点击菜单内部不处理画布事件
+        if (NodePalette.Visibility == Visibility.Visible)
+        {
+            var posInPalette = e.GetPosition(NodePalette);
+            if (posInPalette.X >= 0 && posInPalette.X <= NodePalette.ActualWidth &&
+                posInPalette.Y >= 0 && posInPalette.Y <= NodePalette.ActualHeight)
+            {
+                return;
+            }
+        }
+
+        if (!IsGraphBlankSource(e.OriginalSource as DependencyObject)) return;
 
         if (_isConnecting)
         {
@@ -328,29 +370,51 @@ public partial class MainWindow : Window
             return;
         }
 
+        _isCanvasFocusActive = true;
+        GraphViewport.Focus();
         ClearSelection();
         SelectNode(null);
         _isSelecting = true;
-        _selectionStart = e.GetPosition(GraphSurface);
+        _selectionStart = ViewportToGraph(e.GetPosition(GraphViewport));
         Canvas.SetLeft(SelectionRectangle, _selectionStart.X);
         Canvas.SetTop(SelectionRectangle, _selectionStart.Y);
         SelectionRectangle.Width = 0;
         SelectionRectangle.Height = 0;
         SelectionRectangle.Visibility = Visibility.Visible;
-        GraphSurface.CaptureMouse();
+        GraphViewport.CaptureMouse();
         e.Handled = true;
     }
 
-    private void GraphSurface_PreviewMouseMove(object sender, MouseEventArgs e)
+    private void GraphViewport_PreviewMouseMove(object sender, MouseEventArgs e)
     {
-        _lastMousePosition = e.GetPosition(GraphSurface);
+        _lastMousePosition = ViewportToGraph(e.GetPosition(GraphViewport));
+
+        // 右键拖动检测：移动超过阈值则转为平移
+        if (_rightClickPending && e.RightButton == MouseButtonState.Pressed)
+        {
+            var currentPos = e.GetPosition(GraphViewport);
+            var delta = currentPos - _rightClickStartPos;
+            if (Math.Abs(delta.X) > 3 || Math.Abs(delta.Y) > 3)
+            {
+                _rightClickPending = false;
+                _isPanning = true;
+                _panStart = currentPos;
+                _panStartOffset = new Point(GraphPanTransform.X, GraphPanTransform.Y);
+                GraphViewport.CaptureMouse();
+            }
+        }
 
         if (_isPanning)
         {
-            var currentPan = e.GetPosition(GraphScrollViewer);
+            if (e.RightButton != MouseButtonState.Pressed)
+            {
+                _isPanning = false;
+                GraphViewport.ReleaseMouseCapture();
+            }
+            var currentPan = e.GetPosition(GraphViewport);
             var delta = currentPan - _panStart;
-            GraphScrollViewer.ScrollToHorizontalOffset(Math.Max(0, _panHorizontalOffset - delta.X));
-            GraphScrollViewer.ScrollToVerticalOffset(Math.Max(0, _panVerticalOffset - delta.Y));
+            GraphPanTransform.X = _panStartOffset.X + delta.X;
+            GraphPanTransform.Y = _panStartOffset.Y + delta.Y;
         }
 
         if (_isConnecting && _pendingOutputPin is not null)
@@ -373,12 +437,12 @@ public partial class MainWindow : Window
         SelectionRectangle.Height = height;
     }
 
-    private void GraphSurface_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    private void GraphViewport_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
         if (_isConnecting)
         {
             if (_pendingOutputPin is not null &&
-                TryGetPinAtPosition(e.GetPosition(GraphSurface), out var targetPin) &&
+                TryGetPinAtPosition(ViewportToGraph(e.GetPosition(GraphViewport)), out var targetPin) &&
                 targetPin is not null &&
                 targetPin != _pendingOutputPin)
             {
@@ -397,7 +461,7 @@ public partial class MainWindow : Window
         if (!_isSelecting) return;
 
         _isSelecting = false;
-        GraphSurface.ReleaseMouseCapture();
+        GraphViewport.ReleaseMouseCapture();
 
         var selectionBounds = new Rect(
             Canvas.GetLeft(SelectionRectangle),
@@ -410,48 +474,66 @@ public partial class MainWindow : Window
         e.Handled = true;
     }
 
-    private void GraphSurface_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+    private void GraphViewport_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
     {
-        if (e.OriginalSource != GraphSurface) return;
+        if (!IsGraphBlankSource(e.OriginalSource as DependencyObject)) return;
 
-        _isPanning = true;
-        _panStart = e.GetPosition(GraphScrollViewer);
-        _panHorizontalOffset = GraphScrollViewer.HorizontalOffset;
-        _panVerticalOffset = GraphScrollViewer.VerticalOffset;
-        GraphSurface.CaptureMouse();
+        if (_isSelecting)
+        {
+            _isSelecting = false;
+            SelectionRectangle.Visibility = Visibility.Collapsed;
+        }
+
+        _dragNode = null;
+        _dragGroup.Clear();
+        GraphViewport.ReleaseMouseCapture();
+        _isCanvasFocusActive = true;
+        GraphViewport.Focus();
+
+        // 判断是点击还是拖动：记录起始位置，尝试移动后决定
+        _rightClickPending = true;
+        _rightClickStartPos = e.GetPosition(GraphViewport);
         e.Handled = true;
     }
 
-    private void GraphSurface_PreviewMouseRightButtonUp(object sender, MouseButtonEventArgs e)
+    private void GraphViewport_PreviewMouseRightButtonUp(object sender, MouseButtonEventArgs e)
     {
-        if (!_isPanning) return;
+        if (_rightClickPending)
+        {
+            // 右键点击（非拖动），弹出节点菜单
+            _rightClickPending = false;
+            OpenNodePalette(_rightClickStartPos);
+            e.Handled = true;
+            return;
+        }
+
+        if (!_isPanning)
+        {
+            GraphViewport.ReleaseMouseCapture();
+            return;
+        }
 
         _isPanning = false;
-        GraphSurface.ReleaseMouseCapture();
+        GraphViewport.ReleaseMouseCapture();
         e.Handled = true;
     }
 
-    private void GraphScrollViewer_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    private void GraphViewport_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
     {
-        var mouseInViewport = e.GetPosition(GraphScrollViewer);
+        var mouseInViewport = e.GetPosition(GraphViewport);
+        var graphPoint = ViewportToGraph(mouseInViewport);
 
         var oldZoom = _zoomLevel;
         var zoomDelta = e.Delta > 0 ? 0.1 : -0.1;
-        var newZoom = Math.Clamp(oldZoom + zoomDelta, 0.1, 2.0);
+        var newZoom = Math.Clamp(oldZoom + zoomDelta, 0.1, 2.5);
 
         if (Math.Abs(newZoom - oldZoom) < 0.001) return;
 
         _zoomLevel = newZoom;
-        _zoomTransform.ScaleX = newZoom;
-        _zoomTransform.ScaleY = newZoom;
-
-        EnsureCanvasLargeEnough();
-
-        var canvasX = (GraphScrollViewer.HorizontalOffset + mouseInViewport.X) / oldZoom;
-        var canvasY = (GraphScrollViewer.VerticalOffset + mouseInViewport.Y) / oldZoom;
-
-        GraphScrollViewer.ScrollToHorizontalOffset(Math.Max(0, canvasX * newZoom - mouseInViewport.X));
-        GraphScrollViewer.ScrollToVerticalOffset(Math.Max(0, canvasY * newZoom - mouseInViewport.Y));
+        GraphZoomTransform.ScaleX = newZoom;
+        GraphZoomTransform.ScaleY = newZoom;
+        GraphPanTransform.X = mouseInViewport.X - graphPoint.X * newZoom;
+        GraphPanTransform.Y = mouseInViewport.Y - graphPoint.Y * newZoom;
 
         e.Handled = true;
     }
@@ -465,6 +547,7 @@ public partial class MainWindow : Window
         if (sender is not FrameworkElement element || element.DataContext is not PinViewModel pin)
             return;
 
+        _isCanvasFocusActive = false;
         SelectNode(pin.Owner);
 
         // Alt+点击断开连接
@@ -482,11 +565,11 @@ public partial class MainWindow : Window
             _pendingOutputPin = pin;
             _isConnecting = true;
             _wireWasDragged = false;
-            GraphSurface.CaptureMouse();
-            var pos = e.GetPosition(GraphSurface);
+            GraphViewport.CaptureMouse();
+            var pos = ViewportToGraph(e.GetPosition(GraphViewport));
             UpdatePreviewConnectionGeometry(pin, pos);
             PreviewConnectionPath.Visibility = Visibility.Visible;
-            SetStatus($"从 {pin.Owner.Title}.{pin.DisplayName} 拖出连线...");
+            SetStatus($"从{pin.Owner.Title}.{pin.DisplayName} 拖拽连线...");
             e.Handled = true;
             return;
         }
@@ -544,7 +627,7 @@ public partial class MainWindow : Window
     {
         PreviewConnectionPath.Visibility = Visibility.Collapsed;
         PreviewConnectionPath.Data = null;
-        GraphSurface.ReleaseMouseCapture();
+        GraphViewport.ReleaseMouseCapture();
     }
 
     private void UpdatePreviewConnectionGeometry(PinViewModel sourcePin, Point currentPoint)
@@ -579,7 +662,8 @@ public partial class MainWindow : Window
         var connection = FindConnectionFromSource(e.OriginalSource as DependencyObject);
         if (connection is null) return;
 
-        var clickPos = e.GetPosition(GraphSurface);
+        _isCanvasFocusActive = false;
+        var clickPos = ViewportToGraph(e.GetPosition(GraphViewport));
         var routedKind = connection.SourcePin.Kind;
 
         var reroute = _nodeFactory.CreateRerouteNode(routedKind, clickPos.X - 10, clickPos.Y - 10);
@@ -609,6 +693,7 @@ public partial class MainWindow : Window
         if (sender is not FrameworkElement element || element.DataContext is not ConnectionViewModel connection)
             return;
 
+        _isCanvasFocusActive = false;
         _editorService.RemoveConnection(connection);
         _editorService.UpdatePinConnectionStates();
         SetStatus("已断开连接。");
@@ -711,6 +796,13 @@ public partial class MainWindow : Window
         }
 
         // Q：横向对齐
+        if (e.Key == Key.F && _isCanvasFocusActive)
+        {
+            FitGraphToView();
+            e.Handled = true;
+            return;
+        }
+
         if (e.Key == Key.Q)
         {
             AlignSelectedNodesHorizontal();
@@ -805,6 +897,7 @@ public partial class MainWindow : Window
             NodeTitleTextBox.Text = string.Empty;
             HideAllInspectorPanels();
             InspectorHintTextBlock.Text = "请选择一个节点进行编辑。";
+            RefreshInspectorLocks(node);
             _isLoadingInspector = false;
             return;
         }
@@ -825,11 +918,8 @@ public partial class MainWindow : Window
 
             case MouseClickNodeViewModel mouseNode:
                 MouseLeftInspectorPanel.Visibility = Visibility.Visible;
-                var hasPositionInput = IsInputPinConnected(mouseNode, "position");
-                MousePositionXTextBox.IsEnabled = !hasPositionInput;
-                MousePositionYTextBox.IsEnabled = !hasPositionInput;
-                MousePositionXTextBox.Text = hasPositionInput ? "来自前置节点" : mouseNode.PositionX.ToString("0.##");
-                MousePositionYTextBox.Text = hasPositionInput ? "来自前置节点" : mouseNode.PositionY.ToString("0.##");
+                MousePositionXTextBox.Text = mouseNode.PositionX.ToString("0.##");
+                MousePositionYTextBox.Text = mouseNode.PositionY.ToString("0.##");
                 MouseClickOperationModeComboBox.SelectedIndex = (int)mouseNode.OperationMode;
                 MouseButtonComboBox.SelectedIndex = (int)mouseNode.MouseButton;
                 break;
@@ -842,15 +932,11 @@ public partial class MainWindow : Window
 
             case IfNodeViewModel ifNode:
                 IfInspectorPanel.Visibility = Visibility.Visible;
-                var hasCondInput = IsInputPinConnected(ifNode, "condition");
-                IfConditionComboBox.IsEnabled = !hasCondInput;
                 IfConditionComboBox.SelectedIndex = ifNode.ConditionValue ? 1 : 0;
                 break;
 
             case WhileLoopNodeViewModel whileNode:
                 WhileLoopInspectorPanel.Visibility = Visibility.Visible;
-                var hasWhileCondInput = IsInputPinConnected(whileNode, "condition");
-                WhileLoopConditionComboBox.IsEnabled = !hasWhileCondInput;
                 WhileLoopConditionComboBox.SelectedIndex = whileNode.ConditionValue ? 1 : 0;
                 break;
 
@@ -874,14 +960,12 @@ public partial class MainWindow : Window
 
             case MouseMoveNodeViewModel moveNode:
                 MouseMoveInspectorPanel.Visibility = Visibility.Visible;
-                var hasMovePositionInput = IsInputPinConnected(moveNode, "position");
-                MouseMovePositionXTextBox.IsEnabled = !hasMovePositionInput;
-                MouseMovePositionYTextBox.IsEnabled = !hasMovePositionInput;
-                MouseMovePositionXTextBox.Text = hasMovePositionInput ? "来自前置节点" : moveNode.PositionX.ToString("0.##");
-                MouseMovePositionYTextBox.Text = hasMovePositionInput ? "来自前置节点" : moveNode.PositionY.ToString("0.##");
+                MouseMovePositionXTextBox.Text = moveNode.PositionX.ToString("0.##");
+                MouseMovePositionYTextBox.Text = moveNode.PositionY.ToString("0.##");
                 break;
         }
 
+        RefreshInspectorLocks(node);
         _isLoadingInspector = false;
     }
 
@@ -978,7 +1062,7 @@ public partial class MainWindow : Window
         var dialog = new OpenFileDialog
         {
             Title = "选择图片文件",
-            Filter = "图片文件 (*.png;*.jpg;*.jpeg;*.bmp)|*.png;*.jpg;*.jpeg;*.bmp|所有文件 (*.*)|*.*",
+            Filter = "图片文件 (*.png;*.jpg;*.jpeg;*.bmp)|*.png;*.jpg;*.jpeg;*.bmp|所有文件(*.*)|*.*",
         };
 
         if (dialog.ShowDialog(this) == true)
@@ -1019,7 +1103,7 @@ public partial class MainWindow : Window
 
     #endregion
 
-    #region 拖放导入
+    #region 拖拽导入
 
     private void Window_DragEnter(object sender, DragEventArgs e)
     {
@@ -1073,23 +1157,15 @@ public partial class MainWindow : Window
     private void OnGraphChanged()
     {
         _editorService.UpdatePinConnectionStates();
+        if (_editorService.Nodes.FirstOrDefault(n => n.IsSelected) is { } selected)
+        {
+            LoadNodeToInspector(selected);
+        }
     }
 
     private void EnsureCanvasLargeEnough()
     {
-        var minWidth = GraphScrollViewer.ViewportWidth / _zoomLevel + 2000;
-        var minHeight = GraphScrollViewer.ViewportHeight / _zoomLevel + 2000;
-
-        if (_editorService.Nodes.Count > 0)
-        {
-            var maxNodeRight = _editorService.Nodes.Max(n => n.X + n.Width) + 2000;
-            var maxNodeBottom = _editorService.Nodes.Max(n => n.Y + 180) + 2000;
-            minWidth = Math.Max(minWidth, maxNodeRight);
-            minHeight = Math.Max(minHeight, maxNodeBottom);
-        }
-
-        if (GraphSurface.Width < minWidth) GraphSurface.Width = minWidth;
-        if (GraphSurface.Height < minHeight) GraphSurface.Height = minHeight;
+        // Infinite canvas mode no longer resizes the surface by viewport bounds.
     }
 
     private void SyncNodeFactorySequence()
@@ -1105,6 +1181,68 @@ public partial class MainWindow : Window
     private bool IsInputPinConnected(NodeBaseViewModel node, string pinName)
     {
         return node.InputPins.FirstOrDefault(p => p.Name == pinName)?.HasConnection ?? false;
+    }
+
+    private Point ViewportToGraph(Point viewportPoint)
+    {
+        return new Point(
+            (viewportPoint.X - GraphPanTransform.X) / _zoomLevel,
+            (viewportPoint.Y - GraphPanTransform.Y) / _zoomLevel);
+    }
+
+    private void FitGraphToView()
+    {
+        if (_editorService.Nodes.Count == 0 || GraphViewport.ActualWidth <= 0 || GraphViewport.ActualHeight <= 0)
+            return;
+
+        double left = _editorService.Nodes.Min(n => n.X);
+        double top = _editorService.Nodes.Min(n => n.Y);
+        double right = _editorService.Nodes.Max(n => n.X + n.Width);
+        double bottom = _editorService.Nodes.Max(n => n.Y + n.Height);
+
+        double width = Math.Max(1, right - left);
+        double height = Math.Max(1, bottom - top);
+        double padding = 0.08;
+        double viewWidth = GraphViewport.ActualWidth * (1.0 - padding * 2.0);
+        double viewHeight = GraphViewport.ActualHeight * (1.0 - padding * 2.0);
+
+        double zoomX = viewWidth / width;
+        double zoomY = viewHeight / height;
+        _zoomLevel = Math.Clamp(Math.Min(zoomX, zoomY), 0.1, 2.5);
+        GraphZoomTransform.ScaleX = _zoomLevel;
+        GraphZoomTransform.ScaleY = _zoomLevel;
+
+        GraphPanTransform.X = (GraphViewport.ActualWidth - width * _zoomLevel) / 2.0 - left * _zoomLevel;
+        GraphPanTransform.Y = (GraphViewport.ActualHeight - height * _zoomLevel) / 2.0 - top * _zoomLevel;
+        SetStatus("已缩放到节点全览。");
+    }
+
+    private void RefreshInspectorLocks(NodeBaseViewModel? node)
+    {
+        SetControlLocked(MousePositionXTextBox, node is MouseClickNodeViewModel clickNode && IsInputPinConnected(clickNode, "position"));
+        SetControlLocked(MousePositionYTextBox, node is MouseClickNodeViewModel clickNodeY && IsInputPinConnected(clickNodeY, "position"));
+        SetControlLocked(MouseMovePositionXTextBox, node is MouseMoveNodeViewModel moveNode && IsInputPinConnected(moveNode, "position"));
+        SetControlLocked(MouseMovePositionYTextBox, node is MouseMoveNodeViewModel moveNodeY && IsInputPinConnected(moveNodeY, "position"));
+        SetControlLocked(IfConditionComboBox, node is IfNodeViewModel ifNode && IsInputPinConnected(ifNode, "condition"));
+        SetControlLocked(WhileLoopConditionComboBox, node is WhileLoopNodeViewModel whileNode && IsInputPinConnected(whileNode, "condition"));
+        SetTextBlockLocked(MousePositionXLabel, node is MouseClickNodeViewModel clickNodeLabelX && IsInputPinConnected(clickNodeLabelX, "position"));
+        SetTextBlockLocked(MousePositionYLabel, node is MouseClickNodeViewModel clickNodeLabelY && IsInputPinConnected(clickNodeLabelY, "position"));
+        SetTextBlockLocked(MouseMovePositionXLabel, node is MouseMoveNodeViewModel moveNodeLabelX && IsInputPinConnected(moveNodeLabelX, "position"));
+        SetTextBlockLocked(MouseMovePositionYLabel, node is MouseMoveNodeViewModel moveNodeLabelY && IsInputPinConnected(moveNodeLabelY, "position"));
+        SetTextBlockLocked(IfConditionLabel, node is IfNodeViewModel ifNodeLabel && IsInputPinConnected(ifNodeLabel, "condition"));
+        SetTextBlockLocked(WhileConditionLabel, node is WhileLoopNodeViewModel whileNodeLabel && IsInputPinConnected(whileNodeLabel, "condition"));
+    }
+
+    private static void SetControlLocked(System.Windows.Controls.Control control, bool locked)
+    {
+        control.IsEnabled = !locked;
+    }
+
+    private static void SetTextBlockLocked(TextBlock textBlock, bool locked)
+    {
+        textBlock.Foreground = locked
+            ? (System.Windows.Media.Brush)System.Windows.Application.Current.Resources["DisabledForegroundBrush"]
+            : System.Windows.Media.Brushes.White;
     }
 
     private bool TryGetPinAtPosition(Point position, out PinViewModel? pin)
@@ -1138,6 +1276,26 @@ public partial class MainWindow : Window
                 return true;
             current = VisualTreeHelper.GetParent(current);
         }
+        return false;
+    }
+
+    private bool IsGraphBlankSource(DependencyObject? source)
+    {
+        var current = source;
+        while (current is not null)
+        {
+            if (current is FrameworkElement element)
+            {
+                if (element.DataContext is NodeBaseViewModel or PinViewModel or ConnectionViewModel)
+                    return false;
+
+                if (ReferenceEquals(element, GraphSurface) || ReferenceEquals(element, GraphViewport))
+                    return true;
+            }
+
+            current = VisualTreeHelper.GetParent(current);
+        }
+
         return false;
     }
 
@@ -1225,4 +1383,128 @@ public partial class MainWindow : Window
     }
 
     #endregion
+
+    #region 节点右键菜单
+
+    private record NodePaletteItem(string Category, string Name, Func<double, double, NodeBaseViewModel> Factory);
+
+    private List<NodePaletteItem> _paletteItems = [];
+
+    private void InitializeNodePalette()
+    {
+        _paletteItems =
+        [
+            new("输入节点", "鼠标点击", (x, y) => _nodeFactory.CreateMouseClickNode(x, y)),
+            new("输入节点", "键盘", (x, y) => _nodeFactory.CreateKeyboardNode(x, y)),
+            new("输入节点", "滚轮", (x, y) => _nodeFactory.CreateScrollWheelNode(x, y)),
+            new("逻辑节点", "延迟", (x, y) => _nodeFactory.CreateDelayNode(x, y)),
+            new("逻辑节点", "分支", (x, y) => _nodeFactory.CreateIfNode(x, y)),
+            new("逻辑节点", "For循环", (x, y) => _nodeFactory.CreateForLoopNode(x, y)),
+            new("逻辑节点", "While循环", (x, y) => _nodeFactory.CreateWhileLoopNode(x, y)),
+            new("功能节点", "鼠标移动", (x, y) => _nodeFactory.CreateMouseMoveNode(x, y)),
+            new("插件节点", "找图", (x, y) => _nodeFactory.CreateFindImageNode(x, y)),
+        ];
+    }
+
+    private void OpenNodePalette(Point viewportPos)
+    {
+        NodePaletteSearchBox.Text = string.Empty;
+        BuildNodePaletteContent(string.Empty);
+
+        Canvas.SetLeft(NodePalette, viewportPos.X);
+        Canvas.SetTop(NodePalette, viewportPos.Y);
+        NodePalette.Visibility = Visibility.Visible;
+
+        Dispatcher.BeginInvoke(new Action(() => NodePaletteSearchBox.Focus()), DispatcherPriority.Render);
+    }
+
+    private void CloseNodePalette()
+    {
+        NodePalette.Visibility = Visibility.Collapsed;
+    }
+
+    private void BuildNodePaletteContent(string filter)
+    {
+        NodePaletteContent.Children.Clear();
+        var filtered = _paletteItems.Where(i => string.IsNullOrWhiteSpace(filter) || i.Name.Contains(filter, StringComparison.OrdinalIgnoreCase)).ToList();
+
+        if (filtered.Count == 0)
+        {
+            NodePaletteContent.Children.Add(new TextBlock
+            {
+                Text = "未找到匹配节点",
+                Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x7A, 0x87, 0x97)),
+                Margin = new Thickness(12, 8, 12, 8),
+                FontSize = 12,
+            });
+            return;
+        }
+
+        var groups = filtered.GroupBy(i => i.Category).ToList();
+        foreach (var group in groups)
+        {
+            // 分类标题
+            var categoryText = new TextBlock
+            {
+                Text = group.Key,
+                Foreground = System.Windows.Media.Brushes.White,
+                FontWeight = FontWeights.SemiBold,
+                FontSize = 12,
+                Margin = new Thickness(12, 10, 12, 4),
+            };
+            NodePaletteContent.Children.Add(categoryText);
+
+            foreach (var item in group)
+            {
+                var button = new System.Windows.Controls.Button
+                {
+                    Content = item.Name,
+                    Background = System.Windows.Media.Brushes.Transparent,
+                    BorderThickness = new Thickness(0),
+                    Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0xD0, 0xD7, 0xE2)),
+                    FontSize = 13,
+                    Padding = new Thickness(12, 6, 12, 6),
+                    HorizontalContentAlignment = System.Windows.HorizontalAlignment.Left,
+                    Cursor = System.Windows.Input.Cursors.Hand,
+                    Tag = item,
+                };
+                button.Click += NodePaletteItem_Click;
+                NodePaletteContent.Children.Add(button);
+            }
+        }
+    }
+
+    private void NodePaletteItem_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is System.Windows.Controls.Button btn && btn.Tag is NodePaletteItem item)
+        {
+            var graphPos = ViewportToGraph(_rightClickStartPos);
+            var node = item.Factory(0, 0);
+            node.X = graphPos.X;
+            node.Y = graphPos.Y;
+            AddNode(node);
+            CloseNodePalette();
+        }
+    }
+
+    private void NodePaletteSearchBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        BuildNodePaletteContent(NodePaletteSearchBox.Text.Trim());
+    }
+
+    private void Window_PreviewMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (NodePalette.Visibility != Visibility.Visible) return;
+
+        var pos = e.GetPosition(NodePalette);
+        bool inside = pos.X >= 0 && pos.X <= NodePalette.ActualWidth && pos.Y >= 0 && pos.Y <= NodePalette.ActualHeight;
+        if (!inside)
+        {
+            CloseNodePalette();
+        }
+    }
+
+    #endregion
 }
+
+

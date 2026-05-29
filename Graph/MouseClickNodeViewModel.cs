@@ -21,9 +21,7 @@ public sealed class MouseClickNodeViewModel : InputNodeBase
         set
         {
             if (SetProperty(ref _mouseButton, value))
-            {
                 RefreshDescription();
-            }
         }
     }
 
@@ -33,9 +31,7 @@ public sealed class MouseClickNodeViewModel : InputNodeBase
         set
         {
             if (SetProperty(ref _positionX, value))
-            {
                 RefreshDescription();
-            }
         }
     }
 
@@ -45,9 +41,7 @@ public sealed class MouseClickNodeViewModel : InputNodeBase
         set
         {
             if (SetProperty(ref _positionY, value))
-            {
                 RefreshDescription();
-            }
         }
     }
 
@@ -71,6 +65,6 @@ public sealed class MouseClickNodeViewModel : InputNodeBase
         string posLabel = InputPins.FirstOrDefault(p => p.Name == "position")?.HasConnection == true
             ? "前置输入"
             : $"({PositionX:0}, {PositionY:0})";
-        Description = $"{buttonLabel} · {modeLabel}\n{posLabel}";
+        Description = $"{buttonLabel} / {modeLabel}\n{posLabel}";
     }
 }

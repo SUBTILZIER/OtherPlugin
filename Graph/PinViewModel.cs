@@ -25,27 +25,18 @@ public sealed class PinViewModel : ObservableObject
     }
 
     public NodeBaseViewModel Owner { get; }
-
     public string Name { get; }
-
     public string DisplayName { get; }
-
     public PinDirection Direction { get; }
-
     public PinKind Kind { get; }
-
     public Brush PinBrush { get; }
 
     public bool IsExecution => Kind == PinKind.Execution;
-
     public bool IsData => Kind != PinKind.Execution;
-
     public bool IsInput => Direction == PinDirection.Input;
-
     public bool IsOutput => Direction == PinDirection.Output;
 
     public string TriangleGeometry => "M 2 0 L 12 6 L 2 12 Z";
-
     public Brush PinFillBrush => HasConnection ? PinBrush : Brushes.Transparent;
 
     public bool HasConnection
@@ -54,9 +45,7 @@ public sealed class PinViewModel : ObservableObject
         set
         {
             if (SetProperty(ref _hasConnection, value))
-            {
                 OnPropertyChanged(nameof(PinFillBrush));
-            }
         }
     }
 

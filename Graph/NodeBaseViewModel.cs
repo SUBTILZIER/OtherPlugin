@@ -106,7 +106,7 @@ public abstract class NodeBaseViewModel : ObservableObject
 
     public abstract void RefreshDescription();
 
-    public Point GetPinAnchor(PinViewModel pin)
+    public virtual Point GetPinAnchor(PinViewModel pin)
     {
         if (pin.AnchorPoint != default)
         {

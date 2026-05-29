@@ -16,6 +16,9 @@
         <SolidColorBrush x:Key="AccentPressedBrush" Color="#3B73E0" />
         <SolidColorBrush x:Key="InputBackgroundBrush" Color="#31343A" />
         <SolidColorBrush x:Key="InputBorderBrush" Color="#4B5260" />
+        <SolidColorBrush x:Key="DisabledInputBackgroundBrush" Color="#23262B" />
+        <SolidColorBrush x:Key="DisabledInputBorderBrush" Color="#3A3F47" />
+        <SolidColorBrush x:Key="DisabledForegroundBrush" Color="#737A86" />
 
         <Style TargetType="Window">
             <Setter Property="Background" Value="{StaticResource AppBackgroundBrush}" />
@@ -74,6 +77,14 @@
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="CaretBrush" Value="{StaticResource ForegroundPrimaryBrush}" />
             <Setter Property="Padding" Value="8,5" />
+            <Style.Triggers>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Background" Value="{StaticResource DisabledInputBackgroundBrush}" />
+                    <Setter Property="BorderBrush" Value="{StaticResource DisabledInputBorderBrush}" />
+                    <Setter Property="Foreground" Value="{StaticResource DisabledForegroundBrush}" />
+                    <Setter Property="Opacity" Value="1" />
+                </Trigger>
+            </Style.Triggers>
         </Style>
 
         <Style TargetType="ComboBox">
@@ -123,7 +134,7 @@
                                               VerticalAlignment="Center"
                                               HorizontalAlignment="Left"
                                               IsHitTestVisible="False"
-                                              TextBlock.Foreground="{StaticResource ForegroundPrimaryBrush}" />
+                                              TextBlock.Foreground="{TemplateBinding Foreground}" />
                             <TextBox x:Name="PART_EditableTextBox"
                                      Visibility="Hidden"
                                      Background="{StaticResource InputBackgroundBrush}"
@@ -156,6 +167,14 @@
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Background" Value="{StaticResource DisabledInputBackgroundBrush}" />
+                    <Setter Property="BorderBrush" Value="{StaticResource DisabledInputBorderBrush}" />
+                    <Setter Property="Foreground" Value="{StaticResource DisabledForegroundBrush}" />
+                    <Setter Property="Opacity" Value="1" />
+                </Trigger>
+            </Style.Triggers>
         </Style>
 
         <Style TargetType="ComboBoxItem">

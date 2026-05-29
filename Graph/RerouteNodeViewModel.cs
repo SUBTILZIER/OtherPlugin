@@ -30,7 +30,7 @@ public sealed class RerouteNodeViewModel : NodeBaseViewModel
         _ => new SolidColorBrush(Color.FromRgb(190, 190, 190)),
     };
 
-    public new Point GetPinAnchor(PinViewModel pin)
+    public override Point GetPinAnchor(PinViewModel pin)
     {
         if (pin.AnchorPoint != default)
             return pin.AnchorPoint;
