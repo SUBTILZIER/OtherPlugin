@@ -66,6 +66,9 @@ public sealed class NodeFileModel
 
     // Reroute 节点属性
     public string? RoutedKind { get; set; }
+
+    // SelectWindow 节点属性
+    public string? ProcessName { get; set; }
 }
 
 public sealed class ConnectionFileModel

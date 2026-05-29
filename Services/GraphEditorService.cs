@@ -46,9 +46,18 @@ public sealed class GraphEditorService
             throw new InvalidOperationException("未指定保存路径。");
         }
 
-        var file = new GraphFileModel
+        var file = ExportGraphModel("自动化蓝图图谱");
+
+        File.WriteAllText(path, JsonSerializer.Serialize(file, _jsonOptions));
+        CurrentGraphPath = path;
+        StatusChanged?.Invoke($"图谱已保存：{Path.GetFileName(path)}");
+    }
+
+    public GraphFileModel ExportGraphModel(string name)
+    {
+        return new GraphFileModel
         {
-            Name = "自动化蓝图图谱",
+            Name = name,
             Nodes = Nodes.Select(NodeSerializer.ToFileModel).ToList(),
             Connections = Connections.Select(c => new ConnectionFileModel
             {
@@ -58,10 +67,6 @@ public sealed class GraphEditorService
                 TargetPinName = c.TargetPin.Name,
             }).ToList(),
         };
-
-        File.WriteAllText(path, JsonSerializer.Serialize(file, _jsonOptions));
-        CurrentGraphPath = path;
-        StatusChanged?.Invoke($"图谱已保存：{Path.GetFileName(path)}");
     }
 
     public void LoadGraph(string path)
@@ -80,6 +85,11 @@ public sealed class GraphEditorService
 
     public void LoadFromModel(GraphFileModel file)
     {
+        foreach (var connection in Connections)
+        {
+            connection.Dispose();
+        }
+
         Nodes.Clear();
         Connections.Clear();
 
@@ -92,6 +102,24 @@ public sealed class GraphEditorService
 
             Nodes.Add(node);
             nodesById[node.Id] = node;
+        }
+
+        if (Nodes.All(node => node.NodeKind != NodeKind.Start))
+        {
+            string id = nodesById.ContainsKey("node_001") ? $"node_{nodesById.Count + 1:000}" : "node_001";
+            while (nodesById.ContainsKey(id))
+            {
+                id = $"node_{nodesById.Count + 1:000}_{Guid.NewGuid():N}";
+            }
+
+            var startNode = new StartNodeViewModel(id)
+            {
+                Title = "事件开始运行",
+                X = 80,
+                Y = 210,
+            };
+            Nodes.Insert(0, startNode);
+            nodesById[startNode.Id] = startNode;
         }
 
         foreach (var connFile in file.Connections)
@@ -244,7 +272,9 @@ public sealed class GraphEditorService
             return false;
         }
 
-        if (sourcePin.Kind != targetPin.Kind)
+        // String input pins accept any type (Boolean, Vector2D, String) via ToString()
+        bool targetIsString = targetPin.Kind == PinKind.String;
+        if (sourcePin.Kind != targetPin.Kind && !targetIsString)
         {
             reason = $"引脚类型不匹配：{sourcePin.KindLabel} 不能连接到 {targetPin.KindLabel}。";
             return false;

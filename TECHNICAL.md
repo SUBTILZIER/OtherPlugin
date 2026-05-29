@@ -44,6 +44,14 @@
 
 ### 1. Services 层（新增）
 
+#### GraphLibraryService
+负责随软件启动自动加载/保存图谱列表：
+- 保存位置：`%AppData%\AutomationStudioWpf\graph-library.json`
+- 保存内容：图谱列表、每个图谱的节点/连线、最后选中的图谱 ID
+- 工具栏 `保存` 是保存所有图谱，不是只保存当前图谱
+- 切换图谱时只静默快照当前编辑器状态到当前图谱项，不弹保存提示
+- 退出软件时，如果存在未保存图谱，统一弹窗询问是否保存
+
 #### GraphEditorService
 负责图谱的核心编辑逻辑：
 - 节点和连接的增删改查
@@ -115,8 +123,22 @@ public abstract class NodeBaseViewModel : ObservableObject
 
 #### 引脚系统
 - **PinDirection**: Input / Output
-- **PinKind**: Execution / Boolean / Vector2D
+- **PinKind**: Execution / Boolean / Vector2D / String
 - 支持动态引脚位置计算
+
+#### 当前主要节点
+- **Start**：图谱执行入口
+- **FindImage**：找图，输出 `result` 和 `center`
+- **MouseClick**：鼠标点击，支持前置 `position`
+- **MouseMove**：鼠标移动，支持前置 `position`
+- **Keyboard**：键盘按下/抬起
+- **ScrollWheel**：滚轮/中键
+- **Delay**：延迟
+- **If / ForLoop / WhileLoop**：基础流程控制
+- **StartProgram**：启动程序，输出 `process_name` 和 `result`
+- **SelectWindow**：按进程名选中窗口，输出 `process_name` 和 `result`
+- **PrintLog**：打印字符串或前置输入值
+- **Reroute**：连线整理路由点
 
 ### 3. Runtime 层（执行引擎）
 
@@ -142,7 +164,26 @@ static extern void mouse_event(uint dwFlags, uint dx, uint dy, uint dwData, UInt
 
 [DllImport("user32.dll")]
 static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
+
+[DllImport("user32.dll")]
+static extern bool SetForegroundWindow(IntPtr hWnd);
+
+[DllImport("user32.dll")]
+static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+[DllImport("user32.dll")]
+static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int x, int y, int cx, int cy, uint flags);
 ```
+
+#### 选中窗口节点
+`SelectWindowNodeViewModel` 通过进程名定位窗口：
+- 支持手填 `ProcessName`
+- 支持前置 string 输入 pin：`process_name`
+- 输出 `process_name` 方便后续日志/调试
+- 输出 `result` 表示窗口是否成功置前
+- 进程名支持 `notepad` 或 `notepad.exe`，运行时会去掉 `.exe`
+- 空进程名、找不到窗口：`Warn + continue`
+- Win32 异常：`Error + stop`
 
 ### 4. Logging 层
 
@@ -267,6 +308,67 @@ public sealed class MyNodeViewModel : NodeBaseViewModel
 ## 踩坑记录
 
 > 以下记录来自实际开发中的踩坑经验，按时间倒序排列，新记录追加到顶部。
+
+### 2026-05-29：图谱列表、右键菜单、选中窗口节点
+
+#### 问题 1：切换图谱时不应提示保存
+- **现象**：双击图谱切换时如果当前图谱 dirty，会弹是否保存，编辑体验差
+- **修复**：切换图谱时调用 `SnapshotActiveGraph()` 静默把当前编辑器内容写回图谱列表项；只在关闭窗口时统一提示保存
+- **教训**：图谱切换是导航行为，不是关闭行为。保存弹窗集中在退出软件和显式保存按钮
+
+#### 问题 2：WPF ContextMenu 默认样式导致白边
+- **现象**：图谱右键菜单出现白色边/默认系统 chrome，和暗色 UI 不一致
+- **根因**：只设置 `Background/BorderBrush` 不会覆盖 `ContextMenu` / `MenuItem` 的默认 ControlTemplate
+- **修复**：同时覆盖 `ContextMenu.Template` 和 `MenuItem.Template`，用暗色 `Border`、自定义 hover、`StackPanel IsItemsHost`
+- **教训**：UE 风格暗色菜单不能只改属性，必须全量自绘模板
+
+#### 问题 3：ContextMenu 不能直接使用 Popup 属性
+- **现象**：`AllowsTransparency` / `PopupAnimation` 写在 `ContextMenu` 上编译报 `MC3072`
+- **根因**：这些属性属于 `Popup`，不是 `ContextMenu`
+- **修复**：移除这些属性。需要真正透明/动画时，改用 `Popup` 或 Canvas 浮层
+
+#### 问题 4：选中窗口节点的 Win32 行为边界
+- **现象**：`SetForegroundWindow` 可能返回 false
+- **根因**：Windows 有前台窗口权限限制，非当前前台进程不一定能强制抢焦点
+- **实现**：先 `ShowWindow(SW_RESTORE)`，再 `SetWindowPos(HWND_TOP)`，最后 `SetForegroundWindow`
+- **策略**：找不到窗口或进程名为空是 `Warn + continue`；Win32 调用异常才是 `Error + stop`
+
+#### 问题 5：沙箱内 WPF 构建可能报 obj Access denied
+- **现象**：`dotnet build` 报 `Access to ... obj\Debug\net8.0-windows\App.g.cs is denied`
+- **根因**：WPF MarkupCompile 会删除/重写 `obj` 文件，沙箱权限或 Rider/dotnet 占用会干扰
+- **处理**：先查 `AutomationStudioWpf` / `dotnet` / Rider 进程；必要时使用本机权限重新 `dotnet build .\AutomationStudioWpf.csproj`
+
+### 2026-05-29：拓展节点后的运行时与模型边界
+
+#### 问题 1：前置输入已连接但运行时没有值时，鼠标节点会回退到本地坐标
+- **现象**：`找图.center` 连到 `鼠标点击.position` 后，找图未命中时只写 `result=false`，不写 `center`；鼠标节点仍继续运行，并回退使用自身 `PositionX/Y`
+- **风险**：可能点击 `(0,0)` 或旧坐标。自动化工具里这是高风险行为
+- **修复方向**：区分“未连接输入”和“已连接但值缺失”。后者应记录 `Warn`，跳过当前鼠标节点并继续后续节点，不能回退到本地坐标
+
+#### 问题 2：新增节点复用旧 DTO 字段导致模型漂移
+- **现象**：`StartProgram` 和 `PrintLog` 为了快速落地，复用了 `NodeFileModel.ImagePath/DelayMs/ScrollSpeed` 等字段
+- **风险**：保存文件语义不清，后续新增节点时容易出现字段互相污染
+- **修复方向**：给 `NodeFileModel` 增加语义明确的新字段，例如 `ProgramPath`、`WaitTimeoutMs`、`RetryCount`、`PrintLogMessage`；旧字段只做兼容读取，不再作为新写入路径
+
+#### 问题 3：打开旧/坏图谱不保证开始节点存在
+- **现象**：`NewGraph()` 会创建开始节点，但 `LoadFromModel()` 不会兜底补开始节点
+- **风险**：UI 看起来能编辑，执行时才报“没有开始节点”
+- **修复方向**：加载模型后检查 `StartNodeViewModel` 是否存在；不存在则自动补一个默认开始节点，并同步 `NodeFactory` 序号
+
+#### 当前审计状态
+- `dotnet build AutomationStudioWpf.csproj` 已验证通过：0 warning / 0 error
+- CodeGraph 索引异常：原索引报 `no such table: unresolved_refs`；删除损坏索引后，`codegraph.cmd init` / `codegraph.cmd init -i` 均失败为 `disk I/O error`。当前不要依赖 CodeGraph，需先解决 CLI/磁盘/权限问题
+- `.git/index.lock` 存在；提交前应确认没有 Git/Rider 进程占用，再清理锁文件
+
+### 2026-05-29: ComboBox disabled text not gray unlike TextBox
+
+#### Problem: If/While condition ComboBox shows black text instead of gray when input pin is connected
+- **Symptom**: MouseClick/MouseMove TextBox correctly turns gray when locked by input pin connection, but If/While ComboBox stays black
+- **Root cause**: WPF default template behavior is inconsistent:
+  - `TextBox.IsEnabled = false` automatically renders text in gray
+  - `ComboBox.IsEnabled = false` only changes border/background; ContentPresenter Foreground is NOT modified
+- **Fix**: Manually set `cb.Foreground = Brushes.Gray` when locked, and `cb.ClearValue(Control.ForegroundProperty)` when unlocked
+- **Lesson**: Do not assume consistent disabled visual states across WPF controls. ComboBox requires manual Foreground management.
 
 ### 2026-05-29: Preview event tunneling blocks Button Click inside popup
 

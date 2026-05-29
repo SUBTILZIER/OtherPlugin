@@ -32,7 +32,16 @@ public sealed class NodeFactory
         new(CreateNodeId()) { Title = "键盘节点", X = 340 + offsetX, Y = 240 + offsetY };
 
     public ScrollWheelNodeViewModel CreateScrollWheelNode(double offsetX = 0, double offsetY = 0) =>
-        new(CreateNodeId()) { Title = "滚轮节点", X = 360 + offsetX, Y = 260 + offsetY };
+        new(CreateNodeId()) { Title = "鼠标滚轮节点", X = 360 + offsetX, Y = 260 + offsetY };
+
+    public StartProgramNodeViewModel CreateStartProgramNode(double offsetX = 0, double offsetY = 0) =>
+        new(CreateNodeId()) { Title = "启动程序", X = 440 + offsetX, Y = 340 + offsetY };
+
+    public PrintLogNodeViewModel CreatePrintLogNode(double offsetX = 0, double offsetY = 0) =>
+        new(CreateNodeId()) { Title = "打印log", X = 460 + offsetX, Y = 360 + offsetY };
+
+    public SelectWindowNodeViewModel CreateSelectWindowNode(double offsetX = 0, double offsetY = 0) =>
+        new(CreateNodeId()) { Title = "选中窗口", X = 480 + offsetX, Y = 380 + offsetY };
 
     public DelayNodeViewModel CreateDelayNode(double offsetX = 0, double offsetY = 0) =>
         new(CreateNodeId()) { Title = "延迟节点", X = 360 + offsetX, Y = 260 + offsetY };

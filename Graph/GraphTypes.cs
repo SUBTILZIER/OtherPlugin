@@ -13,6 +13,9 @@ public enum NodeKind
     If,
     ForLoop,
     WhileLoop,
+    StartProgram,
+    PrintLog,
+    SelectWindow,
 }
 
 public enum PinDirection
@@ -26,6 +29,7 @@ public enum PinKind
     Execution,
     Boolean,
     Vector2D,
+    String,
 }
 
 public enum MouseButton
@@ -49,6 +53,12 @@ public enum ScrollWheelAction
     Release,
     ScrollForward,
     ScrollBackward,
+}
+
+public enum ProgramStartFailureAction
+{
+    None,
+    Retry,
 }
 
 public enum VirtualKeyCode

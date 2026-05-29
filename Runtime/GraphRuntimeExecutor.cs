@@ -90,6 +90,9 @@ public sealed class GraphRuntimeExecutor
             NodeKind.If => ExecuteIfNode(plan, node, context),
             NodeKind.ForLoop => ExecuteForLoopNode(plan, node, context, baseDirectory, ct),
             NodeKind.WhileLoop => ExecuteWhileLoopNode(plan, node, context, baseDirectory, ct),
+            NodeKind.StartProgram => (ExecuteStartProgramNode(node, context, ct), "exec_out"),
+            NodeKind.PrintLog => (ExecutePrintLogNode(plan, node, context), "exec_out"),
+            NodeKind.SelectWindow => (ExecuteSelectWindowNode(plan, node, context), "exec_out"),
             _ => (new GraphExecutionResult(true, $"已跳过节点：{node.Title}"), null),
         };
     }
@@ -310,6 +313,179 @@ public sealed class GraphRuntimeExecutor
         context[$"{node.Id}:result"] = true;
         Logger.Info($"键盘完成：{node.Key} {modeLabel}");
         return new GraphExecutionResult(true, $"键盘{node.Key}{modeLabel}");
+    }
+
+    private GraphExecutionResult ExecuteStartProgramNode(GraphRuntimeNode node, Dictionary<string, object> context, CancellationToken ct)
+    {
+        string programPath = node.ImagePath ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(programPath))
+        {
+            Logger.Warn("启动程序：程序路径为空。");
+            context[$"{node.Id}:result"] = false;
+            context[$"{node.Id}:process_name"] = string.Empty;
+            return new GraphExecutionResult(false, "执行失败：程序路径为空。");
+        }
+
+        if (!File.Exists(programPath))
+        {
+            Logger.Warn($"启动程序：文件不存在：{programPath}");
+            context[$"{node.Id}:result"] = false;
+            context[$"{node.Id}:process_name"] = string.Empty;
+            return new GraphExecutionResult(false, $"执行失败：文件不存在：{programPath}");
+        }
+
+        int waitTimeoutMs = node.DelayMs > 0 ? node.DelayMs : 60000;
+        ProgramStartFailureAction failureAction = node.FailureAction;
+        int retryCount = node.RetryCount > 0 ? node.RetryCount : 3;
+        string processName = Path.GetFileNameWithoutExtension(programPath);
+
+        Logger.Info($"启动程序：{programPath}，超时：{waitTimeoutMs}ms，失败操作：{failureAction}，重试次数：{retryCount}");
+
+        int attempts = 1 + (failureAction == ProgramStartFailureAction.Retry ? retryCount : 0);
+        for (int attempt = 0; attempt < attempts; attempt++)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            if (attempt > 0)
+                Logger.Info($"启动程序：第 {attempt} 次重试...");
+
+            try
+            {
+                var psi = new System.Diagnostics.ProcessStartInfo(programPath)
+                {
+                    UseShellExecute = true,
+                    CreateNoWindow = false,
+                };
+                System.Diagnostics.Process? proc = System.Diagnostics.Process.Start(psi);
+
+                // Wait and check if process started successfully
+                bool started = false;
+                int checkInterval = 10000; // 10 seconds
+                int waited = 0;
+                while (waited < waitTimeoutMs)
+                {
+                    ct.ThrowIfCancellationRequested();
+                    Thread.Sleep(Math.Min(checkInterval, waitTimeoutMs - waited));
+                    waited += checkInterval;
+
+                    try
+                    {
+                        if (proc is not null)
+                        {
+                            proc.Refresh();
+                            if (!proc.HasExited)
+                            {
+                                started = true;
+                                break;
+                            }
+                        }
+                    }
+                    catch
+                    {
+                        // Process may have exited; try again next cycle
+                    }
+                }
+
+                if (started)
+                {
+                    Logger.Info($"启动程序成功：{processName}，耗时约 {waited}ms");
+                    context[$"{node.Id}:result"] = true;
+                    context[$"{node.Id}:process_name"] = processName;
+                    return new GraphExecutionResult(true, $"程序已启动：{processName}");
+                }
+
+                // If we get here, the process didn't start or exited immediately
+                if (attempt < attempts - 1)
+                {
+                    Logger.Warn($"启动程序超时（{waitTimeoutMs}ms），准备重试...");
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Error($"启动程序异常：{ex.Message}");
+                if (attempt >= attempts - 1)
+                {
+                    context[$"{node.Id}:result"] = false;
+                    context[$"{node.Id}:process_name"] = processName;
+                    return new GraphExecutionResult(false, $"启动程序失败：{ex.Message}");
+                }
+                Logger.Warn($"启动程序异常，准备重试...");
+            }
+        }
+
+        Logger.Warn($"程序启动失败：{processName}，已达最大重试次数");
+        context[$"{node.Id}:result"] = false;
+        context[$"{node.Id}:process_name"] = processName;
+        return new GraphExecutionResult(false, $"执行失败：程序启动失败：{processName}，已达最大重试次数。");
+    }
+
+    private static GraphExecutionResult ExecutePrintLogNode(GraphExecutionPlan plan, GraphRuntimeNode node, Dictionary<string, object> context)
+    {
+        string message = node.ImagePath ?? string.Empty;
+
+        // Check if message comes from a connected input pin
+        var msgConn = plan.Connections.FirstOrDefault(c =>
+            c.TargetNodeId == node.Id && c.TargetPinName == "message");
+        if (msgConn is not null &&
+            context.TryGetValue($"{msgConn.SourceNodeId}:{msgConn.SourcePinName}", out var val))
+        {
+            message = FormatValueForLog(val);
+        }
+
+        Logger.Info($"打印log：{message}");
+        return new GraphExecutionResult(true, $"已打印log：{message}");
+    }
+
+    private static string FormatValueForLog(object? val) => val switch
+    {
+        null => "null",
+        bool b => b ? "True" : "False",
+        System.Drawing.Point p => $"({p.X}, {p.Y})",
+        _ => val.ToString() ?? "null",
+    };
+
+    private GraphExecutionResult ExecuteSelectWindowNode(GraphExecutionPlan plan, GraphRuntimeNode node, Dictionary<string, object> context)
+    {
+        string processName = ResolveStringInput(plan, node, context, "process_name", node.ProcessName);
+        processName = NormalizeProcessName(processName);
+
+        if (string.IsNullOrWhiteSpace(processName))
+        {
+            context[$"{node.Id}:result"] = false;
+            context[$"{node.Id}:process_name"] = string.Empty;
+            Logger.Warn("选中窗口：进程名为空。继续执行。");
+            return new GraphExecutionResult(true, $"已跳过节点：{node.Title} 缺少进程名");
+        }
+
+        try
+        {
+            var process = Process.GetProcessesByName(processName)
+                .FirstOrDefault(p => p.MainWindowHandle != IntPtr.Zero);
+            if (process is null)
+            {
+                context[$"{node.Id}:result"] = false;
+                context[$"{node.Id}:process_name"] = processName;
+                Logger.Warn($"选中窗口：未找到进程窗口：{processName}。继续执行。");
+                return new GraphExecutionResult(true, $"未找到进程窗口：{processName}");
+            }
+
+            IntPtr hwnd = process.MainWindowHandle;
+            ShowWindow(hwnd, SW_RESTORE);
+            SetWindowPos(hwnd, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+            bool foreground = SetForegroundWindow(hwnd);
+
+            context[$"{node.Id}:result"] = foreground;
+            context[$"{node.Id}:process_name"] = processName;
+            Logger.Info($"选中窗口：{processName}");
+            return new GraphExecutionResult(true, $"已选中窗口：{processName}");
+        }
+        catch (Exception ex)
+        {
+            context[$"{node.Id}:result"] = false;
+            context[$"{node.Id}:process_name"] = processName;
+            Logger.Error($"选中窗口失败：{ex.Message}");
+            return new GraphExecutionResult(false, $"执行失败：选中窗口错误：{ex.Message}", false);
+        }
     }
 
     public void ReleaseAllKeys()
@@ -562,6 +738,35 @@ public sealed class GraphRuntimeExecutor
         return new Point((int)Math.Round(node.PositionX), (int)Math.Round(node.PositionY));
     }
 
+    private static string ResolveStringInput(
+        GraphExecutionPlan plan,
+        GraphRuntimeNode node,
+        Dictionary<string, object> context,
+        string pinName,
+        string? fallback)
+    {
+        GraphRuntimeConnection? connection = plan.Connections.FirstOrDefault(c =>
+            c.TargetNodeId == node.Id &&
+            c.TargetPinName == pinName &&
+            c.SourcePinKind == PinKind.String);
+
+        if (connection is not null &&
+            context.TryGetValue($"{connection.SourceNodeId}:{connection.SourcePinName}", out object? value))
+        {
+            return value?.ToString() ?? string.Empty;
+        }
+
+        return fallback ?? string.Empty;
+    }
+
+    private static string NormalizeProcessName(string processName)
+    {
+        string normalized = processName.Trim();
+        return normalized.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)
+            ? Path.GetFileNameWithoutExtension(normalized)
+            : normalized;
+    }
+
     private static bool HasUsablePosition(double x, double y)
     {
         if (double.IsNaN(x) || double.IsNaN(y) || double.IsInfinity(x) || double.IsInfinity(y))
@@ -632,6 +837,15 @@ public sealed class GraphRuntimeExecutor
     [DllImport("user32.dll")]
     private static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
 
+    [DllImport("user32.dll")]
+    private static extern bool SetForegroundWindow(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+    [DllImport("user32.dll")]
+    private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int x, int y, int cx, int cy, uint flags);
+
     private const uint MOUSEEVENTF_LEFTDOWN = 0x0002;
     private const uint MOUSEEVENTF_LEFTUP = 0x0004;
     private const uint MOUSEEVENTF_RIGHTDOWN = 0x0008;
@@ -644,4 +858,9 @@ public sealed class GraphRuntimeExecutor
     private const uint XBUTTON1 = 0x0001;
     private const uint XBUTTON2 = 0x0002;
     private const uint KEYEVENTF_KEYUP = 0x0002;
+    private static readonly IntPtr HWND_TOP = IntPtr.Zero;
+    private const int SW_RESTORE = 9;
+    private const uint SWP_NOSIZE = 0x0001;
+    private const uint SWP_NOMOVE = 0x0002;
+    private const uint SWP_SHOWWINDOW = 0x0040;
 }

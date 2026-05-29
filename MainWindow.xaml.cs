@@ -1,4 +1,5 @@
 ﻿using System.IO;
+using System.Collections.ObjectModel;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
@@ -35,11 +36,16 @@ public partial class MainWindow : Window
     private readonly NodeClipboardService _clipboardService = new();
     private readonly NodeFactory _nodeFactory = new();
     private readonly GraphRuntimeExecutor _runtimeExecutor = new();
+    private readonly GraphLibraryService _graphLibraryService = new();
 
     // 运行状态
     private CancellationTokenSource? _executionCts;
     private Point _lastMousePosition;
     private bool _isLoadingInspector;
+    private bool _isLoadingGraph;
+    private bool _isClosing;
+    private GraphListItemViewModel? _selectedGraphItem;
+    private GraphListItemViewModel? _activeGraphItem;
 
     // 连接拖拽状态
     private PinViewModel? _pendingOutputPin;
@@ -88,8 +94,8 @@ public partial class MainWindow : Window
         // 日志更新
         Logger.Entries.CollectionChanged += (_, _) => RefreshLogList();
 
-        // 窗口关闭时释放按键
-        Closing += (_, _) => _runtimeExecutor.ReleaseAllKeys();
+        // 窗口关闭时释放按键，并处理未保存图谱。
+        Closing += Window_Closing;
 
         // 全局鼠标点击检测：点击节点菜单外部时关闭菜单
         PreviewMouseDown += Window_PreviewMouseDown;
@@ -97,8 +103,7 @@ public partial class MainWindow : Window
 
     private void InitializeEditor()
     {
-        _editorService.NewGraph();
-        _nodeFactory.ResetCounter(1);
+        LoadGraphLibrary();
         InitializeNodePalette();
         EnsureCanvasLargeEnough();
     }
@@ -109,6 +114,13 @@ public partial class MainWindow : Window
 
     public System.Collections.IEnumerable Nodes => _editorService.Nodes;
     public System.Collections.IEnumerable Connections => _editorService.Connections;
+    public ObservableCollection<GraphListItemViewModel> GraphListItems { get; } = [];
+
+    public GraphListItemViewModel? SelectedGraphItem
+    {
+        get => _selectedGraphItem;
+        set => _selectedGraphItem = value;
+    }
 
     #endregion
 
@@ -116,28 +128,29 @@ public partial class MainWindow : Window
 
     private void NewGraph_Click(object sender, RoutedEventArgs e)
     {
-        _editorService.NewGraph();
-        _nodeFactory.ResetCounter(1);
-        EnsureCanvasLargeEnough();
+        AddGraphListItem(loadImmediately: true);
     }
 
     private void SaveGraph_Click(object sender, RoutedEventArgs e)
     {
-        try
+        if (_activeGraphItem is not null)
         {
-            if (string.IsNullOrWhiteSpace(_editorService.CurrentGraphPath))
-            {
-                SaveGraphAs();
-            }
-            else
-            {
-                _editorService.SaveGraph();
-            }
+            _activeGraphItem.Graph = _editorService.ExportGraphModel(_activeGraphItem.Name);
+            _activeGraphItem.Graph.Name = _activeGraphItem.Name;
         }
-        catch (Exception ex)
+
+        foreach (var item in GraphListItems)
         {
-            WpfMessageBox.Show(this, ex.Message, "保存失败", MessageBoxButton.OK, MessageBoxImage.Error);
+            item.IsDirty = false;
         }
+
+        PersistGraphLibrary();
+        SetStatus($"已保存全部图谱：{GraphListItems.Count} 个。");
+    }
+
+    private void SaveGraphAs_Click(object sender, RoutedEventArgs e)
+    {
+        SaveGraphAs();
     }
 
     private void SaveGraphAs()
@@ -153,6 +166,10 @@ public partial class MainWindow : Window
         if (dialog.ShowDialog(this) == true)
         {
             _editorService.SaveGraph(dialog.FileName);
+            if (_activeGraphItem is not null)
+            {
+                _activeGraphItem.IsDirty = false;
+            }
         }
     }
 
@@ -169,9 +186,7 @@ public partial class MainWindow : Window
 
         try
         {
-            _editorService.LoadGraph(dialog.FileName);
-            SyncNodeFactorySequence();
-            EnsureCanvasLargeEnough();
+            ImportGraphFileToList(dialog.FileName);
         }
         catch (Exception ex)
         {
@@ -181,24 +196,405 @@ public partial class MainWindow : Window
 
     #endregion
 
-    #region 工具栏事件 - 添加节点
+    #region 图谱列表
 
-    private void AddFindImageNode_Click(object sender, RoutedEventArgs e) => AddNode(_nodeFactory.CreateFindImageNode(_editorService.Nodes.Count * 40, _editorService.Nodes.Count * 30));
-    private void AddMouseLeftNode_Click(object sender, RoutedEventArgs e) => AddNode(_nodeFactory.CreateMouseClickNode(_editorService.Nodes.Count * 40, _editorService.Nodes.Count * 30));
-    private void AddMouseMoveNode_Click(object sender, RoutedEventArgs e) => AddNode(_nodeFactory.CreateMouseMoveNode(_editorService.Nodes.Count * 40, _editorService.Nodes.Count * 30));
-    private void AddKeyboardNode_Click(object sender, RoutedEventArgs e) => AddNode(_nodeFactory.CreateKeyboardNode(_editorService.Nodes.Count * 40, _editorService.Nodes.Count * 30));
-    private void AddScrollWheelNode_Click(object sender, RoutedEventArgs e) => AddNode(_nodeFactory.CreateScrollWheelNode(_editorService.Nodes.Count * 40, _editorService.Nodes.Count * 30));
-    private void AddDelayNode_Click(object sender, RoutedEventArgs e) => AddNode(_nodeFactory.CreateDelayNode(_editorService.Nodes.Count * 40, _editorService.Nodes.Count * 30));
-    private void AddIfNode_Click(object sender, RoutedEventArgs e) => AddNode(_nodeFactory.CreateIfNode(_editorService.Nodes.Count * 40, _editorService.Nodes.Count * 30));
-    private void AddForLoopNode_Click(object sender, RoutedEventArgs e) => AddNode(_nodeFactory.CreateForLoopNode(_editorService.Nodes.Count * 40, _editorService.Nodes.Count * 30));
-    private void AddWhileLoopNode_Click(object sender, RoutedEventArgs e) => AddNode(_nodeFactory.CreateWhileLoopNode(_editorService.Nodes.Count * 40, _editorService.Nodes.Count * 30));
-
-    private void AddNode(NodeBaseViewModel node)
+    private void LoadGraphLibrary()
     {
-        _editorService.AddNode(node);
-        SelectNode(node);
-        EnsureCanvasLargeEnough();
-        SetStatus($"已添加节点：{node.Title}");
+        GraphListItems.Clear();
+        var state = _graphLibraryService.Load();
+        foreach (var item in GraphLibraryService.ToViewModels(state))
+        {
+            GraphListItems.Add(item);
+        }
+
+        if (GraphListItems.Count == 0)
+        {
+            AddGraphListItem(loadImmediately: false);
+        }
+
+        var target = GraphListItems.FirstOrDefault(item => item.Id == state.LastSelectedId)
+            ?? GraphListItems.FirstOrDefault();
+        if (target is not null)
+        {
+            GraphListBox.SelectedItem = target;
+            LoadGraphListItem(target);
+        }
+    }
+
+    private void AddGraphListItem_Click(object sender, RoutedEventArgs e)
+    {
+        AddGraphListItem(loadImmediately: true);
+    }
+
+    private GraphListItemViewModel AddGraphListItem(bool loadImmediately)
+    {
+        string name = CreateUniqueGraphName();
+        var item = new GraphListItemViewModel
+        {
+            Name = name,
+            Graph = CreateDefaultGraphModel(name),
+            IsDirty = true,
+        };
+
+        GraphListItems.Add(item);
+        GraphListBox.SelectedItem = item;
+        PersistGraphLibrary();
+
+        if (loadImmediately)
+        {
+            LoadGraphListItem(item);
+            StartRenameGraphItem(item);
+        }
+
+        return item;
+    }
+
+    private string CreateUniqueGraphName()
+    {
+        int index = GraphListItems.Count + 1;
+        string name;
+        do
+        {
+            name = $"图表{index++}";
+        }
+        while (GraphListItems.Any(item => item.Name == name));
+
+        return name;
+    }
+
+    private GraphFileModel CreateDefaultGraphModel(string name)
+    {
+        _isLoadingGraph = true;
+        try
+        {
+            _editorService.NewGraph();
+            _nodeFactory.ResetCounter(1);
+            return _editorService.ExportGraphModel(name);
+        }
+        finally
+        {
+            _isLoadingGraph = false;
+        }
+    }
+
+    private void GraphListBox_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        if (SelectedGraphItem is null) return;
+        if (e.OriginalSource is DependencyObject source && !TryFindGraphItemFromSource(source, out _)) return;
+
+        LoadGraphListItem(SelectedGraphItem);
+        e.Handled = true;
+    }
+
+    private void GraphListBox_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (Keyboard.FocusedElement is TextBox) return;
+
+        if (e.Key == Key.Delete)
+        {
+            DeleteSelectedGraphItem();
+            e.Handled = true;
+        }
+        else if (e.Key == Key.F2)
+        {
+            if (SelectedGraphItem is not null)
+                StartRenameGraphItem(SelectedGraphItem);
+            e.Handled = true;
+        }
+    }
+
+    private void RenameGraphMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        if (SelectedGraphItem is { } item)
+        {
+            StartRenameGraphItem(item);
+        }
+    }
+
+    private void DeleteGraphMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        if (SelectedGraphItem is { } item)
+        {
+            GraphListBox.SelectedItem = item;
+            DeleteSelectedGraphItem();
+        }
+    }
+
+    private void GraphListItem_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is ListBoxItem { DataContext: GraphListItemViewModel item })
+        {
+            GraphListBox.SelectedItem = item;
+            e.Handled = false;
+        }
+    }
+
+    private void GraphNameTextBox_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (sender is not TextBox tb || tb.DataContext is not GraphListItemViewModel item) return;
+
+        if (e.Key == Key.Enter)
+        {
+            CommitGraphRename(item);
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Escape)
+        {
+            item.IsEditing = false;
+            e.Handled = true;
+        }
+    }
+
+    private void GraphNameTextBox_LostFocus(object sender, RoutedEventArgs e)
+    {
+        if (sender is TextBox { DataContext: GraphListItemViewModel item })
+        {
+            CommitGraphRename(item);
+        }
+    }
+
+    private void StartRenameGraphItem(GraphListItemViewModel item)
+    {
+        item.IsEditing = true;
+        Dispatcher.BeginInvoke(new Action(() =>
+        {
+            if (GraphListBox.ItemContainerGenerator.ContainerFromItem(item) is not ListBoxItem container)
+                return;
+
+            var tb = FindVisualChild<TextBox>(container);
+            if (tb is null) return;
+
+            tb.Focus();
+            tb.SelectAll();
+        }), DispatcherPriority.Render);
+    }
+
+    private void CommitGraphRename(GraphListItemViewModel item)
+    {
+        item.Name = string.IsNullOrWhiteSpace(item.Name) ? "未命名图谱" : item.Name.Trim();
+        item.Graph.Name = item.Name;
+        item.IsEditing = false;
+        item.IsDirty = true;
+        if (ReferenceEquals(item, _activeGraphItem))
+        {
+            SetStatus($"当前图谱已重命名：{item.Name}");
+        }
+        PersistGraphLibrary();
+    }
+
+    private void DeleteSelectedGraphItem()
+    {
+        if (SelectedGraphItem is null) return;
+
+        var result = WpfMessageBox.Show(
+            this,
+            $"是否删除图谱：{SelectedGraphItem.Name}？",
+            "删除图谱",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Question);
+        if (result != MessageBoxResult.Yes) return;
+
+        bool deletingActive = ReferenceEquals(SelectedGraphItem, _activeGraphItem);
+        int oldIndex = GraphListItems.IndexOf(SelectedGraphItem);
+        GraphListItems.Remove(SelectedGraphItem);
+
+        if (GraphListItems.Count == 0)
+        {
+            AddGraphListItem(loadImmediately: true);
+        }
+        else
+        {
+            var next = GraphListItems[Math.Clamp(oldIndex, 0, GraphListItems.Count - 1)];
+            GraphListBox.SelectedItem = next;
+            if (deletingActive)
+            {
+                LoadGraphListItem(next);
+            }
+        }
+
+        PersistGraphLibrary();
+    }
+
+    private void LoadGraphListItem(GraphListItemViewModel item)
+    {
+        SnapshotActiveGraph();
+
+        _isLoadingGraph = true;
+        try
+        {
+            _editorService.LoadFromModel(item.Graph);
+            SyncNodeFactorySequence();
+            EnsureCanvasLargeEnough();
+            _activeGraphItem = item;
+            GraphListBox.SelectedItem = item;
+            SetStatus($"已进入图谱：{item.Name}");
+            PersistGraphLibrary();
+        }
+        finally
+        {
+            _isLoadingGraph = false;
+        }
+    }
+
+    private void SaveCurrentGraphToLibrary()
+    {
+        GraphListItemViewModel item = _activeGraphItem ?? SelectedGraphItem ?? AddGraphListItem(loadImmediately: false);
+        item.Graph = _editorService.ExportGraphModel(item.Name);
+        item.Graph.Name = item.Name;
+        item.IsDirty = false;
+        _activeGraphItem = item;
+        GraphListBox.SelectedItem = item;
+        SetStatus($"图谱已保存：{item.Name}");
+    }
+
+    private void ImportGraphFileToList(string path)
+    {
+        string json = File.ReadAllText(path);
+        var graph = JsonSerializer.Deserialize<GraphFileModel>(json)
+            ?? throw new InvalidOperationException("图谱文件解析失败。");
+
+        string name = string.IsNullOrWhiteSpace(graph.Name)
+            ? Path.GetFileNameWithoutExtension(path)
+            : graph.Name;
+
+        var item = new GraphListItemViewModel
+        {
+            Name = name,
+            Graph = graph,
+            IsDirty = true,
+        };
+
+        GraphListItems.Add(item);
+        GraphListBox.SelectedItem = item;
+        LoadGraphListItem(item);
+        PersistGraphLibrary();
+    }
+
+    private void SnapshotActiveGraph()
+    {
+        if (_isLoadingGraph || _activeGraphItem is null)
+            return;
+
+        _activeGraphItem.Graph = _editorService.ExportGraphModel(_activeGraphItem.Name);
+        _activeGraphItem.Graph.Name = _activeGraphItem.Name;
+    }
+
+    private bool ConfirmSaveCurrentGraphIfDirty()
+    {
+        if (_activeGraphItem?.IsDirty != true) return true;
+
+        var result = WpfMessageBox.Show(
+            this,
+            $"图谱“{_activeGraphItem.Name}”尚未保存，是否保存？",
+            "保存图谱",
+            MessageBoxButton.YesNoCancel,
+            MessageBoxImage.Question);
+
+        if (result == MessageBoxResult.Cancel) return false;
+        if (result == MessageBoxResult.Yes)
+        {
+            SaveCurrentGraphToLibrary();
+            PersistGraphLibrary();
+        }
+
+        return true;
+    }
+
+    private void PersistGraphLibrary()
+    {
+        _graphLibraryService.Save(GraphListItems, _activeGraphItem?.Id ?? SelectedGraphItem?.Id);
+    }
+
+    private static bool TryFindGraphItemFromSource(DependencyObject source, out GraphListItemViewModel item)
+    {
+        var current = source;
+        while (current is not null)
+        {
+            if (current is FrameworkElement { DataContext: GraphListItemViewModel graphItem })
+            {
+                item = graphItem;
+                return true;
+            }
+
+            current = VisualTreeHelper.GetParent(current);
+        }
+
+        item = null!;
+        return false;
+    }
+
+    private static T? FindVisualChild<T>(DependencyObject parent) where T : DependencyObject
+    {
+        for (int i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
+        {
+            var child = VisualTreeHelper.GetChild(parent, i);
+            if (child is T target)
+                return target;
+
+            var nested = FindVisualChild<T>(child);
+            if (nested is not null)
+                return nested;
+        }
+
+        return null;
+    }
+
+    private static bool IsFocusInside(DependencyObject root)
+    {
+        if (Keyboard.FocusedElement is not DependencyObject focused)
+            return false;
+
+        var current = focused;
+        while (current is not null)
+        {
+            if (ReferenceEquals(current, root))
+                return true;
+
+            current = VisualTreeHelper.GetParent(current);
+        }
+
+        return false;
+    }
+
+    #endregion
+
+    #region 窗口生命周期
+
+    private void Window_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
+    {
+        _runtimeExecutor.ReleaseAllKeys();
+        if (_isClosing) return;
+
+        if (_activeGraphItem is not null)
+        {
+            _activeGraphItem.Graph = _editorService.ExportGraphModel(_activeGraphItem.Name);
+        }
+
+        if (GraphListItems.Any(item => item.IsDirty))
+        {
+            var result = WpfMessageBox.Show(
+                this,
+                "存在未保存图谱，是否保存？",
+                "是否保存",
+                MessageBoxButton.YesNoCancel,
+                MessageBoxImage.Question);
+
+            if (result == MessageBoxResult.Cancel)
+            {
+                e.Cancel = true;
+                return;
+            }
+
+            if (result == MessageBoxResult.Yes)
+            {
+                SaveCurrentGraphToLibrary();
+                foreach (var item in GraphListItems)
+                    item.IsDirty = false;
+                PersistGraphLibrary();
+            }
+        }
+
+        _isClosing = true;
     }
 
     #endregion
@@ -272,12 +668,6 @@ public partial class MainWindow : Window
         CancelPendingConnection("已清除待连接引脚。");
     }
 
-    private void OpenLogWindow_Click(object sender, RoutedEventArgs e)
-    {
-        var window = new LogWindow { Owner = this };
-        window.Show();
-    }
-
     #endregion
 
     #region 画布交互 - 鼠标事件
@@ -336,6 +726,10 @@ public partial class MainWindow : Window
         {
             item.X = point.X - offsetX;
             item.Y = point.Y - offsetY;
+        }
+        if (_activeGraphItem is not null)
+        {
+            _activeGraphItem.IsDirty = true;
         }
     }
 
@@ -520,6 +914,16 @@ public partial class MainWindow : Window
 
     private void GraphViewport_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
     {
+        if (NodePalette.Visibility == Visibility.Visible)
+        {
+            var pos = e.GetPosition(NodePalette);
+            if (pos.X >= 0 && pos.X <= NodePalette.ActualWidth &&
+                pos.Y >= 0 && pos.Y <= NodePalette.ActualHeight)
+            {
+                return;
+            }
+        }
+
         var mouseInViewport = e.GetPosition(GraphViewport);
         var graphPoint = ViewportToGraph(mouseInViewport);
 
@@ -535,6 +939,14 @@ public partial class MainWindow : Window
         GraphPanTransform.X = mouseInViewport.X - graphPoint.X * newZoom;
         GraphPanTransform.Y = mouseInViewport.Y - graphPoint.Y * newZoom;
 
+        e.Handled = true;
+    }
+
+    private void NodePaletteScrollViewer_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        if (sender is not ScrollViewer scrollViewer) return;
+
+        scrollViewer.ScrollToVerticalOffset(scrollViewer.VerticalOffset - e.Delta);
         e.Handled = true;
     }
 
@@ -767,6 +1179,29 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (IsFocusInside(GraphListBox))
+        {
+            if (Keyboard.FocusedElement is not TextBox)
+            {
+                if (e.Key == Key.Delete)
+                {
+                    DeleteSelectedGraphItem();
+                    e.Handled = true;
+                    return;
+                }
+
+                if (e.Key == Key.F2)
+                {
+                    if (SelectedGraphItem is not null)
+                        StartRenameGraphItem(SelectedGraphItem);
+                    e.Handled = true;
+                    return;
+                }
+            }
+
+            return;
+        }
+
         // 文本框中不处理快捷键
         if (Keyboard.FocusedElement is TextBox) return;
 
@@ -870,6 +1305,9 @@ public partial class MainWindow : Window
         foreach (var node in selectedNodes)
             node.Y = avgY;
 
+        if (_activeGraphItem is not null)
+            _activeGraphItem.IsDirty = true;
+
         SetStatus($"已将 {selectedNodes.Count} 个节点横向对齐。");
     }
 
@@ -881,6 +1319,9 @@ public partial class MainWindow : Window
         var avgX = selectedNodes.Average(n => n.X);
         foreach (var node in selectedNodes)
             node.X = avgX;
+
+        if (_activeGraphItem is not null)
+            _activeGraphItem.IsDirty = true;
 
         SetStatus($"已将 {selectedNodes.Count} 个节点纵向对齐。");
     }
@@ -963,6 +1404,26 @@ public partial class MainWindow : Window
                 MouseMovePositionXTextBox.Text = moveNode.PositionX.ToString("0.##");
                 MouseMovePositionYTextBox.Text = moveNode.PositionY.ToString("0.##");
                 break;
+
+            case StartProgramNodeViewModel startProg:
+                StartProgramInspectorPanel.Visibility = Visibility.Visible;
+                StartProgramPathTextBox.Text = startProg.ProgramPath;
+                StartProgramWaitTimeoutTextBox.Text = startProg.WaitTimeoutMs.ToString();
+                StartProgramFailureActionComboBox.SelectedIndex = startProg.FailureAction == ProgramStartFailureAction.Retry ? 1 : 0;
+                StartProgramRetryCountTextBox.Text = startProg.RetryCount.ToString();
+                break;
+
+            case PrintLogNodeViewModel printNode:
+                PrintLogInspectorPanel.Visibility = Visibility.Visible;
+                bool hasMsgInput = IsInputPinConnected(printNode, "message");
+                PrintLogMessageTextBox.Text = hasMsgInput ? "前置输入" : printNode.Message;
+                break;
+
+            case SelectWindowNodeViewModel selectWindowNode:
+                SelectWindowInspectorPanel.Visibility = Visibility.Visible;
+                bool hasProcessNameInput = IsInputPinConnected(selectWindowNode, "process_name");
+                SelectWindowProcessNameTextBox.Text = hasProcessNameInput ? "前置输入" : selectWindowNode.ProcessName;
+                break;
         }
 
         RefreshInspectorLocks(node);
@@ -980,6 +1441,9 @@ public partial class MainWindow : Window
         WhileLoopInspectorPanel.Visibility = Visibility.Collapsed;
         DelayInspectorPanel.Visibility = Visibility.Collapsed;
         MouseMoveInspectorPanel.Visibility = Visibility.Collapsed;
+        StartProgramInspectorPanel.Visibility = Visibility.Collapsed;
+        PrintLogInspectorPanel.Visibility = Visibility.Collapsed;
+        SelectWindowInspectorPanel.Visibility = Visibility.Collapsed;
     }
 
     private void ApplyInspectorChanges()
@@ -1047,9 +1511,33 @@ public partial class MainWindow : Window
                 if (double.TryParse(MouseMovePositionYTextBox.Text.Trim(), out var moveY))
                     moveNode.PositionY = moveY;
                 break;
+
+            case StartProgramNodeViewModel startProg:
+                startProg.ProgramPath = StartProgramPathTextBox.Text.Trim();
+                if (int.TryParse(StartProgramWaitTimeoutTextBox.Text.Trim(), out var wt))
+                    startProg.WaitTimeoutMs = Math.Max(0, wt);
+                startProg.FailureAction = StartProgramFailureActionComboBox.SelectedIndex == 1
+                    ? ProgramStartFailureAction.Retry : ProgramStartFailureAction.None;
+                if (int.TryParse(StartProgramRetryCountTextBox.Text.Trim(), out var rc))
+                    startProg.RetryCount = Math.Max(0, rc);
+                break;
+
+            case PrintLogNodeViewModel printNode:
+                if (!IsInputPinConnected(printNode, "message"))
+                    printNode.Message = PrintLogMessageTextBox.Text;
+                break;
+
+            case SelectWindowNodeViewModel selectWindowNode:
+                if (!IsInputPinConnected(selectWindowNode, "process_name"))
+                    selectWindowNode.ProcessName = SelectWindowProcessNameTextBox.Text.Trim();
+                break;
         }
 
         node.RefreshDescription();
+        if (_activeGraphItem is not null)
+        {
+            _activeGraphItem.IsDirty = true;
+        }
         InspectorHintTextBlock.Text = $"当前选中：{node.Title}（已自动保存）";
         SetStatus($"节点已自动保存：{node.Title}");
     }
@@ -1068,6 +1556,21 @@ public partial class MainWindow : Window
         if (dialog.ShowDialog(this) == true)
         {
             FindImagePathTextBox.Text = dialog.FileName;
+            ApplyInspectorChanges();
+        }
+    }
+
+    private void BrowseStartProgramPath_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new OpenFileDialog
+        {
+            Title = "选择应用程序",
+            Filter = "可执行文件 (*.exe;*.bat;*.cmd)|*.exe;*.bat;*.cmd|所有文件(*.*)|*.*",
+        };
+
+        if (dialog.ShowDialog(this) == true)
+        {
+            StartProgramPathTextBox.Text = dialog.FileName;
             ApplyInspectorChanges();
         }
     }
@@ -1140,9 +1643,7 @@ public partial class MainWindow : Window
 
         try
         {
-            _editorService.LoadGraph(filePath);
-            SyncNodeFactorySequence();
-            EnsureCanvasLargeEnough();
+            ImportGraphFileToList(filePath);
         }
         catch (Exception ex)
         {
@@ -1157,6 +1658,11 @@ public partial class MainWindow : Window
     private void OnGraphChanged()
     {
         _editorService.UpdatePinConnectionStates();
+        if (!_isLoadingGraph && _activeGraphItem is not null)
+        {
+            _activeGraphItem.IsDirty = true;
+        }
+
         if (_editorService.Nodes.FirstOrDefault(n => n.IsSelected) is { } selected)
         {
             LoadNodeToInspector(selected);
@@ -1219,30 +1725,111 @@ public partial class MainWindow : Window
 
     private void RefreshInspectorLocks(NodeBaseViewModel? node)
     {
-        SetControlLocked(MousePositionXTextBox, node is MouseClickNodeViewModel clickNode && IsInputPinConnected(clickNode, "position"));
-        SetControlLocked(MousePositionYTextBox, node is MouseClickNodeViewModel clickNodeY && IsInputPinConnected(clickNodeY, "position"));
-        SetControlLocked(MouseMovePositionXTextBox, node is MouseMoveNodeViewModel moveNode && IsInputPinConnected(moveNode, "position"));
-        SetControlLocked(MouseMovePositionYTextBox, node is MouseMoveNodeViewModel moveNodeY && IsInputPinConnected(moveNodeY, "position"));
-        SetControlLocked(IfConditionComboBox, node is IfNodeViewModel ifNode && IsInputPinConnected(ifNode, "condition"));
-        SetControlLocked(WhileLoopConditionComboBox, node is WhileLoopNodeViewModel whileNode && IsInputPinConnected(whileNode, "condition"));
-        SetTextBlockLocked(MousePositionXLabel, node is MouseClickNodeViewModel clickNodeLabelX && IsInputPinConnected(clickNodeLabelX, "position"));
-        SetTextBlockLocked(MousePositionYLabel, node is MouseClickNodeViewModel clickNodeLabelY && IsInputPinConnected(clickNodeLabelY, "position"));
-        SetTextBlockLocked(MouseMovePositionXLabel, node is MouseMoveNodeViewModel moveNodeLabelX && IsInputPinConnected(moveNodeLabelX, "position"));
-        SetTextBlockLocked(MouseMovePositionYLabel, node is MouseMoveNodeViewModel moveNodeLabelY && IsInputPinConnected(moveNodeLabelY, "position"));
-        SetTextBlockLocked(IfConditionLabel, node is IfNodeViewModel ifNodeLabel && IsInputPinConnected(ifNodeLabel, "condition"));
-        SetTextBlockLocked(WhileConditionLabel, node is WhileLoopNodeViewModel whileNodeLabel && IsInputPinConnected(whileNodeLabel, "condition"));
+        if (node is MouseClickNodeViewModel cn)
+        {
+            bool locked = IsInputPinConnected(cn, "position");
+            LockTextBox(MousePositionXTextBox, locked, cn.PositionX.ToString("0.##"));
+            LockTextBox(MousePositionYTextBox, locked, cn.PositionY.ToString("0.##"));
+        }
+        else
+        {
+            LockTextBox(MousePositionXTextBox, false, "");
+            LockTextBox(MousePositionYTextBox, false, "");
+        }
+
+        if (node is MouseMoveNodeViewModel mn)
+        {
+            bool locked = IsInputPinConnected(mn, "position");
+            LockTextBox(MouseMovePositionXTextBox, locked, mn.PositionX.ToString("0.##"));
+            LockTextBox(MouseMovePositionYTextBox, locked, mn.PositionY.ToString("0.##"));
+        }
+        else
+        {
+            LockTextBox(MouseMovePositionXTextBox, false, "");
+            LockTextBox(MouseMovePositionYTextBox, false, "");
+        }
+
+        if (node is IfNodeViewModel ifNode)
+        {
+            bool locked = IsInputPinConnected(ifNode, "condition");
+            LockConditionCombo(IfConditionComboBox, locked, ifNode.ConditionValue);
+        }
+        else
+        {
+            LockConditionCombo(IfConditionComboBox, false, false);
+        }
+
+        if (node is WhileLoopNodeViewModel wNode)
+        {
+            bool locked = IsInputPinConnected(wNode, "condition");
+            LockConditionCombo(WhileLoopConditionComboBox, locked, wNode.ConditionValue);
+        }
+        else
+        {
+            LockConditionCombo(WhileLoopConditionComboBox, false, false);
+        }
+
+        if (node is PrintLogNodeViewModel plNode)
+        {
+            bool locked = IsInputPinConnected(plNode, "message");
+            LockTextBox(PrintLogMessageTextBox, locked, plNode.Message);
+        }
+        else
+        {
+            LockTextBox(PrintLogMessageTextBox, false, "");
+        }
+
+        if (node is SelectWindowNodeViewModel swNode)
+        {
+            bool locked = IsInputPinConnected(swNode, "process_name");
+            LockTextBox(SelectWindowProcessNameTextBox, locked, swNode.ProcessName);
+        }
+        else
+        {
+            LockTextBox(SelectWindowProcessNameTextBox, false, "");
+        }
     }
 
-    private static void SetControlLocked(System.Windows.Controls.Control control, bool locked)
+    private static void LockTextBox(TextBox tb, bool locked, string restoreValue)
     {
-        control.IsEnabled = !locked;
+        tb.IsEnabled = !locked;
+        if (locked)
+        {
+            tb.Text = "前置输入";
+            tb.Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x7A, 0x87, 0x97));
+            tb.Background = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x25, 0x29, 0x30));
+            tb.BorderBrush = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x3A, 0x40, 0x4A));
+        }
+        else
+        {
+            tb.Text = restoreValue;
+            tb.ClearValue(System.Windows.Controls.Control.ForegroundProperty);
+            tb.ClearValue(System.Windows.Controls.Control.BackgroundProperty);
+            tb.ClearValue(System.Windows.Controls.Control.BorderBrushProperty);
+        }
     }
 
-    private static void SetTextBlockLocked(TextBlock textBlock, bool locked)
+    private static void LockConditionCombo(System.Windows.Controls.ComboBox cb, bool locked, bool restoreValue)
     {
-        textBlock.Foreground = locked
-            ? (System.Windows.Media.Brush)System.Windows.Application.Current.Resources["DisabledForegroundBrush"]
-            : System.Windows.Media.Brushes.White;
+        cb.IsEnabled = !locked;
+        if (locked)
+        {
+            cb.Foreground = System.Windows.Media.Brushes.Gray;
+            cb.Items.Clear();
+            cb.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = "前置输入" });
+            cb.SelectedIndex = 0;
+        }
+        else
+        {
+            cb.ClearValue(System.Windows.Controls.Control.ForegroundProperty);
+            if (cb.Items.Count != 2)
+            {
+                cb.Items.Clear();
+                cb.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = "False" });
+                cb.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = "True" });
+                cb.SelectedIndex = restoreValue ? 1 : 0;
+            }
+        }
     }
 
     private bool TryGetPinAtPosition(Point position, out PinViewModel? pin)
@@ -1396,12 +1983,15 @@ public partial class MainWindow : Window
         [
             new("输入节点", "鼠标点击", (x, y) => _nodeFactory.CreateMouseClickNode(x, y)),
             new("输入节点", "键盘", (x, y) => _nodeFactory.CreateKeyboardNode(x, y)),
-            new("输入节点", "滚轮", (x, y) => _nodeFactory.CreateScrollWheelNode(x, y)),
+            new("输入节点", "鼠标滚轮", (x, y) => _nodeFactory.CreateScrollWheelNode(x, y)),
+            new("输入节点", "鼠标移动", (x, y) => _nodeFactory.CreateMouseMoveNode(x, y)),
             new("逻辑节点", "延迟", (x, y) => _nodeFactory.CreateDelayNode(x, y)),
             new("逻辑节点", "分支", (x, y) => _nodeFactory.CreateIfNode(x, y)),
             new("逻辑节点", "For循环", (x, y) => _nodeFactory.CreateForLoopNode(x, y)),
             new("逻辑节点", "While循环", (x, y) => _nodeFactory.CreateWhileLoopNode(x, y)),
-            new("功能节点", "鼠标移动", (x, y) => _nodeFactory.CreateMouseMoveNode(x, y)),
+            new("功能节点", "启动程序", (x, y) => _nodeFactory.CreateStartProgramNode(x, y)),
+            new("功能节点", "选中窗口", (x, y) => _nodeFactory.CreateSelectWindowNode(x, y)),
+            new("调试", "打印log", (x, y) => _nodeFactory.CreatePrintLogNode(x, y)),
             new("插件节点", "找图", (x, y) => _nodeFactory.CreateFindImageNode(x, y)),
         ];
     }
@@ -1482,7 +2072,8 @@ public partial class MainWindow : Window
             var node = item.Factory(0, 0);
             node.X = graphPos.X;
             node.Y = graphPos.Y;
-            AddNode(node);
+            _editorService.AddNode(node);
+            SelectNode(node);
             CloseNodePalette();
         }
     }
@@ -1506,5 +2097,3 @@ public partial class MainWindow : Window
 
     #endregion
 }
-
-

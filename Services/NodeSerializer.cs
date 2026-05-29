@@ -26,6 +26,13 @@ public static class NodeSerializer
                 file.SimilarityThresholdPercent = findImage.SimilarityThresholdPercent;
                 break;
 
+            case StartProgramNodeViewModel startProg:
+                file.ImagePath = startProg.ProgramPath;
+                file.DelayMs = startProg.WaitTimeoutMs;
+                file.ScrollAction = startProg.FailureAction.ToString();
+                file.ScrollSpeed = startProg.RetryCount;
+                break;
+
             case MouseClickNodeViewModel mouseNode:
                 file.OperationMode = mouseNode.OperationMode.ToString();
                 file.PositionX = mouseNode.PositionX;
@@ -69,6 +76,14 @@ public static class NodeSerializer
                 file.PositionX = moveNode.PositionX;
                 file.PositionY = moveNode.PositionY;
                 break;
+
+            case PrintLogNodeViewModel printNode:
+                file.ImagePath = printNode.Message;
+                break;
+
+            case SelectWindowNodeViewModel selectWindowNode:
+                file.ProcessName = selectWindowNode.ProcessName;
+                break;
         }
 
         return file;
@@ -92,6 +107,17 @@ public static class NodeSerializer
                 Y = file.Y,
                 ImagePath = file.ImagePath ?? string.Empty,
                 SimilarityThresholdPercent = file.SimilarityThresholdPercent,
+            },
+
+            "start_program" => new StartProgramNodeViewModel(file.Id)
+            {
+                Title = file.Title,
+                X = file.X,
+                Y = file.Y,
+                ProgramPath = file.ImagePath ?? string.Empty,
+                WaitTimeoutMs = file.DelayMs > 0 ? file.DelayMs : 60000,
+                FailureAction = Enum.TryParse<ProgramStartFailureAction>(file.ScrollAction, true, out var fa) ? fa : ProgramStartFailureAction.None,
+                RetryCount = file.ScrollSpeed > 0 ? file.ScrollSpeed : 3,
             },
 
             "mouse_left_click" or "mouse_click" => new MouseClickNodeViewModel(file.Id)
@@ -175,6 +201,22 @@ public static class NodeSerializer
                 PositionY = file.PositionY,
             },
 
+            "print_log" => new PrintLogNodeViewModel(file.Id)
+            {
+                Title = file.Title,
+                X = file.X,
+                Y = file.Y,
+                Message = file.ImagePath ?? string.Empty,
+            },
+
+            "select_window" => new SelectWindowNodeViewModel(file.Id)
+            {
+                Title = file.Title,
+                X = file.X,
+                Y = file.Y,
+                ProcessName = file.ProcessName ?? file.ImagePath ?? string.Empty,
+            },
+
             _ => null,
         };
     }
@@ -188,6 +230,11 @@ public static class NodeSerializer
             FindImageNodeViewModel findImageNode => GraphRuntimeNode.ForFindImage(
                 findImageNode.Id, findImageNode.Title,
                 findImageNode.ImagePath, findImageNode.SimilarityThresholdPercent),
+
+            StartProgramNodeViewModel startProg => GraphRuntimeNode.ForStartProgram(
+                startProg.Id, startProg.Title,
+                startProg.ProgramPath, startProg.WaitTimeoutMs,
+                startProg.FailureAction, startProg.RetryCount),
 
             MouseClickNodeViewModel mouseNode => GraphRuntimeNode.ForMouseClick(
                 mouseNode.Id, mouseNode.Title,
@@ -217,6 +264,11 @@ public static class NodeSerializer
             ForLoopNodeViewModel forNode => GraphRuntimeNode.ForForLoop(forNode.Id, forNode.Title, forNode.LoopCount),
 
             WhileLoopNodeViewModel whileNode => GraphRuntimeNode.ForWhileLoop(whileNode.Id, whileNode.Title, whileNode.ConditionValue),
+
+            PrintLogNodeViewModel printNode => GraphRuntimeNode.ForPrintLog(printNode.Id, printNode.Title, printNode.Message),
+
+            SelectWindowNodeViewModel selectWindowNode => GraphRuntimeNode.ForSelectWindow(
+                selectWindowNode.Id, selectWindowNode.Title, selectWindowNode.ProcessName),
 
             _ => throw new InvalidOperationException($"不支持执行的节点类型: {node.GetType().Name}"),
         };

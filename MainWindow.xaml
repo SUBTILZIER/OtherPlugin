@@ -23,23 +23,11 @@
                  Padding="6">
             <Button Content="新建图谱" Margin="2" Padding="10,4" Click="NewGraph_Click" />
             <Button Content="打开图谱" Margin="2" Padding="10,4" Click="OpenGraph_Click" />
-            <Button Content="保存图谱" Margin="2" Padding="10,4" Click="SaveGraph_Click" />
+            <Button Content="保存" Margin="2" Padding="10,4" Click="SaveGraph_Click" />
+            <Button Content="另存为" Margin="2" Padding="10,4" Click="SaveGraphAs_Click" />
             <Button x:Name="RunGraphButton" Content="执行图谱" Margin="2" Padding="10,4" Click="RunGraph_Click" />
-            <Button Content="日志" Margin="2" Padding="10,4" Click="OpenLogWindow_Click" />
-            <Separator />
-            <Button Content="添加鼠标点击节点" Margin="2" Padding="10,4" Click="AddMouseLeftNode_Click" />
-            <Button Content="添加键盘节点" Margin="2" Padding="10,4" Click="AddKeyboardNode_Click" />
-            <Button Content="添加滚轮节点" Margin="2" Padding="10,4" Click="AddScrollWheelNode_Click" />
-            <Button Content="添加延迟节点" Margin="2" Padding="10,4" Click="AddDelayNode_Click" />
-            <Button Content="添加分支节点" Margin="2" Padding="10,4" Click="AddIfNode_Click" />
-            <Button Content="添加For循环节点" Margin="2" Padding="10,4" Click="AddForLoopNode_Click" />
-            <Button Content="添加While循环" Margin="2" Padding="10,4" Click="AddWhileLoopNode_Click" />
-            <Separator />
-            <Button Content="添加找图节点" Margin="2" Padding="10,4" Click="AddFindImageNode_Click" />
-            <Button Content="添加鼠标移动节点" Margin="2" Padding="10,4" Click="AddMouseMoveNode_Click" />
             <Separator />
             <Button Content="删除所选节点" Margin="2" Padding="10,4" Click="DeleteSelectedNode_Click" />
-            <Separator />
             <Button Content="清除待连接引脚" Margin="2" Padding="10,4" Click="ClearPendingConnection_Click" />
         </ToolBar>
 
@@ -52,11 +40,183 @@
 
             <Grid Grid.Row="0">
                 <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="220" />
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="360" />
                 </Grid.ColumnDefinitions>
 
                 <Border Grid.Column="0"
+                        Margin="10,10,10,10"
+                        Background="#20242B"
+                        BorderBrush="#303744"
+                        BorderThickness="1"
+                        CornerRadius="8">
+                    <DockPanel>
+                        <Grid DockPanel.Dock="Top" Margin="10,8,10,6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="图谱列表"
+                                       FontWeight="SemiBold"
+                                       FontSize="15"
+                                       VerticalAlignment="Center" />
+                            <Button Grid.Column="1"
+                                    Content="+"
+                                    Width="28"
+                                    Height="26"
+                                    Padding="0"
+                                    Click="AddGraphListItem_Click" />
+                        </Grid>
+
+                        <ListBox x:Name="GraphListBox"
+                                 ItemsSource="{Binding GraphListItems}"
+                                 SelectedItem="{Binding SelectedGraphItem, Mode=TwoWay}"
+                                 Background="Transparent"
+                                 BorderThickness="0"
+                                 Foreground="White"
+                                 KeyDown="GraphListBox_KeyDown"
+                                 MouseDoubleClick="GraphListBox_MouseDoubleClick">
+                            <ListBox.ItemContainerStyle>
+                                <Style TargetType="ListBoxItem">
+                                    <Setter Property="Margin" Value="8,2" />
+                                    <Setter Property="Padding" Value="8,6" />
+                                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                     <Setter Property="Foreground" Value="White" />
+                                     <Setter Property="Background" Value="Transparent" />
+                                    <EventSetter Event="PreviewMouseRightButtonDown" Handler="GraphListItem_PreviewMouseRightButtonDown" />
+                                    <Style.Triggers>
+                                        <Trigger Property="IsSelected" Value="True">
+                                            <Setter Property="Background" Value="#30445C" />
+                                        </Trigger>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter Property="Background" Value="#2B3542" />
+                                        </Trigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </ListBox.ItemContainerStyle>
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid>
+                                        <TextBlock Text="{Binding Name}"
+                                                   VerticalAlignment="Center">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsEditing}" Value="True">
+                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                        <TextBox Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}"
+                                                 KeyDown="GraphNameTextBox_KeyDown"
+                                                 LostFocus="GraphNameTextBox_LostFocus">
+                                            <TextBox.Style>
+                                                <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsEditing}" Value="True">
+                                                            <Setter Property="Visibility" Value="Visible" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBox.Style>
+                                        </TextBox>
+                                    </Grid>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                            <ListBox.ContextMenu>
+                                <ContextMenu Background="#1B2028"
+                                             BorderBrush="#0C0D0F"
+                                             BorderThickness="0"
+                                             Padding="0"
+                                             HasDropShadow="False"
+                                             SnapsToDevicePixels="True"
+                                             OverridesDefaultStyle="True">
+                                    <ContextMenu.Resources>
+                                        <Style TargetType="Separator">
+                                            <Setter Property="Template">
+                                                <Setter.Value>
+                                                    <ControlTemplate TargetType="Separator">
+                                                        <Border Height="1" Margin="7,3" Background="#2B2B2B" />
+                                                    </ControlTemplate>
+                                                </Setter.Value>
+                                            </Setter>
+                                        </Style>
+                                        <Style TargetType="MenuItem">
+                                            <Setter Property="Foreground" Value="#E8E8E8" />
+                                            <Setter Property="Background" Value="Transparent" />
+                                            <Setter Property="FontWeight" Value="Normal" />
+                                            <Setter Property="FontSize" Value="13" />
+                                            <Setter Property="Padding" Value="10,6" />
+                                            <Setter Property="MinWidth" Value="142" />
+                                            <Setter Property="Height" Value="28" />
+                                            <Setter Property="OverridesDefaultStyle" Value="True" />
+                                            <Setter Property="Template">
+                                                <Setter.Value>
+                                                    <ControlTemplate TargetType="MenuItem">
+                                                        <Border x:Name="MenuItemBorder" Background="{TemplateBinding Background}">
+                                                            <Grid Margin="{TemplateBinding Padding}">
+                                                                <Grid.ColumnDefinitions>
+                                                                    <ColumnDefinition Width="18" />
+                                                                    <ColumnDefinition Width="*" />
+                                                                </Grid.ColumnDefinitions>
+                                                                <TextBlock x:Name="MenuGlyph"
+                                                                           Text="◆"
+                                                                           Foreground="#BFC7D5"
+                                                                           FontSize="9"
+                                                                           VerticalAlignment="Center"
+                                                                           HorizontalAlignment="Center" />
+                                                                <ContentPresenter Grid.Column="1"
+                                                                                  ContentSource="Header"
+                                                                                  RecognizesAccessKey="True"
+                                                                                  VerticalAlignment="Center"
+                                                                                  TextElement.Foreground="{TemplateBinding Foreground}" />
+                                                            </Grid>
+                                                        </Border>
+                                                        <ControlTemplate.Triggers>
+                                                            <Trigger Property="IsHighlighted" Value="True">
+                                                                <Setter TargetName="MenuItemBorder" Property="Background" Value="#777777" />
+                                                                <Setter TargetName="MenuGlyph" Property="Foreground" Value="#FFFFFF" />
+                                                                <Setter Property="Foreground" Value="#FFFFFF" />
+                                                            </Trigger>
+                                                        </ControlTemplate.Triggers>
+                                                    </ControlTemplate>
+                                                </Setter.Value>
+                                            </Setter>
+                                        </Style>
+                                    </ContextMenu.Resources>
+                                    <ContextMenu.Template>
+                                        <ControlTemplate TargetType="ContextMenu">
+                                            <Border Background="#1B1B1B"
+                                                    BorderBrush="#0A0A0A"
+                                                    BorderThickness="1"
+                                                    Padding="3"
+                                                    SnapsToDevicePixels="True">
+                                                <Border.Effect>
+                                                    <DropShadowEffect Color="#000000"
+                                                                      BlurRadius="12"
+                                                                      ShadowDepth="3"
+                                                                      Opacity="0.55" />
+                                                </Border.Effect>
+                                                <StackPanel IsItemsHost="True"
+                                                            KeyboardNavigation.DirectionalNavigation="Cycle" />
+                                            </Border>
+                                        </ControlTemplate>
+                                    </ContextMenu.Template>
+                                    <MenuItem Header="重命名" Click="RenameGraphMenuItem_Click" />
+                                    <Separator />
+                                    <MenuItem Header="删除" Click="DeleteGraphMenuItem_Click" />
+                                </ContextMenu>
+                            </ListBox.ContextMenu>
+                        </ListBox>
+                    </DockPanel>
+                </Border>
+
+                <Border Grid.Column="1"
                         Margin="0,10,10,10"
                         Background="#11151A"
                         BorderBrush="#303744"
@@ -388,7 +548,8 @@
                                              TextChanged="NodePaletteSearchBox_TextChanged"/>
                                     <ScrollViewer Grid.Row="1"
                                                   VerticalScrollBarVisibility="Auto"
-                                                  Margin="0,4,0,8">
+                                                  Margin="0,4,0,8"
+                                                  PreviewMouseWheel="NodePaletteScrollViewer_PreviewMouseWheel">
                                         <StackPanel x:Name="NodePaletteContent">
                                             <!-- 动态生成节点列表 -->
                                         </StackPanel>
@@ -399,7 +560,7 @@
                     </Border>
                 </Border>
 
-                <Border Grid.Column="1"
+                <Border Grid.Column="2"
                         Margin="0,10,10,10"
                         Padding="14"
                         Background="#20242B"
@@ -485,6 +646,49 @@
                                     <ComboBoxItem Content="False" />
                                     <ComboBoxItem Content="True" />
                                 </ComboBox>
+                            </StackPanel>
+
+                            <StackPanel x:Name="StartProgramInspectorPanel" Visibility="Collapsed">
+                                <TextBlock Text="程序路径" Foreground="White" />
+                                <Grid Margin="0,4,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox x:Name="StartProgramPathTextBox" Grid.Column="0"
+                                             Margin="0,0,4,0" TextChanged="InspectorField_TextChanged" />
+                                    <Button Grid.Column="1" Content="..." Width="32" Height="24"
+                                            Click="BrowseStartProgramPath_Click" />
+                                </Grid>
+
+                                <TextBlock Text="待响应时长 (ms)" Foreground="White" />
+                                <TextBox x:Name="StartProgramWaitTimeoutTextBox" Margin="0,4,0,10" TextChanged="InspectorField_TextChanged" />
+
+                                <TextBlock Text="失败后操作" Foreground="White" />
+                                <ComboBox x:Name="StartProgramFailureActionComboBox" Margin="0,4,0,10" SelectionChanged="InspectorField_SelectionChanged">
+                                    <ComboBoxItem Content="无" Tag="None" />
+                                    <ComboBoxItem Content="尝试重启" Tag="Retry" />
+                                </ComboBox>
+
+                                <TextBlock x:Name="StartProgramRetryCountLabel" Text="重启次数" Foreground="White" />
+                                <TextBox x:Name="StartProgramRetryCountTextBox" Margin="0,4,0,12" TextChanged="InspectorField_TextChanged" />
+                            </StackPanel>
+
+                            <StackPanel x:Name="PrintLogInspectorPanel" Visibility="Collapsed">
+                                <TextBlock Text="功能" Foreground="#A7B1BF" />
+                                <TextBlock Margin="0,4,0,10" Foreground="#A7B1BF" Text="打印填入的字符串到 log 中。" TextWrapping="Wrap" />
+                                <TextBlock x:Name="PrintLogMessageLabel" Text="字符串" Foreground="White" />
+                                <TextBox x:Name="PrintLogMessageTextBox" Margin="0,4,0,12" TextChanged="InspectorField_TextChanged" />
+                            </StackPanel>
+
+                            <StackPanel x:Name="SelectWindowInspectorPanel" Visibility="Collapsed">
+                                <TextBlock Text="功能" Foreground="#A7B1BF" />
+                                <TextBlock Margin="0,4,0,10"
+                                           Foreground="#A7B1BF"
+                                           Text="按进程名查找窗口，并把窗口恢复、置前、设为前台窗口。"
+                                           TextWrapping="Wrap" />
+                                <TextBlock x:Name="SelectWindowProcessNameLabel" Text="进程名" Foreground="White" />
+                                <TextBox x:Name="SelectWindowProcessNameTextBox" Margin="0,4,0,12" TextChanged="InspectorField_TextChanged" />
                             </StackPanel>
 
                             <StackPanel x:Name="KeyboardInspectorPanel" Visibility="Collapsed">

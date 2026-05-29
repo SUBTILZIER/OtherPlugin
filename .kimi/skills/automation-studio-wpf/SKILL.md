@@ -5,6 +5,68 @@ WPF 可视化节点自动化编辑器，类似 UE4 蓝图。技术栈 C# 12 / .N
 
 ## 踩坑记录（按时间倒序，新记录追加到顶部）
 
+### 2026-05-29: 图谱列表、右键菜单、选中窗口节点
+
+#### Problem: 切换图谱时不应弹保存提示
+- **Symptom**: 双击图谱切换时触发 `ConfirmSaveCurrentGraphIfDirty()`，频繁打断编辑流
+- **Fix**: 切换图谱只调用 `SnapshotActiveGraph()` 静默把当前编辑器状态写回当前列表项，不弹窗；只在 `Window_Closing` 时统一提示是否保存
+- **Lesson**: 图谱列表切换是编辑导航，不是文件关闭。保存确认只能放在退出或用户显式保存动作上
+
+#### Problem: WPF ContextMenu 出现默认白边/白色 chrome
+- **Symptom**: 图谱列表右键菜单周围出现莫名白边，与 Rider/UE 蓝图暗色 UI 不一致
+- **Root cause**: `ContextMenu` / `MenuItem` 默认 ControlTemplate 仍在生效，仅设置 `Background/BorderBrush` 不会完全覆盖系统 chrome
+- **Fix**: 给 `ContextMenu.Template` 和 `MenuItem.Template` 全量自绘；`ContextMenu` 用暗色 `Border + DropShadowEffect + StackPanel IsItemsHost`；`MenuItem` 用自定义 `Border/Grid/ContentPresenter`，hover 只改自绘背景
+- **Lesson**: WPF 菜单要做 UE 风格暗色外观，必须覆盖 Template。只改属性会残留默认主题边框
+
+#### Problem: ContextMenu 不支持 Popup 的部分属性
+- **Symptom**: 给 `ContextMenu` 写 `AllowsTransparency` / `PopupAnimation` 编译报 `MC3072`
+- **Root cause**: 这些属性属于 `Popup`，不是 `ContextMenu` 公开属性
+- **Fix**: 移除这些属性；需要透明/动画时改用真正 `Popup` 或自绘 Canvas 浮层
+- **Lesson**: `ContextMenu` 不是 `Popup`，不能混用 Popup 属性
+
+#### New node: 选中窗口
+- **Files**: `Graph/SelectWindowNodeViewModel.cs`、`Graph/GraphTypes.cs`、`Services/NodeFactory.cs`、`Services/NodeSerializer.cs`、`Runtime/GraphRuntimeExecutor.cs`
+- **Pins**: `exec_in` / `exec_out`，`process_name` string 输入，`process_name` string 输出，`result` bool 输出
+- **Runtime**: `Process.GetProcessesByName()` 找主窗口，`ShowWindow(SW_RESTORE)` 恢复，`SetWindowPos(HWND_TOP)` 置前，`SetForegroundWindow()` 尝试设为前台
+- **Behavior**: 进程名为空或未找到窗口记 `Warn + continue`，Win32 调用异常才 `Error + stop`
+- **Lesson**: Windows 可能因前台窗口权限限制导致 `SetForegroundWindow` 返回 false；这不是崩溃，按可退化结果处理
+
+#### Build note: 沙箱构建可能误报 obj 文件 Access denied
+- **Symptom**: `dotnet build` 在沙箱内报 `Access to ... obj\Debug\net8.0-windows\App.g.cs is denied`
+- **Fix**: 使用本机正常权限执行 `dotnet build .\AutomationStudioWpf.csproj`
+- **Lesson**: WPF MarkupCompile 会删除/重写 `obj` 生成文件；若沙箱或 Rider/dotnet 占用，先查进程，必要时用非沙箱构建验证代码
+
+### 2026-05-29: 项目拓展后运行时风险审计
+
+#### Problem: 找图未命中后，下游鼠标节点可能回退到本地坐标继续点击
+- **Symptom**: `找图.center -> 鼠标点击.position` 已连接时，如果找图未命中，只写入 `result=false`，不会写入 `center`；鼠标节点因为看到 `position` 已连接，会跳过本地坐标有效性检查，最后回退到 `PositionX/Y`
+- **Risk**: 可能点击 `(0,0)` 或旧坐标，属于自动化执行高风险行为
+- **Fix target**: `ResolveMouseTargetPoint()` 不应在“输入 pin 已连接但运行时值缺失”时回退到本地坐标；应 `Warn + skip + continue`
+
+#### Problem: 新增节点复用旧 DTO 字段，保存模型开始漂移
+- **Symptom**: `StartProgram.ProgramPath` 写入 `NodeFileModel.ImagePath`，`WaitTimeoutMs` 写入 `DelayMs`，`RetryCount` 写入 `ScrollSpeed`；`PrintLog.Message` 也写入 `ImagePath`
+- **Risk**: 文件语义越来越难维护，后续节点字段容易互相污染
+- **Fix target**: `NodeFileModel` 增加明确字段：`ProgramPath`、`WaitTimeoutMs`、`RetryCount`、`PrintLogMessage`；旧字段只保留兼容读取
+
+#### Problem: 打开旧/坏图谱时不补默认开始节点
+- **Symptom**: `NewGraph()` 会创建开始节点，但 `LoadFromModel()` 只按文件内容加载；文件缺少 `start` 时 UI 可打开，执行时才失败
+- **Fix target**: `LoadFromModel()` 加载后若无 `StartNodeViewModel`，自动补一个开始节点，保持单入口约束
+
+#### Current verified state
+- `dotnet build AutomationStudioWpf.csproj` 当前通过：0 warning / 0 error
+- CodeGraph 当前阻塞：原索引损坏报 `no such table: unresolved_refs`；删除后用 `codegraph.cmd init` / `codegraph.cmd init -i` 重建均报 `disk I/O error`。不要信任当前 CodeGraph，先解决 CLI/磁盘/权限问题
+- `.git/index.lock` 存在，后续提交前需要确认无 Git/Rider 进程占用后清理
+
+### 2026-05-29: ComboBox disabled text not gray unlike TextBox
+
+#### Problem: If/While condition ComboBox shows "前置输入" when locked but text remains black instead of gray
+- **Symptom**: MouseClick/MouseMove TextBox correctly turns gray when input pin is connected, but If/While ComboBox stays black
+- **Root cause**: WPF default template behavior is inconsistent across controls:
+  - `TextBox.IsEnabled = false` automatically renders text in gray via `GrayTextBrushKey`
+  - `ComboBox.IsEnabled = false` only changes border/background in Disabled visual state; the `ContentPresenter` Foreground is NOT automatically modified
+- **Fix**: Manually set `cb.Foreground = Brushes.Gray` when locked, and `cb.ClearValue(Control.ForegroundProperty)` when unlocked in `LockConditionCombo()`
+- **Lesson**: Do not assume all WPF controls have consistent disabled visual states. ComboBox requires manual Foreground management for grayed-out text.
+
 ### 2026-05-29: Preview event tunneling blocks Button Click inside popup
 
 #### Problem: Clicking a node in the right-click palette does nothing - no node created, palette not closed
