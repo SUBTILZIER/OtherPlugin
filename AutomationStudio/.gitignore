@@ -1,0 +1,8 @@
+bin/
+obj/
+.idea/
+.codegraph/
+.claude/
+*.user
+*.suo
+*.pdb
