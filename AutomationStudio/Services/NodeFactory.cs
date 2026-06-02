@@ -16,6 +16,31 @@ public sealed class NodeFactory
         return $"node_{++_nodeCounter:000}";
     }
 
+    public NodeBaseViewModel CreateNode(NodeKind kind, double x, double y)
+    {
+        NodeBaseViewModel node = kind switch
+        {
+            NodeKind.FindImage => CreateFindImageNode(),
+            NodeKind.FindText => CreateFindTextNode(),
+            NodeKind.MouseClick => CreateMouseClickNode(),
+            NodeKind.MouseMove => CreateMouseMoveNode(),
+            NodeKind.Keyboard => CreateKeyboardNode(),
+            NodeKind.ScrollWheel => CreateScrollWheelNode(),
+            NodeKind.StartProgram => CreateStartProgramNode(),
+            NodeKind.SelectWindow => CreateSelectWindowNode(),
+            NodeKind.PrintLog => CreatePrintLogNode(),
+            NodeKind.Delay => CreateDelayNode(),
+            NodeKind.If => CreateIfNode(),
+            NodeKind.ForLoop => CreateForLoopNode(),
+            NodeKind.WhileLoop => CreateWhileLoopNode(),
+            _ => throw new InvalidOperationException($"不支持从菜单创建节点：{kind}"),
+        };
+
+        node.X = x;
+        node.Y = y;
+        return node;
+    }
+
     public StartNodeViewModel CreateStartNode(double x = 80, double y = 210) =>
         new(CreateNodeId()) { Title = "事件开始运行", X = x, Y = y };
 

@@ -25,10 +25,25 @@ public sealed class NodeFileModel
 
     public double Y { get; set; }
 
-    // FindImage 节点属性
+    // FindImage 节点属性。旧图中 StartProgram/PrintLog/FindText 也可能复用该字段。
     public string? ImagePath { get; set; }
 
     public int SimilarityThresholdPercent { get; set; } = 80;
+
+    // StartProgram 节点属性。新保存使用明确字段，旧图兼容读取 ImagePath/DelayMs/ScrollAction/ScrollSpeed。
+    public string? ProgramPath { get; set; }
+
+    public int WaitTimeoutMs { get; set; }
+
+    public string? FailureAction { get; set; }
+
+    public int RetryCount { get; set; }
+
+    // PrintLog 节点属性。旧图兼容读取 ImagePath。
+    public string? PrintLogMessage { get; set; }
+
+    // FindText 节点属性。旧图兼容读取 ImagePath。
+    public string? FindTextText { get; set; }
 
     // MouseClick 节点属性
     public string? ClickMode { get; set; }
@@ -63,6 +78,10 @@ public sealed class NodeFileModel
 
     // If/WhileLoop 节点属性
     public bool ConditionValue { get; set; }
+
+    public string? WhileLoopMode { get; set; }
+
+    public int MaxIterations { get; set; }
 
     // Reroute 节点属性
     public string? RoutedKind { get; set; }

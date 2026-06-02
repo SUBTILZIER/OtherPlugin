@@ -2,6 +2,38 @@
 
 ## 架构设计
 
+### 当前模块边界（2026-06-02）
+
+项目已从“大 `MainWindow` + 大 Runtime switch”拆为多层：
+
+```
+UI / MainWindow
+    ├─ 只做窗口装配、Binding 暴露、XAML 事件转发、日志显示、关闭提示
+    └─ 不直接调用 Win32 / Python / Runtime 具体能力
+
+Interaction
+    ├─ ExecutionController       ← 执行、取消、校验、Python 环境检查
+    ├─ GraphListController       ← 图谱列表、新增、切换、删除、重命名、保存
+    ├─ CanvasPanZoomController   ← 右键平移、滚轮缩放、F 全览、坐标转换
+    ├─ PinConnectionController   ← 拖线、连线、断线、预览线
+    ├─ InspectorController       ← 字段锁定和灰态
+    └─ NodePaletteController     ← 右键节点菜单，来自 NodeRegistry.Definitions
+
+GraphCore / Services
+    ├─ GraphValidator            ← 执行前图谱校验
+    ├─ GraphEditorService        ← 节点/连线编辑、执行计划构建
+    ├─ GraphLibraryService       ← 图谱列表本地持久化
+    ├─ NodeFactory               ← ID 生成 + ViewModel 创建
+    └─ NodeSerializer            ← ViewModel/FileModel/RuntimeModel 转换
+
+Runtime / Nodes / Adapters
+    ├─ GraphRuntimeExecutor      ← 只调度执行链
+    ├─ RuntimeContext            ← 统一保存/解析节点输出
+    ├─ NodeRegistry              ← 节点定义 + 执行器注册
+    ├─ INodeExecutor             ← 每个节点的执行入口
+    └─ Adapters                  ← 鼠标、键盘、窗口、进程、Python 能力封装
+```
+
 ### 整体架构
 
 ```
@@ -39,6 +71,8 @@
 │  └──────────────────┘  └──────────────────┘                 │
 └─────────────────────────────────────────────────────────────┘
 ```
+
+> 上图是历史分层图。当前实际代码以“Interaction + GraphCore + Runtime/Nodes/Adapters”边界为准。
 
 ## 核心模块详解
 
@@ -91,11 +125,26 @@ public class GraphEditorService
 public class NodeFactory
 {
     public string CreateNodeId() => $"node_{++_counter:000}";
+    public NodeBaseViewModel CreateNode(NodeKind kind, double x, double y);
     public FindImageNodeViewModel CreateFindImageNode(...)
     public MouseClickNodeViewModel CreateMouseClickNode(...)
     // ...
 }
 ```
+
+#### NodeRegistry
+统一管理节点定义和执行器注册：
+- `Definitions`：节点菜单分类、显示名、引脚定义。
+- `TryGetExecutor`：Runtime 根据 `NodeKind` 找到对应 `INodeExecutor`。
+- 右键节点菜单由 `NodePaletteController` 读取 `NodeRegistry.Definitions` 生成，禁止再在 `MainWindow` 手写菜单列表。
+
+新增节点时至少更新：
+1. `GraphTypes.NodeKind`
+2. 对应 `ViewModel`
+3. `NodeFactory.CreateNode`
+4. `NodeSerializer`
+5. 对应 `INodeExecutor`
+6. `NodeRegistry.CreateDefaultDefinitions()` 和执行器注册
 
 #### PythonAutoInstaller
 Python 环境检测与安装指引：
@@ -154,15 +203,33 @@ StartNode → FindImageNode → MouseClickNode → ...
      ↓
 GraphRuntimeExecutor.Execute()
      ↓
-ExecuteChain() → ExecuteNode() → Win32 API
+ExecuteChain() → ExecuteNode() → NodeRegistry → INodeExecutor → Adapter
 ```
 
 #### 环路检测
-使用 `HashSet<string> visitedNodes` 记录已访问节点，防止无限循环。
+不再用 `HashSet<string> visitedNodes` 阻止节点重复访问，因为 For/While 循环体内节点需要合法重复执行。
+
+当前策略：
+- `GraphRuntimeExecutor` 使用最大执行步数保护（`MaxChainSteps = 10000`）。
+- For/While 节点自身负责循环次数/退出条件。
+- 超过安全步数视为疑似执行环路，记录 `Error` 并停止。
+
+#### 运行结果分级
+节点执行统一返回 `NodeExecutionResult`：
+- `Success`：成功执行，继续后续节点。
+- `WarnButContinue`：业务未命中或参数可退化，写 Warn，继续后续节点。
+- `FatalStop`：依赖缺失、脚本崩溃、Win32 异常、超时、执行环路等，写 Error，停止执行。
+
+重要安全规则：
+- 输入 pin 未连接：可以使用节点本地属性。
+- 输入 pin 已连接但上游没有运行时输出：当前节点 Warn 并跳过，不回退本地属性。
+- 典型场景：找图未命中时，下游鼠标点击不会误用旧坐标或 `(0,0)`。
 
 #### Win32 API 调用
 
-键盘输入使用 `SendInput`（非废弃的 `keybd_event`），扫描码模式兼容游戏：
+Win32 细节现在封装在 `Adapters/`，Runtime 不直接调用 Win32。
+
+键盘输入使用 `Win32KeyboardAdapter`，内部为 `SendInput` 扫描码模式，兼容游戏：
 
 ```csharp
 // 结构体：x64 上 sizeof(INPUT) = 40, ki 在 offset 8
@@ -183,7 +250,7 @@ static extern uint SendInput(uint nInputs, INPUT64[] pInputs, int cbSize);
 [DllImport("user32.dll")]
 static extern uint MapVirtualKey(uint uCode, uint uMapType);  // VK→扫描码
 
-// 鼠标仍用 mouse_event（待迁移到 SendInput）
+// 鼠标封装在 Win32MouseAdapter，当前仍用 SetCursorPos + mouse_event
 [DllImport("user32.dll")]
 static extern bool SetCursorPos(int x, int y);
 [DllImport("user32.dll")]
@@ -331,19 +398,58 @@ public sealed class MyNodeViewModel : NodeBaseViewModel
 
 3. **实现序列化**（NodeSerializer.cs）
 
-4. **实现执行逻辑**（GraphRuntimeExecutor.cs）
+4. **实现执行逻辑**：在对应 `Nodes/<分类>/` 下实现 `INodeExecutor`，不要修改 `GraphRuntimeExecutor` 的节点执行 switch
 
-5. **添加属性面板**（MainWindow.xaml）
+5. **注册节点**：在 `NodeRegistry.CreateDefault()` 注册 executor，在 `CreateDefaultDefinitions()` 注册显示名、分类、引脚
+
+6. **添加属性面板**（MainWindow.xaml），字段锁定规则优先放到 `InspectorController`
 
 ### 添加新的 Python 功能
 
 1. 在 `Python/` 目录添加脚本
 2. 在 `PythonAutoInstaller.cs` 添加依赖检查
-3. 在 `GraphRuntimeExecutor.cs` 调用 Python 脚本
+3. 在 `Adapters/PythonScriptAdapter.cs` 复用 JSON 临时文件调用
+4. 在插件节点 executor 中调用 `IPythonScriptAdapter.RunJsonScript`
+
+Python 参数规则：
+- C# → Python 不走命令行中文参数。
+- 使用 UTF-8 no BOM JSON 临时文件。
+- Python 脚本保留旧命令行参数兼容可以，但新调用必须走 JSON 文件。
 
 ## 踩坑记录
 
 > 以下记录来自实际开发中的踩坑经验，按时间倒序排列，新记录追加到顶部。
+
+### 2026-06-02：Runtime/Interaction 解耦后的维护规则
+
+#### 问题 1：MainWindow 继续膨胀会把 UI、交互、运行时重新耦合
+- **现象**：画布平移、连线、图谱列表、执行入口、属性锁定全写在 `MainWindow.xaml.cs`，修改一个交互容易误伤另一个。
+- **修复**：拆出 `Interaction/*Controller`：
+  - `ExecutionController`
+  - `GraphListController`
+  - `CanvasPanZoomController`
+  - `PinConnectionController`
+  - `InspectorController`
+  - `NodePaletteController`
+- **教训**：`MainWindow` 只做事件转发和窗口装配。新交互不要直接塞进 `MainWindow`。
+
+#### 问题 2：新增 controller 后大量 WPF/WinForms 类型歧义
+- **现象**：编译报 `Button/TextBox/ListBox/MessageBox/MouseEventArgs/Control/Brushes/Color` 歧义。
+- **根因**：项目同时启用 WPF 和 WinForms。
+- **修复**：新增 controller 文件优先使用别名：
+  - `using WpfTextBox = System.Windows.Controls.TextBox;`
+  - `using WpfKeyEventArgs = System.Windows.Input.KeyEventArgs;`
+  - `System.Windows.MessageBox.Show(...)`
+- **教训**：在本项目里不要裸写常见 UI 类型名，除非当前文件没有 WinForms 命名空间污染。
+
+#### 问题 3：工具栏删除按钮后必须同时删 XAML 和 code-behind
+- **变更**：顶部工具栏已去掉 `删除所选节点`、`清除待连接引脚`。
+- **保留行为**：`Delete` 仍删除选中节点；`Esc` 仍取消连线或取消执行。
+- **教训**：WPF XAML 的 `Click="..."` 如果残留，编译期会失败；删按钮时一起删 handler。
+
+#### 当前验证状态
+- `dotnet build .\AutomationStudioWpf.csproj`：0 warning / 0 error。
+- CodeGraph 已同步，PowerShell 若拦截 `codegraph.ps1`，使用 `codegraph.cmd sync`。
 
 ### 2026-05-30: 键盘模拟在游戏窗口无效——从 keybd_event 到 SendInput 扫描码
 
@@ -532,6 +638,10 @@ public sealed class MyNodeViewModel : NodeBaseViewModel
 8. **点击 vs 拖动延迟判断**：右键同时承载菜单和平移时，用位移阈值（如 3px）在 MouseMove 中决定行为转换
 9. **WinForms + WPF 混合项目用完整限定名**：`System.Windows.Controls.Button`、`System.Windows.HorizontalAlignment` 等避免歧义
 10. **不在 StrReplaceFile 中使用中文**：`old`/`new` 参数仅使用 ASCII 字符；中文文本通过 WriteFile 或按行号覆写注入
+11. **Runtime 不写具体节点能力**：具体行为写 `INodeExecutor`，底层能力写 `Adapters`
+12. **前置输入优先且安全**：已连接输入缺值时 Warn + skip，不能回退本地默认值
+13. **节点菜单来自 Registry**：不要在 `MainWindow` 硬编码节点分类/名称
+14. **MainWindow 不继续膨胀**：新增交互优先写 `Interaction/*Controller`
 
 ## 构建与发布
 

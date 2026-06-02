@@ -7,8 +7,9 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
 using AutomationStudioWpf.Graph;
+using AutomationStudioWpf.Interaction;
 using AutomationStudioWpf.Logging;
-using AutomationStudioWpf.Runtime;
+using AutomationStudioWpf.Nodes;
 using AutomationStudioWpf.Services;
 using Microsoft.Win32;
 using Point = System.Windows.Point;
@@ -35,22 +36,22 @@ public partial class MainWindow : Window
     private readonly GraphEditorService _editorService = new();
     private readonly NodeClipboardService _clipboardService = new();
     private readonly NodeFactory _nodeFactory = new();
-    private readonly GraphRuntimeExecutor _runtimeExecutor = new();
     private readonly GraphLibraryService _graphLibraryService = new();
+    private readonly NodeRegistry _nodeRegistry = NodeRegistry.CreateDefault();
+    private ExecutionController _executionController = null!;
+    private NodePaletteController _nodePaletteController = null!;
+    private GraphListController _graphListController = null!;
+    private CanvasPanZoomController _canvasPanZoomController = null!;
+    private InspectorController _inspectorController = null!;
+    private PinConnectionController _pinConnectionController = null!;
 
     // 运行状态
-    private CancellationTokenSource? _executionCts;
     private Point _lastMousePosition;
     private bool _isLoadingInspector;
     private bool _isLoadingGraph;
     private bool _isClosing;
     private GraphListItemViewModel? _selectedGraphItem;
     private GraphListItemViewModel? _activeGraphItem;
-
-    // 连接拖拽状态
-    private PinViewModel? _pendingOutputPin;
-    private bool _isConnecting;
-    private bool _wireWasDragged;
 
     // 节点拖拽状态
     private NodeBaseViewModel? _dragNode;
@@ -61,14 +62,7 @@ public partial class MainWindow : Window
     private bool _isSelecting;
     private Point _selectionStart;
 
-    // 画布平移状态
-    private bool _isPanning;
-    private Point _panStart;
-    private Point _panStartOffset;
     private bool _isCanvasFocusActive;
-
-    // 缩放
-    private double _zoomLevel = 1.0;
 
     // 右键菜单状态
     private bool _rightClickPending;
@@ -78,6 +72,7 @@ public partial class MainWindow : Window
     {
         DataContext = this;
         InitializeComponent();
+        InitializeControllers();
         InitializeServices();
         InitializeEditor();
     }
@@ -99,6 +94,62 @@ public partial class MainWindow : Window
 
         // 全局鼠标点击检测：点击节点菜单外部时关闭菜单
         PreviewMouseDown += Window_PreviewMouseDown;
+    }
+
+    private void InitializeControllers()
+    {
+        _executionController = new ExecutionController(
+            this,
+            _editorService,
+            new Runtime.GraphRuntimeExecutor(nodeRegistry: _nodeRegistry, adapters: new Adapters.RuntimeAdapters()),
+            new GraphCore.GraphValidator(),
+            RunGraphButton,
+            SetStatus);
+
+        _nodePaletteController = new NodePaletteController(
+            NodePalette,
+            NodePaletteSearchBox,
+            NodePaletteContent,
+            _nodeFactory,
+            _editorService,
+            _nodeRegistry,
+            ViewportToGraph,
+            SelectNode);
+
+        _graphListController = new GraphListController(
+            this,
+            _editorService,
+            _graphLibraryService,
+            _nodeFactory,
+            GraphListBox,
+            GraphListItems,
+            SyncNodeFactorySequence,
+            SetStatus);
+
+        _canvasPanZoomController = new CanvasPanZoomController(
+            GraphViewport,
+            GraphZoomTransform,
+            GraphPanTransform,
+            _editorService,
+            SetStatus);
+
+        _inspectorController = new InspectorController(
+            MousePositionXTextBox,
+            MousePositionYTextBox,
+            MouseMovePositionXTextBox,
+            MouseMovePositionYTextBox,
+            IfConditionComboBox,
+            WhileLoopConditionComboBox,
+            ForLoopEndConditionComboBox,
+            PrintLogMessageTextBox,
+            SelectWindowProcessNameTextBox,
+            FindTextTextBox);
+
+        _pinConnectionController = new PinConnectionController(
+            _editorService,
+            GraphViewport,
+            PreviewConnectionPath,
+            SetStatus);
     }
 
     private void InitializeEditor()
@@ -128,29 +179,17 @@ public partial class MainWindow : Window
 
     private void NewGraph_Click(object sender, RoutedEventArgs e)
     {
-        AddGraphListItem(loadImmediately: true);
+        _graphListController.AddAndRename();
     }
 
     private void SaveGraph_Click(object sender, RoutedEventArgs e)
     {
-        if (_activeGraphItem is not null)
-        {
-            _activeGraphItem.Graph = _editorService.ExportGraphModel(_activeGraphItem.Name);
-            _activeGraphItem.Graph.Name = _activeGraphItem.Name;
-        }
-
-        foreach (var item in GraphListItems)
-        {
-            item.IsDirty = false;
-        }
-
-        PersistGraphLibrary();
-        SetStatus($"已保存全部图谱：{GraphListItems.Count} 个。");
+        _graphListController.SaveAll();
     }
 
     private void SaveGraphAs_Click(object sender, RoutedEventArgs e)
     {
-        SaveGraphAs();
+        _graphListController.SaveAs();
     }
 
     private void SaveGraphAs()
@@ -175,23 +214,7 @@ public partial class MainWindow : Window
 
     private void OpenGraph_Click(object sender, RoutedEventArgs e)
     {
-        var dialog = new OpenFileDialog
-        {
-            Title = "打开图谱",
-            Filter = "图谱文件 (*.json)|*.json|所有文件(*.*)|*.*",
-            InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.Desktop),
-        };
-
-        if (dialog.ShowDialog(this) != true) return;
-
-        try
-        {
-            ImportGraphFileToList(dialog.FileName);
-        }
-        catch (Exception ex)
-        {
-            WpfMessageBox.Show(this, ex.Message, "打开失败", MessageBoxButton.OK, MessageBoxImage.Error);
-        }
+        _graphListController.ImportFromDialog();
     }
 
     #endregion
@@ -200,30 +223,12 @@ public partial class MainWindow : Window
 
     private void LoadGraphLibrary()
     {
-        GraphListItems.Clear();
-        var state = _graphLibraryService.Load();
-        foreach (var item in GraphLibraryService.ToViewModels(state))
-        {
-            GraphListItems.Add(item);
-        }
-
-        if (GraphListItems.Count == 0)
-        {
-            AddGraphListItem(loadImmediately: false);
-        }
-
-        var target = GraphListItems.FirstOrDefault(item => item.Id == state.LastSelectedId)
-            ?? GraphListItems.FirstOrDefault();
-        if (target is not null)
-        {
-            GraphListBox.SelectedItem = target;
-            LoadGraphListItem(target);
-        }
+        _graphListController.LoadLibrary();
     }
 
     private void AddGraphListItem_Click(object sender, RoutedEventArgs e)
     {
-        AddGraphListItem(loadImmediately: true);
+        _graphListController.AddAndRename();
     }
 
     private GraphListItemViewModel AddGraphListItem(bool loadImmediately)
@@ -284,78 +289,40 @@ public partial class MainWindow : Window
 
     private void GraphListBox_MouseDoubleClick(object sender, MouseButtonEventArgs e)
     {
-        if (SelectedGraphItem is null) return;
-        if (e.OriginalSource is DependencyObject source && !TryFindGraphItemFromSource(source, out _)) return;
-
-        LoadGraphListItem(SelectedGraphItem);
-        e.Handled = true;
+        _graphListController.HandleDoubleClick(e);
     }
 
     private void GraphListBox_KeyDown(object sender, KeyEventArgs e)
     {
-        if (Keyboard.FocusedElement is TextBox) return;
-
-        if (e.Key == Key.Delete)
-        {
-            DeleteSelectedGraphItem();
-            e.Handled = true;
-        }
-        else if (e.Key == Key.F2)
-        {
-            if (SelectedGraphItem is not null)
-                StartRenameGraphItem(SelectedGraphItem);
-            e.Handled = true;
-        }
+        _graphListController.HandleKeyDown(e);
     }
 
     private void RenameGraphMenuItem_Click(object sender, RoutedEventArgs e)
     {
-        if (SelectedGraphItem is { } item)
-        {
-            StartRenameGraphItem(item);
-        }
+        _graphListController.RenameSelected();
     }
 
     private void DeleteGraphMenuItem_Click(object sender, RoutedEventArgs e)
     {
-        if (SelectedGraphItem is { } item)
-        {
-            GraphListBox.SelectedItem = item;
-            DeleteSelectedGraphItem();
-        }
+        _graphListController.DeleteSelected();
     }
 
     private void GraphListItem_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
     {
-        if (sender is ListBoxItem { DataContext: GraphListItemViewModel item })
-        {
-            GraphListBox.SelectedItem = item;
-            e.Handled = false;
-        }
+        _graphListController.SelectRightClickedItem(sender);
+        e.Handled = false;
     }
 
     private void GraphNameTextBox_KeyDown(object sender, KeyEventArgs e)
     {
-        if (sender is not TextBox tb || tb.DataContext is not GraphListItemViewModel item) return;
-
-        if (e.Key == Key.Enter)
-        {
-            CommitGraphRename(item);
-            e.Handled = true;
-        }
-        else if (e.Key == Key.Escape)
-        {
-            item.IsEditing = false;
-            e.Handled = true;
-        }
+        if (sender is TextBox tb)
+            _graphListController.HandleRenameKeyDown(tb, e);
     }
 
     private void GraphNameTextBox_LostFocus(object sender, RoutedEventArgs e)
     {
-        if (sender is TextBox { DataContext: GraphListItemViewModel item })
-        {
-            CommitGraphRename(item);
-        }
+        if (sender is TextBox tb)
+            _graphListController.HandleRenameLostFocus(tb);
     }
 
     private void StartRenameGraphItem(GraphListItemViewModel item)
@@ -567,37 +534,11 @@ public partial class MainWindow : Window
 
     private void Window_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
     {
-        _runtimeExecutor.ReleaseAllKeys();
+        _executionController.ReleaseAllKeys();
         if (_isClosing) return;
 
-        if (_activeGraphItem is not null)
-        {
-            _activeGraphItem.Graph = _editorService.ExportGraphModel(_activeGraphItem.Name);
-        }
-
-        if (GraphListItems.Any(item => item.IsDirty))
-        {
-            var result = WpfMessageBox.Show(
-                this,
-                "存在未保存图谱，是否保存？",
-                "是否保存",
-                MessageBoxButton.YesNoCancel,
-                MessageBoxImage.Question);
-
-            if (result == MessageBoxResult.Cancel)
-            {
-                e.Cancel = true;
-                return;
-            }
-
-            if (result == MessageBoxResult.Yes)
-            {
-                SaveCurrentGraphToLibrary();
-                foreach (var item in GraphListItems)
-                    item.IsDirty = false;
-                PersistGraphLibrary();
-            }
-        }
+        if (!_graphListController.HandleClosing(e))
+            return;
 
         _isClosing = true;
     }
@@ -608,69 +549,7 @@ public partial class MainWindow : Window
 
     private async void RunGraph_Click(object sender, RoutedEventArgs e)
     {
-        if (_executionCts is not null)
-        {
-            SetStatus("已有图谱正在执行。");
-            return;
-        }
-
-        try
-        {
-            RunGraphButton.IsEnabled = false;
-            _executionCts = new CancellationTokenSource();
-            var plan = _editorService.BuildExecutionPlan();
-            var baseDirectory = !string.IsNullOrWhiteSpace(_editorService.CurrentGraphPath)
-                ? Path.GetDirectoryName(_editorService.CurrentGraphPath) ?? Environment.CurrentDirectory
-                : Environment.CurrentDirectory;
-
-            if (plan.Nodes.Any(n => n.NodeKind == NodeKind.FindImage))
-            {
-                bool pythonReady = await PythonAutoInstaller.EnsurePythonAsync(new Progress<string>(SetStatus));
-                if (!pythonReady)
-                {
-                    _executionCts = null;
-                    RunGraphButton.IsEnabled = true;
-                    SetStatus("Python 环境未就绪，执行已取消。");
-                    return;
-                }
-            }
-
-            SetStatus("执行开始...");
-            var ct = _executionCts.Token;
-            var result = await Task.Run(() => _runtimeExecutor.Execute(plan, baseDirectory, ct), ct);
-            SetStatus(result.Message);
-        }
-        catch (OperationCanceledException)
-        {
-            Logger.Info("===== 执行已取消=====");
-            _runtimeExecutor.ReleaseAllKeys();
-            SetStatus("执行已取消。");
-        }
-        catch (Exception ex)
-        {
-            WpfMessageBox.Show(this, ex.Message, "执行失败", MessageBoxButton.OK, MessageBoxImage.Error);
-            SetStatus("执行失败。");
-        }
-        finally
-        {
-            _executionCts = null;
-            RunGraphButton.IsEnabled = true;
-        }
-    }
-
-    #endregion
-
-    #region 工具栏事件 - 其他
-
-    private void DeleteSelectedNode_Click(object sender, RoutedEventArgs e)
-    {
-        _editorService.RemoveSelectedNodes();
-        SelectNode(null);
-    }
-
-    private void ClearPendingConnection_Click(object sender, RoutedEventArgs e)
-    {
-        CancelPendingConnection("已清除待连接引脚。");
+        await _executionController.RunAsync();
     }
 
     #endregion
@@ -689,7 +568,7 @@ public partial class MainWindow : Window
 
     private void NodeHeader_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        if (_isConnecting) return;
+        if (_pinConnectionController.IsConnecting) return;
         if (IsPinInteractionSource(e.OriginalSource as DependencyObject)) return;
         if (sender is not FrameworkElement element || element.DataContext is not NodeBaseViewModel node)
             return;
@@ -723,7 +602,7 @@ public partial class MainWindow : Window
 
     private void NodeHeader_PreviewMouseMove(object sender, MouseEventArgs e)
     {
-        if (_isConnecting) return;
+        if (_pinConnectionController.IsConnecting) return;
         if (_dragNode is null || e.LeftButton != MouseButtonState.Pressed) return;
 
         var point = ViewportToGraph(e.GetPosition(GraphViewport));
@@ -732,10 +611,7 @@ public partial class MainWindow : Window
             item.X = point.X - offsetX;
             item.Y = point.Y - offsetY;
         }
-        if (_activeGraphItem is not null)
-        {
-            _activeGraphItem.IsDirty = true;
-        }
+        _graphListController.MarkDirty();
     }
 
     private void NodeHeader_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
@@ -762,9 +638,9 @@ public partial class MainWindow : Window
 
         if (!IsGraphBlankSource(e.OriginalSource as DependencyObject)) return;
 
-        if (_isConnecting)
+        if (_pinConnectionController.IsConnecting)
         {
-            CancelPendingConnection("已取消连线。");
+            _pinConnectionController.Cancel("已取消连线。");
             e.Handled = true;
             return;
         }
@@ -796,31 +672,20 @@ public partial class MainWindow : Window
             if (Math.Abs(delta.X) > 3 || Math.Abs(delta.Y) > 3)
             {
                 _rightClickPending = false;
-                _isPanning = true;
-                _panStart = currentPos;
-                _panStartOffset = new Point(GraphPanTransform.X, GraphPanTransform.Y);
-                GraphViewport.CaptureMouse();
+                _canvasPanZoomController.BeginPan(currentPos);
             }
         }
 
-        if (_isPanning)
+        if (_canvasPanZoomController.IsPanning)
         {
             if (e.RightButton != MouseButtonState.Pressed)
             {
-                _isPanning = false;
-                GraphViewport.ReleaseMouseCapture();
+                _canvasPanZoomController.EndPan();
             }
-            var currentPan = e.GetPosition(GraphViewport);
-            var delta = currentPan - _panStart;
-            GraphPanTransform.X = _panStartOffset.X + delta.X;
-            GraphPanTransform.Y = _panStartOffset.Y + delta.Y;
+            _canvasPanZoomController.MovePan(e);
         }
 
-        if (_isConnecting && _pendingOutputPin is not null)
-        {
-            _wireWasDragged = true;
-            UpdatePreviewConnectionGeometry(_pendingOutputPin, _lastMousePosition);
-        }
+        _pinConnectionController.Move(_lastMousePosition);
 
         if (!_isSelecting) return;
 
@@ -838,21 +703,10 @@ public partial class MainWindow : Window
 
     private void GraphViewport_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
-        if (_isConnecting)
+        if (_pinConnectionController.IsConnecting)
         {
-            if (_pendingOutputPin is not null &&
-                TryGetPinAtPosition(ViewportToGraph(e.GetPosition(GraphViewport)), out var targetPin) &&
-                targetPin is not null &&
-                targetPin != _pendingOutputPin)
-            {
-                TryConnectPending(targetPin);
-            }
-            else if (_wireWasDragged && _pendingOutputPin is not null)
-            {
-                CancelPendingConnection("已取消连线。");
-            }
-
-            ReleasePreviewWire();
+            TryGetPinAtPosition(ViewportToGraph(e.GetPosition(GraphViewport)), out var targetPin);
+            _pinConnectionController.CompleteOrCancel(targetPin);
             e.Handled = true;
             return;
         }
@@ -906,14 +760,13 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (!_isPanning)
+        if (!_canvasPanZoomController.IsPanning)
         {
             GraphViewport.ReleaseMouseCapture();
             return;
         }
 
-        _isPanning = false;
-        GraphViewport.ReleaseMouseCapture();
+        _canvasPanZoomController.EndPan();
         e.Handled = true;
     }
 
@@ -929,21 +782,7 @@ public partial class MainWindow : Window
             }
         }
 
-        var mouseInViewport = e.GetPosition(GraphViewport);
-        var graphPoint = ViewportToGraph(mouseInViewport);
-
-        var oldZoom = _zoomLevel;
-        var zoomDelta = e.Delta > 0 ? 0.1 : -0.1;
-        var newZoom = Math.Clamp(oldZoom + zoomDelta, 0.1, 2.5);
-
-        if (Math.Abs(newZoom - oldZoom) < 0.001) return;
-
-        _zoomLevel = newZoom;
-        GraphZoomTransform.ScaleX = newZoom;
-        GraphZoomTransform.ScaleY = newZoom;
-        GraphPanTransform.X = mouseInViewport.X - graphPoint.X * newZoom;
-        GraphPanTransform.Y = mouseInViewport.Y - graphPoint.Y * newZoom;
-
+        _canvasPanZoomController.Zoom(e);
         e.Handled = true;
     }
 
@@ -970,8 +809,7 @@ public partial class MainWindow : Window
         // Alt+点击断开连接
         if ((Keyboard.Modifiers & ModifierKeys.Alt) != 0)
         {
-            _editorService.ClearConnectionsForPin(pin);
-            SetStatus($"已断开 {pin.Owner.Title}.{pin.DisplayName} 的所有连接。");
+            _pinConnectionController.DisconnectPin(pin);
             e.Handled = true;
             return;
         }
@@ -979,22 +817,16 @@ public partial class MainWindow : Window
         // 从输出引脚开始拖拽连线
         if (pin.Direction == PinDirection.Output)
         {
-            _pendingOutputPin = pin;
-            _isConnecting = true;
-            _wireWasDragged = false;
-            GraphViewport.CaptureMouse();
             var pos = ViewportToGraph(e.GetPosition(GraphViewport));
-            UpdatePreviewConnectionGeometry(pin, pos);
-            PreviewConnectionPath.Visibility = Visibility.Visible;
-            SetStatus($"从{pin.Owner.Title}.{pin.DisplayName} 拖拽连线...");
+            _pinConnectionController.Begin(pin, pos);
             e.Handled = true;
             return;
         }
 
         // 点击输入引脚完成连线
-        if (pin.Direction == PinDirection.Input && _pendingOutputPin is not null && _isConnecting)
+        if (pin.Direction == PinDirection.Input && _pinConnectionController.IsConnecting)
         {
-            TryConnectPending(pin);
+            _pinConnectionController.Complete(pin);
             e.Handled = true;
         }
     }
@@ -1003,71 +835,9 @@ public partial class MainWindow : Window
     {
         if (sender is not FrameworkElement element || element.DataContext is not PinViewModel pin)
             return;
-        if (!_isConnecting || _pendingOutputPin is null) return;
-        if (pin == _pendingOutputPin)
-        {
-            e.Handled = true;
-            return;
-        }
-
-        TryConnectPending(pin);
+        if (!_pinConnectionController.IsConnecting) return;
+        _pinConnectionController.Complete(pin);
         e.Handled = true;
-    }
-
-    private void TryConnectPending(PinViewModel targetPin)
-    {
-        if (_pendingOutputPin is null || !_isConnecting) return;
-
-        if (!_editorService.CanConnect(_pendingOutputPin, targetPin, out var reason))
-        {
-            SetStatus(reason);
-            CancelPendingConnection(null);
-            return;
-        }
-
-        _editorService.CreateConnection(_pendingOutputPin, targetPin);
-        SetStatus($"已连接：{_pendingOutputPin.Owner.Title}.{_pendingOutputPin.DisplayName} -> {targetPin.Owner.Title}.{targetPin.DisplayName}");
-        CancelPendingConnection(null);
-    }
-
-    private void CancelPendingConnection(string? statusMessage)
-    {
-        _pendingOutputPin = null;
-        _isConnecting = false;
-        ReleasePreviewWire();
-
-        if (!string.IsNullOrWhiteSpace(statusMessage))
-            SetStatus(statusMessage);
-    }
-
-    private void ReleasePreviewWire()
-    {
-        PreviewConnectionPath.Visibility = Visibility.Collapsed;
-        PreviewConnectionPath.Data = null;
-        GraphViewport.ReleaseMouseCapture();
-    }
-
-    private void UpdatePreviewConnectionGeometry(PinViewModel sourcePin, Point currentPoint)
-    {
-        var startAnchor = sourcePin.Owner.GetPinAnchor(sourcePin);
-        var start = new Point(sourcePin.Owner.X + startAnchor.X, sourcePin.Owner.Y + startAnchor.Y);
-        var end = currentPoint;
-
-        var tangent = Math.Max(80, Math.Abs(end.X - start.X) * 0.45);
-        var control1 = new Point(start.X + tangent, start.Y);
-        var control2 = new Point(end.X - tangent, end.Y);
-
-        var figure = new PathFigure
-        {
-            StartPoint = start,
-            IsClosed = false,
-            IsFilled = false,
-        };
-        figure.Segments.Add(new BezierSegment(control1, control2, end, true));
-
-        var geometry = new PathGeometry();
-        geometry.Figures.Add(figure);
-        PreviewConnectionPath.Data = geometry;
     }
 
     #endregion
@@ -1111,9 +881,7 @@ public partial class MainWindow : Window
             return;
 
         _isCanvasFocusActive = false;
-        _editorService.RemoveConnection(connection);
-        _editorService.UpdatePinConnectionStates();
-        SetStatus("已断开连接。");
+        _pinConnectionController.RemoveConnection(connection);
         e.Handled = true;
     }
 
@@ -1173,12 +941,13 @@ public partial class MainWindow : Window
         // Esc：取消执行或取消连线
         if (e.Key == Key.Escape)
         {
-            if (_executionCts is not null)
+            if (_executionController.IsRunning)
             {
-                Logger.Info("===== 用户取消执行 (ESC) =====");
-                _executionCts.Cancel();
-                _runtimeExecutor.ReleaseAllKeys();
-                SetStatus("正在停止执行...");
+                _executionController.Cancel();
+            }
+            else if (_pinConnectionController.IsConnecting)
+            {
+                _pinConnectionController.Cancel("已取消连线。");
             }
             e.Handled = true;
             return;
@@ -1188,20 +957,8 @@ public partial class MainWindow : Window
         {
             if (Keyboard.FocusedElement is not TextBox)
             {
-                if (e.Key == Key.Delete)
-                {
-                    DeleteSelectedGraphItem();
-                    e.Handled = true;
-                    return;
-                }
-
-                if (e.Key == Key.F2)
-                {
-                    if (SelectedGraphItem is not null)
-                        StartRenameGraphItem(SelectedGraphItem);
-                    e.Handled = true;
-                    return;
-                }
+                _graphListController.HandleKeyDown(e);
+                if (e.Handled) return;
             }
 
             return;
@@ -1687,7 +1444,7 @@ public partial class MainWindow : Window
 
         try
         {
-            ImportGraphFileToList(filePath);
+            _graphListController.ImportFile(filePath);
         }
         catch (Exception ex)
         {
@@ -1702,10 +1459,7 @@ public partial class MainWindow : Window
     private void OnGraphChanged()
     {
         _editorService.UpdatePinConnectionStates();
-        if (!_isLoadingGraph && _activeGraphItem is not null)
-        {
-            _activeGraphItem.IsDirty = true;
-        }
+        _graphListController.MarkDirty();
 
         if (_editorService.Nodes.FirstOrDefault(n => n.IsSelected) is { } selected)
         {
@@ -1735,165 +1489,17 @@ public partial class MainWindow : Window
 
     private Point ViewportToGraph(Point viewportPoint)
     {
-        return new Point(
-            (viewportPoint.X - GraphPanTransform.X) / _zoomLevel,
-            (viewportPoint.Y - GraphPanTransform.Y) / _zoomLevel);
+        return _canvasPanZoomController.ViewportToGraph(viewportPoint);
     }
 
     private void FitGraphToView()
     {
-        if (_editorService.Nodes.Count == 0 || GraphViewport.ActualWidth <= 0 || GraphViewport.ActualHeight <= 0)
-            return;
-
-        double left = _editorService.Nodes.Min(n => n.X);
-        double top = _editorService.Nodes.Min(n => n.Y);
-        double right = _editorService.Nodes.Max(n => n.X + n.Width);
-        double bottom = _editorService.Nodes.Max(n => n.Y + n.Height);
-
-        double width = Math.Max(1, right - left);
-        double height = Math.Max(1, bottom - top);
-        double padding = 0.08;
-        double viewWidth = GraphViewport.ActualWidth * (1.0 - padding * 2.0);
-        double viewHeight = GraphViewport.ActualHeight * (1.0 - padding * 2.0);
-
-        double zoomX = viewWidth / width;
-        double zoomY = viewHeight / height;
-        _zoomLevel = Math.Clamp(Math.Min(zoomX, zoomY), 0.1, 2.5);
-        GraphZoomTransform.ScaleX = _zoomLevel;
-        GraphZoomTransform.ScaleY = _zoomLevel;
-
-        GraphPanTransform.X = (GraphViewport.ActualWidth - width * _zoomLevel) / 2.0 - left * _zoomLevel;
-        GraphPanTransform.Y = (GraphViewport.ActualHeight - height * _zoomLevel) / 2.0 - top * _zoomLevel;
-        SetStatus("已缩放到节点全览。");
+        _canvasPanZoomController.FitGraphToView();
     }
 
     private void RefreshInspectorLocks(NodeBaseViewModel? node)
     {
-        if (node is MouseClickNodeViewModel cn)
-        {
-            bool locked = IsInputPinConnected(cn, "position");
-            LockTextBox(MousePositionXTextBox, locked, cn.PositionX.ToString("0.##"));
-            LockTextBox(MousePositionYTextBox, locked, cn.PositionY.ToString("0.##"));
-        }
-        else
-        {
-            LockTextBox(MousePositionXTextBox, false, "");
-            LockTextBox(MousePositionYTextBox, false, "");
-        }
-
-        if (node is MouseMoveNodeViewModel mn)
-        {
-            bool locked = IsInputPinConnected(mn, "position");
-            LockTextBox(MouseMovePositionXTextBox, locked, mn.PositionX.ToString("0.##"));
-            LockTextBox(MouseMovePositionYTextBox, locked, mn.PositionY.ToString("0.##"));
-        }
-        else
-        {
-            LockTextBox(MouseMovePositionXTextBox, false, "");
-            LockTextBox(MouseMovePositionYTextBox, false, "");
-        }
-
-        if (node is IfNodeViewModel ifNode)
-        {
-            bool locked = IsInputPinConnected(ifNode, "condition");
-            LockConditionCombo(IfConditionComboBox, locked, ifNode.ConditionValue);
-        }
-        else
-        {
-            LockConditionCombo(IfConditionComboBox, false, false);
-        }
-
-        if (node is WhileLoopNodeViewModel wNode)
-        {
-            bool locked = IsInputPinConnected(wNode, "condition");
-            LockConditionCombo(WhileLoopConditionComboBox, locked, wNode.ConditionValue);
-        }
-        else
-        {
-            LockConditionCombo(WhileLoopConditionComboBox, false, false);
-        }
-
-        if (node is ForLoopNodeViewModel flNode)
-        {
-            bool locked = IsInputPinConnected(flNode, "end_condition");
-            LockConditionCombo(ForLoopEndConditionComboBox, locked, flNode.EndConditionValue);
-        }
-        else
-        {
-            LockConditionCombo(ForLoopEndConditionComboBox, false, false);
-        }
-
-        if (node is PrintLogNodeViewModel plNode)
-        {
-            bool locked = IsInputPinConnected(plNode, "message");
-            LockTextBox(PrintLogMessageTextBox, locked, plNode.Message);
-        }
-        else
-        {
-            LockTextBox(PrintLogMessageTextBox, false, "");
-        }
-
-        if (node is SelectWindowNodeViewModel swNode)
-        {
-            bool locked = IsInputPinConnected(swNode, "process_name");
-            LockTextBox(SelectWindowProcessNameTextBox, locked, swNode.ProcessName);
-        }
-        else
-        {
-            LockTextBox(SelectWindowProcessNameTextBox, false, "");
-        }
-
-        if (node is FindTextNodeViewModel ftNode)
-        {
-            bool locked = IsInputPinConnected(ftNode, "text");
-            LockTextBox(FindTextTextBox, locked, ftNode.Text);
-        }
-        else
-        {
-            LockTextBox(FindTextTextBox, false, "");
-        }
-    }
-
-    private static void LockTextBox(TextBox tb, bool locked, string restoreValue)
-    {
-        tb.IsEnabled = !locked;
-        if (locked)
-        {
-            tb.Text = "前置输入";
-            tb.Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x7A, 0x87, 0x97));
-            tb.Background = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x25, 0x29, 0x30));
-            tb.BorderBrush = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x3A, 0x40, 0x4A));
-        }
-        else
-        {
-            tb.Text = restoreValue;
-            tb.ClearValue(System.Windows.Controls.Control.ForegroundProperty);
-            tb.ClearValue(System.Windows.Controls.Control.BackgroundProperty);
-            tb.ClearValue(System.Windows.Controls.Control.BorderBrushProperty);
-        }
-    }
-
-    private static void LockConditionCombo(System.Windows.Controls.ComboBox cb, bool locked, bool restoreValue)
-    {
-        cb.IsEnabled = !locked;
-        if (locked)
-        {
-            cb.Foreground = System.Windows.Media.Brushes.Gray;
-            cb.Items.Clear();
-            cb.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = "前置输入" });
-            cb.SelectedIndex = 0;
-        }
-        else
-        {
-            cb.ClearValue(System.Windows.Controls.Control.ForegroundProperty);
-            if (cb.Items.Count != 2)
-            {
-                cb.Items.Clear();
-                cb.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = "False" });
-                cb.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = "True" });
-                cb.SelectedIndex = restoreValue ? 1 : 0;
-            }
-        }
+        _inspectorController.RefreshLocks(node, IsInputPinConnected);
     }
 
     private bool TryGetPinAtPosition(Point position, out PinViewModel? pin)
@@ -2037,124 +1643,32 @@ public partial class MainWindow : Window
 
     #region 节点右键菜单
 
-    private record NodePaletteItem(string Category, string Name, Func<double, double, NodeBaseViewModel> Factory);
-
-    private List<NodePaletteItem> _paletteItems = [];
-
     private void InitializeNodePalette()
     {
-        _paletteItems =
-        [
-            new("输入节点", "鼠标点击", (x, y) => _nodeFactory.CreateMouseClickNode(x, y)),
-            new("输入节点", "键盘", (x, y) => _nodeFactory.CreateKeyboardNode(x, y)),
-            new("输入节点", "鼠标滚轮", (x, y) => _nodeFactory.CreateScrollWheelNode(x, y)),
-            new("输入节点", "鼠标移动", (x, y) => _nodeFactory.CreateMouseMoveNode(x, y)),
-            new("逻辑节点", "延迟", (x, y) => _nodeFactory.CreateDelayNode(x, y)),
-            new("逻辑节点", "分支", (x, y) => _nodeFactory.CreateIfNode(x, y)),
-            new("逻辑节点", "For循环", (x, y) => _nodeFactory.CreateForLoopNode(x, y)),
-            new("逻辑节点", "While循环", (x, y) => _nodeFactory.CreateWhileLoopNode(x, y)),
-            new("功能节点", "启动程序", (x, y) => _nodeFactory.CreateStartProgramNode(x, y)),
-            new("功能节点", "选中窗口", (x, y) => _nodeFactory.CreateSelectWindowNode(x, y)),
-            new("调试", "打印log", (x, y) => _nodeFactory.CreatePrintLogNode(x, y)),
-            new("插件节点", "找图", (x, y) => _nodeFactory.CreateFindImageNode(x, y)),
-            new("插件节点", "找字", (x, y) => _nodeFactory.CreateFindTextNode(x, y)),
-        ];
+        // NodePaletteController builds menu entries from NodeRegistry definitions on demand.
     }
 
     private void OpenNodePalette(Point viewportPos)
     {
-        NodePaletteSearchBox.Text = string.Empty;
-        BuildNodePaletteContent(string.Empty);
-
-        Canvas.SetLeft(NodePalette, viewportPos.X);
-        Canvas.SetTop(NodePalette, viewportPos.Y);
-        NodePalette.Visibility = Visibility.Visible;
-
-        Dispatcher.BeginInvoke(new Action(() => NodePaletteSearchBox.Focus()), DispatcherPriority.Render);
+        _nodePaletteController.Open(viewportPos);
     }
 
     private void CloseNodePalette()
     {
-        NodePalette.Visibility = Visibility.Collapsed;
-    }
-
-    private void BuildNodePaletteContent(string filter)
-    {
-        NodePaletteContent.Children.Clear();
-        var filtered = _paletteItems.Where(i => string.IsNullOrWhiteSpace(filter) || i.Name.Contains(filter, StringComparison.OrdinalIgnoreCase)).ToList();
-
-        if (filtered.Count == 0)
-        {
-            NodePaletteContent.Children.Add(new TextBlock
-            {
-                Text = "未找到匹配节点",
-                Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x7A, 0x87, 0x97)),
-                Margin = new Thickness(12, 8, 12, 8),
-                FontSize = 12,
-            });
-            return;
-        }
-
-        var groups = filtered.GroupBy(i => i.Category).ToList();
-        foreach (var group in groups)
-        {
-            // 分类标题
-            var categoryText = new TextBlock
-            {
-                Text = group.Key,
-                Foreground = System.Windows.Media.Brushes.White,
-                FontWeight = FontWeights.SemiBold,
-                FontSize = 12,
-                Margin = new Thickness(12, 10, 12, 4),
-            };
-            NodePaletteContent.Children.Add(categoryText);
-
-            foreach (var item in group)
-            {
-                var button = new System.Windows.Controls.Button
-                {
-                    Content = item.Name,
-                    Background = System.Windows.Media.Brushes.Transparent,
-                    BorderThickness = new Thickness(0),
-                    Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0xD0, 0xD7, 0xE2)),
-                    FontSize = 13,
-                    Padding = new Thickness(12, 6, 12, 6),
-                    HorizontalContentAlignment = System.Windows.HorizontalAlignment.Left,
-                    Cursor = System.Windows.Input.Cursors.Hand,
-                    Tag = item,
-                };
-                button.Click += NodePaletteItem_Click;
-                NodePaletteContent.Children.Add(button);
-            }
-        }
-    }
-
-    private void NodePaletteItem_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is System.Windows.Controls.Button btn && btn.Tag is NodePaletteItem item)
-        {
-            var graphPos = ViewportToGraph(_rightClickStartPos);
-            var node = item.Factory(0, 0);
-            node.X = graphPos.X;
-            node.Y = graphPos.Y;
-            _editorService.AddNode(node);
-            SelectNode(node);
-            CloseNodePalette();
-        }
+        _nodePaletteController.Close();
     }
 
     private void NodePaletteSearchBox_TextChanged(object sender, TextChangedEventArgs e)
     {
-        BuildNodePaletteContent(NodePaletteSearchBox.Text.Trim());
+        _nodePaletteController.Filter(NodePaletteSearchBox.Text.Trim());
     }
 
     private void Window_PreviewMouseDown(object sender, MouseButtonEventArgs e)
     {
-        if (NodePalette.Visibility != Visibility.Visible) return;
+        if (!_nodePaletteController.IsOpen) return;
 
         var pos = e.GetPosition(NodePalette);
-        bool inside = pos.X >= 0 && pos.X <= NodePalette.ActualWidth && pos.Y >= 0 && pos.Y <= NodePalette.ActualHeight;
-        if (!inside)
+        if (!_nodePaletteController.IsPointInside(pos))
         {
             CloseNodePalette();
         }

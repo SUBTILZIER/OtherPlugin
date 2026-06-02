@@ -5,6 +5,70 @@ WPF 可视化节点自动化编辑器，类似 UE4 蓝图。技术栈 C# 12 / .N
 
 ## 踩坑记录（按时间倒序，新记录追加到顶部）
 
+### 2026-06-02: Runtime/Adapter/Interaction 解耦重构
+
+#### New architecture: Runtime 只调度，具体能力下沉
+- **Runtime**:
+  - `Runtime/GraphRuntimeExecutor.cs` 只保留执行链调度、分支/循环、取消、环路步数保护、调用节点执行器。
+  - `Runtime/RuntimeContext.cs` 统一保存节点输出，统一解析前置输入。
+  - `NodeExecutionResult` 用 `Success / WarnButContinue / FatalStop` 区分“可继续警告”和“致命停止”。
+- **Adapters**:
+  - 鼠标：`IMouseAdapter` / `Win32MouseAdapter`
+  - 键盘：`IKeyboardAdapter` / `Win32KeyboardAdapter`
+  - 窗口：`IWindowAdapter` / `Win32WindowAdapter`
+  - 进程：`IProcessAdapter` / `ProcessAdapter`
+  - Python：`IPythonScriptAdapter` / `PythonScriptAdapter`
+- **Nodes**:
+  - 节点执行器按分类放入 `Nodes/Core`、`Nodes/Input`、`Nodes/System`、`Nodes/Plugins`、`Nodes/Debug`。
+  - 新增节点执行逻辑时优先写对应 `INodeExecutor`，不要再往 `GraphRuntimeExecutor` 塞 switch 分支。
+- **Interaction**:
+  - `ExecutionController`：执行、取消、校验、Python 环境检查。
+  - `GraphListController`：图谱新增、切换、删除、重命名、保存、退出保存提示。
+  - `CanvasPanZoomController`：右键平移、滚轮缩放、F 全览、坐标转换。
+  - `PinConnectionController`：拖线、连线、断线、预览线。
+  - `InspectorController`：属性字段锁定灰态。
+  - `NodePaletteController`：右键节点菜单，条目来自 `NodeRegistry.Definitions`。
+
+#### Lesson: 前置输入已连接但运行时无值，不能回退本地默认值
+- **Risk**: `找图.center -> 鼠标点击.position` 时，如果找图未命中且鼠标节点回退本地坐标，可能误点 `(0,0)` 或旧坐标。
+- **Rule**:
+  - 未连接输入：允许使用本地属性。
+  - 已连接输入但上游无值：当前节点 `WarnButContinue`，跳过本节点，不回退本地属性。
+- **Applies to**: 鼠标点击、鼠标移动、找字文本输入、打印日志消息输入、选中窗口进程名输入。
+
+#### Lesson: NodeRegistry 是节点菜单和执行器注册的单一入口
+- `NodeRegistry.Definitions` 提供节点名称、分类、引脚定义。
+- `NodePaletteController` 从 registry 生成菜单，不要在 `MainWindow` 手写节点列表。
+- `NodeFactory.CreateNode(NodeKind, x, y)` 负责按 `NodeKind` 创建 ViewModel。
+
+#### Lesson: WPF + WinForms 项目新增 controller 时要避免命名空间歧义
+- 项目启用 WinForms，新增 WPF controller 时常见歧义：
+  - `Button`
+  - `TextBox`
+  - `ListBox`
+  - `MessageBox`
+  - `MouseEventArgs`
+  - `KeyEventArgs`
+  - `Control`
+  - `Brushes`
+  - `Color`
+  - `Cursors`
+- **Fix**: 在 controller 文件里使用别名或完整限定名，例如：
+  - `using WpfTextBox = System.Windows.Controls.TextBox;`
+  - `using WpfKeyEventArgs = System.Windows.Input.KeyEventArgs;`
+  - `System.Windows.MessageBox.Show(...)`
+
+#### UI change: 工具栏删除“删除所选节点 / 清除待连接引脚”
+- 顶部工具栏只保留图谱文件操作和执行图谱。
+- 删除节点仍走键盘 `Delete`。
+- 清除待连接引脚仍走 `Esc` 取消连线。
+- 删除按钮时必须同时移除 XAML `Click` handler 和 `MainWindow.xaml.cs` 对应方法，否则 WPF 编译会因事件找不到失败。
+
+#### Current verified state
+- `dotnet build .\AutomationStudioWpf.csproj` 通过：0 warning / 0 error。
+- CodeGraph 已同步，当前状态约：71 files / 1253 nodes / 2308 edges。
+- PowerShell 执行策略可能拦截 `codegraph.ps1`，用 `codegraph.cmd sync`。
+
 ### 2026-05-30: 键盘输入在游戏窗口无效 + SendInput 结构体布局
 
 #### Problem: 键盘节点在普通应用正常，游戏窗口完全无效

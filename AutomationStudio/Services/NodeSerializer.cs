@@ -27,10 +27,10 @@ public static class NodeSerializer
                 break;
 
             case StartProgramNodeViewModel startProg:
-                file.ImagePath = startProg.ProgramPath;
-                file.DelayMs = startProg.WaitTimeoutMs;
-                file.ScrollAction = startProg.FailureAction.ToString();
-                file.ScrollSpeed = startProg.RetryCount;
+                file.ProgramPath = startProg.ProgramPath;
+                file.WaitTimeoutMs = startProg.WaitTimeoutMs;
+                file.FailureAction = startProg.FailureAction.ToString();
+                file.RetryCount = startProg.RetryCount;
                 break;
 
             case MouseClickNodeViewModel mouseNode:
@@ -62,8 +62,8 @@ public static class NodeSerializer
 
             case WhileLoopNodeViewModel whileNode:
                 file.ConditionValue = whileNode.ConditionValue;
-                file.ScrollAction = whileNode.LoopMode.ToString();
-                file.DelayMs = whileNode.MaxIterations;
+                file.WhileLoopMode = whileNode.LoopMode.ToString();
+                file.MaxIterations = whileNode.MaxIterations;
                 break;
 
             case ForLoopNodeViewModel forNode:
@@ -81,7 +81,7 @@ public static class NodeSerializer
                 break;
 
             case PrintLogNodeViewModel printNode:
-                file.ImagePath = printNode.Message;
+                file.PrintLogMessage = printNode.Message;
                 break;
 
             case SelectWindowNodeViewModel selectWindowNode:
@@ -89,7 +89,7 @@ public static class NodeSerializer
                 break;
 
             case FindTextNodeViewModel findTextNode:
-                file.ImagePath = findTextNode.Text;
+                file.FindTextText = findTextNode.Text;
                 file.SimilarityThresholdPercent = findTextNode.SimilarityThresholdPercent;
                 break;
         }
@@ -122,7 +122,7 @@ public static class NodeSerializer
                 Title = file.Title,
                 X = file.X,
                 Y = file.Y,
-                Text = file.ImagePath ?? string.Empty,
+                Text = file.FindTextText ?? file.ImagePath ?? string.Empty,
                 SimilarityThresholdPercent = file.SimilarityThresholdPercent,
             },
 
@@ -131,10 +131,10 @@ public static class NodeSerializer
                 Title = file.Title,
                 X = file.X,
                 Y = file.Y,
-                ProgramPath = file.ImagePath ?? string.Empty,
-                WaitTimeoutMs = file.DelayMs > 0 ? file.DelayMs : 60000,
-                FailureAction = Enum.TryParse<ProgramStartFailureAction>(file.ScrollAction, true, out var fa) ? fa : ProgramStartFailureAction.None,
-                RetryCount = file.ScrollSpeed > 0 ? file.ScrollSpeed : 3,
+                ProgramPath = file.ProgramPath ?? file.ImagePath ?? string.Empty,
+                WaitTimeoutMs = file.WaitTimeoutMs > 0 ? file.WaitTimeoutMs : (file.DelayMs > 0 ? file.DelayMs : 60000),
+                FailureAction = Enum.TryParse<ProgramStartFailureAction>(file.FailureAction ?? file.ScrollAction, true, out var fa) ? fa : ProgramStartFailureAction.None,
+                RetryCount = file.RetryCount > 0 ? file.RetryCount : (file.ScrollSpeed > 0 ? file.ScrollSpeed : 3),
             },
 
             "mouse_left_click" or "mouse_click" => new MouseClickNodeViewModel(file.Id)
@@ -200,8 +200,8 @@ public static class NodeSerializer
                 X = file.X,
                 Y = file.Y,
                 ConditionValue = file.ConditionValue,
-                LoopMode = Enum.TryParse<WhileLoopMode>(file.ScrollAction, true, out var lm) ? lm : WhileLoopMode.Finite,
-                MaxIterations = file.DelayMs > 0 ? file.DelayMs : 10000,
+                LoopMode = Enum.TryParse<WhileLoopMode>(file.WhileLoopMode ?? file.ScrollAction, true, out var lm) ? lm : WhileLoopMode.Finite,
+                MaxIterations = file.MaxIterations > 0 ? file.MaxIterations : (file.DelayMs > 0 ? file.DelayMs : 10000),
             },
 
             "delay" => new DelayNodeViewModel(file.Id)
@@ -226,7 +226,7 @@ public static class NodeSerializer
                 Title = file.Title,
                 X = file.X,
                 Y = file.Y,
-                Message = file.ImagePath ?? string.Empty,
+                Message = file.PrintLogMessage ?? file.ImagePath ?? string.Empty,
             },
 
             "select_window" => new SelectWindowNodeViewModel(file.Id)

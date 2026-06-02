@@ -21,11 +21,18 @@ def find_template(screen: np.ndarray, template: np.ndarray, threshold: float) ->
 
 def main():
     if len(sys.argv) < 3:
-        print(json.dumps({"found": False, "error": "Usage: find_image.py <template_path> <threshold_0_100>"}))
-        sys.exit(1)
+        if len(sys.argv) == 2 and sys.argv[1].lower().endswith(".json"):
+            with open(sys.argv[1], "r", encoding="utf-8") as f:
+                request = json.load(f)
+            template_path = request.get("template_path", "")
+            threshold_pct = float(request.get("threshold_percent", 80))
+        else:
+            print(json.dumps({"found": False, "error": "Usage: find_image.py <request.json> or <template_path> <threshold_0_100>"}))
+            sys.exit(1)
+    else:
+        template_path = sys.argv[1]
+        threshold_pct = float(sys.argv[2])
 
-    template_path = sys.argv[1]
-    threshold_pct = float(sys.argv[2])
     threshold = max(0.0, min(1.0, threshold_pct / 100.0))
 
     try:

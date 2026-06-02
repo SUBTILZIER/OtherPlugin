@@ -6,12 +6,19 @@ import os
 
 def main():
     if len(sys.argv) < 3:
-        result = {"found": False, "error": "Usage: find_text.py <search_text> <threshold_0_100>"}
-        print(json.dumps(result), flush=True)
-        sys.exit(0)
+        if len(sys.argv) == 2 and sys.argv[1].lower().endswith(".json"):
+            with open(sys.argv[1], "r", encoding="utf-8") as f:
+                request = json.load(f)
+            search_text = request.get("search_text", "")
+            threshold_pct = float(request.get("threshold_percent", 80))
+        else:
+            result = {"found": False, "error": "Usage: find_text.py <request.json> or <search_text> <threshold_0_100>"}
+            print(json.dumps(result), flush=True)
+            sys.exit(0)
+    else:
+        search_text = sys.argv[1]
+        threshold_pct = float(sys.argv[2])
 
-    search_text = sys.argv[1]
-    threshold_pct = float(sys.argv[2])
     threshold = max(0.0, min(1.0, threshold_pct / 100.0))
 
     # Debug header to stderr so it appears in log

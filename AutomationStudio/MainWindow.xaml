@@ -26,9 +26,6 @@
             <Button Content="保存" Margin="2" Padding="10,4" Click="SaveGraph_Click" />
             <Button Content="另存为" Margin="2" Padding="10,4" Click="SaveGraphAs_Click" />
             <Button x:Name="RunGraphButton" Content="执行图谱" Margin="2" Padding="10,4" Click="RunGraph_Click" />
-            <Separator />
-            <Button Content="删除所选节点" Margin="2" Padding="10,4" Click="DeleteSelectedNode_Click" />
-            <Button Content="清除待连接引脚" Margin="2" Padding="10,4" Click="ClearPendingConnection_Click" />
         </ToolBar>
 
         <Grid>
