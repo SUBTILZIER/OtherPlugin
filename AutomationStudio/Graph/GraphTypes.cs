@@ -68,6 +68,12 @@ public enum WhileLoopMode
     Finite,
 }
 
+public enum WindowInputMode
+{
+    Manual,
+    Auto,
+}
+
 public enum VirtualKeyCode
 {
     A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y, Z,

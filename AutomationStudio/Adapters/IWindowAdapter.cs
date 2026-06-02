@@ -5,5 +5,6 @@ public sealed record WindowSelectionResult(bool Success, string ProcessName, str
 public interface IWindowAdapter
 {
     WindowSelectionResult SelectWindowByProcessName(string processName);
+    List<string> GetRunningWindowNames();
 }
 

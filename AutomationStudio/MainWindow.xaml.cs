@@ -44,6 +44,7 @@ public partial class MainWindow : Window
     private CanvasPanZoomController _canvasPanZoomController = null!;
     private InspectorController _inspectorController = null!;
     private PinConnectionController _pinConnectionController = null!;
+    private readonly Adapters.Win32WindowAdapter _windowAdapter = new();
 
     // 运行状态
     private Point _lastMousePosition;
@@ -662,17 +663,20 @@ public partial class MainWindow : Window
 
     private void GraphViewport_PreviewMouseMove(object sender, MouseEventArgs e)
     {
-        _lastMousePosition = ViewportToGraph(e.GetPosition(GraphViewport));
+        var viewportPos = e.GetPosition(GraphViewport);
+        _lastMousePosition = ViewportToGraph(viewportPos);
+
+        if (_dragNode is not null || _pinConnectionController.IsConnecting)
+            _canvasPanZoomController.EdgePan(viewportPos);
 
         // 右键拖动检测：移动超过阈值则转为平移
         if (_rightClickPending && e.RightButton == MouseButtonState.Pressed)
         {
-            var currentPos = e.GetPosition(GraphViewport);
-            var delta = currentPos - _rightClickStartPos;
+            var delta = viewportPos - _rightClickStartPos;
             if (Math.Abs(delta.X) > 3 || Math.Abs(delta.Y) > 3)
             {
                 _rightClickPending = false;
-                _canvasPanZoomController.BeginPan(currentPos);
+                _canvasPanZoomController.BeginPan(viewportPos);
             }
         }
 
@@ -1201,8 +1205,23 @@ public partial class MainWindow : Window
 
             case SelectWindowNodeViewModel selectWindowNode:
                 SelectWindowInspectorPanel.Visibility = Visibility.Visible;
+                SelectWindowInputModeComboBox.SelectedIndex = selectWindowNode.InputMode == WindowInputMode.Auto ? 1 : 0;
                 bool hasProcessNameInput = IsInputPinConnected(selectWindowNode, "process_name");
-                SelectWindowProcessNameTextBox.Text = hasProcessNameInput ? "前置输入" : selectWindowNode.ProcessName;
+                if (hasProcessNameInput)
+                {
+                    SelectWindowProcessNameTextBox.Text = "前置输入";
+                    SelectWindowAutoComboBox.SelectedItem = null;
+                }
+                else if (selectWindowNode.InputMode == WindowInputMode.Auto)
+                {
+                    PopulateWindowListComboBox();
+                    SelectWindowAutoComboBox.SelectedItem = selectWindowNode.ProcessName;
+                }
+                else
+                {
+                    SelectWindowProcessNameTextBox.Text = selectWindowNode.ProcessName;
+                }
+                UpdateSelectWindowModeVisibility(selectWindowNode.InputMode, hasProcessNameInput);
                 break;
         }
 
@@ -1330,7 +1349,12 @@ public partial class MainWindow : Window
 
             case SelectWindowNodeViewModel selectWindowNode:
                 if (!IsInputPinConnected(selectWindowNode, "process_name"))
-                    selectWindowNode.ProcessName = SelectWindowProcessNameTextBox.Text.Trim();
+                {
+                    if (selectWindowNode.InputMode == WindowInputMode.Auto)
+                        selectWindowNode.ProcessName = (SelectWindowAutoComboBox.SelectedItem as string) ?? string.Empty;
+                    else
+                        selectWindowNode.ProcessName = SelectWindowProcessNameTextBox.Text.Trim();
+                }
                 break;
         }
 
@@ -1374,6 +1398,57 @@ public partial class MainWindow : Window
             StartProgramPathTextBox.Text = dialog.FileName;
             ApplyInspectorChanges();
         }
+    }
+
+    private void SelectWindowInputMode_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_isLoadingInspector) return;
+
+        var mode = SelectWindowInputModeComboBox.SelectedIndex == 1 ? WindowInputMode.Auto : WindowInputMode.Manual;
+        var node = _editorService.Nodes.OfType<SelectWindowNodeViewModel>().FirstOrDefault(n => n.IsSelected);
+        if (node is null) return;
+
+        bool locked = IsInputPinConnected(node, "process_name");
+        node.InputMode = mode;
+        UpdateSelectWindowModeVisibility(mode, locked);
+
+        if (mode == WindowInputMode.Auto && !locked)
+        {
+            PopulateWindowListComboBox();
+            SelectWindowAutoComboBox.SelectedItem = node.ProcessName;
+        }
+
+        if (_activeGraphItem is not null)
+            _activeGraphItem.IsDirty = true;
+    }
+
+    private void SelectWindowAutoComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_isLoadingInspector) return;
+        ApplyInspectorChanges();
+    }
+
+    private void RefreshWindowList_Click(object sender, RoutedEventArgs e)
+    {
+        PopulateWindowListComboBox();
+        var node = _editorService.Nodes.OfType<SelectWindowNodeViewModel>().FirstOrDefault(n => n.IsSelected);
+        if (node is not null)
+            SelectWindowAutoComboBox.SelectedItem = node.ProcessName;
+    }
+
+    private void PopulateWindowListComboBox()
+    {
+        var names = _windowAdapter.GetRunningWindowNames();
+        SelectWindowAutoComboBox.Items.Clear();
+        foreach (var name in names)
+            SelectWindowAutoComboBox.Items.Add(name);
+    }
+
+    private void UpdateSelectWindowModeVisibility(WindowInputMode mode, bool locked)
+    {
+        bool isAuto = mode == WindowInputMode.Auto;
+        SelectWindowManualPanel.Visibility = locked ? Visibility.Visible : (isAuto ? Visibility.Collapsed : Visibility.Visible);
+        SelectWindowAutoPanel.Visibility = isAuto && !locked ? Visibility.Visible : Visibility.Collapsed;
     }
 
     #endregion

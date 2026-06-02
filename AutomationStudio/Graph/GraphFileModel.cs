@@ -88,6 +88,8 @@ public sealed class NodeFileModel
 
     // SelectWindow 节点属性
     public string? ProcessName { get; set; }
+
+    public string? WindowInputMode { get; set; }
 }
 
 public sealed class ConnectionFileModel

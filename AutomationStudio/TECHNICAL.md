@@ -420,6 +420,22 @@ Python 参数规则：
 
 > 以下记录来自实际开发中的踩坑经验，按时间倒序排列，新记录追加到顶部。
 
+### 2026-06-02：EdgePan 边缘自动平移
+
+参考 UE4 `SNodePanel::ComputeEdgePanAmount` 实现。
+
+#### 功能
+- 拖动节点或从引脚拉连线到达视口边界 30px 区域时，画布自动向拖动方向滚动
+- 非线性加速：`0.15 * distance^0.6`，最大 5px/tick
+- 除以缩放系数，高倍率放大时自动降低平移速度以保证精度
+
+#### 实现位置
+- `CanvasPanZoomController.EdgePan()` — 核心算法
+- `GraphViewport_PreviewMouseMove` — 在节点拖动（`_dragNode is not null`）或连线拖拽（`IsConnecting`）时调用
+
+#### 注意
+- `_panTransform` 是屏幕空间（应用在 ScaleTransform 之后），方向与 UE4 的 `ViewOffset`（图空间）相反，所以 EdgePan 使用 `-=` 而非 `+=`
+
 ### 2026-06-02：Runtime/Interaction 解耦后的维护规则
 
 #### 问题 1：MainWindow 继续膨胀会把 UI、交互、运行时重新耦合

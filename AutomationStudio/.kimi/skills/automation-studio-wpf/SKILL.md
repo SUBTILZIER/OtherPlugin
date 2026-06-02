@@ -5,6 +5,14 @@ WPF 可视化节点自动化编辑器，类似 UE4 蓝图。技术栈 C# 12 / .N
 
 ## 踩坑记录（按时间倒序，新记录追加到顶部）
 
+### 2026-06-02: EdgePan 边缘自动平移（新增功能）
+
+#### Feature: 拖动节点/连线到视口边界时画布自动滚动
+- **Implementation**: `CanvasPanZoomController.EdgePan()` 参考 UE4 `SNodePanel::ComputeEdgePanAmount`
+- **Algorithm**: 30px 边界宽容区，非线性加速 `0.15 * distance^0.6`，最大 5px/tick，除以缩放系数
+- **Trigger**: `GraphViewport_PreviewMouseMove` 中检测 `_dragNode is not null`（节点拖动）或 `PinConnectionController.IsConnecting`（连线拖拽）
+- **Direction note**: `_panTransform` 是屏幕空间（ScaleTransform 之后），与 UE4 `ViewOffset`（图空间）语义相反 → 使用 `-=` 而非 `+=`
+
 ### 2026-06-02: Runtime/Adapter/Interaction 解耦重构
 
 #### New architecture: Runtime 只调度，具体能力下沉
@@ -66,7 +74,7 @@ WPF 可视化节点自动化编辑器，类似 UE4 蓝图。技术栈 C# 12 / .N
 
 #### Current verified state
 - `dotnet build .\AutomationStudioWpf.csproj` 通过：0 warning / 0 error。
-- CodeGraph 已同步，当前状态约：71 files / 1253 nodes / 2308 edges。
+- CodeGraph 已同步，`codegraph.cmd sync` 正常。
 - PowerShell 执行策略可能拦截 `codegraph.ps1`，用 `codegraph.cmd sync`。
 
 ### 2026-05-30: 键盘输入在游戏窗口无效 + SendInput 结构体布局

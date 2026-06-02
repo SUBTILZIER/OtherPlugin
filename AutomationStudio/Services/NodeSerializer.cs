@@ -86,8 +86,8 @@ public static class NodeSerializer
 
             case SelectWindowNodeViewModel selectWindowNode:
                 file.ProcessName = selectWindowNode.ProcessName;
+                file.WindowInputMode = selectWindowNode.InputMode.ToString();
                 break;
-
             case FindTextNodeViewModel findTextNode:
                 file.FindTextText = findTextNode.Text;
                 file.SimilarityThresholdPercent = findTextNode.SimilarityThresholdPercent;
@@ -235,6 +235,7 @@ public static class NodeSerializer
                 X = file.X,
                 Y = file.Y,
                 ProcessName = file.ProcessName ?? file.ImagePath ?? string.Empty,
+                InputMode = Enum.TryParse<WindowInputMode>(file.WindowInputMode, true, out var mode) ? mode : WindowInputMode.Manual,
             },
 
             _ => null,

@@ -708,8 +708,26 @@
                                            Foreground="#A7B1BF"
                                            Text="按进程名查找窗口，并把窗口恢复、置前、设为前台窗口。"
                                            TextWrapping="Wrap" />
-                                <TextBlock x:Name="SelectWindowProcessNameLabel" Text="进程名" Foreground="White" />
-                                <TextBox x:Name="SelectWindowProcessNameTextBox" Margin="0,4,0,12" TextChanged="InspectorField_TextChanged" />
+                                <TextBlock Text="输入模式" Foreground="White" />
+                                <ComboBox x:Name="SelectWindowInputModeComboBox" Margin="0,4,0,10" SelectionChanged="SelectWindowInputMode_SelectionChanged">
+                                    <ComboBoxItem Content="手动输入" Tag="Manual" />
+                                    <ComboBoxItem Content="自动获取" Tag="Auto" />
+                                </ComboBox>
+                                <StackPanel x:Name="SelectWindowManualPanel">
+                                    <TextBlock x:Name="SelectWindowProcessNameLabel" Text="进程名" Foreground="White" />
+                                    <TextBox x:Name="SelectWindowProcessNameTextBox" Margin="0,4,0,12" TextChanged="InspectorField_TextChanged" />
+                                </StackPanel>
+                                <StackPanel x:Name="SelectWindowAutoPanel" Visibility="Collapsed">
+                                    <TextBlock Text="选择窗口" Foreground="White" />
+                                    <Grid Margin="0,4,0,4">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <ComboBox x:Name="SelectWindowAutoComboBox" Grid.Column="0" Margin="0,0,4,0" SelectionChanged="SelectWindowAutoComboBox_SelectionChanged" />
+                                        <Button Grid.Column="1" Content="刷新" Width="48" Height="24" Padding="0" Click="RefreshWindowList_Click" />
+                                    </Grid>
+                                </StackPanel>
                             </StackPanel>
 
                             <StackPanel x:Name="KeyboardInspectorPanel" Visibility="Collapsed">

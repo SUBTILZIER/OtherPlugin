@@ -6,6 +6,16 @@ namespace AutomationStudioWpf.Adapters;
 
 public sealed class Win32WindowAdapter : IWindowAdapter
 {
+    public List<string> GetRunningWindowNames()
+    {
+        return Process.GetProcesses()
+            .Where(p => p.MainWindowHandle != IntPtr.Zero && !string.IsNullOrWhiteSpace(p.MainWindowTitle))
+            .Select(p => p.ProcessName)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(n => n, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
     public WindowSelectionResult SelectWindowByProcessName(string processName)
     {
         string normalized = NormalizeProcessName(processName);

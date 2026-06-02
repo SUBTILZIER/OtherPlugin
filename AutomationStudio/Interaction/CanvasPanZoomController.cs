@@ -39,6 +39,45 @@ public sealed class CanvasPanZoomController
 
     public bool IsPanning => _isPanning;
 
+    public void EdgePan(Point viewportPosition)
+    {
+        double width = _viewport.ActualWidth;
+        double height = _viewport.ActualHeight;
+        if (width <= 0 || height <= 0) return;
+
+        const double edgeZone = 30.0;
+        const double speedCoefficient = 0.15;
+        const double speedPower = 0.6;
+        const double maxSpeed = 5.0;
+
+        double panX = 0, panY = 0;
+
+        if (viewportPosition.X <= edgeZone)
+        {
+            double dist = edgeZone - viewportPosition.X;
+            panX = Math.Max(-maxSpeed, -speedCoefficient * Math.Pow(dist, speedPower));
+        }
+        else if (viewportPosition.X >= width - edgeZone)
+        {
+            double dist = viewportPosition.X - width + edgeZone;
+            panX = Math.Min(maxSpeed, speedCoefficient * Math.Pow(dist, speedPower));
+        }
+
+        if (viewportPosition.Y <= edgeZone)
+        {
+            double dist = edgeZone - viewportPosition.Y;
+            panY = Math.Max(-maxSpeed, -speedCoefficient * Math.Pow(dist, speedPower));
+        }
+        else if (viewportPosition.Y >= height - edgeZone)
+        {
+            double dist = viewportPosition.Y - height + edgeZone;
+            panY = Math.Min(maxSpeed, speedCoefficient * Math.Pow(dist, speedPower));
+        }
+
+        _panTransform.X -= panX / _zoomLevel;
+        _panTransform.Y -= panY / _zoomLevel;
+    }
+
     public Point ViewportToGraph(Point viewportPoint)
     {
         return new Point(
