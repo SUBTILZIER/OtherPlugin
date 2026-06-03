@@ -18,7 +18,7 @@ public sealed class PrintLogNodeExecutor : INodeExecutor
                 return NodeExecutionResult.Warn($"打印log未执行：{request.Node.Title} 上游消息缺失");
             }
 
-            message = request.Node.ImagePath ?? string.Empty;
+            message = request.Node.PrintLogMessage ?? string.Empty;
         }
 
         Logger.Info($"打印log：{message}");

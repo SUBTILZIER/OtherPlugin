@@ -36,6 +36,7 @@ public sealed class GraphValidator
         ValidateDuplicateNodeIds(plan, issues);
         ValidateConnectionEndpoints(plan, issues);
         ValidateConnectionTypes(plan, issues);
+        ValidateConnectionMultiplicity(plan, issues);
         ValidateExecutionReachability(plan, issues);
         ValidateRequiredParameters(plan, issues);
         ValidateHighRiskRuntimeInputs(plan, issues);
@@ -85,6 +86,31 @@ public sealed class GraphValidator
             issues.Add(Error(
                 $"非法连线类型：{connection.SourceNodeId}.{connection.SourcePinName}({connection.SourcePinKind}) -> " +
                 $"{connection.TargetNodeId}.{connection.TargetPinName}({connection.TargetPinKind})。"));
+        }
+    }
+
+    private static void ValidateConnectionMultiplicity(GraphExecutionPlan plan, List<GraphValidationIssue> issues)
+    {
+        var duplicateExecutionOutputs = plan.Connections
+            .Where(connection => connection.SourcePinKind == PinKind.Execution)
+            .GroupBy(connection => (connection.SourceNodeId, connection.SourcePinName))
+            .Where(group => group.Count() > 1);
+
+        foreach (var group in duplicateExecutionOutputs)
+        {
+            issues.Add(Error(
+                $"执行输出引脚存在多条连线：{group.Key.SourceNodeId}.{group.Key.SourcePinName}。请只保留一条执行输出。"));
+        }
+
+        var duplicateDataInputs = plan.Connections
+            .Where(connection => connection.TargetPinKind != PinKind.Execution)
+            .GroupBy(connection => (connection.TargetNodeId, connection.TargetPinName))
+            .Where(group => group.Count() > 1);
+
+        foreach (var group in duplicateDataInputs)
+        {
+            issues.Add(Error(
+                $"数据输入引脚存在多条入线：{group.Key.TargetNodeId}.{group.Key.TargetPinName}。请只保留一条数据输入。"));
         }
     }
 
@@ -162,7 +188,7 @@ public sealed class GraphValidator
                     break;
 
                 case NodeKind.StartProgram:
-                    if (string.IsNullOrWhiteSpace(node.ImagePath))
+                    if (string.IsNullOrWhiteSpace(node.ProgramPath))
                         issues.Add(Warning($"启动程序节点未设置程序路径：{node.Title}。运行时会跳过并继续。"));
                     break;
 
@@ -172,7 +198,7 @@ public sealed class GraphValidator
                     break;
 
                 case NodeKind.PrintLog:
-                    if (!IsInputConnected(plan, node.Id, "message") && string.IsNullOrWhiteSpace(node.ImagePath))
+                    if (!IsInputConnected(plan, node.Id, "message") && string.IsNullOrWhiteSpace(node.PrintLogMessage))
                         issues.Add(Warning($"打印 log 节点未设置消息：{node.Title}。运行时会输出空内容。"));
                     break;
             }

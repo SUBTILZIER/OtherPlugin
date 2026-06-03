@@ -11,7 +11,7 @@ public sealed class StartProgramNodeExecutor : INodeExecutor
     public NodeExecutionResult Execute(NodeExecutionRequest request)
     {
         GraphRuntimeNode node = request.Node;
-        string programPath = node.ImagePath ?? string.Empty;
+        string programPath = node.ProgramPath ?? string.Empty;
         if (string.IsNullOrWhiteSpace(programPath))
         {
             request.Context.Set(node.Id, "result", false);
@@ -20,7 +20,7 @@ public sealed class StartProgramNodeExecutor : INodeExecutor
             return NodeExecutionResult.Warn("启动程序未执行：程序路径为空。");
         }
 
-        int waitTimeoutMs = node.DelayMs > 0 ? node.DelayMs : 60000;
+        int waitTimeoutMs = node.WaitTimeoutMs > 0 ? node.WaitTimeoutMs : 60000;
         int retryCount = node.RetryCount > 0 ? node.RetryCount : 3;
         var result = request.Adapters.Process.StartProgram(programPath, waitTimeoutMs, node.FailureAction, retryCount, request.CancellationToken);
         request.Context.Set(node.Id, "result", result.Success);

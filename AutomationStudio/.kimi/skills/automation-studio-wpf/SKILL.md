@@ -7,6 +7,15 @@ WPF 可视化节点自动化编辑器，类似 UE4 蓝图。技术栈 C# 12 / .N
 
 ### 2026-06-03: Inspector 下沉 + 找图区块识别 + Validator 增强
 
+#### Runtime model cleanup: 不再用别的节点字段存当前节点语义
+- `GraphRuntimeNode` now has explicit fields:
+  - `ProgramPath`
+  - `WaitTimeoutMs`
+  - `PrintLogMessage`
+  - `WhileLoopMode`
+  - `MaxIterations`
+- **Rule**: 不要让新 runtime 节点复用 `ImagePath`、`DelayMs`、`ScrollSpeed` 等不相关字段。旧文件兼容读取可以留在 `NodeSerializer.FromFileModel()`，新 runtime 数据必须语义明确。
+
 #### Architecture update: InspectorController 负责完整属性面板逻辑
 - **Current**: `Interaction/InspectorController.cs` 负责节点属性加载、字段自动保存、浏览文件、窗口列表刷新、前置输入锁定和灰态。
 - **MainWindow rule**: `MainWindow.xaml.cs` 只转发 XAML 事件：`LoadNodeToInspector()`、`ApplyInspectorChanges()`、浏览按钮、窗口模式切换都应调用 controller。
@@ -24,6 +33,7 @@ WPF 可视化节点自动化编辑器，类似 UE4 蓝图。技术栈 C# 12 / .N
 #### Validator update: 执行前新增非致命警告
 - `GraphValidator` 现在检查不可达执行节点、缺省路径/坐标/按键/进程名、无效延迟、无效找图区。
 - 这些都是 Warning；结构性错误才阻止执行。
+- `GraphValidator` 还会把同一执行输出多条线、同一数据输入多条线判为 Error。UI 创建线时会替换旧线，但坏 JSON/旧图加载可能绕过规则。
 
 ### 2026-06-03: XAML 初始化期间事件早触发导致启动崩溃
 

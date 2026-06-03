@@ -61,6 +61,16 @@ public sealed record GraphRuntimeNode(
 
     public double FindImageRegionHeight { get; init; }
 
+    public string? ProgramPath { get; init; }
+
+    public int WaitTimeoutMs { get; init; }
+
+    public string? PrintLogMessage { get; init; }
+
+    public WhileLoopMode WhileLoopMode { get; init; } = WhileLoopMode.Finite;
+
+    public int MaxIterations { get; init; }
+
     public static GraphRuntimeNode ForStart(string id, string title) =>
         new(id, title, NodeKind.Start, null, 0, PressReleaseMode.Press, MouseButton.Left, 0, 0, 0, null, ScrollWheelAction.ScrollForward, 120, 100, 1000, 0, false, PinKind.Execution, ProgramStartFailureAction.None, 0, null);
 
@@ -107,22 +117,33 @@ public sealed record GraphRuntimeNode(
     public static GraphRuntimeNode ForWhileLoop(string id, string title, bool conditionValue, WhileLoopMode loopMode,
         int maxIterations) =>
         new(id, title, NodeKind.WhileLoop, null, 0, PressReleaseMode.Press, MouseButton.Left, 0, 0,
-            maxIterations, null, ScrollWheelAction.ScrollForward, (int)loopMode, 100, 1000, 0,
-            conditionValue, PinKind.Execution, ProgramStartFailureAction.None, 0, null);
+            0, null, ScrollWheelAction.ScrollForward, 120, 100, 1000, 0,
+            conditionValue, PinKind.Execution, ProgramStartFailureAction.None, 0, null)
+        {
+            WhileLoopMode = loopMode,
+            MaxIterations = maxIterations,
+        };
 
     public static GraphRuntimeNode ForReroute(string id, string title, PinKind routedKind) =>
         new(id, title, NodeKind.Reroute, null, 0, PressReleaseMode.Press, MouseButton.Left, 0, 0, 0, null, ScrollWheelAction.ScrollForward, 120, 100, 1000, 0, false, routedKind, ProgramStartFailureAction.None, 0, null);
 
     public static GraphRuntimeNode ForPrintLog(string id, string title, string message) =>
-        new(id, title, NodeKind.PrintLog, message, 0, PressReleaseMode.Press, MouseButton.Left,
+        new(id, title, NodeKind.PrintLog, null, 0, PressReleaseMode.Press, MouseButton.Left,
             0, 0, 0, null, ScrollWheelAction.ScrollForward, 0, 100, 1000,
-            0, false, PinKind.Execution, ProgramStartFailureAction.None, 0, null);
+            0, false, PinKind.Execution, ProgramStartFailureAction.None, 0, null)
+        {
+            PrintLogMessage = message,
+        };
 
     public static GraphRuntimeNode ForStartProgram(string id, string title, string programPath, int waitTimeoutMs,
         ProgramStartFailureAction failureAction, int retryCount) =>
-        new(id, title, NodeKind.StartProgram, programPath, 0, PressReleaseMode.Press, MouseButton.Left,
-            0, 0, waitTimeoutMs, null, ScrollWheelAction.ScrollForward, retryCount, 100, 1000,
-            0, false, PinKind.Execution, failureAction, retryCount, null);
+        new(id, title, NodeKind.StartProgram, null, 0, PressReleaseMode.Press, MouseButton.Left,
+            0, 0, 0, null, ScrollWheelAction.ScrollForward, 120, 100, 1000,
+            0, false, PinKind.Execution, failureAction, retryCount, null)
+        {
+            ProgramPath = programPath,
+            WaitTimeoutMs = waitTimeoutMs,
+        };
 
     public static GraphRuntimeNode ForSelectWindow(string id, string title, string processName) =>
         new(id, title, NodeKind.SelectWindow, null, 0, PressReleaseMode.Press, MouseButton.Left,

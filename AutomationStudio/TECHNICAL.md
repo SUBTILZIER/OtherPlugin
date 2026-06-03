@@ -413,6 +413,11 @@ Python 参数规则：
 
 ### 2026-06-03：属性面板下沉、找图区块识别、执行前校验增强
 
+#### 变更 0：Runtime 扁平模型减少字段复用
+- **修复前**：`StartProgram` 借用 `ImagePath/DelayMs`，`PrintLog` 借用 `ImagePath`，`WhileLoop` 借用 `ScrollSpeed/DelayMs`。
+- **修复后**：`GraphRuntimeNode` 增加明确运行时字段：`ProgramPath`、`WaitTimeoutMs`、`PrintLogMessage`、`WhileLoopMode`、`MaxIterations`。
+- **维护规则**：新节点可以继续用扁平模型，但字段名必须表达真实语义；不要把某节点字段塞到别的节点字段里复用。
+
 #### 变更 1：InspectorController 不再只做灰态锁定
 - **现状**：节点属性面板的加载、自动保存、浏览文件、刷新窗口列表、字段锁定均已下沉到 `Interaction/InspectorController.cs`。
 - **MainWindow 职责**：只保留 XAML 事件转发和窗口装配，不再维护属性面板业务规则。
@@ -428,6 +433,11 @@ Python 参数规则：
 - **新增检查**：开始执行链不可达节点、找图路径空、找图区宽高无效、鼠标坐标缺省、键盘按键空、延迟值无效、启动程序路径空、选中窗口进程名空。
 - **分级**：这些都是 `Warning`，用于执行前提示；只有无开始节点、多开始节点、重复 ID、坏连线、非法类型才是 `Error`。
 - **目的**：提前暴露“不会执行/会跳过”的问题，但不阻断可退化流程。
+
+#### 变更 4：GraphValidator 增加连线唯一性校验
+- **执行输出**：同一个执行输出引脚出现多条连线是 `Error`。运行时只会取第一条，必须执行前阻止。
+- **数据输入**：同一个数据输入引脚出现多条入线是 `Error`。执行输入允许多条入线，用于循环/汇入场景。
+- **来源**：UI 创建连线时会自动替换旧线，但旧图/坏 JSON 加载时可能绕过该规则。
 
 ### 2026-06-02：EdgePan 边缘自动平移
 

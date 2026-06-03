@@ -181,8 +181,8 @@ public sealed class GraphRuntimeExecutor
         string baseDirectory,
         CancellationToken ct)
     {
-        WhileLoopMode loopMode = (WhileLoopMode)node.ScrollSpeed;
-        int maxIterations = loopMode == WhileLoopMode.Infinite ? int.MaxValue : (node.DelayMs > 0 ? node.DelayMs : 10000);
+        WhileLoopMode loopMode = node.WhileLoopMode;
+        int maxIterations = loopMode == WhileLoopMode.Infinite ? int.MaxValue : (node.MaxIterations > 0 ? node.MaxIterations : 10000);
         string modeLabel = loopMode == WhileLoopMode.Infinite ? "无限" : $"最多 {maxIterations} 次";
         Logger.Info($"While 循环开始：{modeLabel}");
 
