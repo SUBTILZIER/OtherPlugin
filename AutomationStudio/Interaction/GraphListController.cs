@@ -26,7 +26,11 @@ public sealed class GraphListController
     private readonly WpfListBox _graphListBox;
     private readonly ObservableCollection<GraphListItemViewModel> _items;
     private readonly Action _syncNodeFactorySequence;
+    private readonly Action _persistAll;
     private readonly Action<string> _setStatus;
+    private readonly GraphAssetKind _kind;
+    private readonly string _displayName;
+    private readonly string _namePrefix;
 
     private GraphListItemViewModel? _activeItem;
     private bool _isLoadingGraph;
@@ -39,6 +43,10 @@ public sealed class GraphListController
         WpfListBox graphListBox,
         ObservableCollection<GraphListItemViewModel> items,
         Action syncNodeFactorySequence,
+        Action persistAll,
+        GraphAssetKind kind,
+        string displayName,
+        string namePrefix,
         Action<string> setStatus)
     {
         _owner = owner;
@@ -48,6 +56,10 @@ public sealed class GraphListController
         _graphListBox = graphListBox;
         _items = items;
         _syncNodeFactorySequence = syncNodeFactorySequence;
+        _persistAll = persistAll;
+        _kind = kind;
+        _displayName = displayName;
+        _namePrefix = namePrefix;
         _setStatus = setStatus;
     }
 
@@ -55,16 +67,24 @@ public sealed class GraphListController
 
     public GraphListItemViewModel? ActiveItem => _activeItem;
 
+    public IEnumerable<GraphListItemViewModel> Items => _items;
+
     public GraphListItemViewModel? SelectedItem => _graphListBox.SelectedItem as GraphListItemViewModel;
 
     public void LoadLibrary()
     {
         _items.Clear();
         var state = _libraryService.Load();
-        foreach (var item in GraphLibraryService.ToViewModels(state))
+        var source = _kind switch
+        {
+            GraphAssetKind.Function => GraphLibraryService.ToFunctionViewModels(state),
+            GraphAssetKind.Macro => GraphLibraryService.ToMacroViewModels(state),
+            _ => GraphLibraryService.ToViewModels(state),
+        };
+        foreach (var item in source)
             _items.Add(item);
 
-        if (_items.Count == 0)
+        if (_items.Count == 0 && _kind == GraphAssetKind.EventGraph)
             Add(loadImmediately: false);
 
         var target = _items.FirstOrDefault(item => item.Id == state.LastSelectedId)
@@ -86,7 +106,7 @@ public sealed class GraphListController
             item.IsDirty = false;
 
         Persist();
-        _setStatus($"已保存全部图谱：{_items.Count} 个。");
+        _setStatus($"已保存全部{_displayName}：{_items.Count} 个。");
     }
 
     public void SaveAs()
@@ -195,8 +215,8 @@ public sealed class GraphListController
 
         var result = WpfMessageBox.Show(
             _owner,
-            $"是否删除图谱：{SelectedItem.Name}？",
-            "删除图谱",
+            $"是否删除{_displayName}：{SelectedItem.Name}？",
+            $"删除{_displayName}",
             MessageBoxButton.YesNo,
             MessageBoxImage.Question);
         if (result != MessageBoxResult.Yes) return;
@@ -247,7 +267,7 @@ public sealed class GraphListController
         if (_isLoadingGraph || _activeItem is null)
             return;
 
-        _activeItem.Graph = _editorService.ExportGraphModel(_activeItem.Name);
+        _activeItem.Graph = _editorService.ExportGraphModel(_activeItem.Name, _kind);
         _activeItem.Graph.Name = _activeItem.Name;
     }
 
@@ -266,7 +286,7 @@ public sealed class GraphListController
 
         var result = WpfMessageBox.Show(
             _owner,
-            "存在未保存图谱，是否保存？",
+            $"存在未保存{_displayName}，是否保存？",
             "是否保存",
             MessageBoxButton.YesNoCancel,
             MessageBoxImage.Question);
@@ -285,7 +305,7 @@ public sealed class GraphListController
         return true;
     }
 
-    public void Persist() => _libraryService.Save(_items, _activeItem?.Id ?? SelectedItem?.Id);
+    public void Persist() => _persistAll();
 
     private GraphListItemViewModel Add(bool loadImmediately)
     {
@@ -295,6 +315,7 @@ public sealed class GraphListController
         var item = new GraphListItemViewModel
         {
             Name = name,
+            Kind = _kind,
             Graph = CreateDefaultGraphModel(name),
             IsDirty = true,
         };
@@ -321,7 +342,7 @@ public sealed class GraphListController
         string name;
         do
         {
-            name = $"图表{index++}";
+            name = $"{_namePrefix}{index++}";
         }
         while (_items.Any(item => item.Name == name));
 
@@ -333,9 +354,14 @@ public sealed class GraphListController
         _isLoadingGraph = true;
         try
         {
-            _editorService.NewGraph();
+            if (_kind == GraphAssetKind.Function)
+                _editorService.NewFunctionGraph();
+            else if (_kind == GraphAssetKind.Macro)
+                _editorService.NewMacroGraph();
+            else
+                _editorService.NewGraph();
             _nodeFactory.ResetCounter(1);
-            return _editorService.ExportGraphModel(name);
+            return _editorService.ExportGraphModel(name, _kind);
         }
         finally
         {
@@ -354,7 +380,7 @@ public sealed class GraphListController
             _syncNodeFactorySequence();
             _activeItem = item;
             _graphListBox.SelectedItem = item;
-            _setStatus($"已进入图谱：{item.Name}");
+            _setStatus($"已进入{_displayName}：{item.Name}");
             Persist();
         }
         finally
@@ -381,12 +407,12 @@ public sealed class GraphListController
 
     private void CommitRename(GraphListItemViewModel item)
     {
-        item.Name = string.IsNullOrWhiteSpace(item.Name) ? "未命名图谱" : item.Name.Trim();
+        item.Name = string.IsNullOrWhiteSpace(item.Name) ? $"未命名{_displayName}" : item.Name.Trim();
         item.Graph.Name = item.Name;
         item.IsEditing = false;
         item.IsDirty = true;
         if (ReferenceEquals(item, _activeItem))
-            _setStatus($"当前图谱已重命名：{item.Name}");
+            _setStatus($"当前{_displayName}已重命名：{item.Name}");
 
         Persist();
     }

@@ -38,6 +38,9 @@ public partial class MainWindow : Window
     private ExecutionController _executionController = null!;
     private NodePaletteController _nodePaletteController = null!;
     private GraphListController _graphListController = null!;
+    private GraphListController _functionListController = null!;
+    private GraphListController _macroListController = null!;
+    private GraphListController? _activeAssetController;
     private CanvasPanZoomController _canvasPanZoomController = null!;
     private NodeDragSelectionController _nodeDragSelectionController = null!;
     private InspectorController _inspectorController = null!;
@@ -87,17 +90,9 @@ public partial class MainWindow : Window
             new Runtime.GraphRuntimeExecutor(nodeRegistry: _nodeRegistry, adapters: new Adapters.RuntimeAdapters()),
             new GraphCore.GraphValidator(),
             RunGraphButton,
+            () => FunctionListItems,
+            () => MacroListItems,
             SetStatus);
-
-        _nodePaletteController = new NodePaletteController(
-            NodePalette,
-            NodePaletteSearchBox,
-            NodePaletteContent,
-            _nodeFactory,
-            _editorService,
-            _nodeRegistry,
-            ViewportToGraph,
-            SelectNode);
 
         _graphListController = new GraphListController(
             this,
@@ -107,7 +102,51 @@ public partial class MainWindow : Window
             GraphListBox,
             GraphListItems,
             SyncNodeFactorySequence,
+            PersistAssetLibrary,
+            GraphAssetKind.EventGraph,
+            "事件图",
+            "事件图",
             SetStatus);
+
+        _functionListController = new GraphListController(
+            this,
+            _editorService,
+            _graphLibraryService,
+            _nodeFactory,
+            FunctionListBox,
+            FunctionListItems,
+            SyncNodeFactorySequence,
+            PersistAssetLibrary,
+            GraphAssetKind.Function,
+            "函数",
+            "新函数_",
+            SetStatus);
+
+        _macroListController = new GraphListController(
+            this,
+            _editorService,
+            _graphLibraryService,
+            _nodeFactory,
+            MacroListBox,
+            MacroListItems,
+            SyncNodeFactorySequence,
+            PersistAssetLibrary,
+            GraphAssetKind.Macro,
+            "宏",
+            "新宏_",
+            SetStatus);
+
+        _nodePaletteController = new NodePaletteController(
+            NodePalette,
+            NodePaletteSearchBox,
+            NodePaletteContent,
+            _nodeFactory,
+            _editorService,
+            _nodeRegistry,
+            () => FunctionListItems,
+            () => MacroListItems,
+            ViewportToGraph,
+            SelectNode);
 
         _canvasPanZoomController = new CanvasPanZoomController(
             GraphViewport,
@@ -126,18 +165,25 @@ public partial class MainWindow : Window
             LoadNodeToInspector,
             FitGraphToView,
             EnsureCanvasLargeEnough,
-            _graphListController.MarkDirty,
+            MarkActiveAssetDirty,
             SetStatus);
 
         _inspectorController = new InspectorController(
             this,
             _editorService,
             new Adapters.Win32WindowAdapter(),
-            _graphListController.MarkDirty,
+            MarkActiveAssetDirty,
             SetStatus,
             InspectorHintTextBlock,
             NodeTitleTextBox,
+            ParameterInspectorPanel,
+            ParameterInspectorTitle,
+            ParameterRowsPanel,
             FindImageInspectorPanel,
+            FindImageSourceModeComboBox,
+            FindImageSourcePathLabel,
+            FindImageSourcePathPanel,
+            FindImageSourcePathTextBox,
             FindImagePathTextBox,
             FindImageThresholdTextBox,
             FindImageUseRegionCheckBox,
@@ -185,7 +231,34 @@ public partial class MainWindow : Window
             SelectWindowManualPanel,
             SelectWindowProcessNameTextBox,
             SelectWindowAutoPanel,
-            SelectWindowAutoComboBox);
+            SelectWindowAutoComboBox,
+            CommonInspectorPanel,
+            CommonKeyChordAddPanel,
+            CommonKeyChordKeyComboBox,
+            CommonModePanel,
+            CommonModeComboBox,
+            CommonWindowPickerPanel,
+            CommonWindowComboBox,
+            CommonEnumPanel,
+            CommonEnumLabel,
+            CommonEnumComboBox,
+            CommonBrowseFileButton,
+            CommonTextLabel,
+            CommonTextBox,
+            CommonText2Label,
+            CommonText2Box,
+            CommonText3Label,
+            CommonText3Box,
+            CommonNumberLabel,
+            CommonNumberBox,
+            CommonNumber2Label,
+            CommonNumber2Box,
+            CommonNumber3Label,
+            CommonNumber3Box,
+            CommonNumber4Label,
+            CommonNumber4Box,
+            CommonFlagCheckBox,
+            CommonHelpTextBlock);
 
         _pinConnectionController = new PinConnectionController(
             _editorService,
@@ -222,6 +295,8 @@ public partial class MainWindow : Window
     public System.Collections.IEnumerable Nodes => _editorService.Nodes;
     public System.Collections.IEnumerable Connections => _editorService.Connections;
     public ObservableCollection<GraphListItemViewModel> GraphListItems { get; } = [];
+    public ObservableCollection<GraphListItemViewModel> FunctionListItems { get; } = [];
+    public ObservableCollection<GraphListItemViewModel> MacroListItems { get; } = [];
 
     #endregion
 
@@ -234,7 +309,7 @@ public partial class MainWindow : Window
 
     private void SaveGraph_Click(object sender, RoutedEventArgs e)
     {
-        _graphListController.SaveAll();
+        SaveAllAssets();
     }
 
     private void SaveGraphAs_Click(object sender, RoutedEventArgs e)
@@ -254,15 +329,22 @@ public partial class MainWindow : Window
     private void LoadGraphLibrary()
     {
         _graphListController.LoadLibrary();
+        _functionListController.LoadLibrary();
+        _macroListController.LoadLibrary();
+        _activeAssetController = _graphListController;
     }
 
     private void AddGraphListItem_Click(object sender, RoutedEventArgs e)
     {
+        SnapshotActiveAsset();
+        _activeAssetController = _graphListController;
         _graphListController.AddAndRename();
     }
 
     private void GraphListBox_MouseDoubleClick(object sender, MouseButtonEventArgs e)
     {
+        SnapshotActiveAsset();
+        _activeAssetController = _graphListController;
         _graphListController.HandleDoubleClick(e);
     }
 
@@ -273,31 +355,90 @@ public partial class MainWindow : Window
 
     private void RenameGraphMenuItem_Click(object sender, RoutedEventArgs e)
     {
-        _graphListController.RenameSelected();
+        (_activeAssetController ?? _graphListController).RenameSelected();
     }
 
     private void DeleteGraphMenuItem_Click(object sender, RoutedEventArgs e)
     {
-        _graphListController.DeleteSelected();
+        (_activeAssetController ?? _graphListController).DeleteSelected();
+    }
+
+    private void AddFunctionListItem_Click(object sender, RoutedEventArgs e)
+    {
+        SnapshotActiveAsset();
+        _activeAssetController = _functionListController;
+        _functionListController.AddAndRename();
+    }
+
+    private void FunctionListBox_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        SnapshotActiveAsset();
+        _activeAssetController = _functionListController;
+        _functionListController.HandleDoubleClick(e);
+    }
+
+    private void FunctionListBox_KeyDown(object sender, KeyEventArgs e)
+    {
+        _functionListController.HandleKeyDown(e);
+    }
+
+    private void FunctionListItem_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        _functionListController.SelectRightClickedItem(sender);
+        _activeAssetController = _functionListController;
+    }
+
+    private void AddMacroListItem_Click(object sender, RoutedEventArgs e)
+    {
+        SnapshotActiveAsset();
+        _activeAssetController = _macroListController;
+        _macroListController.AddAndRename();
+    }
+
+    private void MacroListBox_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        SnapshotActiveAsset();
+        _activeAssetController = _macroListController;
+        _macroListController.HandleDoubleClick(e);
+    }
+
+    private void MacroListBox_KeyDown(object sender, KeyEventArgs e)
+    {
+        _macroListController.HandleKeyDown(e);
+    }
+
+    private void MacroListItem_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        _macroListController.SelectRightClickedItem(sender);
+        _activeAssetController = _macroListController;
     }
 
     private void GraphListItem_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
     {
         _graphListController.SelectRightClickedItem(sender);
+        _activeAssetController = _graphListController;
         e.Handled = false;
     }
 
     private void GraphNameTextBox_KeyDown(object sender, KeyEventArgs e)
     {
-        if (sender is TextBox tb)
-            _graphListController.HandleRenameKeyDown(tb, e);
+        if (sender is TextBox { DataContext: GraphListItemViewModel item } tb)
+            GetControllerFor(item).HandleRenameKeyDown(tb, e);
     }
 
     private void GraphNameTextBox_LostFocus(object sender, RoutedEventArgs e)
     {
-        if (sender is TextBox tb)
-            _graphListController.HandleRenameLostFocus(tb);
+        if (sender is TextBox { DataContext: GraphListItemViewModel item } tb)
+            GetControllerFor(item).HandleRenameLostFocus(tb);
     }
+
+    private GraphListController GetControllerFor(GraphListItemViewModel item) =>
+        item.Kind switch
+        {
+            GraphAssetKind.Function => _functionListController,
+            GraphAssetKind.Macro => _macroListController,
+            _ => _graphListController,
+        };
 
     private static T? FindVisualChild<T>(DependencyObject parent) where T : DependencyObject
     {
@@ -341,7 +482,26 @@ public partial class MainWindow : Window
         _executionController.ReleaseAllKeys();
         if (_isClosing) return;
 
-        if (!_graphListController.HandleClosing(e))
+        SnapshotActiveAsset();
+        if (GraphListItems.Concat(FunctionListItems).Concat(MacroListItems).Any(item => item.IsDirty))
+        {
+            var result = WpfMessageBox.Show(
+                this,
+                "存在未保存资产，是否保存？",
+                "是否保存",
+                MessageBoxButton.YesNoCancel,
+                MessageBoxImage.Question);
+            if (result == MessageBoxResult.Cancel)
+            {
+                e.Cancel = true;
+                return;
+            }
+
+            if (result == MessageBoxResult.Yes)
+                SaveAllAssets();
+        }
+
+        if (e.Cancel)
             return;
 
         _isClosing = true;
@@ -353,6 +513,12 @@ public partial class MainWindow : Window
 
     private async void RunGraph_Click(object sender, RoutedEventArgs e)
     {
+        if (!ReferenceEquals(_activeAssetController, _graphListController))
+        {
+            WpfMessageBox.Show(this, "函数和宏不能直接执行，请在事件图中添加调用节点后执行。", "不能执行", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
         await _executionController.RunAsync();
     }
 
@@ -629,6 +795,55 @@ public partial class MainWindow : Window
         _inspectorController.RefreshWindowList();
     }
 
+    private void FindImageSourceModeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_inspectorController is null) return;
+        _inspectorController.FindImageSourceModeChanged();
+    }
+
+    private void BrowseFindImageSourcePath_Click(object sender, RoutedEventArgs e)
+    {
+        _inspectorController.BrowseFindImageSourcePath();
+    }
+
+    private void CommonKeyChordAddButton_Click(object sender, RoutedEventArgs e)
+    {
+        _inspectorController.AddCommonKeyChordKey();
+    }
+
+    private void AddParameterButton_Click(object sender, RoutedEventArgs e)
+    {
+        _inspectorController.AddParameter();
+    }
+
+    private void CommonModeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_inspectorController is null) return;
+        _inspectorController.CommonModeChanged();
+    }
+
+    private void CommonWindowComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_inspectorController is null) return;
+        _inspectorController.CommonWindowChanged();
+    }
+
+    private void CommonWindowRefreshButton_Click(object sender, RoutedEventArgs e)
+    {
+        _inspectorController.RefreshCommonWindowList();
+    }
+
+    private void CommonEnumComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_inspectorController is null) return;
+        _inspectorController.CommonEnumChanged();
+    }
+
+    private void CommonBrowseFileButton_Click(object sender, RoutedEventArgs e)
+    {
+        _inspectorController.BrowseCommonFile();
+    }
+
     #endregion
 
     #region 日志面板
@@ -672,12 +887,36 @@ public partial class MainWindow : Window
     private void OnGraphChanged()
     {
         _editorService.UpdatePinConnectionStates();
-        _graphListController.MarkDirty();
+        MarkActiveAssetDirty();
 
         if (_editorService.Nodes.FirstOrDefault(n => n.IsSelected) is { } selected)
         {
             LoadNodeToInspector(selected);
         }
+    }
+
+    private void MarkActiveAssetDirty()
+    {
+        _activeAssetController?.MarkDirty();
+    }
+
+    private void SnapshotActiveAsset()
+    {
+        _activeAssetController?.SnapshotActive();
+    }
+
+    private void PersistAssetLibrary()
+    {
+        _graphLibraryService.Save(GraphListItems, FunctionListItems, MacroListItems, _activeAssetController?.ActiveItem?.Id);
+    }
+
+    private void SaveAllAssets()
+    {
+        SnapshotActiveAsset();
+        foreach (var item in GraphListItems.Concat(FunctionListItems).Concat(MacroListItems))
+            item.IsDirty = false;
+        PersistAssetLibrary();
+        SetStatus($"已保存全部资产：事件图 {GraphListItems.Count} 个，函数 {FunctionListItems.Count} 个，宏 {MacroListItems.Count} 个。");
     }
 
     private void EnsureCanvasLargeEnough()

@@ -14,7 +14,17 @@ namespace AutomationStudioWpf.Interaction;
 
 public sealed class NodePaletteController
 {
-    private static readonly HashSet<NodeKind> HiddenKinds = [NodeKind.Start, NodeKind.Reroute];
+    private static readonly HashSet<NodeKind> HiddenKinds =
+    [
+        NodeKind.Start,
+        NodeKind.Reroute,
+        NodeKind.FunctionEntry,
+        NodeKind.FunctionReturn,
+        NodeKind.MacroEntry,
+        NodeKind.MacroOutput,
+        NodeKind.FunctionCall,
+        NodeKind.MacroCall,
+    ];
 
     private readonly Border _palette;
     private readonly WpfTextBox _searchBox;
@@ -22,6 +32,8 @@ public sealed class NodePaletteController
     private readonly NodeFactory _nodeFactory;
     private readonly GraphEditorService _editorService;
     private readonly NodeRegistry _nodeRegistry;
+    private readonly Func<IEnumerable<GraphListItemViewModel>> _getFunctions;
+    private readonly Func<IEnumerable<GraphListItemViewModel>> _getMacros;
     private readonly Func<Point, Point> _viewportToGraph;
     private readonly Action<NodeBaseViewModel> _selectNode;
 
@@ -34,6 +46,8 @@ public sealed class NodePaletteController
         NodeFactory nodeFactory,
         GraphEditorService editorService,
         NodeRegistry nodeRegistry,
+        Func<IEnumerable<GraphListItemViewModel>> getFunctions,
+        Func<IEnumerable<GraphListItemViewModel>> getMacros,
         Func<Point, Point> viewportToGraph,
         Action<NodeBaseViewModel> selectNode)
     {
@@ -43,6 +57,8 @@ public sealed class NodePaletteController
         _nodeFactory = nodeFactory;
         _editorService = editorService;
         _nodeRegistry = nodeRegistry;
+        _getFunctions = getFunctions;
+        _getMacros = getMacros;
         _viewportToGraph = viewportToGraph;
         _selectNode = selectNode;
     }
@@ -127,6 +143,47 @@ public sealed class NodePaletteController
                 _content.Children.Add(button);
             }
         }
+
+        AddAssetGroup("自定义函数", _getFunctions(), filter, isMacro: false);
+        AddAssetGroup("宏", _getMacros(), filter, isMacro: true);
+    }
+
+    private void AddAssetGroup(string category, IEnumerable<GraphListItemViewModel> assets, string filter, bool isMacro)
+    {
+        var matched = assets
+            .Where(asset => string.IsNullOrWhiteSpace(filter) ||
+                            asset.Name.Contains(filter, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(asset => asset.Name)
+            .ToList();
+        if (matched.Count == 0)
+            return;
+
+        _content.Children.Add(new TextBlock
+        {
+            Text = category,
+            Foreground = System.Windows.Media.Brushes.White,
+            FontWeight = FontWeights.SemiBold,
+            FontSize = 12,
+            Margin = new Thickness(12, 10, 12, 4),
+        });
+
+        foreach (var asset in matched)
+        {
+            var button = new WpfButton
+            {
+                Content = asset.Name,
+                Background = System.Windows.Media.Brushes.Transparent,
+                BorderThickness = new Thickness(0),
+                Foreground = Brush(0xD0, 0xD7, 0xE2),
+                FontSize = 13,
+                Padding = new Thickness(12, 6, 12, 6),
+                HorizontalContentAlignment = System.Windows.HorizontalAlignment.Left,
+                Cursor = System.Windows.Input.Cursors.Hand,
+                Tag = new PaletteAsset(asset, isMacro),
+            };
+            button.Click += AssetButton_Click;
+            _content.Children.Add(button);
+        }
     }
 
     private void NodeButton_Click(object sender, RoutedEventArgs e)
@@ -141,5 +198,75 @@ public sealed class NodePaletteController
         Close();
     }
 
+    private void AssetButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not WpfButton { Tag: PaletteAsset asset })
+            return;
+
+        var graphPoint = _viewportToGraph(_openViewportPoint);
+        NodeBaseViewModel node;
+        if (asset.IsMacro)
+        {
+            node = _nodeFactory.CreateMacroCallNode(
+                asset.Item.Id,
+                asset.Item.Name,
+                GetEntryParameters(asset.Item.Graph, NodeKind.MacroEntry),
+                GetOutputParameters(asset.Item.Graph, NodeKind.MacroOutput),
+                GetMacroExits(asset.Item.Graph),
+                graphPoint.X,
+                graphPoint.Y);
+        }
+        else
+        {
+            node = _nodeFactory.CreateFunctionCallNode(
+                asset.Item.Id,
+                asset.Item.Name,
+                GetEntryParameters(asset.Item.Graph, NodeKind.FunctionEntry),
+                GetOutputParameters(asset.Item.Graph, NodeKind.FunctionReturn),
+                graphPoint.X,
+                graphPoint.Y);
+        }
+
+        _editorService.AddNode(node);
+        _selectNode(node);
+        Close();
+    }
+
+    private static IEnumerable<GraphParameterDefinition> GetEntryParameters(GraphFileModel graph, NodeKind kind) =>
+        graph.Nodes
+            .FirstOrDefault(node => NodeKindFromTypeKey(node.NodeTypeKey) == kind)?
+            .Parameters
+            .Select(ToParameter)
+        ?? [];
+
+    private static IEnumerable<GraphParameterDefinition> GetOutputParameters(GraphFileModel graph, NodeKind kind)
+    {
+        var nodes = graph.Nodes.Where(node => NodeKindFromTypeKey(node.NodeTypeKey) == kind);
+        return nodes.SelectMany(node => node.Parameters.Select(ToParameter));
+    }
+
+    private static IEnumerable<(string Id, string Name)> GetMacroExits(GraphFileModel graph) =>
+        graph.Nodes
+            .Where(node => node.NodeTypeKey == "macro_output")
+            .Select(node => (node.Id, string.IsNullOrWhiteSpace(node.ExitName) ? "完成" : node.ExitName!));
+
+    private static GraphParameterDefinition ToParameter(GraphParameterFileModel file) => new()
+    {
+        Id = file.Id,
+        Name = file.Name,
+        Type = file.Type,
+    };
+
+    private static NodeKind? NodeKindFromTypeKey(string typeKey) => typeKey switch
+    {
+        "function_entry" => NodeKind.FunctionEntry,
+        "function_return" => NodeKind.FunctionReturn,
+        "macro_entry" => NodeKind.MacroEntry,
+        "macro_output" => NodeKind.MacroOutput,
+        _ => null,
+    };
+
     private static SolidColorBrush Brush(byte r, byte g, byte b) => new(System.Windows.Media.Color.FromRgb(r, g, b));
+
+    private sealed record PaletteAsset(GraphListItemViewModel Item, bool IsMacro);
 }

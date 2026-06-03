@@ -5,6 +5,8 @@ namespace AutomationStudioWpf.Graph;
 public sealed class FindImageNodeViewModel : NodeBaseViewModel
 {
     private string _imagePath = string.Empty;
+    private string _sourceImagePath = string.Empty;
+    private ImageSearchSourceMode _sourceMode = ImageSearchSourceMode.RealtimeScreenshot;
     private int _similarityThresholdPercent = 80;
     private bool _useRegion;
     private double _regionX;
@@ -15,9 +17,11 @@ public sealed class FindImageNodeViewModel : NodeBaseViewModel
     public FindImageNodeViewModel(string id) : base(id, "找图")
     {
         AddInput("exec_in", "执行输入", PinKind.Execution);
+        AddInput("image_path", "查找目标", PinKind.String);
         AddOutput("exec_out", "执行输出", PinKind.Execution);
         AddOutput("result", "结果", PinKind.Boolean);
         AddOutput("center", "中心点", PinKind.Vector2D);
+        SyncSourceInputPin();
         RefreshDescription();
     }
 
@@ -42,6 +46,29 @@ public sealed class FindImageNodeViewModel : NodeBaseViewModel
             int clamped = Math.Clamp(value, 0, 100);
             if (SetProperty(ref _similarityThresholdPercent, clamped))
                 RefreshDescription();
+        }
+    }
+
+    public string SourceImagePath
+    {
+        get => _sourceImagePath;
+        set
+        {
+            if (SetProperty(ref _sourceImagePath, value))
+                RefreshDescription();
+        }
+    }
+
+    public ImageSearchSourceMode SourceMode
+    {
+        get => _sourceMode;
+        set
+        {
+            if (SetProperty(ref _sourceMode, value))
+            {
+                SyncSourceInputPin();
+                RefreshDescription();
+            }
         }
     }
 
@@ -97,10 +124,31 @@ public sealed class FindImageNodeViewModel : NodeBaseViewModel
 
     public override void RefreshDescription()
     {
-        string fileName = string.IsNullOrWhiteSpace(ImagePath) ? "未设置" : Path.GetFileName(ImagePath);
+        string target = InputPins.FirstOrDefault(p => p.Name == "image_path")?.HasConnection == true
+            ? "前置输入"
+            : (string.IsNullOrWhiteSpace(ImagePath) ? "未设置目标" : Path.GetFileName(ImagePath));
+        string source = SourceMode == ImageSearchSourceMode.RealtimeScreenshot
+            ? "实时截屏"
+            : (InputPins.FirstOrDefault(p => p.Name == "source_image_path")?.HasConnection == true
+                ? "前置输入"
+                : (string.IsNullOrWhiteSpace(SourceImagePath) ? "未设置源" : Path.GetFileName(SourceImagePath)));
         string region = UseRegion
             ? $"区域 ({RegionX:0},{RegionY:0},{RegionWidth:0},{RegionHeight:0})"
             : "区域 全屏";
-        Description = $"{fileName}\n阈值 {SimilarityThresholdPercent}%\n{region}";
+        Description = $"源：{source}\n目标：{target}\n阈值 {SimilarityThresholdPercent}%\n{region}";
+    }
+
+    public void SyncSourceInputPin()
+    {
+        bool shouldShow = SourceMode == ImageSearchSourceMode.ManualImage;
+        bool exists = InputPins.Any(pin => pin.Name == "source_image_path");
+        if (shouldShow && !exists)
+        {
+            InsertInput(1, "source_image_path", "查找源", PinKind.String);
+        }
+        else if (!shouldShow && exists)
+        {
+            RemoveInput("source_image_path");
+        }
     }
 }

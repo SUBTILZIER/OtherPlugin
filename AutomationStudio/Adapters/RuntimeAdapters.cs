@@ -8,7 +8,8 @@ public sealed class RuntimeAdapters
             new Win32KeyboardAdapter(),
             new Win32WindowAdapter(),
             new ProcessAdapter(),
-            new PythonScriptAdapter())
+            new PythonScriptAdapter(),
+            new ScreenshotAdapter())
     {
     }
 
@@ -17,13 +18,15 @@ public sealed class RuntimeAdapters
         IKeyboardAdapter keyboard,
         IWindowAdapter window,
         IProcessAdapter process,
-        IPythonScriptAdapter python)
+        IPythonScriptAdapter python,
+        IScreenshotAdapter screenshot)
     {
         Mouse = mouse;
         Keyboard = keyboard;
         Window = window;
         Process = process;
         Python = python;
+        Screenshot = screenshot;
     }
 
     public IMouseAdapter Mouse { get; }
@@ -35,5 +38,6 @@ public sealed class RuntimeAdapters
     public IProcessAdapter Process { get; }
 
     public IPythonScriptAdapter Python { get; }
-}
 
+    public IScreenshotAdapter Screenshot { get; }
+}

@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.IO;
 using System.Text.Json;
 using AutomationStudioWpf.Graph;
+using AutomationStudioWpf.Logging;
 using AutomationStudioWpf.Runtime;
 
 namespace AutomationStudioWpf.Services;
@@ -34,6 +35,58 @@ public sealed class GraphEditorService
         StatusChanged?.Invoke("已新建图谱，并创建开始节点。");
     }
 
+    public void NewFunctionGraph()
+    {
+        Nodes.Clear();
+        Connections.Clear();
+        CurrentGraphPath = null;
+
+        var entry = new FunctionEntryNodeViewModel("node_001")
+        {
+            Title = "函数开始",
+            X = 80,
+            Y = 210,
+        };
+        var ret = new FunctionReturnNodeViewModel("node_002")
+        {
+            Title = "函数返回",
+            X = 420,
+            Y = 210,
+        };
+        Nodes.Add(entry);
+        Nodes.Add(ret);
+        Connections.Add(new ConnectionViewModel(entry.OutputPins.First(p => p.Name == "exec_out"), ret.InputPins.First(p => p.Name == "exec_in")));
+
+        GraphChanged?.Invoke();
+        StatusChanged?.Invoke("已新建函数，并创建开始和返回节点。");
+    }
+
+    public void NewMacroGraph()
+    {
+        Nodes.Clear();
+        Connections.Clear();
+        CurrentGraphPath = null;
+
+        var entry = new MacroEntryNodeViewModel("node_001")
+        {
+            Title = "宏开始",
+            X = 80,
+            Y = 210,
+        };
+        var output = new MacroOutputNodeViewModel("node_002")
+        {
+            Title = "宏输出",
+            X = 420,
+            Y = 210,
+        };
+        Nodes.Add(entry);
+        Nodes.Add(output);
+        Connections.Add(new ConnectionViewModel(entry.OutputPins.First(p => p.Name == "exec_out"), output.InputPins.First(p => p.Name == "exec_in")));
+
+        GraphChanged?.Invoke();
+        StatusChanged?.Invoke("已新建宏，并创建开始和输出节点。");
+    }
+
     public void SaveGraph(string? path = null)
     {
         if (string.IsNullOrWhiteSpace(path))
@@ -53,11 +106,12 @@ public sealed class GraphEditorService
         StatusChanged?.Invoke($"图谱已保存：{Path.GetFileName(path)}");
     }
 
-    public GraphFileModel ExportGraphModel(string name)
+    public GraphFileModel ExportGraphModel(string name, GraphAssetKind kind = GraphAssetKind.EventGraph)
     {
         return new GraphFileModel
         {
             Name = name,
+            AssetKind = kind,
             Nodes = Nodes.Select(NodeSerializer.ToFileModel).ToList(),
             Connections = Connections.Select(c => new ConnectionFileModel
             {
@@ -104,7 +158,7 @@ public sealed class GraphEditorService
             nodesById[node.Id] = node;
         }
 
-        if (Nodes.All(node => node.NodeKind != NodeKind.Start))
+        if (file.AssetKind == GraphAssetKind.EventGraph && Nodes.All(node => node.NodeKind != NodeKind.Start))
         {
             string id = nodesById.ContainsKey("node_001") ? $"node_{nodesById.Count + 1:000}" : "node_001";
             while (nodesById.ContainsKey(id))
@@ -127,6 +181,7 @@ public sealed class GraphEditorService
             if (!nodesById.TryGetValue(connFile.SourceNodeId, out var sourceNode) ||
                 !nodesById.TryGetValue(connFile.TargetNodeId, out var targetNode))
             {
+                Logger.Warn($"旧图谱包含无效连线，已跳过：{connFile.SourceNodeId}.{connFile.SourcePinName} -> {connFile.TargetNodeId}.{connFile.TargetPinName}");
                 continue;
             }
 

@@ -29,6 +29,30 @@ public sealed class Win32KeyboardAdapter : IKeyboardAdapter
         }
     }
 
+    public void ExecuteChord(string chord, int holdMs, CancellationToken ct)
+    {
+        string[] keys = chord
+            .Split('+', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(key => !string.IsNullOrWhiteSpace(key))
+            .ToArray();
+        if (keys.Length == 0)
+            return;
+
+        foreach (string key in keys)
+        {
+            ct.ThrowIfCancellationRequested();
+            ExecuteKey(key, PressReleaseMode.Press);
+        }
+
+        Thread.Sleep(Math.Max(0, holdMs));
+
+        for (int i = keys.Length - 1; i >= 0; i--)
+        {
+            ct.ThrowIfCancellationRequested();
+            ExecuteKey(keys[i], PressReleaseMode.Release);
+        }
+    }
+
     public void ReleaseAllKeys()
     {
         lock (_pressedKeys)
@@ -131,4 +155,3 @@ public sealed class Win32KeyboardAdapter : IKeyboardAdapter
     private const uint KEYEVENTF_SCANCODE = 0x0008;
     private const uint KEYEVENTF_EXTENDEDKEY = 0x0001;
 }
-

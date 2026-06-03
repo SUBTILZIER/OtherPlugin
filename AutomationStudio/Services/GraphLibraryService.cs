@@ -13,6 +13,8 @@ public sealed class GraphListItemViewModel : ObservableObject
 
     public string Id { get; init; } = Guid.NewGuid().ToString("N");
 
+    public GraphAssetKind Kind { get; init; } = GraphAssetKind.EventGraph;
+
     public string Name
     {
         get => _name;
@@ -62,15 +64,24 @@ public sealed class GraphLibraryService
 
     public void Save(IEnumerable<GraphListItemViewModel> graphs, string? selectedId)
     {
+        Save(graphs.Where(item => item.Kind == GraphAssetKind.EventGraph),
+            graphs.Where(item => item.Kind == GraphAssetKind.Function),
+            graphs.Where(item => item.Kind == GraphAssetKind.Macro),
+            selectedId);
+    }
+
+    public void Save(
+        IEnumerable<GraphListItemViewModel> eventGraphs,
+        IEnumerable<GraphListItemViewModel> functions,
+        IEnumerable<GraphListItemViewModel> macros,
+        string? selectedId)
+    {
         var state = new GraphLibraryState
         {
             LastSelectedId = selectedId,
-            Graphs = graphs.Select(item => new GraphLibraryItem
-            {
-                Id = item.Id,
-                Name = item.Name,
-                Graph = item.Graph,
-            }).ToList(),
+            Graphs = ToItems(eventGraphs).ToList(),
+            Functions = ToItems(functions).ToList(),
+            Macros = ToItems(macros).ToList(),
         };
 
         File.WriteAllText(LibraryPath, JsonSerializer.Serialize(state, JsonOptions));
@@ -79,13 +90,34 @@ public sealed class GraphLibraryService
     public static ObservableCollection<GraphListItemViewModel> ToViewModels(GraphLibraryState state)
     {
         return new ObservableCollection<GraphListItemViewModel>(
-            state.Graphs.Select(item => new GraphListItemViewModel
-            {
-                Id = string.IsNullOrWhiteSpace(item.Id) ? Guid.NewGuid().ToString("N") : item.Id,
-                Name = string.IsNullOrWhiteSpace(item.Name) ? "未命名图谱" : item.Name,
-                Graph = item.Graph ?? new GraphFileModel(),
-            }));
+            ToViewModels(state.Graphs, GraphAssetKind.EventGraph, "未命名事件图"));
     }
+
+    public static ObservableCollection<GraphListItemViewModel> ToFunctionViewModels(GraphLibraryState state) =>
+        new(ToViewModels(state.Functions, GraphAssetKind.Function, "未命名函数"));
+
+    public static ObservableCollection<GraphListItemViewModel> ToMacroViewModels(GraphLibraryState state) =>
+        new(ToViewModels(state.Macros, GraphAssetKind.Macro, "未命名宏"));
+
+    private static IEnumerable<GraphLibraryItem> ToItems(IEnumerable<GraphListItemViewModel> items) =>
+        items.Select(item => new GraphLibraryItem
+        {
+            Id = item.Id,
+            Name = item.Name,
+            Graph = item.Graph,
+        });
+
+    private static IEnumerable<GraphListItemViewModel> ToViewModels(
+        IEnumerable<GraphLibraryItem> items,
+        GraphAssetKind kind,
+        string fallbackName) =>
+        items.Select(item => new GraphListItemViewModel
+        {
+            Id = string.IsNullOrWhiteSpace(item.Id) ? Guid.NewGuid().ToString("N") : item.Id,
+            Kind = kind,
+            Name = string.IsNullOrWhiteSpace(item.Name) ? fallbackName : item.Name,
+            Graph = item.Graph ?? new GraphFileModel(),
+        });
 }
 
 public sealed class GraphLibraryState
@@ -93,6 +125,10 @@ public sealed class GraphLibraryState
     public string? LastSelectedId { get; set; }
 
     public List<GraphLibraryItem> Graphs { get; set; } = [];
+
+    public List<GraphLibraryItem> Functions { get; set; } = [];
+
+    public List<GraphLibraryItem> Macros { get; set; } = [];
 }
 
 public sealed class GraphLibraryItem

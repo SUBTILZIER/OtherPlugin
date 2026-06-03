@@ -5,6 +5,47 @@ WPF 可视化节点自动化编辑器，类似 UE4 蓝图。技术栈 C# 12 / .N
 
 ## 踩坑记录（按时间倒序，新记录追加到顶部）
 
+### 2026-06-03: Event graphs + custom functions + macros v1
+
+- `GraphLibraryState` now has event graphs (`Graphs` legacy field), `Functions`, and `Macros`. Old saved `Graphs` are treated as event graphs.
+- Function assets use `FunctionEntry` + `FunctionReturn`; macro assets use `MacroEntry` + one or more `MacroOutput`.
+- Function/macro parameter pin names use stable parameter IDs. User-visible parameter names are display labels only.
+- Parameter type mapping v1: `Boolean -> Boolean`, `Vector2D -> Vector2D`, all other parameter types (`Float`, `Vector3D`, `Vector4D`, `ImageAsset`, `String`) map to `String` pins.
+- Function calls are synchronous and return through `FunctionReturn`. Macro calls are runtime calls, not node expansion; the reached `MacroOutput` decides the caller exec output.
+- Runtime recursion is blocked by call stack keys (`function:{id}`, `macro:{id}`).
+- Only event graphs should be executed directly. Functions/macros are edited as assets and called from event graphs.
+
+### 2026-06-03: Stage-5 common nodes cleaned and optimized
+
+#### Node expansion pattern
+- Kept common nodes: `MouseDoubleClick`, `GetMousePosition`, `KeyChord`, `WaitImage`, `WaitImageDisappear`, `Compare`, `BooleanAnd`, `BooleanOr`, `BooleanNot`, `StringConcat`, `WaitWindow`, `CloseWindow`, `WindowExists`, `GetForegroundWindow`, `SaveScreenshot`, `ShowMessage`.
+- Removed weak nodes: `MouseDrag`, `InputText`, `KeySequence`, `ClickImageCenter`, `SetVariable`, `Comment`.
+- Old graph files containing removed node type keys should skip those nodes with a Warn and ignore broken connections.
+- Small nodes use `CommonNodeViewModel` plus a shared generic inspector panel to avoid bloating `InspectorController` with one panel per tiny node.
+- Every node still has an explicit `NodeKind` and `NodeRegistry` definition; execution is centralized in `Nodes/Common/CommonNodeExecutors.cs`.
+- If a common node becomes complex later, split it into a dedicated ViewModel/Inspector/Executor.
+
+#### Adapter additions
+- `IMouseAdapter`: `DoubleClick`, `GetPosition`.
+- `IKeyboardAdapter`: `ExecuteChord`.
+- `IWindowAdapter`: wait/close/exists/foreground-window APIs.
+- `IScreenshotAdapter`: screenshot save API.
+
+#### UI/runtime behavior
+- `KeyChord` inspector uses an add-key ComboBox plus an editable chord preview (`Ctrl+C`, `Ctrl+Shift+Esc`, etc.); runtime uses the preview text.
+- `WaitImage` has `image_path` input and output. `FindImage` has `image_path` input. Input path wins over local property.
+- Image source pins are mode-sensitive: when source mode is `RealtimeScreenshot`, hide/remove `source_image_path`; when `ManualImage`, show it. Switching back to realtime must clear old `source_image_path` connections.
+- `SaveScreenshot` uses `Text2` as save mode: `Auto` by default, `Manual` for user path. Auto saves to `AppContext.BaseDirectory/Temp/Screenshots/screenshot_{nodeId}_{timestamp}.png`. The node exposes only one data output: `image_path`.
+- Mode fields must be enum ComboBox controls, never free-text mode names. This includes screenshot save mode and image search source mode. If one enum choice makes fields irrelevant, hide those fields instead of disabling them.
+- `WaitWindow`/`CloseWindow`/`WindowExists` support manual process name, running-window dropdown, and browsing an exe to derive process name.
+- `WaitImage`/`WaitImageDisappear`/`WaitWindow`: timeout `0` means no timeout; negative values fall back to defaults. Long-running waits must log each polling attempt.
+- Editor mode must not trigger runtime-heavy logic: no Python checks, no node execution, no process/window enumeration while selecting or dragging. Window/process lists are refreshed only by explicit refresh buttons.
+- Any field backed by a connected input pin must show `前置输入`, be disabled, and use gray foreground/background/border.
+
+#### Important pitfalls
+- Runtime popup nodes must call `Application.Current.Dispatcher.Invoke`.
+- Image wait/disappear reuse `Python/find_image.py`; do not reintroduce OCR/EasyOCR.
+
 ### 2026-06-03: Inspector 下沉 + 找图区块识别 + Validator 增强
 
 #### Runtime model cleanup: 不再用别的节点字段存当前节点语义

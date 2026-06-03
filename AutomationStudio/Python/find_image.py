@@ -34,8 +34,10 @@ def main():
     if len(sys.argv) < 3:
         if len(sys.argv) == 2 and sys.argv[1].lower().endswith(".json"):
             with open(sys.argv[1], "r", encoding="utf-8") as f:
-            request = json.load(f)
+                request = json.load(f)
             template_path = request.get("template_path", "")
+            source_mode = request.get("source_mode", "RealtimeScreenshot")
+            source_image_path = request.get("source_image_path", "")
             threshold_pct = float(request.get("threshold_percent", 80))
             use_region = bool(request.get("use_region", False))
             region_x = int(float(request.get("region_x", 0)))
@@ -47,6 +49,8 @@ def main():
             sys.exit(1)
     else:
         template_path = sys.argv[1]
+        source_mode = "RealtimeScreenshot"
+        source_image_path = ""
         threshold_pct = float(sys.argv[2])
         use_region = False
         region_x = 0
@@ -62,7 +66,16 @@ def main():
             print(json.dumps({"found": False, "error": f"Cannot read template: {template_path}"}))
             sys.exit(1)
 
-        screen_pil = ImageGrab.grab(all_screens=True)
+        if str(source_mode).lower() == "manualimage":
+            screen = cv2.imread(source_image_path, cv2.IMREAD_COLOR)
+            if screen is None:
+                print(json.dumps({"found": False, "error": f"Cannot read source image: {source_image_path}"}))
+                sys.exit(1)
+            screen_pil = None
+        else:
+            screen_pil = ImageGrab.grab(all_screens=True)
+            screen = None
+
         offset_x = 0
         offset_y = 0
         if use_region:
@@ -70,16 +83,20 @@ def main():
                 print(json.dumps({"found": False, "error": "Invalid region size"}))
                 sys.exit(1)
 
-            screen_pil = screen_pil.crop((
-                region_x,
-                region_y,
-                region_x + region_width,
-                region_y + region_height,
-            ))
+            if screen is not None:
+                screen = screen[region_y:region_y + region_height, region_x:region_x + region_width]
+            else:
+                screen_pil = screen_pil.crop((
+                    region_x,
+                    region_y,
+                    region_x + region_width,
+                    region_y + region_height,
+                ))
             offset_x = region_x
             offset_y = region_y
 
-        screen = cv2.cvtColor(np.array(screen_pil), cv2.COLOR_RGB2BGR)
+        if screen is None:
+            screen = cv2.cvtColor(np.array(screen_pil), cv2.COLOR_RGB2BGR)
 
         result = find_template(screen, template, threshold, offset_x, offset_y)
         print(json.dumps(result))

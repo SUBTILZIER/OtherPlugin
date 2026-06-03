@@ -33,6 +33,20 @@ public sealed class Win32MouseAdapter : IMouseAdapter
         }
     }
 
+    public void DoubleClick(MouseButton button)
+    {
+        ExecuteButton(button, PressReleaseMode.Click);
+        Thread.Sleep(80);
+        ExecuteButton(button, PressReleaseMode.Click);
+    }
+
+    public Point GetPosition()
+    {
+        return GetCursorPos(out POINT point)
+            ? new Point(point.X, point.Y)
+            : new Point(0, 0);
+    }
+
     public void ExecuteScroll(ScrollWheelAction action, int speed, int intervalMs, int durationMs, CancellationToken ct)
     {
         switch (action)
@@ -78,6 +92,9 @@ public sealed class Win32MouseAdapter : IMouseAdapter
     private static extern bool SetCursorPos(int x, int y);
 
     [DllImport("user32.dll")]
+    private static extern bool GetCursorPos(out POINT lpPoint);
+
+    [DllImport("user32.dll")]
     private static extern void mouse_event(uint dwFlags, uint dx, uint dy, uint dwData, UIntPtr dwExtraInfo);
 
     private const uint MOUSEEVENTF_LEFTDOWN = 0x0002;
@@ -91,5 +108,11 @@ public sealed class Win32MouseAdapter : IMouseAdapter
     private const uint MOUSEEVENTF_WHEEL = 0x0800;
     private const uint XBUTTON1 = 0x0001;
     private const uint XBUTTON2 = 0x0002;
-}
 
+    [StructLayout(LayoutKind.Sequential)]
+    private struct POINT
+    {
+        public int X;
+        public int Y;
+    }
+}

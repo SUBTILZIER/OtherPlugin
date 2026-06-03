@@ -79,6 +79,14 @@ Runtime / Nodes / Adapters
 
 ## 核心模块详解
 
+### 0. 资产系统：事件图 / 自定义函数 / 宏
+
+- `Graphs` 是旧字段，当前语义为事件图；新增 `Functions` 和 `Macros`。
+- 函数默认包含 `FunctionEntry` 和 `FunctionReturn`，同步执行并把返回节点输入复制到调用节点输出。
+- 宏默认包含 `MacroEntry` 和 `MacroOutput`，运行期调用；到达哪个宏输出节点，就从调用节点对应执行出口继续。
+- 参数使用稳定 ID 作为 pin name；重命名只改显示名，不应破坏连线。
+- 参数类型第一版映射：`Boolean`、`Vector2D` 使用原生 pin，其余类型先映射为 `String`。
+
 ### 1. Services 层（新增）
 
 #### GraphLibraryService
@@ -178,7 +186,7 @@ public abstract class NodeBaseViewModel : ObservableObject
 - **PinKind**: Execution / Boolean / Vector2D / String
 - 支持动态引脚位置计算
 
-#### 当前全部节点 (14个)
+#### 当前全部节点 (30个)
 
 | 节点 | NodeKind | 分类 | 引脚 |
 |------|----------|------|------|
@@ -196,6 +204,12 @@ public abstract class NodeBaseViewModel : ObservableObject
 | SelectWindow | SelectWindow | 功能节点 | exec, process_name(String in/out), result(bool) |
 | PrintLog | PrintLog | 调试 | exec, message(String in) |
 | Reroute | Reroute | 连线 | in/out (同类型透传) |
+| Stage-5 Mouse | MouseDoubleClick/GetMousePosition | 输入/鼠标 | 双击、输出当前位置 |
+| Stage-5 Keyboard | KeyChord | 输入/键盘 | 组合键，属性面板支持添加按键 + 组合预览 |
+| Stage-5 Image | WaitImage/WaitImageDisappear | 插件/图像识别 | 等待图片、等待消失；WaitImage 输出 image_path/center/result；实时截屏时隐藏 source_image_path 输入 |
+| Stage-5 Logic | Compare/BooleanAnd/BooleanOr/BooleanNot/StringConcat | 逻辑 | 比较、布尔、字符串拼接 |
+| Stage-5 Window | WaitWindow/CloseWindow/WindowExists/GetForegroundWindow | 系统/窗口 | 等待/关闭/存在/前台窗口 |
+| Stage-5 Debug | SaveScreenshot/ShowMessage | 调试 | 截图保存、弹窗；SaveScreenshot 保存模式用枚举下拉，默认 Auto 保存到 `Temp/Screenshots`，只输出 image_path |
 
 ### 3. Runtime 层（执行引擎）
 
@@ -410,6 +424,31 @@ Python 参数规则：
 ## 踩坑记录
 
 > 以下记录来自实际开发中的踩坑经验，按时间倒序排列，新记录追加到顶部。
+
+### 2026-06-03：阶段 5 常用节点清理与交互优化
+
+#### 新增节点策略
+- **新增范围**：鼠标、键盘、图像、逻辑、系统、调试共 22 个常用节点。
+- **保留节点**：`MouseDoubleClick`、`GetMousePosition`、`KeyChord`、`WaitImage`、`WaitImageDisappear`、`Compare`、`BooleanAnd/Or/Not`、`StringConcat`、`WaitWindow`、`CloseWindow`、`WindowExists`、`GetForegroundWindow`、`SaveScreenshot`、`ShowMessage`。
+- **已删除节点**：`MouseDrag`、`InputText`、`KeySequence`、`ClickImageCenter`、`SetVariable`、`Comment`。旧图加载时丢弃这些节点并写 Warn，同时过滤坏连线。
+- **UI 策略**：保留的小节点继续使用 `CommonNodeViewModel` + 通用属性面板；复杂节点后续再拆专用 ViewModel/Inspector/Executor。
+- **Runtime 策略**：每个保留节点仍有独立 `NodeKind`，执行器统一走 `Nodes/Common/CommonNodeExecutors.cs`，菜单定义仍由 `NodeRegistry.Definitions` 生成。
+- **交互优化**：`KeyChord` 使用“增加按键 + 组合预览”；窗口类通用节点支持手填、运行窗口下拉、浏览 exe 推导进程名；`WaitImage.image_path` 可输出给后续 `FindImage.image_path`。
+- **维护规则**：如果某个通用节点后续参数变复杂，再单独拆成专属 ViewModel/Inspector 面板；不要一开始就把所有小节点拆成几十个重复类。
+
+#### 新增 Adapter 能力
+- `IMouseAdapter`：双击、获取鼠标位置。
+- `IKeyboardAdapter`：组合键。
+- `IWindowAdapter`：等待窗口、关闭窗口、窗口是否存在、获取前台窗口。
+- `IScreenshotAdapter`：保存全屏或指定区域截图。
+
+#### 注意事项
+- 剪贴板输入必须走 STA 线程，否则 WPF Clipboard 可能抛异常。
+- `ShowMessage` 在后台执行线程中触发 UI 弹窗，必须通过 `Application.Current.Dispatcher.Invoke`。
+- 图像等待类节点复用 `Python/find_image.py`，不引入 OCR/EasyOCR。
+- `WaitImage`、`WaitImageDisappear`、`WaitWindow` 的超时语义统一为 `0=不超时`、负数回退默认值；持续等待时必须打印每轮检查日志，避免 UI 看起来像只执行一次。
+- 编辑器空闲/拖拽/选中节点时禁止触发运行时能力：不做 Python 检测、不执行节点、不枚举窗口/进程。窗口列表只允许在用户点击“刷新”按钮时扫描一次。
+- `CommonNodeViewModel` 的 `Text/Number` 字段是阶段 5 小节点的通用字段；保存文件字段要保持兼容，避免破坏旧图。前置输入锁定时，属性面板必须显示“前置输入”且不可编辑。
 
 ### 2026-06-03：属性面板下沉、找图区块识别、执行前校验增强
 

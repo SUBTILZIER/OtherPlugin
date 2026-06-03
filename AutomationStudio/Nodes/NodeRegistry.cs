@@ -1,4 +1,5 @@
 using AutomationStudioWpf.Graph;
+using AutomationStudioWpf.Nodes.Common;
 using AutomationStudioWpf.Nodes.Core;
 using AutomationStudioWpf.Nodes.Debug;
 using AutomationStudioWpf.Nodes.Input.Keyboard;
@@ -20,6 +21,8 @@ public sealed class NodeRegistry
         _definitions = definitions.ToDictionary(d => d.NodeKind);
     }
 
+    public IReadOnlyCollection<INodeDefinition> Definitions => _definitions.Values;
+
     public static NodeRegistry CreateDefault()
     {
         return new NodeRegistry(
@@ -33,6 +36,22 @@ public sealed class NodeRegistry
             new SelectWindowNodeExecutor(),
             new PrintLogNodeExecutor(),
             new FindImageNodeExecutor(),
+            new CommonNodeExecutor(NodeKind.MouseDoubleClick),
+            new CommonNodeExecutor(NodeKind.GetMousePosition),
+            new CommonNodeExecutor(NodeKind.KeyChord),
+            new CommonNodeExecutor(NodeKind.WaitImage),
+            new CommonNodeExecutor(NodeKind.WaitImageDisappear),
+            new CommonNodeExecutor(NodeKind.Compare),
+            new CommonNodeExecutor(NodeKind.BooleanAnd),
+            new CommonNodeExecutor(NodeKind.BooleanOr),
+            new CommonNodeExecutor(NodeKind.BooleanNot),
+            new CommonNodeExecutor(NodeKind.StringConcat),
+            new CommonNodeExecutor(NodeKind.WaitWindow),
+            new CommonNodeExecutor(NodeKind.CloseWindow),
+            new CommonNodeExecutor(NodeKind.WindowExists),
+            new CommonNodeExecutor(NodeKind.GetForegroundWindow),
+            new CommonNodeExecutor(NodeKind.SaveScreenshot),
+            new CommonNodeExecutor(NodeKind.ShowMessage),
         ],
         CreateDefaultDefinitions());
     }
@@ -40,8 +59,6 @@ public sealed class NodeRegistry
     public bool TryGetExecutor(NodeKind kind, out INodeExecutor executor) => _executors.TryGetValue(kind, out executor!);
 
     public bool TryGetDefinition(NodeKind kind, out INodeDefinition definition) => _definitions.TryGetValue(kind, out definition!);
-
-    public IReadOnlyCollection<INodeDefinition> Definitions => _definitions.Values;
 
     private static IReadOnlyList<INodeDefinition> CreateDefaultDefinitions()
     {
@@ -56,14 +73,39 @@ public sealed class NodeRegistry
 
             Definition(NodeKind.MouseClick, "mouse_click", "鼠标点击", "输入/鼠标", [InExec(), InVector("position", "点击位置"), OutExec(), OutBool("result", "结果")]),
             Definition(NodeKind.MouseMove, "mouse_move", "鼠标移动", "输入/鼠标", [InExec(), InVector("position", "目标坐标"), OutExec(), OutBool("result", "结果"), OutVector("position", "当前位置")]),
+            Definition(NodeKind.MouseDoubleClick, "mouse_double_click", "鼠标双击", "输入/鼠标", [InExec(), InVector("position", "点击位置"), OutExec(), OutBool("result", "结果")]),
+            Definition(NodeKind.GetMousePosition, "get_mouse_position", "获取鼠标位置", "输入/鼠标", [InExec(), OutExec(), OutVector("position", "当前位置"), OutBool("result", "结果")]),
             Definition(NodeKind.ScrollWheel, "scroll_wheel", "鼠标滚轮", "输入/鼠标", [InExec(), OutExec(), OutBool("result", "结果")]),
+
             Definition(NodeKind.Keyboard, "keyboard", "键盘", "输入/键盘", [InExec(), OutExec(), OutBool("result", "结果")]),
+            Definition(NodeKind.KeyChord, "key_chord", "组合键", "输入/键盘", [InExec(), OutExec(), OutBool("result", "结果")]),
 
             Definition(NodeKind.StartProgram, "start_program", "启动程序", "系统/窗口", [InExec(), OutExec(), OutString("process_name", "进程名"), OutBool("result", "结果")]),
             Definition(NodeKind.SelectWindow, "select_window", "选中窗口", "系统/窗口", [InExec(), InString("process_name", "进程名"), OutExec(), OutString("process_name", "进程名"), OutBool("result", "结果")]),
-            Definition(NodeKind.PrintLog, "print_log", "打印log", "调试", [InExec(), InString("message", "消息"), OutExec()]),
+            Definition(NodeKind.WaitWindow, "wait_window", "等待窗口", "系统/窗口", [InExec(), InString("process_name", "进程名"), OutExec(), OutString("process_name", "进程名"), OutBool("result", "结果")]),
+            Definition(NodeKind.CloseWindow, "close_window", "关闭窗口", "系统/窗口", [InExec(), InString("process_name", "进程名"), OutExec(), OutString("process_name", "进程名"), OutBool("result", "结果")]),
+            Definition(NodeKind.WindowExists, "window_exists", "窗口是否存在", "系统/窗口", [InExec(), InString("process_name", "进程名"), OutExec(), OutString("process_name", "进程名"), OutBool("result", "结果")]),
+            Definition(NodeKind.GetForegroundWindow, "get_foreground_window", "获取前台窗口", "系统/窗口", [InExec(), OutExec(), OutString("process_name", "进程名"), OutString("window_title", "窗口标题"), OutBool("result", "结果")]),
 
-            Definition(NodeKind.FindImage, "find_image", "找图", "插件/图像识别", [InExec(), OutExec(), OutBool("result", "结果"), OutVector("center", "中心点")]),
+            Definition(NodeKind.FindImage, "find_image", "找图", "插件/图像识别", [InExec(), InString("source_image_path", "查找源"), InString("image_path", "查找目标"), OutExec(), OutBool("result", "结果"), OutVector("center", "中心点")]),
+            Definition(NodeKind.WaitImage, "wait_image", "等待图片", "插件/图像识别", [InExec(), InString("source_image_path", "查找源"), InString("image_path", "查找目标"), OutExec(), OutBool("result", "结果"), OutVector("center", "中心点"), OutString("image_path", "查找目标")]),
+            Definition(NodeKind.WaitImageDisappear, "wait_image_disappear", "图片消失", "插件/图像识别", [InExec(), InString("source_image_path", "查找源"), InString("image_path", "查找目标"), OutExec(), OutBool("result", "结果")]),
+
+            Definition(NodeKind.Compare, "compare", "比较", "逻辑/判断", [InExec(), InString("left", "左值"), InString("right", "右值"), OutExec(), OutBool("result", "结果")]),
+            Definition(NodeKind.BooleanAnd, "boolean_and", "布尔与", "逻辑/布尔", [InExec(), InBool("left", "左值"), InBool("right", "右值"), OutExec(), OutBool("result", "结果")]),
+            Definition(NodeKind.BooleanOr, "boolean_or", "布尔或", "逻辑/布尔", [InExec(), InBool("left", "左值"), InBool("right", "右值"), OutExec(), OutBool("result", "结果")]),
+            Definition(NodeKind.BooleanNot, "boolean_not", "布尔非", "逻辑/布尔", [InExec(), InBool("value", "输入"), OutExec(), OutBool("result", "结果")]),
+            Definition(NodeKind.StringConcat, "string_concat", "字符串拼接", "逻辑/字符串", [InExec(), InString("left", "左文本"), InString("right", "右文本"), OutExec(), OutString("value", "结果")]),
+
+            Definition(NodeKind.PrintLog, "print_log", "打印log", "调试", [InExec(), InString("message", "消息"), OutExec()]),
+            Definition(NodeKind.SaveScreenshot, "save_screenshot", "截图", "插件/图像识别", [InExec(), InString("path", "保存路径"), OutExec(), OutString("image_path", "图像路径")]),
+            Definition(NodeKind.ShowMessage, "show_message", "弹窗提示", "调试", [InExec(), InString("text", "文本"), OutExec(), OutBool("result", "结果")]),
+            Definition(NodeKind.FunctionEntry, "function_entry", "函数开始", "自定义函数", [OutExec()]),
+            Definition(NodeKind.FunctionReturn, "function_return", "函数返回", "自定义函数", [InExec()]),
+            Definition(NodeKind.MacroEntry, "macro_entry", "宏开始", "宏", [OutExec()]),
+            Definition(NodeKind.MacroOutput, "macro_output", "宏输出", "宏", [InExec()]),
+            Definition(NodeKind.FunctionCall, "function_call", "函数调用", "自定义函数", [InExec(), OutExec()]),
+            Definition(NodeKind.MacroCall, "macro_call", "宏调用", "宏", [InExec()]),
         ];
     }
 

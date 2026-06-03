@@ -15,6 +15,8 @@ public sealed class ExecutionController
     private readonly GraphRuntimeExecutor _runtimeExecutor;
     private readonly GraphValidator _graphValidator;
     private readonly System.Windows.Controls.Button _runButton;
+    private readonly Func<IEnumerable<GraphListItemViewModel>> _getFunctions;
+    private readonly Func<IEnumerable<GraphListItemViewModel>> _getMacros;
     private readonly Action<string> _setStatus;
 
     private CancellationTokenSource? _executionCts;
@@ -25,6 +27,8 @@ public sealed class ExecutionController
         GraphRuntimeExecutor runtimeExecutor,
         GraphValidator graphValidator,
         System.Windows.Controls.Button runButton,
+        Func<IEnumerable<GraphListItemViewModel>> getFunctions,
+        Func<IEnumerable<GraphListItemViewModel>> getMacros,
         Action<string> setStatus)
     {
         _owner = owner;
@@ -32,6 +36,8 @@ public sealed class ExecutionController
         _runtimeExecutor = runtimeExecutor;
         _graphValidator = graphValidator;
         _runButton = runButton;
+        _getFunctions = getFunctions;
+        _getMacros = getMacros;
         _setStatus = setStatus;
     }
 
@@ -49,11 +55,14 @@ public sealed class ExecutionController
             _executionCts = new CancellationTokenSource();
 
             var plan = _editorService.BuildExecutionPlan();
+            var assetLibrary = new RuntimeAssetLibrary(
+                _getFunctions().ToDictionary(item => item.Id, item => BuildPlanFromModel(item.Graph)),
+                _getMacros().ToDictionary(item => item.Id, item => BuildPlanFromModel(item.Graph)));
             var baseDirectory = ResolveBaseDirectory();
             if (!Validate(plan))
                 return;
 
-            if (plan.Nodes.Any(n => n.NodeKind is NodeKind.FindImage))
+            if (plan.Nodes.Any(n => n.NodeKind is NodeKind.FindImage or NodeKind.WaitImage or NodeKind.WaitImageDisappear))
             {
                 bool pythonReady = await PythonAutoInstaller.EnsurePythonAsync(new Progress<string>(_setStatus));
                 if (!pythonReady)
@@ -65,7 +74,7 @@ public sealed class ExecutionController
 
             _setStatus("执行开始...");
             var ct = _executionCts.Token;
-            var result = await Task.Run(() => _runtimeExecutor.Execute(plan, baseDirectory, ct), ct);
+            var result = await Task.Run(() => _runtimeExecutor.Execute(plan, baseDirectory, assetLibrary, ct), ct);
             _setStatus(result.Message);
         }
         catch (OperationCanceledException)
@@ -81,9 +90,40 @@ public sealed class ExecutionController
         }
         finally
         {
+            ReleaseAllKeys();
             _executionCts = null;
             _runButton.IsEnabled = true;
         }
+    }
+
+    private static GraphExecutionPlan BuildPlanFromModel(GraphFileModel graph)
+    {
+        var nodes = graph.Nodes
+            .Select(NodeSerializer.FromFileModel)
+            .Where(node => node is not null)
+            .Cast<NodeBaseViewModel>()
+            .ToDictionary(node => node.Id);
+        var runtimeNodes = nodes.Values.Select(NodeSerializer.ToRuntimeNode).ToList();
+        var runtimeConnections = new List<GraphRuntimeConnection>();
+        foreach (var connection in graph.Connections)
+        {
+            if (!nodes.TryGetValue(connection.SourceNodeId, out var sourceNode) ||
+                !nodes.TryGetValue(connection.TargetNodeId, out var targetNode))
+                continue;
+            var sourcePin = sourceNode.OutputPins.FirstOrDefault(pin => pin.Name == connection.SourcePinName);
+            var targetPin = targetNode.InputPins.FirstOrDefault(pin => pin.Name == connection.TargetPinName);
+            if (sourcePin is null || targetPin is null)
+                continue;
+            runtimeConnections.Add(new GraphRuntimeConnection(
+                sourceNode.Id,
+                sourcePin.Name,
+                sourcePin.Kind,
+                targetNode.Id,
+                targetPin.Name,
+                targetPin.Kind));
+        }
+
+        return new GraphExecutionPlan(runtimeNodes, runtimeConnections);
     }
 
     public void ReleaseAllKeys() => _runtimeExecutor.ReleaseAllKeys();

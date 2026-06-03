@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Threading;
 using AutomationStudioWpf.Graph;
 using AutomationStudioWpf.Services;
 using Point = System.Windows.Point;
@@ -27,6 +28,9 @@ public sealed class NodeDragSelectionController
     private NodeBaseViewModel? _dragNode;
     private List<(NodeBaseViewModel Node, double OffsetX, double OffsetY)> _dragGroup = [];
     private bool _isSelecting;
+    private bool _dragFrameQueued;
+    private bool _dragChanged;
+    private Point _pendingDragPoint;
     private Point _selectionStart;
 
     public NodeDragSelectionController(
@@ -106,6 +110,9 @@ public sealed class NodeDragSelectionController
 
         var point = _viewportToGraph(e.GetPosition(_graphViewport));
         _dragNode = node;
+        _pendingDragPoint = point;
+        _dragFrameQueued = false;
+        _dragChanged = false;
 
         var selectedCount = _editorService.Nodes.Count(n => n.IsSelected);
         _dragGroup = selectedCount > 1 && node.IsSelected
@@ -125,23 +132,24 @@ public sealed class NodeDragSelectionController
         if (isConnecting) return;
         if (_dragNode is null || e.LeftButton != MouseButtonState.Pressed) return;
 
-        var point = _viewportToGraph(e.GetPosition(_graphViewport));
-        foreach (var (item, offsetX, offsetY) in _dragGroup)
-        {
-            item.X = point.X - offsetX;
-            item.Y = point.Y - offsetY;
-        }
-
-        _markDirty();
+        _pendingDragPoint = _viewportToGraph(e.GetPosition(_graphViewport));
+        QueueDragFrame();
     }
 
     public void EndNodeDrag(object sender)
     {
+        ApplyPendingDragFrame();
+
         if (sender is UIElement element)
             element.ReleaseMouseCapture();
 
+        if (_dragChanged)
+            _markDirty();
+
         _dragNode = null;
         _dragGroup.Clear();
+        _dragFrameQueued = false;
+        _dragChanged = false;
     }
 
     public void BeginSelection(WpfMouseButtonEventArgs e)
@@ -213,6 +221,8 @@ public sealed class NodeDragSelectionController
     {
         _dragNode = null;
         _dragGroup.Clear();
+        _dragFrameQueued = false;
+        _dragChanged = false;
     }
 
     public bool HandleKeyDown(WpfKeyEventArgs e)
@@ -344,6 +354,40 @@ public sealed class NodeDragSelectionController
 
         _markDirty();
         _setStatus($"已将 {selectedNodes.Count} 个节点纵向对齐。");
+    }
+
+    private void QueueDragFrame()
+    {
+        if (_dragFrameQueued)
+            return;
+
+        _dragFrameQueued = true;
+        _graphViewport.Dispatcher.BeginInvoke(ApplyPendingDragFrame, DispatcherPriority.Render);
+    }
+
+    private void ApplyPendingDragFrame()
+    {
+        _dragFrameQueued = false;
+        if (_dragNode is null)
+            return;
+
+        foreach (var (item, offsetX, offsetY) in _dragGroup)
+        {
+            double nextX = _pendingDragPoint.X - offsetX;
+            double nextY = _pendingDragPoint.Y - offsetY;
+
+            if (Math.Abs(item.X - nextX) > 0.01)
+            {
+                item.X = nextX;
+                _dragChanged = true;
+            }
+
+            if (Math.Abs(item.Y - nextY) > 0.01)
+            {
+                item.Y = nextY;
+                _dragChanged = true;
+            }
+        }
     }
 
     private static bool IsPinInteractionSource(DependencyObject? source)

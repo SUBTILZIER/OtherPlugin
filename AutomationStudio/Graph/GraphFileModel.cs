@@ -8,6 +8,8 @@ public sealed class GraphFileModel
 {
     public string Name { get; set; } = "未命名图谱";
 
+    public GraphAssetKind AssetKind { get; set; } = GraphAssetKind.EventGraph;
+
     public List<NodeFileModel> Nodes { get; set; } = [];
 
     public List<ConnectionFileModel> Connections { get; set; } = [];
@@ -27,6 +29,10 @@ public sealed class NodeFileModel
 
     // FindImage 节点属性。旧图中 StartProgram/PrintLog 也可能复用该字段。
     public string? ImagePath { get; set; }
+
+    public string? SourceImagePath { get; set; }
+
+    public string? ImageSearchSourceMode { get; set; }
 
     public int SimilarityThresholdPercent { get; set; } = 80;
 
@@ -97,6 +103,54 @@ public sealed class NodeFileModel
     public string? ProcessName { get; set; }
 
     public string? WindowInputMode { get; set; }
+
+    // Stage-5 common node properties.
+    public string? Text { get; set; }
+
+    public string? Text2 { get; set; }
+
+    public string? Text3 { get; set; }
+
+    public double Number { get; set; }
+
+    public double Number2 { get; set; }
+
+    public double Number3 { get; set; }
+
+    public double Number4 { get; set; }
+
+    public bool Flag { get; set; }
+
+    // Function / macro nodes.
+    public string? FunctionId { get; set; }
+
+    public string? MacroId { get; set; }
+
+    public string? ExitName { get; set; }
+
+    public List<GraphParameterFileModel> Parameters { get; set; } = [];
+
+    public List<GraphParameterFileModel> InputParameters { get; set; } = [];
+
+    public List<GraphParameterFileModel> OutputParameters { get; set; } = [];
+
+    public List<MacroExitFileModel> MacroExits { get; set; } = [];
+}
+
+public sealed class GraphParameterFileModel
+{
+    public string Id { get; set; } = string.Empty;
+
+    public string Name { get; set; } = "NewParam";
+
+    public GraphParameterType Type { get; set; } = GraphParameterType.Boolean;
+}
+
+public sealed class MacroExitFileModel
+{
+    public string Id { get; set; } = string.Empty;
+
+    public string Name { get; set; } = "完成";
 }
 
 public sealed class ConnectionFileModel

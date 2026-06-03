@@ -100,6 +100,8 @@ public abstract class NodeBaseViewModel : ObservableObject
         NodeKind.StartProgram => new SolidColorBrush(Color.FromRgb(45, 130, 180)),
         NodeKind.PrintLog => new SolidColorBrush(Color.FromRgb(60, 170, 100)),
         NodeKind.SelectWindow => new SolidColorBrush(Color.FromRgb(80, 120, 200)),
+        NodeKind.FunctionEntry or NodeKind.FunctionReturn or NodeKind.FunctionCall => new SolidColorBrush(Color.FromRgb(120, 44, 145)),
+        NodeKind.MacroEntry or NodeKind.MacroOutput or NodeKind.MacroCall => new SolidColorBrush(Color.FromRgb(84, 70, 160)),
         _ => new SolidColorBrush(Color.FromRgb(70, 70, 70)),
     };
 
@@ -140,6 +142,20 @@ public abstract class NodeBaseViewModel : ObservableObject
         PinViewModel pin = new(this, name, displayName, PinDirection.Input, kind);
         InputPins.Add(pin);
         return pin;
+    }
+
+    protected PinViewModel InsertInput(int index, string name, string displayName, PinKind kind)
+    {
+        PinViewModel pin = new(this, name, displayName, PinDirection.Input, kind);
+        InputPins.Insert(Math.Clamp(index, 0, InputPins.Count), pin);
+        return pin;
+    }
+
+    protected void RemoveInput(string name)
+    {
+        var pin = InputPins.FirstOrDefault(p => p.Name == name);
+        if (pin is not null)
+            InputPins.Remove(pin);
     }
 
     protected PinViewModel AddOutput(string name, string displayName, PinKind kind)

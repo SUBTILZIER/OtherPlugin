@@ -54,7 +54,7 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock Text="图谱列表"
+                            <TextBlock Text="事件图"
                                        FontWeight="SemiBold"
                                        FontSize="15"
                                        VerticalAlignment="Center" />
@@ -67,6 +67,8 @@
                         </Grid>
 
                         <ListBox x:Name="GraphListBox"
+                                 DockPanel.Dock="Top"
+                                 Height="190"
                                  ItemsSource="{Binding GraphListItems}"
                                  SelectedItem="{Binding SelectedGraphItem, Mode=TwoWay}"
                                  Background="Transparent"
@@ -206,6 +208,136 @@
                                     </ContextMenu.Template>
                                     <MenuItem Header="重命名" Click="RenameGraphMenuItem_Click" />
                                     <Separator />
+                                    <MenuItem Header="删除" Click="DeleteGraphMenuItem_Click" />
+                                </ContextMenu>
+                            </ListBox.ContextMenu>
+                        </ListBox>
+                        <Grid DockPanel.Dock="Top" Margin="10,8,10,6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="自定义函数" FontWeight="SemiBold" FontSize="15" VerticalAlignment="Center" />
+                            <Button Grid.Column="1" Content="+" Width="28" Height="26" Padding="0" Click="AddFunctionListItem_Click" />
+                        </Grid>
+                        <ListBox x:Name="FunctionListBox"
+                                 DockPanel.Dock="Top"
+                                 Height="170"
+                                 ItemsSource="{Binding FunctionListItems}"
+                                 Background="Transparent"
+                                 BorderThickness="0"
+                                 Foreground="White"
+                                 KeyDown="FunctionListBox_KeyDown"
+                                 MouseDoubleClick="FunctionListBox_MouseDoubleClick">
+                            <ListBox.ItemContainerStyle>
+                                <Style TargetType="ListBoxItem">
+                                    <Setter Property="Margin" Value="8,2" />
+                                    <Setter Property="Padding" Value="8,6" />
+                                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                    <Setter Property="Foreground" Value="White" />
+                                    <Setter Property="Background" Value="Transparent" />
+                                    <EventSetter Event="PreviewMouseRightButtonDown" Handler="FunctionListItem_PreviewMouseRightButtonDown" />
+                                </Style>
+                            </ListBox.ItemContainerStyle>
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid>
+                                        <TextBlock Text="{Binding Name}" VerticalAlignment="Center">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsEditing}" Value="True">
+                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                        <TextBox Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}"
+                                                 KeyDown="GraphNameTextBox_KeyDown"
+                                                 LostFocus="GraphNameTextBox_LostFocus">
+                                            <TextBox.Style>
+                                                <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsEditing}" Value="True">
+                                                            <Setter Property="Visibility" Value="Visible" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBox.Style>
+                                        </TextBox>
+                                    </Grid>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                            <ListBox.ContextMenu>
+                                <ContextMenu>
+                                    <MenuItem Header="重命名" Click="RenameGraphMenuItem_Click" />
+                                    <MenuItem Header="删除" Click="DeleteGraphMenuItem_Click" />
+                                </ContextMenu>
+                            </ListBox.ContextMenu>
+                        </ListBox>
+                        <Grid DockPanel.Dock="Top" Margin="10,8,10,6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="宏" FontWeight="SemiBold" FontSize="15" VerticalAlignment="Center" />
+                            <Button Grid.Column="1" Content="+" Width="28" Height="26" Padding="0" Click="AddMacroListItem_Click" />
+                        </Grid>
+                        <ListBox x:Name="MacroListBox"
+                                 ItemsSource="{Binding MacroListItems}"
+                                 Background="Transparent"
+                                 BorderThickness="0"
+                                 Foreground="White"
+                                 KeyDown="MacroListBox_KeyDown"
+                                 MouseDoubleClick="MacroListBox_MouseDoubleClick">
+                            <ListBox.ItemContainerStyle>
+                                <Style TargetType="ListBoxItem">
+                                    <Setter Property="Margin" Value="8,2" />
+                                    <Setter Property="Padding" Value="8,6" />
+                                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                    <Setter Property="Foreground" Value="White" />
+                                    <Setter Property="Background" Value="Transparent" />
+                                    <EventSetter Event="PreviewMouseRightButtonDown" Handler="MacroListItem_PreviewMouseRightButtonDown" />
+                                </Style>
+                            </ListBox.ItemContainerStyle>
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid>
+                                        <TextBlock Text="{Binding Name}" VerticalAlignment="Center">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsEditing}" Value="True">
+                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                        <TextBox Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}"
+                                                 KeyDown="GraphNameTextBox_KeyDown"
+                                                 LostFocus="GraphNameTextBox_LostFocus">
+                                            <TextBox.Style>
+                                                <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsEditing}" Value="True">
+                                                            <Setter Property="Visibility" Value="Visible" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBox.Style>
+                                        </TextBox>
+                                    </Grid>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                            <ListBox.ContextMenu>
+                                <ContextMenu>
+                                    <MenuItem Header="重命名" Click="RenameGraphMenuItem_Click" />
                                     <MenuItem Header="删除" Click="DeleteGraphMenuItem_Click" />
                                 </ContextMenu>
                             </ListBox.ContextMenu>
@@ -576,8 +708,37 @@
                             <TextBlock Text="节点名称" Foreground="White" />
                             <TextBox x:Name="NodeTitleTextBox" Margin="0,4,0,12" TextChanged="InspectorField_TextChanged" />
 
+                            <StackPanel x:Name="ParameterInspectorPanel" Visibility="Collapsed" Margin="0,0,0,12">
+                                <DockPanel Margin="0,0,0,8">
+                                    <Button Content="+"
+                                            DockPanel.Dock="Right"
+                                            Width="28"
+                                            Height="24"
+                                            Padding="0"
+                                            Click="AddParameterButton_Click" />
+                                    <TextBlock x:Name="ParameterInspectorTitle"
+                                               Text="参数"
+                                               Foreground="White"
+                                               FontWeight="SemiBold"
+                                               VerticalAlignment="Center" />
+                                </DockPanel>
+                                <StackPanel x:Name="ParameterRowsPanel" />
+                            </StackPanel>
+
                             <StackPanel x:Name="FindImageInspectorPanel" Visibility="Collapsed">
-                                <TextBlock Text="图像路径" Foreground="White" />
+                                <TextBlock Text="查找源" Foreground="White" />
+                                <ComboBox x:Name="FindImageSourceModeComboBox"
+                                          Margin="0,4,0,10"
+                                          SelectionChanged="FindImageSourceModeComboBox_SelectionChanged">
+                                    <ComboBoxItem Content="手动配置（输入图像路径）" Tag="ManualImage" />
+                                    <ComboBoxItem Content="实时截屏" Tag="RealtimeScreenshot" />
+                                </ComboBox>
+                                <TextBlock x:Name="FindImageSourcePathLabel" Text="查找源图像路径" Foreground="White" />
+                                <DockPanel x:Name="FindImageSourcePathPanel" Margin="0,4,0,10">
+                                    <Button Content="浏览" DockPanel.Dock="Right" Padding="12,4" Click="BrowseFindImageSourcePath_Click" />
+                                    <TextBox x:Name="FindImageSourcePathTextBox" Margin="0,0,8,0" TextChanged="InspectorField_TextChanged" />
+                                </DockPanel>
+                                <TextBlock Text="查找目标" Foreground="White" />
                                 <DockPanel Margin="0,4,0,10">
                                     <Button Content="浏览" DockPanel.Dock="Right" Padding="12,4" Click="BrowseFindImagePath_Click" />
                                     <TextBox x:Name="FindImagePathTextBox" Margin="0,0,8,0" TextChanged="InspectorField_TextChanged" />
@@ -777,6 +938,101 @@
                                 <TextBox x:Name="MouseMovePositionXTextBox" Margin="0,4,0,10" TextChanged="InspectorField_TextChanged" />
                                 <TextBlock x:Name="MouseMovePositionYLabel" Text="目标坐标 Y" Foreground="White" />
                                 <TextBox x:Name="MouseMovePositionYTextBox" Margin="0,4,0,12" TextChanged="InspectorField_TextChanged" />
+                            </StackPanel>
+
+                            <StackPanel x:Name="CommonInspectorPanel" Visibility="Collapsed">
+                                <TextBlock Text="通用参数" Foreground="#A7B1BF" FontWeight="SemiBold" />
+
+                                <StackPanel x:Name="CommonKeyChordAddPanel" Visibility="Collapsed" Margin="0,10,0,10">
+                                    <TextBlock Text="增加按键" Foreground="White" />
+                                    <DockPanel Margin="0,4,0,0">
+                                        <Button Content="增加"
+                                                DockPanel.Dock="Right"
+                                                Padding="12,4"
+                                                Margin="8,0,0,0"
+                                                Click="CommonKeyChordAddButton_Click" />
+                                        <ComboBox x:Name="CommonKeyChordKeyComboBox"
+                                                  IsEditable="True"
+                                                  IsTextSearchEnabled="True" />
+                                    </DockPanel>
+                                </StackPanel>
+
+                                <StackPanel x:Name="CommonModePanel" Visibility="Collapsed" Margin="0,10,0,10">
+                                    <TextBlock Text="目标选择模式" Foreground="White" />
+                                    <ComboBox x:Name="CommonModeComboBox" Margin="0,4,0,0" SelectionChanged="CommonModeComboBox_SelectionChanged">
+                                        <ComboBoxItem Content="手填进程名" Tag="Manual" />
+                                        <ComboBoxItem Content="从运行窗口选择" Tag="Auto" />
+                                        <ComboBoxItem Content="浏览 exe 自动填进程名" Tag="ExePath" />
+                                    </ComboBox>
+                                </StackPanel>
+
+                                <StackPanel x:Name="CommonWindowPickerPanel" Visibility="Collapsed" Margin="0,0,0,10">
+                                    <TextBlock Text="选择运行窗口" Foreground="White" />
+                                    <DockPanel Margin="0,4,0,0">
+                                        <Button Content="刷新"
+                                                DockPanel.Dock="Right"
+                                                Width="48"
+                                                Padding="0"
+                                                Margin="8,0,0,0"
+                                                Click="CommonWindowRefreshButton_Click" />
+                                        <ComboBox x:Name="CommonWindowComboBox" SelectionChanged="CommonWindowComboBox_SelectionChanged" />
+                                    </DockPanel>
+                                </StackPanel>
+
+                                <StackPanel x:Name="CommonEnumPanel" Visibility="Collapsed" Margin="0,10,0,10">
+                                    <TextBlock x:Name="CommonEnumLabel" Text="模式" Foreground="White" />
+                                    <ComboBox x:Name="CommonEnumComboBox"
+                                              Margin="0,4,0,0"
+                                              SelectionChanged="CommonEnumComboBox_SelectionChanged" />
+                                </StackPanel>
+
+                                <TextBlock x:Name="CommonTextLabel" Text="文本 1" Foreground="White" Margin="0,10,0,0" />
+                                <TextBox x:Name="CommonTextBox" Margin="0,4,0,10" TextChanged="InspectorField_TextChanged" />
+                                <Button x:Name="CommonBrowseFileButton"
+                                        Content="浏览"
+                                        Visibility="Collapsed"
+                                        Margin="0,0,0,10"
+                                        Padding="12,4"
+                                        Click="CommonBrowseFileButton_Click" />
+
+                                <TextBlock x:Name="CommonText2Label" Text="文本 2" Foreground="White" />
+                                <TextBox x:Name="CommonText2Box" Margin="0,4,0,10" TextChanged="InspectorField_TextChanged" />
+
+                                <TextBlock x:Name="CommonText3Label" Text="文本 3" Foreground="White" />
+                                <TextBox x:Name="CommonText3Box" Margin="0,4,0,10" TextChanged="InspectorField_TextChanged" />
+
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="8" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <TextBlock x:Name="CommonNumberLabel" Grid.Row="0" Grid.Column="0" Text="数值 1" Foreground="White" />
+                                    <TextBlock x:Name="CommonNumber2Label" Grid.Row="0" Grid.Column="2" Text="数值 2" Foreground="White" />
+                                    <TextBox x:Name="CommonNumberBox" Grid.Row="1" Grid.Column="0" Margin="0,4,0,10" TextChanged="InspectorField_TextChanged" />
+                                    <TextBox x:Name="CommonNumber2Box" Grid.Row="1" Grid.Column="2" Margin="0,4,0,10" TextChanged="InspectorField_TextChanged" />
+                                    <TextBlock x:Name="CommonNumber3Label" Grid.Row="2" Grid.Column="0" Text="数值 3" Foreground="White" />
+                                    <TextBlock x:Name="CommonNumber4Label" Grid.Row="2" Grid.Column="2" Text="数值 4" Foreground="White" />
+                                    <TextBox x:Name="CommonNumber3Box" Grid.Row="3" Grid.Column="0" Margin="0,4,0,10" TextChanged="InspectorField_TextChanged" />
+                                    <TextBox x:Name="CommonNumber4Box" Grid.Row="3" Grid.Column="2" Margin="0,4,0,10" TextChanged="InspectorField_TextChanged" />
+                                </Grid>
+
+                                <CheckBox x:Name="CommonFlagCheckBox"
+                                          Content="布尔值"
+                                          Foreground="#D0D7E2"
+                                          Margin="0,0,0,10"
+                                          Checked="InspectorField_CheckedChanged"
+                                          Unchecked="InspectorField_CheckedChanged" />
+
+                                <TextBlock x:Name="CommonHelpTextBlock"
+                                           Foreground="#A7B1BF"
+                                           TextWrapping="Wrap" />
                             </StackPanel>
                         </StackPanel>
                     </ScrollViewer>

@@ -16,6 +16,47 @@ public enum NodeKind
     StartProgram,
     PrintLog,
     SelectWindow,
+    MouseDoubleClick,
+    GetMousePosition,
+    KeyChord,
+    WaitImage,
+    WaitImageDisappear,
+    Compare,
+    BooleanAnd,
+    BooleanOr,
+    BooleanNot,
+    StringConcat,
+    WaitWindow,
+    CloseWindow,
+    WindowExists,
+    GetForegroundWindow,
+    Comment,
+    SaveScreenshot,
+    ShowMessage,
+    FunctionEntry,
+    FunctionReturn,
+    MacroEntry,
+    MacroOutput,
+    FunctionCall,
+    MacroCall,
+}
+
+public enum GraphAssetKind
+{
+    EventGraph,
+    Function,
+    Macro,
+}
+
+public enum GraphParameterType
+{
+    Boolean,
+    Vector2D,
+    Float,
+    Vector3D,
+    Vector4D,
+    ImageAsset,
+    String,
 }
 
 public enum PinDirection
@@ -71,6 +112,24 @@ public enum WindowInputMode
 {
     Manual,
     Auto,
+    ExePath,
+}
+
+public enum ImageSearchSourceMode
+{
+    ManualImage,
+    RealtimeScreenshot,
+}
+
+public enum CompareOperator
+{
+    Equal,
+    NotEqual,
+    Contains,
+    GreaterThan,
+    LessThan,
+    GreaterOrEqual,
+    LessOrEqual,
 }
 
 public enum VirtualKeyCode

@@ -5,6 +5,7 @@ using Geometry = System.Windows.Media.Geometry;
 using PathFigure = System.Windows.Media.PathFigure;
 using BezierSegment = System.Windows.Media.BezierSegment;
 using PathGeometry = System.Windows.Media.PathGeometry;
+using DispatcherPriority = System.Windows.Threading.DispatcherPriority;
 
 namespace AutomationStudioWpf.Graph;
 
@@ -15,6 +16,8 @@ namespace AutomationStudioWpf.Graph;
 public sealed class ConnectionViewModel : ObservableObject, IDisposable
 {
     private bool _disposed;
+    private bool _pathUpdateQueued;
+    private Geometry? _pathGeometry;
 
     public ConnectionViewModel(PinViewModel sourcePin, PinViewModel targetPin)
     {
@@ -34,7 +37,7 @@ public sealed class ConnectionViewModel : ObservableObject, IDisposable
 
     public Brush StrokeBrush { get; }
 
-    public Geometry PathGeometry => BuildPathGeometry();
+    public Geometry PathGeometry => _pathGeometry ??= BuildPathGeometry();
 
     public void Dispose()
     {
@@ -54,7 +57,7 @@ public sealed class ConnectionViewModel : ObservableObject, IDisposable
     {
         if (e.PropertyName is nameof(NodeBaseViewModel.X) or nameof(NodeBaseViewModel.Y))
         {
-            OnPropertyChanged(nameof(PathGeometry));
+            QueuePathGeometryRefresh();
         }
     }
 
@@ -62,8 +65,33 @@ public sealed class ConnectionViewModel : ObservableObject, IDisposable
     {
         if (e.PropertyName is nameof(PinViewModel.AnchorPoint))
         {
-            OnPropertyChanged(nameof(PathGeometry));
+            QueuePathGeometryRefresh();
         }
+    }
+
+    private void QueuePathGeometryRefresh()
+    {
+        if (_pathUpdateQueued)
+        {
+            return;
+        }
+
+        _pathUpdateQueued = true;
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
+        if (dispatcher is null)
+        {
+            RefreshPathGeometry();
+            return;
+        }
+
+        dispatcher.BeginInvoke(RefreshPathGeometry, DispatcherPriority.Render);
+    }
+
+    private void RefreshPathGeometry()
+    {
+        _pathUpdateQueued = false;
+        _pathGeometry = BuildPathGeometry();
+        OnPropertyChanged(nameof(PathGeometry));
     }
 
     private Geometry BuildPathGeometry()
@@ -88,6 +116,11 @@ public sealed class ConnectionViewModel : ObservableObject, IDisposable
 
         PathGeometry geometry = new();
         geometry.Figures.Add(figure);
+        if (geometry.CanFreeze)
+        {
+            geometry.Freeze();
+        }
+
         return geometry;
     }
 }

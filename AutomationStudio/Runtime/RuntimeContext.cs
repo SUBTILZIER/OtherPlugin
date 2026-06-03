@@ -13,6 +13,9 @@ public sealed class RuntimeContext
 
     public void Set(string nodeId, string pinName, object value) => _values[MakeKey(nodeId, pinName)] = value;
 
+    public bool TryGetRaw(string nodeId, string pinName, out object value) =>
+        _values.TryGetValue(MakeKey(nodeId, pinName), out value!);
+
     public bool TryGet<T>(string nodeId, string pinName, out T value)
     {
         if (_values.TryGetValue(MakeKey(nodeId, pinName), out object? raw) && raw is T typed)
@@ -44,6 +47,17 @@ public sealed class RuntimeContext
     public bool TryResolveBoolInput(GraphExecutionPlan plan, GraphRuntimeNode node, string pinName, out bool value)
     {
         GraphRuntimeConnection? connection = FindInputConnection(plan, node, pinName, PinKind.Boolean);
+        if (connection is not null && TryGet(connection.SourceNodeId, connection.SourcePinName, out value))
+            return true;
+
+        value = default;
+        return false;
+    }
+
+    public bool TryResolveBoolInput(GraphExecutionPlan plan, GraphRuntimeNode node, string pinName, out bool value, out bool hasConnection)
+    {
+        GraphRuntimeConnection? connection = FindInputConnection(plan, node, pinName, PinKind.Boolean);
+        hasConnection = connection is not null;
         if (connection is not null && TryGet(connection.SourceNodeId, connection.SourcePinName, out value))
             return true;
 

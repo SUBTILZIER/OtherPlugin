@@ -1,4 +1,5 @@
 using AutomationStudioWpf.Graph;
+using AutomationStudioWpf.Logging;
 using AutomationStudioWpf.Runtime;
 
 namespace AutomationStudioWpf.Services;
@@ -23,6 +24,8 @@ public static class NodeSerializer
         {
             case FindImageNodeViewModel findImage:
                 file.ImagePath = findImage.ImagePath;
+                file.SourceImagePath = findImage.SourceImagePath;
+                file.ImageSearchSourceMode = findImage.SourceMode.ToString();
                 file.SimilarityThresholdPercent = findImage.SimilarityThresholdPercent;
                 file.UseFindImageRegion = findImage.UseRegion;
                 file.FindImageRegionX = findImage.RegionX;
@@ -93,6 +96,39 @@ public static class NodeSerializer
                 file.ProcessName = selectWindowNode.ProcessName;
                 file.WindowInputMode = selectWindowNode.InputMode.ToString();
                 break;
+
+            case CommonNodeViewModel commonNode:
+                file.Text = commonNode.Text;
+                file.Text2 = commonNode.Text2;
+                file.Text3 = commonNode.Text3;
+                file.Number = commonNode.Number;
+                file.Number2 = commonNode.Number2;
+                file.Number3 = commonNode.Number3;
+                file.Number4 = commonNode.Number4;
+                file.Flag = commonNode.Flag;
+                break;
+
+            case ParameterNodeBaseViewModel parameterNode:
+                file.Parameters = parameterNode.Parameters.Select(ToParameterFile).ToList();
+                if (parameterNode is MacroOutputNodeViewModel macroOutput)
+                    file.ExitName = macroOutput.ExitName;
+                break;
+
+            case FunctionCallNodeViewModel functionCall:
+                file.FunctionId = functionCall.FunctionId;
+                file.InputParameters = PinsToParameterFiles(functionCall.InputPins.Where(p => p.Kind != PinKind.Execution));
+                file.OutputParameters = PinsToParameterFiles(functionCall.OutputPins.Where(p => p.Kind != PinKind.Execution));
+                break;
+
+            case MacroCallNodeViewModel macroCall:
+                file.MacroId = macroCall.MacroId;
+                file.InputParameters = PinsToParameterFiles(macroCall.InputPins.Where(p => p.Kind != PinKind.Execution));
+                file.OutputParameters = PinsToParameterFiles(macroCall.OutputPins.Where(p => p.Kind != PinKind.Execution));
+                file.MacroExits = macroCall.OutputPins
+                    .Where(p => p.Kind == PinKind.Execution)
+                    .Select(p => new MacroExitFileModel { Id = p.Name.Replace("exec_", "", StringComparison.Ordinal), Name = p.DisplayName })
+                    .ToList();
+                break;
         }
 
         return file;
@@ -100,6 +136,12 @@ public static class NodeSerializer
 
     public static NodeBaseViewModel? FromFileModel(NodeFileModel file)
     {
+        if (IsDiscardedNodeType(file.NodeTypeKey))
+        {
+            Logger.Warn($"旧图谱包含已删除节点，已跳过：{file.Title} ({file.NodeTypeKey})");
+            return null;
+        }
+
         return file.NodeTypeKey switch
         {
             "start" => new StartNodeViewModel(file.Id)
@@ -115,6 +157,10 @@ public static class NodeSerializer
                 X = file.X,
                 Y = file.Y,
                 ImagePath = file.ImagePath ?? string.Empty,
+                SourceImagePath = file.SourceImagePath ?? string.Empty,
+                SourceMode = Enum.TryParse<ImageSearchSourceMode>(file.ImageSearchSourceMode, true, out var sourceMode)
+                    ? sourceMode
+                    : ImageSearchSourceMode.RealtimeScreenshot,
                 SimilarityThresholdPercent = file.SimilarityThresholdPercent,
                 UseRegion = file.UseFindImageRegion,
                 RegionX = file.FindImageRegionX,
@@ -235,9 +281,36 @@ public static class NodeSerializer
                 InputMode = Enum.TryParse<WindowInputMode>(file.WindowInputMode, true, out var mode) ? mode : WindowInputMode.Manual,
             },
 
+            "mouse_double_click" => CreateCommonFromFile(file, NodeKind.MouseDoubleClick, "鼠标双击"),
+            "get_mouse_position" => CreateCommonFromFile(file, NodeKind.GetMousePosition, "获取鼠标位置"),
+            "key_chord" => CreateCommonFromFile(file, NodeKind.KeyChord, "组合键"),
+            "wait_image" => CreateCommonFromFile(file, NodeKind.WaitImage, "等待图片"),
+            "wait_image_disappear" => CreateCommonFromFile(file, NodeKind.WaitImageDisappear, "图片消失"),
+            "compare" => CreateCommonFromFile(file, NodeKind.Compare, "比较"),
+            "boolean_and" => CreateCommonFromFile(file, NodeKind.BooleanAnd, "布尔与"),
+            "boolean_or" => CreateCommonFromFile(file, NodeKind.BooleanOr, "布尔或"),
+            "boolean_not" => CreateCommonFromFile(file, NodeKind.BooleanNot, "布尔非"),
+            "string_concat" => CreateCommonFromFile(file, NodeKind.StringConcat, "字符串拼接"),
+            "wait_window" => CreateCommonFromFile(file, NodeKind.WaitWindow, "等待窗口"),
+            "close_window" => CreateCommonFromFile(file, NodeKind.CloseWindow, "关闭窗口"),
+            "window_exists" => CreateCommonFromFile(file, NodeKind.WindowExists, "窗口是否存在"),
+            "get_foreground_window" => CreateCommonFromFile(file, NodeKind.GetForegroundWindow, "获取前台窗口"),
+            "save_screenshot" => CreateCommonFromFile(file, NodeKind.SaveScreenshot, "截图"),
+            "show_message" => CreateCommonFromFile(file, NodeKind.ShowMessage, "弹窗提示"),
+            "function_entry" => CreateParameterNodeFromFile(new FunctionEntryNodeViewModel(file.Id), file, "函数开始"),
+            "function_return" => CreateParameterNodeFromFile(new FunctionReturnNodeViewModel(file.Id), file, "函数返回"),
+            "macro_entry" => CreateParameterNodeFromFile(new MacroEntryNodeViewModel(file.Id), file, "宏开始"),
+            "macro_output" => CreateMacroOutputFromFile(file),
+            "function_call" => CreateFunctionCallFromFile(file),
+            "macro_call" => CreateMacroCallFromFile(file),
+
             _ => null,
         };
     }
+
+    private static bool IsDiscardedNodeType(string? nodeTypeKey) =>
+        nodeTypeKey is "mouse_drag" or "input_text" or "key_sequence" or
+            "click_image_center" or "set_variable" or "comment";
 
     public static GraphRuntimeNode ToRuntimeNode(NodeBaseViewModel node)
     {
@@ -248,6 +321,8 @@ public static class NodeSerializer
             FindImageNodeViewModel findImageNode => GraphRuntimeNode.ForFindImage(
                 findImageNode.Id, findImageNode.Title,
                 findImageNode.ImagePath,
+                findImageNode.SourceImagePath,
+                findImageNode.SourceMode,
                 findImageNode.SimilarityThresholdPercent,
                 findImageNode.UseRegion,
                 findImageNode.RegionX,
@@ -296,6 +371,26 @@ public static class NodeSerializer
             SelectWindowNodeViewModel selectWindowNode => GraphRuntimeNode.ForSelectWindow(
                 selectWindowNode.Id, selectWindowNode.Title, selectWindowNode.ProcessName),
 
+            CommonNodeViewModel commonNode => GraphRuntimeNode.ForCommon(
+                commonNode.Id,
+                commonNode.Title,
+                commonNode.NodeKind,
+                commonNode.Text,
+                commonNode.Text2,
+                commonNode.Text3,
+                commonNode.Number,
+                commonNode.Number2,
+                commonNode.Number3,
+                commonNode.Number4,
+                commonNode.Flag),
+
+            FunctionEntryNodeViewModel functionEntry => GraphRuntimeNode.ForAssetNode(functionEntry.Id, functionEntry.Title, functionEntry.NodeKind),
+            FunctionReturnNodeViewModel functionReturn => GraphRuntimeNode.ForAssetNode(functionReturn.Id, functionReturn.Title, functionReturn.NodeKind),
+            MacroEntryNodeViewModel macroEntry => GraphRuntimeNode.ForAssetNode(macroEntry.Id, macroEntry.Title, macroEntry.NodeKind),
+            MacroOutputNodeViewModel macroOutput => GraphRuntimeNode.ForMacroOutput(macroOutput.Id, macroOutput.Title, macroOutput.ExitName),
+            FunctionCallNodeViewModel functionCall => GraphRuntimeNode.ForFunctionCall(functionCall.Id, functionCall.Title, functionCall.FunctionId),
+            MacroCallNodeViewModel macroCall => GraphRuntimeNode.ForMacroCall(macroCall.Id, macroCall.Title, macroCall.MacroId),
+
             _ => throw new InvalidOperationException($"不支持执行的节点类型: {node.GetType().Name}"),
         };
     }
@@ -310,6 +405,101 @@ public static class NodeSerializer
             Y = file.Y,
         };
     }
+
+    private static CommonNodeViewModel CreateCommonFromFile(NodeFileModel file, NodeKind kind, string fallbackTitle)
+    {
+        var node = new CommonNodeViewModel(file.Id, kind, file.NodeTypeKey, fallbackTitle)
+        {
+            Title = string.IsNullOrWhiteSpace(file.Title) ? fallbackTitle : file.Title,
+            X = file.X,
+            Y = file.Y,
+            Text = file.Text ?? string.Empty,
+            Text2 = string.IsNullOrWhiteSpace(file.Text2) && kind is NodeKind.WaitImage or NodeKind.WaitImageDisappear
+                ? ImageSearchSourceMode.RealtimeScreenshot.ToString()
+                : string.IsNullOrWhiteSpace(file.Text2) && kind == NodeKind.SaveScreenshot
+                    ? "Auto"
+                : file.Text2 ?? string.Empty,
+            Text3 = file.Text3 ?? string.Empty,
+            Number = file.Number,
+            Number2 = file.Number2,
+            Number3 = file.Number3,
+            Number4 = file.Number4,
+            Flag = file.Flag,
+        };
+        return node;
+    }
+
+    private static T CreateParameterNodeFromFile<T>(T node, NodeFileModel file, string fallbackTitle)
+        where T : ParameterNodeBaseViewModel
+    {
+        node.Title = string.IsNullOrWhiteSpace(file.Title) ? fallbackTitle : file.Title;
+        node.X = file.X;
+        node.Y = file.Y;
+        node.Parameters.Clear();
+        foreach (var parameter in file.Parameters)
+            node.Parameters.Add(FromParameterFile(parameter));
+        node.SyncPins();
+        return node;
+    }
+
+    private static MacroOutputNodeViewModel CreateMacroOutputFromFile(NodeFileModel file)
+    {
+        var node = CreateParameterNodeFromFile(new MacroOutputNodeViewModel(file.Id), file, "宏输出");
+        node.ExitName = string.IsNullOrWhiteSpace(file.ExitName) ? "完成" : file.ExitName;
+        return node;
+    }
+
+    private static FunctionCallNodeViewModel CreateFunctionCallFromFile(NodeFileModel file)
+    {
+        var node = new FunctionCallNodeViewModel(file.Id, file.FunctionId ?? string.Empty, string.IsNullOrWhiteSpace(file.Title) ? "调用函数" : file.Title)
+        {
+            X = file.X,
+            Y = file.Y,
+        };
+        node.ConfigurePins(file.InputParameters.Select(FromParameterFile), file.OutputParameters.Select(FromParameterFile));
+        return node;
+    }
+
+    private static MacroCallNodeViewModel CreateMacroCallFromFile(NodeFileModel file)
+    {
+        var node = new MacroCallNodeViewModel(file.Id, file.MacroId ?? string.Empty, string.IsNullOrWhiteSpace(file.Title) ? "调用宏" : file.Title)
+        {
+            X = file.X,
+            Y = file.Y,
+        };
+        node.ConfigurePins(
+            file.InputParameters.Select(FromParameterFile),
+            file.OutputParameters.Select(FromParameterFile),
+            file.MacroExits.Select(exit => (exit.Id, exit.Name)));
+        return node;
+    }
+
+    private static GraphParameterFileModel ToParameterFile(GraphParameterDefinition parameter) => new()
+    {
+        Id = parameter.Id,
+        Name = parameter.Name,
+        Type = parameter.Type,
+    };
+
+    private static GraphParameterDefinition FromParameterFile(GraphParameterFileModel parameter) => new()
+    {
+        Id = string.IsNullOrWhiteSpace(parameter.Id) ? Guid.NewGuid().ToString("N") : parameter.Id,
+        Name = string.IsNullOrWhiteSpace(parameter.Name) ? "NewParam" : parameter.Name,
+        Type = parameter.Type,
+    };
+
+    private static List<GraphParameterFileModel> PinsToParameterFiles(IEnumerable<PinViewModel> pins) =>
+        pins.Select(pin => new GraphParameterFileModel
+        {
+            Id = pin.Name,
+            Name = pin.DisplayName,
+            Type = pin.Kind switch
+            {
+                PinKind.Boolean => GraphParameterType.Boolean,
+                PinKind.Vector2D => GraphParameterType.Vector2D,
+                _ => GraphParameterType.String,
+            },
+        }).ToList();
 
     private static PressReleaseMode DeserializeOperationMode(string? mode)
     {

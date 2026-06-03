@@ -14,6 +14,10 @@ public sealed record GraphRuntimeConnection(
     string TargetPinName,
     PinKind TargetPinKind);
 
+public sealed record RuntimeAssetLibrary(
+    IReadOnlyDictionary<string, GraphExecutionPlan> Functions,
+    IReadOnlyDictionary<string, GraphExecutionPlan> Macros);
+
 /// <summary>
 /// 运行时节点数据模型 - 扁平化设计用于执行引擎
 /// </summary>
@@ -53,6 +57,10 @@ public sealed record GraphRuntimeNode(
 {
     public bool UseFindImageRegion { get; init; }
 
+    public string? SourceImagePath { get; init; }
+
+    public ImageSearchSourceMode ImageSearchSourceMode { get; init; } = ImageSearchSourceMode.RealtimeScreenshot;
+
     public double FindImageRegionX { get; init; }
 
     public double FindImageRegionY { get; init; }
@@ -71,6 +79,28 @@ public sealed record GraphRuntimeNode(
 
     public int MaxIterations { get; init; }
 
+    public string? Text { get; init; }
+
+    public string? Text2 { get; init; }
+
+    public string? Text3 { get; init; }
+
+    public double Number { get; init; }
+
+    public double Number2 { get; init; }
+
+    public double Number3 { get; init; }
+
+    public double Number4 { get; init; }
+
+    public bool Flag { get; init; }
+
+    public string? FunctionId { get; init; }
+
+    public string? MacroId { get; init; }
+
+    public string? ExitName { get; init; }
+
     public static GraphRuntimeNode ForStart(string id, string title) =>
         new(id, title, NodeKind.Start, null, 0, PressReleaseMode.Press, MouseButton.Left, 0, 0, 0, null, ScrollWheelAction.ScrollForward, 120, 100, 1000, 0, false, PinKind.Execution, ProgramStartFailureAction.None, 0, null);
 
@@ -78,6 +108,8 @@ public sealed record GraphRuntimeNode(
         string id,
         string title,
         string imagePath,
+        string sourceImagePath,
+        ImageSearchSourceMode sourceMode,
         int similarityThresholdPercent,
         bool useRegion,
         double regionX,
@@ -86,6 +118,8 @@ public sealed record GraphRuntimeNode(
         double regionHeight) =>
         new(id, title, NodeKind.FindImage, imagePath, similarityThresholdPercent, PressReleaseMode.Press, MouseButton.Left, 0, 0, 0, null, ScrollWheelAction.ScrollForward, 120, 100, 1000, 0, false, PinKind.Execution, ProgramStartFailureAction.None, 0, null)
         {
+            SourceImagePath = sourceImagePath,
+            ImageSearchSourceMode = sourceMode,
             UseFindImageRegion = useRegion,
             FindImageRegionX = regionX,
             FindImageRegionY = regionY,
@@ -150,6 +184,52 @@ public sealed record GraphRuntimeNode(
             0, 0, 0, null, ScrollWheelAction.ScrollForward, 0, 100, 1000,
             0, false, PinKind.Execution, ProgramStartFailureAction.None, 0, processName);
 
+    public static GraphRuntimeNode ForCommon(
+        string id,
+        string title,
+        NodeKind kind,
+        string text,
+        string text2,
+        string text3,
+        double number,
+        double number2,
+        double number3,
+        double number4,
+        bool flag) =>
+        new(id, title, kind, null, 0, PressReleaseMode.Press, MouseButton.Left,
+            0, 0, 0, null, ScrollWheelAction.ScrollForward, 120, 100, 1000,
+            0, false, PinKind.Execution, ProgramStartFailureAction.None, 0, null)
+        {
+            Text = text,
+            Text2 = text2,
+            Text3 = text3,
+            Number = number,
+            Number2 = number2,
+            Number3 = number3,
+            Number4 = number4,
+            Flag = flag,
+        };
+
+    public static GraphRuntimeNode ForAssetNode(string id, string title, NodeKind kind) =>
+        new(id, title, kind, null, 0, PressReleaseMode.Press, MouseButton.Left, 0, 0, 0, null, ScrollWheelAction.ScrollForward, 120, 100, 1000, 0, false, PinKind.Execution, ProgramStartFailureAction.None, 0, null);
+
+    public static GraphRuntimeNode ForMacroOutput(string id, string title, string exitName) =>
+        new(id, title, NodeKind.MacroOutput, null, 0, PressReleaseMode.Press, MouseButton.Left, 0, 0, 0, null, ScrollWheelAction.ScrollForward, 120, 100, 1000, 0, false, PinKind.Execution, ProgramStartFailureAction.None, 0, null)
+        {
+            ExitName = exitName,
+        };
+
+    public static GraphRuntimeNode ForFunctionCall(string id, string title, string functionId) =>
+        new(id, title, NodeKind.FunctionCall, null, 0, PressReleaseMode.Press, MouseButton.Left, 0, 0, 0, null, ScrollWheelAction.ScrollForward, 120, 100, 1000, 0, false, PinKind.Execution, ProgramStartFailureAction.None, 0, null)
+        {
+            FunctionId = functionId,
+        };
+
+    public static GraphRuntimeNode ForMacroCall(string id, string title, string macroId) =>
+        new(id, title, NodeKind.MacroCall, null, 0, PressReleaseMode.Press, MouseButton.Left, 0, 0, 0, null, ScrollWheelAction.ScrollForward, 120, 100, 1000, 0, false, PinKind.Execution, ProgramStartFailureAction.None, 0, null)
+        {
+            MacroId = macroId,
+        };
 }
 
 public sealed record GraphExecutionResult(bool Success, string Message, bool ContinueExecution = true);
