@@ -51,11 +51,37 @@ public sealed record GraphRuntimeNode(
     // SelectWindow
     string? ProcessName)
 {
+    public bool UseFindImageRegion { get; init; }
+
+    public double FindImageRegionX { get; init; }
+
+    public double FindImageRegionY { get; init; }
+
+    public double FindImageRegionWidth { get; init; }
+
+    public double FindImageRegionHeight { get; init; }
+
     public static GraphRuntimeNode ForStart(string id, string title) =>
         new(id, title, NodeKind.Start, null, 0, PressReleaseMode.Press, MouseButton.Left, 0, 0, 0, null, ScrollWheelAction.ScrollForward, 120, 100, 1000, 0, false, PinKind.Execution, ProgramStartFailureAction.None, 0, null);
 
-    public static GraphRuntimeNode ForFindImage(string id, string title, string imagePath, int similarityThresholdPercent) =>
-        new(id, title, NodeKind.FindImage, imagePath, similarityThresholdPercent, PressReleaseMode.Press, MouseButton.Left, 0, 0, 0, null, ScrollWheelAction.ScrollForward, 120, 100, 1000, 0, false, PinKind.Execution, ProgramStartFailureAction.None, 0, null);
+    public static GraphRuntimeNode ForFindImage(
+        string id,
+        string title,
+        string imagePath,
+        int similarityThresholdPercent,
+        bool useRegion,
+        double regionX,
+        double regionY,
+        double regionWidth,
+        double regionHeight) =>
+        new(id, title, NodeKind.FindImage, imagePath, similarityThresholdPercent, PressReleaseMode.Press, MouseButton.Left, 0, 0, 0, null, ScrollWheelAction.ScrollForward, 120, 100, 1000, 0, false, PinKind.Execution, ProgramStartFailureAction.None, 0, null)
+        {
+            UseFindImageRegion = useRegion,
+            FindImageRegionX = regionX,
+            FindImageRegionY = regionY,
+            FindImageRegionWidth = regionWidth,
+            FindImageRegionHeight = regionHeight,
+        };
 
     public static GraphRuntimeNode ForMouseClick(string id, string title, PressReleaseMode operationMode, MouseButton mouseButton, double positionX, double positionY) =>
         new(id, title, NodeKind.MouseClick, null, 0, operationMode, mouseButton, positionX, positionY, 0, null, ScrollWheelAction.ScrollForward, 120, 100, 1000, 0, false, PinKind.Execution, ProgramStartFailureAction.None, 0, null);

@@ -15,7 +15,6 @@ using Point = System.Windows.Point;
 using MouseEventArgs = System.Windows.Input.MouseEventArgs;
 using KeyEventArgs = System.Windows.Input.KeyEventArgs;
 using DragEventArgs = System.Windows.DragEventArgs;
-using OpenFileDialog = Microsoft.Win32.OpenFileDialog;
 using TextBox = System.Windows.Controls.TextBox;
 using MouseButton = System.Windows.Input.MouseButton;
 using DataFormats = System.Windows.DataFormats;
@@ -45,10 +44,7 @@ public partial class MainWindow : Window
     private PinConnectionController _pinConnectionController = null!;
     private LogPanelController _logPanelController = null!;
     private GraphImportDropController _graphImportDropController = null!;
-    private readonly Adapters.Win32WindowAdapter _windowAdapter = new();
-
     // 运行状态
-    private bool _isLoadingInspector;
     private bool _isClosing;
 
     // 右键菜单状态
@@ -134,15 +130,62 @@ public partial class MainWindow : Window
             SetStatus);
 
         _inspectorController = new InspectorController(
+            this,
+            _editorService,
+            new Adapters.Win32WindowAdapter(),
+            _graphListController.MarkDirty,
+            SetStatus,
+            InspectorHintTextBlock,
+            NodeTitleTextBox,
+            FindImageInspectorPanel,
+            FindImagePathTextBox,
+            FindImageThresholdTextBox,
+            FindImageUseRegionCheckBox,
+            FindImageRegionXTextBox,
+            FindImageRegionYTextBox,
+            FindImageRegionWidthTextBox,
+            FindImageRegionHeightTextBox,
+            MouseLeftInspectorPanel,
             MousePositionXTextBox,
             MousePositionYTextBox,
+            MouseClickOperationModeComboBox,
+            MouseButtonComboBox,
+            KeyboardInspectorPanel,
+            KeyboardKeyComboBox,
+            KeyboardOperationModeComboBox,
+            ScrollWheelInspectorPanel,
+            ScrollWheelActionComboBox,
+            ScrollWheelSpeedTextBox,
+            ScrollWheelIntervalTextBox,
+            ScrollWheelDurationTextBox,
+            IfInspectorPanel,
+            IfConditionComboBox,
+            ForLoopInspectorPanel,
+            ForLoopCountTextBox,
+            ForLoopEndConditionComboBox,
+            WhileLoopInspectorPanel,
+            WhileLoopConditionComboBox,
+            WhileLoopModeComboBox,
+            WhileMaxIterationsLabel,
+            WhileMaxIterationsTextBox,
+            DelayInspectorPanel,
+            DelayMsTextBox,
+            MouseMoveInspectorPanel,
             MouseMovePositionXTextBox,
             MouseMovePositionYTextBox,
-            IfConditionComboBox,
-            WhileLoopConditionComboBox,
-            ForLoopEndConditionComboBox,
+            StartProgramInspectorPanel,
+            StartProgramPathTextBox,
+            StartProgramWaitTimeoutTextBox,
+            StartProgramFailureActionComboBox,
+            StartProgramRetryCountTextBox,
+            PrintLogInspectorPanel,
             PrintLogMessageTextBox,
-            SelectWindowProcessNameTextBox);
+            SelectWindowInspectorPanel,
+            SelectWindowInputModeComboBox,
+            SelectWindowManualPanel,
+            SelectWindowProcessNameTextBox,
+            SelectWindowAutoPanel,
+            SelectWindowAutoComboBox);
 
         _pinConnectionController = new PinConnectionController(
             _editorService,
@@ -547,338 +590,43 @@ public partial class MainWindow : Window
 
     private void LoadNodeToInspector(NodeBaseViewModel? node)
     {
-        if (node is null)
-        {
-            _isLoadingInspector = true;
-            NodeTitleTextBox.Text = string.Empty;
-            HideAllInspectorPanels();
-            InspectorHintTextBlock.Text = "请选择一个节点进行编辑。";
-            RefreshInspectorLocks(node);
-            _isLoadingInspector = false;
-            return;
-        }
-
-        _isLoadingInspector = true;
-        NodeTitleTextBox.Text = node.Title;
-        InspectorHintTextBlock.Text = $"当前选中：{node.Title}";
-
-        HideAllInspectorPanels();
-
-        switch (node)
-        {
-            case FindImageNodeViewModel findImage:
-                FindImageInspectorPanel.Visibility = Visibility.Visible;
-                FindImagePathTextBox.Text = findImage.ImagePath;
-                FindImageThresholdTextBox.Text = findImage.SimilarityThresholdPercent.ToString();
-                break;
-
-            case MouseClickNodeViewModel mouseNode:
-                MouseLeftInspectorPanel.Visibility = Visibility.Visible;
-                MousePositionXTextBox.Text = mouseNode.PositionX.ToString("0.##");
-                MousePositionYTextBox.Text = mouseNode.PositionY.ToString("0.##");
-                MouseClickOperationModeComboBox.SelectedIndex = (int)mouseNode.OperationMode;
-                MouseButtonComboBox.SelectedIndex = (int)mouseNode.MouseButton;
-                break;
-
-            case KeyboardNodeViewModel keyboardNode:
-                KeyboardInspectorPanel.Visibility = Visibility.Visible;
-                PopulateKeyboardKeyComboBox(keyboardNode.Key);
-                KeyboardOperationModeComboBox.SelectedIndex = keyboardNode.OperationMode switch
-                {
-                    PressReleaseMode.Press => 0,
-                    PressReleaseMode.Release => 1,
-                    PressReleaseMode.Click => 2,
-                    _ => 0,
-                };
-                break;
-
-            case IfNodeViewModel ifNode:
-                IfInspectorPanel.Visibility = Visibility.Visible;
-                IfConditionComboBox.SelectedIndex = ifNode.ConditionValue ? 1 : 0;
-                break;
-
-            case WhileLoopNodeViewModel whileNode:
-                WhileLoopInspectorPanel.Visibility = Visibility.Visible;
-                WhileLoopConditionComboBox.SelectedIndex = whileNode.ConditionValue ? 1 : 0;
-                WhileLoopModeComboBox.SelectedIndex = whileNode.LoopMode == WhileLoopMode.Infinite ? 1 : 0;
-                WhileMaxIterationsTextBox.Text = whileNode.MaxIterations.ToString();
-                WhileMaxIterationsLabel.Visibility = whileNode.LoopMode == WhileLoopMode.Infinite ? Visibility.Collapsed : Visibility.Visible;
-                WhileMaxIterationsTextBox.Visibility = whileNode.LoopMode == WhileLoopMode.Infinite ? Visibility.Collapsed : Visibility.Visible;
-                break;
-
-            case ForLoopNodeViewModel forLoopNode:
-                ForLoopInspectorPanel.Visibility = Visibility.Visible;
-                ForLoopCountTextBox.Text = forLoopNode.LoopCount.ToString();
-                ForLoopEndConditionComboBox.SelectedIndex = forLoopNode.EndConditionValue ? 1 : 0;
-                break;
-
-            case ScrollWheelNodeViewModel scrollNode:
-                ScrollWheelInspectorPanel.Visibility = Visibility.Visible;
-                ScrollWheelActionComboBox.SelectedIndex = (int)scrollNode.ScrollAction;
-                ScrollWheelSpeedTextBox.Text = scrollNode.ScrollSpeed.ToString();
-                ScrollWheelIntervalTextBox.Text = scrollNode.ScrollInterval.ToString();
-                ScrollWheelDurationTextBox.Text = scrollNode.ScrollDuration.ToString();
-                break;
-
-            case DelayNodeViewModel delayNode:
-                DelayInspectorPanel.Visibility = Visibility.Visible;
-                DelayMsTextBox.Text = delayNode.DelayMs.ToString();
-                break;
-
-            case MouseMoveNodeViewModel moveNode:
-                MouseMoveInspectorPanel.Visibility = Visibility.Visible;
-                MouseMovePositionXTextBox.Text = moveNode.PositionX.ToString("0.##");
-                MouseMovePositionYTextBox.Text = moveNode.PositionY.ToString("0.##");
-                break;
-
-            case StartProgramNodeViewModel startProg:
-                StartProgramInspectorPanel.Visibility = Visibility.Visible;
-                StartProgramPathTextBox.Text = startProg.ProgramPath;
-                StartProgramWaitTimeoutTextBox.Text = startProg.WaitTimeoutMs.ToString();
-                StartProgramFailureActionComboBox.SelectedIndex = startProg.FailureAction == ProgramStartFailureAction.Retry ? 1 : 0;
-                StartProgramRetryCountTextBox.Text = startProg.RetryCount.ToString();
-                break;
-
-            case PrintLogNodeViewModel printNode:
-                PrintLogInspectorPanel.Visibility = Visibility.Visible;
-                bool hasMsgInput = IsInputPinConnected(printNode, "message");
-                PrintLogMessageTextBox.Text = hasMsgInput ? "前置输入" : printNode.Message;
-                break;
-
-            case SelectWindowNodeViewModel selectWindowNode:
-                SelectWindowInspectorPanel.Visibility = Visibility.Visible;
-                SelectWindowInputModeComboBox.SelectedIndex = selectWindowNode.InputMode == WindowInputMode.Auto ? 1 : 0;
-                bool hasProcessNameInput = IsInputPinConnected(selectWindowNode, "process_name");
-                if (hasProcessNameInput)
-                {
-                    SelectWindowProcessNameTextBox.Text = "前置输入";
-                    SelectWindowAutoComboBox.SelectedItem = null;
-                }
-                else if (selectWindowNode.InputMode == WindowInputMode.Auto)
-                {
-                    PopulateWindowListComboBox();
-                    SelectWindowAutoComboBox.SelectedItem = selectWindowNode.ProcessName;
-                }
-                else
-                {
-                    SelectWindowProcessNameTextBox.Text = selectWindowNode.ProcessName;
-                }
-                UpdateSelectWindowModeVisibility(selectWindowNode.InputMode, hasProcessNameInput);
-                break;
-        }
-
-        RefreshInspectorLocks(node);
-        _isLoadingInspector = false;
-    }
-
-    private void HideAllInspectorPanels()
-    {
-        FindImageInspectorPanel.Visibility = Visibility.Collapsed;
-        MouseLeftInspectorPanel.Visibility = Visibility.Collapsed;
-        KeyboardInspectorPanel.Visibility = Visibility.Collapsed;
-        ScrollWheelInspectorPanel.Visibility = Visibility.Collapsed;
-        IfInspectorPanel.Visibility = Visibility.Collapsed;
-        ForLoopInspectorPanel.Visibility = Visibility.Collapsed;
-        WhileLoopInspectorPanel.Visibility = Visibility.Collapsed;
-        DelayInspectorPanel.Visibility = Visibility.Collapsed;
-        MouseMoveInspectorPanel.Visibility = Visibility.Collapsed;
-        StartProgramInspectorPanel.Visibility = Visibility.Collapsed;
-        PrintLogInspectorPanel.Visibility = Visibility.Collapsed;
-        SelectWindowInspectorPanel.Visibility = Visibility.Collapsed;
+        _inspectorController.LoadNode(node);
     }
 
     private void ApplyInspectorChanges()
     {
-        if (_editorService.Nodes.FirstOrDefault(n => n.IsSelected) is not { } node || _isLoadingInspector)
-            return;
-
-        node.Title = NodeTitleTextBox.Text.Trim();
-
-        switch (node)
-        {
-            case FindImageNodeViewModel findImage:
-                findImage.ImagePath = FindImagePathTextBox.Text.Trim();
-                if (int.TryParse(FindImageThresholdTextBox.Text.Trim(), out var threshold))
-                    findImage.SimilarityThresholdPercent = threshold;
-                break;
-
-            case MouseClickNodeViewModel mouseNode:
-                mouseNode.OperationMode = (PressReleaseMode)MouseClickOperationModeComboBox.SelectedIndex;
-                mouseNode.MouseButton = (Graph.MouseButton)MouseButtonComboBox.SelectedIndex;
-                if (double.TryParse(MousePositionXTextBox.Text.Trim(), out var x))
-                    mouseNode.PositionX = x;
-                if (double.TryParse(MousePositionYTextBox.Text.Trim(), out var y))
-                    mouseNode.PositionY = y;
-                break;
-
-            case KeyboardNodeViewModel keyboardNode:
-                keyboardNode.OperationMode = KeyboardOperationModeComboBox.SelectedIndex switch
-                {
-                    1 => PressReleaseMode.Release,
-                    2 => PressReleaseMode.Click,
-                    _ => PressReleaseMode.Press,
-                };
-                if (KeyboardKeyComboBox.SelectedItem is ComboBoxItem keyItem && keyItem.Tag is string keyStr)
-                    keyboardNode.Key = keyStr;
-                break;
-
-            case IfNodeViewModel ifNode:
-                ifNode.ConditionValue = IfConditionComboBox.SelectedIndex == 1;
-                break;
-
-            case WhileLoopNodeViewModel whileNode:
-                whileNode.ConditionValue = WhileLoopConditionComboBox.SelectedIndex == 1;
-                whileNode.LoopMode = WhileLoopModeComboBox.SelectedIndex == 1
-                    ? WhileLoopMode.Infinite : WhileLoopMode.Finite;
-                if (int.TryParse(WhileMaxIterationsTextBox.Text.Trim(), out var wm))
-                    whileNode.MaxIterations = Math.Max(1, wm);
-                // Toggle max iterations visibility based on loop mode
-                bool isInfinite = whileNode.LoopMode == WhileLoopMode.Infinite;
-                WhileMaxIterationsLabel.Visibility = isInfinite ? Visibility.Collapsed : Visibility.Visible;
-                WhileMaxIterationsTextBox.Visibility = isInfinite ? Visibility.Collapsed : Visibility.Visible;
-                break;
-
-            case ForLoopNodeViewModel forLoopNode:
-                if (int.TryParse(ForLoopCountTextBox.Text.Trim(), out var count))
-                    forLoopNode.LoopCount = Math.Max(1, count);
-                forLoopNode.EndConditionValue = ForLoopEndConditionComboBox.SelectedIndex == 1;
-                break;
-
-            case ScrollWheelNodeViewModel scrollNode:
-                scrollNode.ScrollAction = (ScrollWheelAction)ScrollWheelActionComboBox.SelectedIndex;
-                if (int.TryParse(ScrollWheelSpeedTextBox.Text.Trim(), out var speed))
-                    scrollNode.ScrollSpeed = Math.Max(0, speed);
-                if (int.TryParse(ScrollWheelIntervalTextBox.Text.Trim(), out var interval))
-                    scrollNode.ScrollInterval = Math.Max(1, interval);
-                if (int.TryParse(ScrollWheelDurationTextBox.Text.Trim(), out var duration))
-                    scrollNode.ScrollDuration = Math.Max(0, duration);
-                break;
-
-            case DelayNodeViewModel delayNode:
-                if (int.TryParse(DelayMsTextBox.Text.Trim(), out var delayMs))
-                    delayNode.DelayMs = delayMs;
-                break;
-
-            case MouseMoveNodeViewModel moveNode:
-                if (double.TryParse(MouseMovePositionXTextBox.Text.Trim(), out var moveX))
-                    moveNode.PositionX = moveX;
-                if (double.TryParse(MouseMovePositionYTextBox.Text.Trim(), out var moveY))
-                    moveNode.PositionY = moveY;
-                break;
-
-            case StartProgramNodeViewModel startProg:
-                startProg.ProgramPath = StartProgramPathTextBox.Text.Trim();
-                if (int.TryParse(StartProgramWaitTimeoutTextBox.Text.Trim(), out var wt))
-                    startProg.WaitTimeoutMs = Math.Max(0, wt);
-                startProg.FailureAction = StartProgramFailureActionComboBox.SelectedIndex == 1
-                    ? ProgramStartFailureAction.Retry : ProgramStartFailureAction.None;
-                if (int.TryParse(StartProgramRetryCountTextBox.Text.Trim(), out var rc))
-                    startProg.RetryCount = Math.Max(0, rc);
-                break;
-
-            case PrintLogNodeViewModel printNode:
-                if (!IsInputPinConnected(printNode, "message"))
-                    printNode.Message = PrintLogMessageTextBox.Text;
-                break;
-
-            case SelectWindowNodeViewModel selectWindowNode:
-                if (!IsInputPinConnected(selectWindowNode, "process_name"))
-                {
-                    if (selectWindowNode.InputMode == WindowInputMode.Auto)
-                        selectWindowNode.ProcessName = (SelectWindowAutoComboBox.SelectedItem as string) ?? string.Empty;
-                    else
-                        selectWindowNode.ProcessName = SelectWindowProcessNameTextBox.Text.Trim();
-                }
-                break;
-        }
-
-        node.RefreshDescription();
-        _graphListController.MarkDirty();
-        InspectorHintTextBlock.Text = $"当前选中：{node.Title}（已自动保存）";
-        SetStatus($"节点已自动保存：{node.Title}");
+        _inspectorController.ApplyChanges();
     }
 
     private void InspectorField_TextChanged(object sender, TextChangedEventArgs e) => ApplyInspectorChanges();
     private void InspectorField_SelectionChanged(object sender, SelectionChangedEventArgs e) => ApplyInspectorChanges();
+    private void InspectorField_CheckedChanged(object sender, RoutedEventArgs e) => ApplyInspectorChanges();
 
     private void BrowseFindImagePath_Click(object sender, RoutedEventArgs e)
     {
-        var dialog = new OpenFileDialog
-        {
-            Title = "选择图片文件",
-            Filter = "图片文件 (*.png;*.jpg;*.jpeg;*.bmp)|*.png;*.jpg;*.jpeg;*.bmp|所有文件(*.*)|*.*",
-        };
-
-        if (dialog.ShowDialog(this) == true)
-        {
-            FindImagePathTextBox.Text = dialog.FileName;
-            ApplyInspectorChanges();
-        }
+        _inspectorController.BrowseFindImagePath();
     }
 
     private void BrowseStartProgramPath_Click(object sender, RoutedEventArgs e)
     {
-        var dialog = new OpenFileDialog
-        {
-            Title = "选择应用程序",
-            Filter = "可执行文件 (*.exe;*.bat;*.cmd)|*.exe;*.bat;*.cmd|所有文件(*.*)|*.*",
-        };
-
-        if (dialog.ShowDialog(this) == true)
-        {
-            StartProgramPathTextBox.Text = dialog.FileName;
-            ApplyInspectorChanges();
-        }
+        _inspectorController.BrowseStartProgramPath();
     }
 
     private void SelectWindowInputMode_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (_isLoadingInspector) return;
-
-        var mode = SelectWindowInputModeComboBox.SelectedIndex == 1 ? WindowInputMode.Auto : WindowInputMode.Manual;
-        var node = _editorService.Nodes.OfType<SelectWindowNodeViewModel>().FirstOrDefault(n => n.IsSelected);
-        if (node is null) return;
-
-        bool locked = IsInputPinConnected(node, "process_name");
-        node.InputMode = mode;
-        UpdateSelectWindowModeVisibility(mode, locked);
-
-        if (mode == WindowInputMode.Auto && !locked)
-        {
-            PopulateWindowListComboBox();
-            SelectWindowAutoComboBox.SelectedItem = node.ProcessName;
-        }
-
-        _graphListController.MarkDirty();
+        if (_inspectorController is null) return;
+        _inspectorController.SelectWindowInputModeChanged();
     }
 
     private void SelectWindowAutoComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (_isLoadingInspector) return;
-        ApplyInspectorChanges();
+        if (_inspectorController is null) return;
+        _inspectorController.SelectWindowAutoChanged();
     }
 
     private void RefreshWindowList_Click(object sender, RoutedEventArgs e)
     {
-        PopulateWindowListComboBox();
-        var node = _editorService.Nodes.OfType<SelectWindowNodeViewModel>().FirstOrDefault(n => n.IsSelected);
-        if (node is not null)
-            SelectWindowAutoComboBox.SelectedItem = node.ProcessName;
-    }
-
-    private void PopulateWindowListComboBox()
-    {
-        var names = _windowAdapter.GetRunningWindowNames();
-        SelectWindowAutoComboBox.Items.Clear();
-        foreach (var name in names)
-            SelectWindowAutoComboBox.Items.Add(name);
-    }
-
-    private void UpdateSelectWindowModeVisibility(WindowInputMode mode, bool locked)
-    {
-        bool isAuto = mode == WindowInputMode.Auto;
-        SelectWindowManualPanel.Visibility = locked ? Visibility.Visible : (isAuto ? Visibility.Collapsed : Visibility.Visible);
-        SelectWindowAutoPanel.Visibility = isAuto && !locked ? Visibility.Visible : Visibility.Collapsed;
+        _inspectorController.RefreshWindowList();
     }
 
     #endregion
@@ -947,11 +695,6 @@ public partial class MainWindow : Window
         _nodeFactory.ResetCounter(maxSeq);
     }
 
-    private bool IsInputPinConnected(NodeBaseViewModel node, string pinName)
-    {
-        return node.InputPins.FirstOrDefault(p => p.Name == pinName)?.HasConnection ?? false;
-    }
-
     private Point ViewportToGraph(Point viewportPoint)
     {
         return _canvasPanZoomController.ViewportToGraph(viewportPoint);
@@ -960,11 +703,6 @@ public partial class MainWindow : Window
     private void FitGraphToView()
     {
         _canvasPanZoomController.FitGraphToView();
-    }
-
-    private void RefreshInspectorLocks(NodeBaseViewModel? node)
-    {
-        _inspectorController.RefreshLocks(node, IsInputPinConnected);
     }
 
     private bool TryGetPinAtPosition(Point position, out PinViewModel? pin)
@@ -1007,34 +745,6 @@ public partial class MainWindow : Window
         }
 
         return false;
-    }
-
-    private void PopulateKeyboardKeyComboBox(string selectedKey)
-    {
-        KeyboardKeyComboBox.Items.Clear();
-        string[] keys =
-        {
-            "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M",
-            "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z",
-            "D0", "D1", "D2", "D3", "D4", "D5", "D6", "D7", "D8", "D9",
-            "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12",
-            "Enter", "Escape", "Space", "Tab", "Backspace",
-            "Shift", "Control", "Alt",
-            "Left", "Up", "Right", "Down",
-            "Insert", "DeleteKey", "Home", "End", "PageUp", "PageDown",
-            "NumPad0", "NumPad1", "NumPad2", "NumPad3", "NumPad4",
-            "NumPad5", "NumPad6", "NumPad7", "NumPad8", "NumPad9",
-            "Add", "Subtract", "Multiply", "Divide",
-            "LWin", "RWin",
-        };
-
-        foreach (var key in keys)
-        {
-            var item = new ComboBoxItem { Content = key, Tag = key };
-            KeyboardKeyComboBox.Items.Add(item);
-            if (key == selectedKey)
-                KeyboardKeyComboBox.SelectedItem = item;
-        }
     }
 
     private void SetStatus(string message)

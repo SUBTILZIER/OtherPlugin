@@ -31,10 +31,29 @@ public sealed class FindImageNodeExecutor : INodeExecutor
 
         string scriptPath = Path.Combine(AppContext.BaseDirectory, "Python", "find_image.py");
         int threshold = node.SimilarityThresholdPercent > 0 ? node.SimilarityThresholdPercent : 80;
-        Logger.Info($"找图开始：{imagePath}，相似度阈值：{threshold}%");
+        if (node.UseFindImageRegion && (node.FindImageRegionWidth <= 0 || node.FindImageRegionHeight <= 0))
+        {
+            request.Context.Set(node.Id, "result", false);
+            Logger.Warn("找图警告：已启用区域，但区域宽高无效。继续执行。");
+            return NodeExecutionResult.Warn($"找图未执行：{node.Title} 区域宽高无效");
+        }
+
+        string regionLabel = node.UseFindImageRegion
+            ? $"区域：({node.FindImageRegionX:0},{node.FindImageRegionY:0},{node.FindImageRegionWidth:0},{node.FindImageRegionHeight:0})"
+            : "区域：全屏";
+        Logger.Info($"找图开始：{imagePath}，相似度阈值：{threshold}%，{regionLabel}");
         var result = request.Adapters.Python.RunJsonScript(
             scriptPath,
-            new { template_path = imagePath, threshold_percent = threshold },
+            new
+            {
+                template_path = imagePath,
+                threshold_percent = threshold,
+                use_region = node.UseFindImageRegion,
+                region_x = node.FindImageRegionX,
+                region_y = node.FindImageRegionY,
+                region_width = node.FindImageRegionWidth,
+                region_height = node.FindImageRegionHeight,
+            },
             TimeSpan.FromSeconds(30),
             request.CancellationToken);
 
@@ -85,4 +104,3 @@ public sealed class FindImageNodeExecutor : INodeExecutor
         return Path.IsPathRooted(path) ? path : Path.GetFullPath(Path.Combine(baseDirectory, path));
     }
 }
-

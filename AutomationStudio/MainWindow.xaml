@@ -584,10 +584,37 @@
                                 </DockPanel>
                                 <TextBlock Text="相似度阈值 (%)" Foreground="White" />
                                 <TextBox x:Name="FindImageThresholdTextBox" Margin="0,4,0,12" TextChanged="InspectorField_TextChanged" />
+                                <CheckBox x:Name="FindImageUseRegionCheckBox"
+                                          Content="限制识别区域"
+                                          Margin="0,0,0,10"
+                                          Foreground="#D0D7E2"
+                                          Checked="InspectorField_CheckedChanged"
+                                          Unchecked="InspectorField_CheckedChanged" />
+                                <Grid Margin="0,0,0,12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="8" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="区域 X" Foreground="White" />
+                                    <TextBlock Grid.Row="0" Grid.Column="2" Text="区域 Y" Foreground="White" />
+                                    <TextBox x:Name="FindImageRegionXTextBox" Grid.Row="1" Grid.Column="0" Margin="0,4,0,8" TextChanged="InspectorField_TextChanged" />
+                                    <TextBox x:Name="FindImageRegionYTextBox" Grid.Row="1" Grid.Column="2" Margin="0,4,0,8" TextChanged="InspectorField_TextChanged" />
+                                    <TextBlock Grid.Row="2" Grid.Column="0" Text="区域宽" Foreground="White" />
+                                    <TextBlock Grid.Row="2" Grid.Column="2" Text="区域高" Foreground="White" />
+                                    <TextBox x:Name="FindImageRegionWidthTextBox" Grid.Row="3" Grid.Column="0" Margin="0,4,0,0" TextChanged="InspectorField_TextChanged" />
+                                    <TextBox x:Name="FindImageRegionHeightTextBox" Grid.Row="3" Grid.Column="2" Margin="0,4,0,0" TextChanged="InspectorField_TextChanged" />
+                                </Grid>
                                 <TextBlock Text="说明" Foreground="#A7B1BF" FontWeight="SemiBold" />
                                 <TextBlock Margin="0,4,0,0"
                                            Foreground="#A7B1BF"
-                                           Text="达到阈值即认为找到了图像。节点输出会提供成功 bool 和中心点 Vector2D。"
+                                           Text="达到阈值即认为找到了图像。可限制屏幕识别区域；未启用时默认全屏。节点输出会提供成功 bool 和中心点 Vector2D。"
                                            TextWrapping="Wrap" />
                             </StackPanel>
 

@@ -5,6 +5,26 @@ WPF 可视化节点自动化编辑器，类似 UE4 蓝图。技术栈 C# 12 / .N
 
 ## 踩坑记录（按时间倒序，新记录追加到顶部）
 
+### 2026-06-03: Inspector 下沉 + 找图区块识别 + Validator 增强
+
+#### Architecture update: InspectorController 负责完整属性面板逻辑
+- **Current**: `Interaction/InspectorController.cs` 负责节点属性加载、字段自动保存、浏览文件、窗口列表刷新、前置输入锁定和灰态。
+- **MainWindow rule**: `MainWindow.xaml.cs` 只转发 XAML 事件：`LoadNodeToInspector()`、`ApplyInspectorChanges()`、浏览按钮、窗口模式切换都应调用 controller。
+- **Do not**: 不要再把节点属性 switch、字段锁定规则、文件浏览逻辑写回 `MainWindow.xaml.cs`。
+
+#### Feature: 找图节点支持可选区域
+- **Fields**:
+  - `FindImageNodeViewModel.UseRegion`
+  - `RegionX / RegionY / RegionWidth / RegionHeight`
+  - File/runtime 字段使用 `UseFindImageRegion`、`FindImageRegionX/Y/Width/Height`
+- **Runtime**: `FindImageNodeExecutor` 通过 JSON 传给 `Python/find_image.py`。
+- **Python behavior**: 全屏截图后可选 crop；模板匹配结果输出仍为屏幕绝对坐标。
+- **Safety**: 区域启用但宽高无效是 `WarnButContinue`，不是 fatal。
+
+#### Validator update: 执行前新增非致命警告
+- `GraphValidator` 现在检查不可达执行节点、缺省路径/坐标/按键/进程名、无效延迟、无效找图区。
+- 这些都是 Warning；结构性错误才阻止执行。
+
 ### 2026-06-03: XAML 初始化期间事件早触发导致启动崩溃
 
 #### Problem: `FilterRadio_Checked` 启动时空引用
@@ -44,13 +64,13 @@ WPF 可视化节点自动化编辑器，类似 UE4 蓝图。技术栈 C# 12 / .N
   - `CanvasPanZoomController`：右键平移、滚轮缩放、F 全览、坐标转换。
   - `NodeDragSelectionController`：节点拖动、框选、多选、复制粘贴、对齐。
   - `PinConnectionController`：拖线、连线、断线、预览线、双击连线插入路由节点。
-  - `InspectorController`：属性字段锁定灰态。
+  - `InspectorController`：属性面板加载、自动保存、浏览对话框、窗口列表、字段锁定灰态。
   - `NodePaletteController`：右键节点菜单，条目来自 `NodeRegistry.Definitions`。
   - `LogPanelController`：日志过滤、刷新、清空。
   - `GraphImportDropController`：JSON 图谱拖拽导入。
-- **Removed**:
-  - `FindText` / `找字` / `EasyOCR` 已从内置节点中删除。
-  - 不要恢复 `Python/find_text.py` 或 EasyOCR 自动安装；后续 OCR 只能作为独立插件节点重新接入。
+- **Current OCR status**:
+  - 当前软件不包含识字/OCR 节点。
+  - 当前软件不依赖 EasyOCR，也不做 EasyOCR 自动安装。
 
 #### Lesson: 前置输入已连接但运行时无值，不能回退本地默认值
 - **Risk**: `找图.center -> 鼠标点击.position` 时，如果找图未命中且鼠标节点回退本地坐标，可能误点 `(0,0)` 或旧坐标。

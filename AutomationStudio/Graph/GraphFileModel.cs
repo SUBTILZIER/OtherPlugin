@@ -30,6 +30,16 @@ public sealed class NodeFileModel
 
     public int SimilarityThresholdPercent { get; set; } = 80;
 
+    public bool UseFindImageRegion { get; set; }
+
+    public double FindImageRegionX { get; set; }
+
+    public double FindImageRegionY { get; set; }
+
+    public double FindImageRegionWidth { get; set; }
+
+    public double FindImageRegionHeight { get; set; }
+
     // StartProgram 节点属性。新保存使用明确字段，旧图兼容读取 ImagePath/DelayMs/ScrollAction/ScrollSpeed。
     public string? ProgramPath { get; set; }
 

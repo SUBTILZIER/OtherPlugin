@@ -6,6 +6,11 @@ public sealed class FindImageNodeViewModel : NodeBaseViewModel
 {
     private string _imagePath = string.Empty;
     private int _similarityThresholdPercent = 80;
+    private bool _useRegion;
+    private double _regionX;
+    private double _regionY;
+    private double _regionWidth;
+    private double _regionHeight;
 
     public FindImageNodeViewModel(string id) : base(id, "找图")
     {
@@ -40,9 +45,62 @@ public sealed class FindImageNodeViewModel : NodeBaseViewModel
         }
     }
 
+    public bool UseRegion
+    {
+        get => _useRegion;
+        set
+        {
+            if (SetProperty(ref _useRegion, value))
+                RefreshDescription();
+        }
+    }
+
+    public double RegionX
+    {
+        get => _regionX;
+        set
+        {
+            if (SetProperty(ref _regionX, value))
+                RefreshDescription();
+        }
+    }
+
+    public double RegionY
+    {
+        get => _regionY;
+        set
+        {
+            if (SetProperty(ref _regionY, value))
+                RefreshDescription();
+        }
+    }
+
+    public double RegionWidth
+    {
+        get => _regionWidth;
+        set
+        {
+            if (SetProperty(ref _regionWidth, value))
+                RefreshDescription();
+        }
+    }
+
+    public double RegionHeight
+    {
+        get => _regionHeight;
+        set
+        {
+            if (SetProperty(ref _regionHeight, value))
+                RefreshDescription();
+        }
+    }
+
     public override void RefreshDescription()
     {
         string fileName = string.IsNullOrWhiteSpace(ImagePath) ? "未设置" : Path.GetFileName(ImagePath);
-        Description = $"{fileName}\n阈值 {SimilarityThresholdPercent}%";
+        string region = UseRegion
+            ? $"区域 ({RegionX:0},{RegionY:0},{RegionWidth:0},{RegionHeight:0})"
+            : "区域 全屏";
+        Description = $"{fileName}\n阈值 {SimilarityThresholdPercent}%\n{region}";
     }
 }

@@ -48,7 +48,7 @@ public sealed class CanvasPanZoomController
         const double edgeZone = 30.0;
         const double speedCoefficient = 0.15;
         const double speedPower = 0.6;
-        const double maxSpeed = 5.0;
+        const double maxSpeed = 1;
 
         double panX = 0, panY = 0;
 

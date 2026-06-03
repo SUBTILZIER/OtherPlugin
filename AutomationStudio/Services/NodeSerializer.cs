@@ -24,6 +24,11 @@ public static class NodeSerializer
             case FindImageNodeViewModel findImage:
                 file.ImagePath = findImage.ImagePath;
                 file.SimilarityThresholdPercent = findImage.SimilarityThresholdPercent;
+                file.UseFindImageRegion = findImage.UseRegion;
+                file.FindImageRegionX = findImage.RegionX;
+                file.FindImageRegionY = findImage.RegionY;
+                file.FindImageRegionWidth = findImage.RegionWidth;
+                file.FindImageRegionHeight = findImage.RegionHeight;
                 break;
 
             case StartProgramNodeViewModel startProg:
@@ -111,6 +116,11 @@ public static class NodeSerializer
                 Y = file.Y,
                 ImagePath = file.ImagePath ?? string.Empty,
                 SimilarityThresholdPercent = file.SimilarityThresholdPercent,
+                UseRegion = file.UseFindImageRegion,
+                RegionX = file.FindImageRegionX,
+                RegionY = file.FindImageRegionY,
+                RegionWidth = file.FindImageRegionWidth,
+                RegionHeight = file.FindImageRegionHeight,
             },
 
             "start_program" => new StartProgramNodeViewModel(file.Id)
@@ -237,7 +247,13 @@ public static class NodeSerializer
 
             FindImageNodeViewModel findImageNode => GraphRuntimeNode.ForFindImage(
                 findImageNode.Id, findImageNode.Title,
-                findImageNode.ImagePath, findImageNode.SimilarityThresholdPercent),
+                findImageNode.ImagePath,
+                findImageNode.SimilarityThresholdPercent,
+                findImageNode.UseRegion,
+                findImageNode.RegionX,
+                findImageNode.RegionY,
+                findImageNode.RegionWidth,
+                findImageNode.RegionHeight),
 
             StartProgramNodeViewModel startProg => GraphRuntimeNode.ForStartProgram(
                 startProg.Id, startProg.Title,

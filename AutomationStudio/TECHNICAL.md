@@ -17,7 +17,7 @@ Interaction
     ├─ CanvasPanZoomController   ← 右键平移、滚轮缩放、F 全览、坐标转换
     ├─ NodeDragSelectionController ← 节点拖动、框选、多选、复制粘贴、对齐
     ├─ PinConnectionController   ← 拖线、连线、断线、预览线、路由节点插入
-    ├─ InspectorController       ← 字段锁定和灰态
+    ├─ InspectorController       ← 属性面板加载、自动保存、浏览对话框、窗口列表、字段锁定和灰态
     ├─ NodePaletteController     ← 右键节点菜单，来自 NodeRegistry.Definitions
     ├─ LogPanelController        ← 日志过滤、刷新、清空
     └─ GraphImportDropController ← JSON 图谱拖拽导入
@@ -178,12 +178,12 @@ public abstract class NodeBaseViewModel : ObservableObject
 - **PinKind**: Execution / Boolean / Vector2D / String
 - 支持动态引脚位置计算
 
-#### 当前全部节点 (15个)
+#### 当前全部节点 (14个)
 
 | 节点 | NodeKind | 分类 | 引脚 |
 |------|----------|------|------|
 | Start | Start | - | exec_out |
-| FindImage | FindImage | 插件节点 | exec, result(bool), center(V2D) |
+| FindImage | FindImage | 插件节点 | exec, result(bool), center(V2D)，支持可选屏幕区域 |
 | MouseClick | MouseClick | 输入节点 | exec, position(V2D in), result(bool) |
 | MouseMove | MouseMove | 输入节点 | exec, position(V2D in), result(bool) |
 | Keyboard | Keyboard | 输入节点 | exec, result(bool) |
@@ -297,7 +297,7 @@ static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int x, int 
 **优点：**
 - OpenCV Python 绑定成熟稳定
 - 丰富的图像处理生态（PIL, numpy）
-- 易于扩展（OCR, 图像预处理等）
+- 易于扩展图像预处理等能力
 
 **权衡：**
 - 需要管理 Python 环境
@@ -411,6 +411,24 @@ Python 参数规则：
 
 > 以下记录来自实际开发中的踩坑经验，按时间倒序排列，新记录追加到顶部。
 
+### 2026-06-03：属性面板下沉、找图区块识别、执行前校验增强
+
+#### 变更 1：InspectorController 不再只做灰态锁定
+- **现状**：节点属性面板的加载、自动保存、浏览文件、刷新窗口列表、字段锁定均已下沉到 `Interaction/InspectorController.cs`。
+- **MainWindow 职责**：只保留 XAML 事件转发和窗口装配，不再维护属性面板业务规则。
+- **维护规则**：新增节点属性 UI 后，同步改 `InspectorController.LoadNode()`、`ApplyChanges()`、`RefreshLocks()`，不要把属性逻辑写回 `MainWindow.xaml.cs`。
+
+#### 变更 2：找图节点支持可选识别区域
+- **字段链路**：`FindImageNodeViewModel` → `NodeFileModel` → `GraphRuntimeNode` → `FindImageNodeExecutor` → `Python/find_image.py`。
+- **字段**：`UseFindImageRegion`、`FindImageRegionX/Y/Width/Height`。
+- **行为**：未启用区域时全屏截图；启用区域时先裁剪指定屏幕区域，再做 OpenCV 模板匹配，输出坐标仍是屏幕绝对坐标。
+- **安全规则**：启用区域但宽高无效时记 `Warn` 并继续，不当成致命错误。
+
+#### 变更 3：GraphValidator 增加执行前警告
+- **新增检查**：开始执行链不可达节点、找图路径空、找图区宽高无效、鼠标坐标缺省、键盘按键空、延迟值无效、启动程序路径空、选中窗口进程名空。
+- **分级**：这些都是 `Warning`，用于执行前提示；只有无开始节点、多开始节点、重复 ID、坏连线、非法类型才是 `Error`。
+- **目的**：提前暴露“不会执行/会跳过”的问题，但不阻断可退化流程。
+
 ### 2026-06-02：EdgePan 边缘自动平移
 
 参考 UE4 `SNodePanel::ComputeEdgePanAmount` 实现。
@@ -452,10 +470,10 @@ Python 参数规则：
   - `NodePaletteController`
   - `LogPanelController`
   - `GraphImportDropController`
-#### 2026-06-02 清理：FindText / 找字 / EasyOCR 已移除
-- **范围**：删除 `FindTextNodeViewModel`、`FindTextNodeExecutor`、`Python/find_text.py`，并从 `NodeKind`、`NodeRegistry`、`NodeFactory`、`NodeSerializer`、`GraphRuntimeNode`、Inspector UI、Python 环境检查中移除。
-- **原因**：当前版本只保留图像识别插件节点，OCR/找字不再作为内置依赖，避免 EasyOCR/Torch 体积和环境复杂度污染主程序。
-- **维护规则**：不要再添加 EasyOCR 自动安装逻辑；若后续恢复 OCR，按插件节点重新接入，单独放到 `Nodes/Plugins/Ocr` 和对应 adapter，不要塞回 Runtime/MainWindow。
+#### 当前识字/OCR 状态
+- 当前软件不包含识字/OCR 节点。
+- 当前软件不依赖 EasyOCR，也不做 EasyOCR 自动安装。
+- 后续如果重新做识字功能，需要按独立插件节点接入，并先明确依赖策略。
 - **教训**：`MainWindow` 只做事件转发和窗口装配。新交互不要直接塞进 `MainWindow`。
 
 #### 问题 2：新增 controller 后大量 WPF/WinForms 类型歧义
