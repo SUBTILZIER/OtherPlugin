@@ -19,7 +19,6 @@ public sealed class InspectorController
     private readonly WpfComboBox _forLoopEndConditionComboBox;
     private readonly WpfTextBox _printLogMessageTextBox;
     private readonly WpfTextBox _selectWindowProcessNameTextBox;
-    private readonly WpfTextBox _findTextTextBox;
 
     public InspectorController(
         WpfTextBox mousePositionXTextBox,
@@ -30,8 +29,7 @@ public sealed class InspectorController
         WpfComboBox whileLoopConditionComboBox,
         WpfComboBox forLoopEndConditionComboBox,
         WpfTextBox printLogMessageTextBox,
-        WpfTextBox selectWindowProcessNameTextBox,
-        WpfTextBox findTextTextBox)
+        WpfTextBox selectWindowProcessNameTextBox)
     {
         _mousePositionXTextBox = mousePositionXTextBox;
         _mousePositionYTextBox = mousePositionYTextBox;
@@ -42,7 +40,6 @@ public sealed class InspectorController
         _forLoopEndConditionComboBox = forLoopEndConditionComboBox;
         _printLogMessageTextBox = printLogMessageTextBox;
         _selectWindowProcessNameTextBox = selectWindowProcessNameTextBox;
-        _findTextTextBox = findTextTextBox;
     }
 
     public void RefreshLocks(NodeBaseViewModel? node, Func<NodeBaseViewModel, string, bool> isInputConnected)
@@ -77,7 +74,6 @@ public sealed class InspectorController
 
         LockTextBox(_printLogMessageTextBox, node is PrintLogNodeViewModel printNode && isInputConnected(printNode, "message"), node is PrintLogNodeViewModel printValue ? printValue.Message : string.Empty);
         LockTextBox(_selectWindowProcessNameTextBox, node is SelectWindowNodeViewModel selectNode && isInputConnected(selectNode, "process_name"), node is SelectWindowNodeViewModel selectValue ? selectValue.ProcessName : string.Empty);
-        LockTextBox(_findTextTextBox, node is FindTextNodeViewModel textNode && isInputConnected(textNode, "text"), node is FindTextNodeViewModel textValue ? textValue.Text : string.Empty);
     }
 
     private static void LockTextBox(WpfTextBox textBox, bool locked, string restoreValue)

@@ -16,7 +16,6 @@ public enum NodeKind
     StartProgram,
     PrintLog,
     SelectWindow,
-    FindText,
 }
 
 public enum PinDirection

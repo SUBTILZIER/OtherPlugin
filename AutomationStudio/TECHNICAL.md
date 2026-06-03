@@ -15,9 +15,12 @@ Interaction
     ├─ ExecutionController       ← 执行、取消、校验、Python 环境检查
     ├─ GraphListController       ← 图谱列表、新增、切换、删除、重命名、保存
     ├─ CanvasPanZoomController   ← 右键平移、滚轮缩放、F 全览、坐标转换
-    ├─ PinConnectionController   ← 拖线、连线、断线、预览线
+    ├─ NodeDragSelectionController ← 节点拖动、框选、多选、复制粘贴、对齐
+    ├─ PinConnectionController   ← 拖线、连线、断线、预览线、路由节点插入
     ├─ InspectorController       ← 字段锁定和灰态
-    └─ NodePaletteController     ← 右键节点菜单，来自 NodeRegistry.Definitions
+    ├─ NodePaletteController     ← 右键节点菜单，来自 NodeRegistry.Definitions
+    ├─ LogPanelController        ← 日志过滤、刷新、清空
+    └─ GraphImportDropController ← JSON 图谱拖拽导入
 
 GraphCore / Services
     ├─ GraphValidator            ← 执行前图谱校验
@@ -175,13 +178,12 @@ public abstract class NodeBaseViewModel : ObservableObject
 - **PinKind**: Execution / Boolean / Vector2D / String
 - 支持动态引脚位置计算
 
-#### 当前全部节点 (16个)
+#### 当前全部节点 (15个)
 
 | 节点 | NodeKind | 分类 | 引脚 |
 |------|----------|------|------|
 | Start | Start | - | exec_out |
 | FindImage | FindImage | 插件节点 | exec, result(bool), center(V2D) |
-| FindText | FindText | 插件节点 | exec, text(String in), result(bool), center(V2D) |
 | MouseClick | MouseClick | 输入节点 | exec, position(V2D in), result(bool) |
 | MouseMove | MouseMove | 输入节点 | exec, position(V2D in), result(bool) |
 | Keyboard | Keyboard | 输入节点 | exec, result(bool) |
@@ -276,17 +278,6 @@ static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int x, int 
 - 进程名支持 `notepad` 或 `notepad.exe`，运行时会去掉 `.exe`
 - 空进程名、找不到窗口：`Warn + continue`
 - Win32 异常：`Error + stop`
-
-#### 找字节点
-`FindTextNodeViewModel` 通过 EasyOCR 进行屏幕文字识别：
-- 属性：`Text` (搜索文字，支持前置 String 输入), `SimilarityThresholdPercent` (置信度阈值, 默认 80)
-- 输出 `result` bool 和 `center` Vector2D
-- Python 脚本：`Python/find_text.py`，使用 EasyOCR 中英文模型
-- 首次运行加载模型 ~15s，后续 ~5s
-- 文字为空、Python 缺失、EasyOCR 未安装、找字未命中：`Warn + continue`
-- 脚本退出码非 0 不阻塞，转为 Warn + 继续执行
-- Debug 输出：stderr 打印前 10 个检测文字块及置信度到 log
-- EasyOCR 安装：`pip install easyocr torch torchvision`
 
 ### 4. Logging 层
 
@@ -438,15 +429,33 @@ Python 参数规则：
 
 ### 2026-06-02：Runtime/Interaction 解耦后的维护规则
 
+#### 2026-06-03 启动崩溃：XAML 初始化事件早于 controller 创建
+- **现象**：软件启动时直接崩溃，堆栈为 `NullReferenceException` at `MainWindow.FilterRadio_Checked`，调用链发生在 `InitializeComponent()` 内。
+- **根因**：XAML 设置 RadioButton `IsChecked` 会触发 `Checked` 事件；但 `MainWindow` 的 controller 是在 `InitializeComponent()` 之后创建的，`_logPanelController` 当时仍为 `null`。
+- **修复**：`FilterRadio_Checked` 顶部增加空保护：
+  ```csharp
+  if (_logPanelController is null)
+      return;
+  ```
+- **维护规则**：任何由 XAML 直接绑定、且可能在初始化期触发的事件，如果要访问 controller/service，必须先判空或延迟绑定。重点检查 `Checked`、`SelectionChanged`、`TextChanged`、`Loaded`、`LayoutUpdated`。
+- **验证**：`dotnet build .\AutomationStudioWpf.csproj` 通过，启动 exe 后进程保持运行。
+
 #### 问题 1：MainWindow 继续膨胀会把 UI、交互、运行时重新耦合
 - **现象**：画布平移、连线、图谱列表、执行入口、属性锁定全写在 `MainWindow.xaml.cs`，修改一个交互容易误伤另一个。
 - **修复**：拆出 `Interaction/*Controller`：
   - `ExecutionController`
   - `GraphListController`
   - `CanvasPanZoomController`
+  - `NodeDragSelectionController`
   - `PinConnectionController`
   - `InspectorController`
   - `NodePaletteController`
+  - `LogPanelController`
+  - `GraphImportDropController`
+#### 2026-06-02 清理：FindText / 找字 / EasyOCR 已移除
+- **范围**：删除 `FindTextNodeViewModel`、`FindTextNodeExecutor`、`Python/find_text.py`，并从 `NodeKind`、`NodeRegistry`、`NodeFactory`、`NodeSerializer`、`GraphRuntimeNode`、Inspector UI、Python 环境检查中移除。
+- **原因**：当前版本只保留图像识别插件节点，OCR/找字不再作为内置依赖，避免 EasyOCR/Torch 体积和环境复杂度污染主程序。
+- **维护规则**：不要再添加 EasyOCR 自动安装逻辑；若后续恢复 OCR，按插件节点重新接入，单独放到 `Nodes/Plugins/Ocr` 和对应 adapter，不要塞回 Runtime/MainWindow。
 - **教训**：`MainWindow` 只做事件转发和窗口装配。新交互不要直接塞进 `MainWindow`。
 
 #### 问题 2：新增 controller 后大量 WPF/WinForms 类型歧义
@@ -483,7 +492,7 @@ Python 参数规则：
 ### 2026-05-30: C#↔Python 中文传参编码 + 图谱持久化 + 环路检测
 
 #### 问题 1：C#→Python 命令行传中文全部损坏
-- **现象**：`find_image.py` 收到中文路径 `'征神之路.png'` 变成乱码 `'寰佺涔嬭矾.png'`；`find_text.py` 收到 `'网络'` 变成乱码
+- **现象**：`find_image.py` 收到中文路径 `'征神之路.png'` 变成乱码 `'寰佺涔嬭矾.png'`
 - **根因**：`ProcessStartInfo.Arguments` 通过 Windows 命令行传参，中文被系统编码破坏
 - **修复**：改用 JSON 临时文件通信
 - **教训**：**永远不要通过命令行参数传递中文**。C#→Python 通信统一用 JSON 临时文件 + `new UTF8Encoding(false)`（无 BOM）

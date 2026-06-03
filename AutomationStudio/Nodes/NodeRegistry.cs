@@ -4,7 +4,6 @@ using AutomationStudioWpf.Nodes.Debug;
 using AutomationStudioWpf.Nodes.Input.Keyboard;
 using AutomationStudioWpf.Nodes.Input.Mouse;
 using AutomationStudioWpf.Nodes.Plugins.ImageRecognition;
-using AutomationStudioWpf.Nodes.Plugins.Ocr;
 using AutomationStudioWpf.Nodes.System.Window;
 using AutomationStudioWpf.Runtime;
 
@@ -34,7 +33,6 @@ public sealed class NodeRegistry
             new SelectWindowNodeExecutor(),
             new PrintLogNodeExecutor(),
             new FindImageNodeExecutor(),
-            new FindTextNodeExecutor(),
         ],
         CreateDefaultDefinitions());
     }
@@ -66,7 +64,6 @@ public sealed class NodeRegistry
             Definition(NodeKind.PrintLog, "print_log", "打印log", "调试", [InExec(), InString("message", "消息"), OutExec()]),
 
             Definition(NodeKind.FindImage, "find_image", "找图", "插件/图像识别", [InExec(), OutExec(), OutBool("result", "结果"), OutVector("center", "中心点")]),
-            Definition(NodeKind.FindText, "find_text", "找字", "插件/OCR", [InExec(), InString("text", "文字"), OutExec(), OutBool("result", "结果"), OutVector("center", "中心点")]),
         ];
     }
 

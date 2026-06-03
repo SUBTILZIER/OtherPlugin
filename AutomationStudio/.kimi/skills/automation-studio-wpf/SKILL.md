@@ -5,6 +5,15 @@ WPF 可视化节点自动化编辑器，类似 UE4 蓝图。技术栈 C# 12 / .N
 
 ## 踩坑记录（按时间倒序，新记录追加到顶部）
 
+### 2026-06-03: XAML 初始化期间事件早触发导致启动崩溃
+
+#### Problem: `FilterRadio_Checked` 启动时空引用
+- **Symptom**: 启动直接崩溃：`NullReferenceException` at `MainWindow.FilterRadio_Checked`。堆栈显示发生在 `InitializeComponent()` 内，RadioButton `IsChecked` 被 XAML 设置时触发 `Checked`。
+- **Root cause**: `MainWindow` 构造顺序是 `InitializeComponent()` → `InitializeControllers()`。XAML 加载期间控件事件可能先触发，此时 `_logPanelController` 还没创建。
+- **Fix**: 事件入口先判空：`if (_logPanelController is null) return;`
+- **Rule**: 所有 XAML 初始化期可能触发的事件，如果依赖 controller/service，必须容忍 controller 为空；或者改成 `InitializeComponent()` 后再动态绑定事件。
+- **Applies to**: RadioButton `Checked`、ComboBox `SelectionChanged`、TextBox `TextChanged`、Loaded/LayoutUpdated 等初始化期事件。
+
 ### 2026-06-02: EdgePan 边缘自动平移（新增功能）
 
 #### Feature: 拖动节点/连线到视口边界时画布自动滚动
@@ -33,16 +42,22 @@ WPF 可视化节点自动化编辑器，类似 UE4 蓝图。技术栈 C# 12 / .N
   - `ExecutionController`：执行、取消、校验、Python 环境检查。
   - `GraphListController`：图谱新增、切换、删除、重命名、保存、退出保存提示。
   - `CanvasPanZoomController`：右键平移、滚轮缩放、F 全览、坐标转换。
-  - `PinConnectionController`：拖线、连线、断线、预览线。
+  - `NodeDragSelectionController`：节点拖动、框选、多选、复制粘贴、对齐。
+  - `PinConnectionController`：拖线、连线、断线、预览线、双击连线插入路由节点。
   - `InspectorController`：属性字段锁定灰态。
   - `NodePaletteController`：右键节点菜单，条目来自 `NodeRegistry.Definitions`。
+  - `LogPanelController`：日志过滤、刷新、清空。
+  - `GraphImportDropController`：JSON 图谱拖拽导入。
+- **Removed**:
+  - `FindText` / `找字` / `EasyOCR` 已从内置节点中删除。
+  - 不要恢复 `Python/find_text.py` 或 EasyOCR 自动安装；后续 OCR 只能作为独立插件节点重新接入。
 
 #### Lesson: 前置输入已连接但运行时无值，不能回退本地默认值
 - **Risk**: `找图.center -> 鼠标点击.position` 时，如果找图未命中且鼠标节点回退本地坐标，可能误点 `(0,0)` 或旧坐标。
 - **Rule**:
   - 未连接输入：允许使用本地属性。
   - 已连接输入但上游无值：当前节点 `WarnButContinue`，跳过本节点，不回退本地属性。
-- **Applies to**: 鼠标点击、鼠标移动、找字文本输入、打印日志消息输入、选中窗口进程名输入。
+- **Applies to**: 鼠标点击、鼠标移动、打印日志消息输入、选中窗口进程名输入。
 
 #### Lesson: NodeRegistry 是节点菜单和执行器注册的单一入口
 - `NodeRegistry.Definitions` 提供节点名称、分类、引脚定义。
@@ -94,8 +109,8 @@ WPF 可视化节点自动化编辑器，类似 UE4 蓝图。技术栈 C# 12 / .N
 
 ### 2026-05-30: C#↔Python 中文传参编码 + JSON BOM + 循环检测
 
-#### Problem 1: 找图/找字节点传中文文件路径或中文搜索词到 Python 后变成乱码
-- **Symptom**: `find_image.py` 收到 `'征神之路.png'` → `'寰佺涔嬭矾.png'`；`find_text.py` 收到 `'网络'` → 乱码
+#### Problem 1: 找图节点传中文文件路径到 Python 后变成乱码
+- **Symptom**: `find_image.py` 收到 `'征神之路.png'` → `'寰佺涔嬭矾.png'`
 - **Root cause**: C# `ProcessStartInfo.Arguments` 通过 Windows 命令行传参，中文被系统编码（GBK/ACP）破坏
 - **Fix**: 改用 JSON 临时文件传参。C# 端 `File.WriteAllText(path, JsonSerializer.Serialize(data), new UTF8Encoding(false))`；Python 端 `json.load(open(path, encoding="utf-8"))`
 - **Lesson**: **永远不要通过命令行参数传递中文**（或任何非 ASCII 文本）。C#→Python 通信统一用 JSON 临时文件 + UTF-8 without BOM

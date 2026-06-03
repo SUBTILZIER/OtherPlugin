@@ -25,7 +25,7 @@ public sealed class NodeFileModel
 
     public double Y { get; set; }
 
-    // FindImage 节点属性。旧图中 StartProgram/PrintLog/FindText 也可能复用该字段。
+    // FindImage 节点属性。旧图中 StartProgram/PrintLog 也可能复用该字段。
     public string? ImagePath { get; set; }
 
     public int SimilarityThresholdPercent { get; set; } = 80;
@@ -41,9 +41,6 @@ public sealed class NodeFileModel
 
     // PrintLog 节点属性。旧图兼容读取 ImagePath。
     public string? PrintLogMessage { get; set; }
-
-    // FindText 节点属性。旧图兼容读取 ImagePath。
-    public string? FindTextText { get; set; }
 
     // MouseClick 节点属性
     public string? ClickMode { get; set; }

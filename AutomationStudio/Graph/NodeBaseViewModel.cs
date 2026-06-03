@@ -100,7 +100,6 @@ public abstract class NodeBaseViewModel : ObservableObject
         NodeKind.StartProgram => new SolidColorBrush(Color.FromRgb(45, 130, 180)),
         NodeKind.PrintLog => new SolidColorBrush(Color.FromRgb(60, 170, 100)),
         NodeKind.SelectWindow => new SolidColorBrush(Color.FromRgb(80, 120, 200)),
-        NodeKind.FindText => new SolidColorBrush(Color.FromRgb(120, 80, 180)),
         _ => new SolidColorBrush(Color.FromRgb(70, 70, 70)),
     };
 

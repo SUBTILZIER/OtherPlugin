@@ -53,7 +53,7 @@ public sealed class ExecutionController
             if (!Validate(plan))
                 return;
 
-            if (plan.Nodes.Any(n => n.NodeKind is NodeKind.FindImage or NodeKind.FindText))
+            if (plan.Nodes.Any(n => n.NodeKind is NodeKind.FindImage))
             {
                 bool pythonReady = await PythonAutoInstaller.EnsurePythonAsync(new Progress<string>(_setStatus));
                 if (!pythonReady)

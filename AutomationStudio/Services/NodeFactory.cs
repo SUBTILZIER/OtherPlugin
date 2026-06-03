@@ -21,7 +21,6 @@ public sealed class NodeFactory
         NodeBaseViewModel node = kind switch
         {
             NodeKind.FindImage => CreateFindImageNode(),
-            NodeKind.FindText => CreateFindTextNode(),
             NodeKind.MouseClick => CreateMouseClickNode(),
             NodeKind.MouseMove => CreateMouseMoveNode(),
             NodeKind.Keyboard => CreateKeyboardNode(),
@@ -46,9 +45,6 @@ public sealed class NodeFactory
 
     public FindImageNodeViewModel CreateFindImageNode(double offsetX = 0, double offsetY = 0) =>
         new(CreateNodeId()) { Title = "找图节点", X = 260 + offsetX, Y = 180 + offsetY };
-
-    public FindTextNodeViewModel CreateFindTextNode(double offsetX = 0, double offsetY = 0) =>
-        new(CreateNodeId()) { Title = "找字节点", X = 280 + offsetX, Y = 200 + offsetY };
 
     public MouseClickNodeViewModel CreateMouseClickNode(double offsetX = 0, double offsetY = 0) =>
         new(CreateNodeId()) { Title = "鼠标点击节点", X = 320 + offsetX, Y = 220 + offsetY };

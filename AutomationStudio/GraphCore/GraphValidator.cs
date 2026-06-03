@@ -94,7 +94,7 @@ public sealed class GraphValidator
                 continue;
 
             var sourceNode = plan.Nodes.FirstOrDefault(node => node.Id == connection.SourceNodeId);
-            if (sourceNode?.NodeKind is NodeKind.FindImage or NodeKind.FindText)
+            if (sourceNode?.NodeKind is NodeKind.FindImage)
             {
                 issues.Add(Warning(
                     $"节点 {connection.TargetNodeId} 的坐标来自 {sourceNode.Title}。如果上游未命中，下游会跳过执行，不会回退到本地默认坐标。"));

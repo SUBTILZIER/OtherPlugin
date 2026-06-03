@@ -103,11 +103,6 @@ public sealed record GraphRuntimeNode(
             0, 0, 0, null, ScrollWheelAction.ScrollForward, 0, 100, 1000,
             0, false, PinKind.Execution, ProgramStartFailureAction.None, 0, processName);
 
-    public static GraphRuntimeNode ForFindText(string id, string title, string text, int similarityThresholdPercent) =>
-        new(id, title, NodeKind.FindText, text, similarityThresholdPercent,
-            PressReleaseMode.Press, MouseButton.Left,
-            0, 0, 0, null, ScrollWheelAction.ScrollForward, 120, 100, 1000,
-            0, false, PinKind.Execution, ProgramStartFailureAction.None, 0, null);
 }
 
 public sealed record GraphExecutionResult(bool Success, string Message, bool ContinueExecution = true);

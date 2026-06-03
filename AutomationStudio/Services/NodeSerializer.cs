@@ -88,10 +88,6 @@ public static class NodeSerializer
                 file.ProcessName = selectWindowNode.ProcessName;
                 file.WindowInputMode = selectWindowNode.InputMode.ToString();
                 break;
-            case FindTextNodeViewModel findTextNode:
-                file.FindTextText = findTextNode.Text;
-                file.SimilarityThresholdPercent = findTextNode.SimilarityThresholdPercent;
-                break;
         }
 
         return file;
@@ -114,15 +110,6 @@ public static class NodeSerializer
                 X = file.X,
                 Y = file.Y,
                 ImagePath = file.ImagePath ?? string.Empty,
-                SimilarityThresholdPercent = file.SimilarityThresholdPercent,
-            },
-
-            "find_text" => new FindTextNodeViewModel(file.Id)
-            {
-                Title = file.Title,
-                X = file.X,
-                Y = file.Y,
-                Text = file.FindTextText ?? file.ImagePath ?? string.Empty,
                 SimilarityThresholdPercent = file.SimilarityThresholdPercent,
             },
 
@@ -251,10 +238,6 @@ public static class NodeSerializer
             FindImageNodeViewModel findImageNode => GraphRuntimeNode.ForFindImage(
                 findImageNode.Id, findImageNode.Title,
                 findImageNode.ImagePath, findImageNode.SimilarityThresholdPercent),
-
-            FindTextNodeViewModel findTextNode => GraphRuntimeNode.ForFindText(
-                findTextNode.Id, findTextNode.Title,
-                findTextNode.Text, findTextNode.SimilarityThresholdPercent),
 
             StartProgramNodeViewModel startProg => GraphRuntimeNode.ForStartProgram(
                 startProg.Id, startProg.Title,
