@@ -15,8 +15,8 @@ public sealed class ExecutionController
     private readonly GraphRuntimeExecutor _runtimeExecutor;
     private readonly GraphValidator _graphValidator;
     private readonly System.Windows.Controls.Button _runButton;
-    private readonly Func<IEnumerable<GraphListItemViewModel>> _getFunctions;
-    private readonly Func<IEnumerable<GraphListItemViewModel>> _getMacros;
+    private readonly Func<IEnumerable<CallableGraphItem>> _getFunctions;
+    private readonly Func<IEnumerable<CallableGraphItem>> _getMacros;
     private readonly Action<string> _setStatus;
 
     private CancellationTokenSource? _executionCts;
@@ -27,8 +27,8 @@ public sealed class ExecutionController
         GraphRuntimeExecutor runtimeExecutor,
         GraphValidator graphValidator,
         System.Windows.Controls.Button runButton,
-        Func<IEnumerable<GraphListItemViewModel>> getFunctions,
-        Func<IEnumerable<GraphListItemViewModel>> getMacros,
+        Func<IEnumerable<CallableGraphItem>> getFunctions,
+        Func<IEnumerable<CallableGraphItem>> getMacros,
         Action<string> setStatus)
     {
         _owner = owner;

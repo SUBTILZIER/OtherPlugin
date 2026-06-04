@@ -47,6 +47,7 @@ public partial class MainWindow : Window
     private PinConnectionController _pinConnectionController = null!;
     private LogPanelController _logPanelController = null!;
     private GraphImportDropController _graphImportDropController = null!;
+    private ContentAssetViewModel? _activeContentAsset;
     // 运行状态
     private bool _isClosing;
 
@@ -90,8 +91,8 @@ public partial class MainWindow : Window
             new Runtime.GraphRuntimeExecutor(nodeRegistry: _nodeRegistry, adapters: new Adapters.RuntimeAdapters()),
             new GraphCore.GraphValidator(),
             RunGraphButton,
-            () => FunctionListItems,
-            () => MacroListItems,
+            GetCallableFunctions,
+            GetCallableMacros,
             SetStatus);
 
         _graphListController = new GraphListController(
@@ -143,8 +144,9 @@ public partial class MainWindow : Window
             _nodeFactory,
             _editorService,
             _nodeRegistry,
-            () => FunctionListItems,
-            () => MacroListItems,
+            GetCallableFunctions,
+            GetCallableMacros,
+            SnapshotActiveAsset,
             ViewportToGraph,
             SelectNode);
 
@@ -297,6 +299,7 @@ public partial class MainWindow : Window
     public ObservableCollection<GraphListItemViewModel> GraphListItems { get; } = [];
     public ObservableCollection<GraphListItemViewModel> FunctionListItems { get; } = [];
     public ObservableCollection<GraphListItemViewModel> MacroListItems { get; } = [];
+    public ObservableCollection<ContentAssetViewModel> ContentBrowserItems { get; } = [];
 
     #endregion
 
@@ -304,7 +307,16 @@ public partial class MainWindow : Window
 
     private void NewGraph_Click(object sender, RoutedEventArgs e)
     {
-        _graphListController.AddAndRename();
+        if (_activeContentAsset is null)
+        {
+            var asset = CreateContentAsset(ContentAssetKind.Script, CreateUniqueContentName("新脚本"));
+            ContentBrowserItems.Add(asset);
+            OpenContentAsset(asset);
+        }
+        else if (_activeContentAsset.Kind == ContentAssetKind.Script)
+        {
+            AddGraphListItem_Click(sender, e);
+        }
     }
 
     private void SaveGraph_Click(object sender, RoutedEventArgs e)
@@ -328,24 +340,33 @@ public partial class MainWindow : Window
 
     private void LoadGraphLibrary()
     {
-        _graphListController.LoadLibrary();
-        _functionListController.LoadLibrary();
-        _macroListController.LoadLibrary();
-        _activeAssetController = _graphListController;
+        ContentBrowserItems.Clear();
+        foreach (var item in _graphLibraryService.LoadContentLibrary())
+            ContentBrowserItems.Add(item);
+
+        if (ContentBrowserItems.Count == 0)
+            ContentBrowserItems.Add(CreateContentAsset(ContentAssetKind.Script, "默认脚本"));
+
+        CloseActiveEditor();
     }
 
     private void AddGraphListItem_Click(object sender, RoutedEventArgs e)
     {
         SnapshotActiveAsset();
         _activeAssetController = _graphListController;
-        _graphListController.AddAndRename();
+        _graphListController.AddAndRename(snapshotCurrent: false);
+        MarkCurrentContentDirty();
     }
 
     private void GraphListBox_MouseDoubleClick(object sender, MouseButtonEventArgs e)
     {
         SnapshotActiveAsset();
-        _activeAssetController = _graphListController;
-        _graphListController.HandleDoubleClick(e);
+        if (_graphListController.SelectedItem is { } item)
+        {
+            _graphListController.LoadItem(item, snapshotCurrent: false);
+            _activeAssetController = _graphListController;
+            e.Handled = true;
+        }
     }
 
     private void GraphListBox_KeyDown(object sender, KeyEventArgs e)
@@ -367,14 +388,19 @@ public partial class MainWindow : Window
     {
         SnapshotActiveAsset();
         _activeAssetController = _functionListController;
-        _functionListController.AddAndRename();
+        _functionListController.AddAndRename(snapshotCurrent: false);
+        MarkCurrentContentDirty();
     }
 
     private void FunctionListBox_MouseDoubleClick(object sender, MouseButtonEventArgs e)
     {
         SnapshotActiveAsset();
-        _activeAssetController = _functionListController;
-        _functionListController.HandleDoubleClick(e);
+        if (_functionListController.SelectedItem is { } item)
+        {
+            _functionListController.LoadItem(item, snapshotCurrent: false);
+            _activeAssetController = _functionListController;
+            e.Handled = true;
+        }
     }
 
     private void FunctionListBox_KeyDown(object sender, KeyEventArgs e)
@@ -392,14 +418,19 @@ public partial class MainWindow : Window
     {
         SnapshotActiveAsset();
         _activeAssetController = _macroListController;
-        _macroListController.AddAndRename();
+        _macroListController.AddAndRename(snapshotCurrent: false);
+        MarkCurrentContentDirty();
     }
 
     private void MacroListBox_MouseDoubleClick(object sender, MouseButtonEventArgs e)
     {
         SnapshotActiveAsset();
-        _activeAssetController = _macroListController;
-        _macroListController.HandleDoubleClick(e);
+        if (_macroListController.SelectedItem is { } item)
+        {
+            _macroListController.LoadItem(item, snapshotCurrent: false);
+            _activeAssetController = _macroListController;
+            e.Handled = true;
+        }
     }
 
     private void MacroListBox_KeyDown(object sender, KeyEventArgs e)
@@ -439,6 +470,290 @@ public partial class MainWindow : Window
             GraphAssetKind.Macro => _macroListController,
             _ => _graphListController,
         };
+
+    #endregion
+
+    #region 内容浏览器
+
+    private void NewContentFolder_Click(object sender, RoutedEventArgs e) => AddContentAsset(ContentAssetKind.Folder, "新文件夹");
+
+    private void NewScriptAsset_Click(object sender, RoutedEventArgs e) => AddContentAsset(ContentAssetKind.Script, "新脚本");
+
+    private void NewFunctionLibraryAsset_Click(object sender, RoutedEventArgs e) => AddContentAsset(ContentAssetKind.FunctionLibrary, "新函数库");
+
+    private void NewMacroLibraryAsset_Click(object sender, RoutedEventArgs e) => AddContentAsset(ContentAssetKind.MacroLibrary, "新宏库");
+
+    private void ContentBrowserListBox_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        if (ContentBrowserListBox.SelectedItem is ContentAssetViewModel asset && asset.Kind != ContentAssetKind.Folder)
+            OpenContentAsset(asset);
+    }
+
+    private void ContentBrowserListBox_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (Keyboard.FocusedElement is TextBox) return;
+
+        if (e.Key == Key.Delete)
+        {
+            DeleteSelectedContentAsset();
+            e.Handled = true;
+        }
+        else if (e.Key == Key.F2)
+        {
+            StartRenameSelectedContentAsset();
+            e.Handled = true;
+        }
+    }
+
+    private void ContentAsset_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is ListBoxItem { DataContext: ContentAssetViewModel item })
+            ContentBrowserListBox.SelectedItem = item;
+    }
+
+    private void RenameContentAssetMenuItem_Click(object sender, RoutedEventArgs e) => StartRenameSelectedContentAsset();
+
+    private void DeleteContentAssetMenuItem_Click(object sender, RoutedEventArgs e) => DeleteSelectedContentAsset();
+
+    private void ContentAssetNameTextBox_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (sender is not TextBox { DataContext: ContentAssetViewModel item }) return;
+
+        if (e.Key == Key.Enter)
+        {
+            CommitContentAssetRename(item);
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Escape)
+        {
+            item.IsEditing = false;
+            e.Handled = true;
+        }
+    }
+
+    private void ContentAssetNameTextBox_LostFocus(object sender, RoutedEventArgs e)
+    {
+        if (sender is TextBox { DataContext: ContentAssetViewModel item })
+            CommitContentAssetRename(item);
+    }
+
+    private void AddContentAsset(ContentAssetKind kind, string namePrefix)
+    {
+        var asset = CreateContentAsset(kind, CreateUniqueContentName(namePrefix));
+        ContentBrowserItems.Add(asset);
+        ContentBrowserListBox.SelectedItem = asset;
+        asset.IsEditing = true;
+        PersistAssetLibrary();
+    }
+
+    private ContentAssetViewModel CreateContentAsset(ContentAssetKind kind, string name)
+    {
+        var asset = new ContentAssetViewModel
+        {
+            Kind = kind,
+            Name = name,
+            IsDirty = true,
+        };
+
+        if (kind == ContentAssetKind.Script)
+            asset.EventGraphs.Add(CreateGraphItem(GraphAssetKind.EventGraph, "事件图1"));
+        else if (kind == ContentAssetKind.FunctionLibrary)
+            asset.Functions.Add(CreateGraphItem(GraphAssetKind.Function, "新函数_1"));
+        else if (kind == ContentAssetKind.MacroLibrary)
+            asset.Macros.Add(CreateGraphItem(GraphAssetKind.Macro, "新宏_1"));
+
+        return asset;
+    }
+
+    private GraphListItemViewModel CreateGraphItem(GraphAssetKind kind, string name)
+    {
+        var graph = CreateDefaultGraphModel(kind, name);
+        return new GraphListItemViewModel
+        {
+            Kind = kind,
+            Name = name,
+            Graph = graph,
+            IsDirty = true,
+        };
+    }
+
+    private GraphFileModel CreateDefaultGraphModel(GraphAssetKind kind, string name)
+    {
+        if (kind == GraphAssetKind.Function)
+            _editorService.NewFunctionGraph();
+        else if (kind == GraphAssetKind.Macro)
+            _editorService.NewMacroGraph();
+        else
+            _editorService.NewGraph();
+
+        _nodeFactory.ResetCounter(1);
+        return _editorService.ExportGraphModel(name, kind);
+    }
+
+    private string CreateUniqueContentName(string prefix)
+    {
+        int index = 1;
+        string name;
+        do
+        {
+            name = $"{prefix}{index++}";
+        }
+        while (ContentBrowserItems.Any(item => item.Name == name));
+
+        return name;
+    }
+
+    private void OpenContentAsset(ContentAssetViewModel asset)
+    {
+        SaveVisibleGraphsToActiveContent();
+        _activeContentAsset = asset;
+        ContentBrowserListBox.SelectedItem = asset;
+
+        GraphListItems.Clear();
+        FunctionListItems.Clear();
+        MacroListItems.Clear();
+        _graphListController.ClearActive();
+        _functionListController.ClearActive();
+        _macroListController.ClearActive();
+        _activeAssetController = null;
+
+        foreach (var item in asset.EventGraphs)
+            GraphListItems.Add(item);
+        foreach (var item in asset.Functions)
+            FunctionListItems.Add(item);
+        foreach (var item in asset.Macros)
+            MacroListItems.Add(item);
+
+        ApplyEditorModeForContent(asset);
+        LoadFirstGraphForContent(asset);
+        SetStatus($"已打开：{asset.Name}");
+    }
+
+    private void ApplyEditorModeForContent(ContentAssetViewModel asset)
+    {
+        EmptyEditorPanel.Visibility = Visibility.Collapsed;
+        EditorGrid.Visibility = Visibility.Visible;
+        EventGraphSection.Visibility = asset.Kind == ContentAssetKind.Script ? Visibility.Visible : Visibility.Collapsed;
+        GraphListBox.Visibility = asset.Kind == ContentAssetKind.Script ? Visibility.Visible : Visibility.Collapsed;
+        FunctionSection.Visibility = asset.Kind is ContentAssetKind.Script or ContentAssetKind.FunctionLibrary ? Visibility.Visible : Visibility.Collapsed;
+        FunctionListBox.Visibility = asset.Kind is ContentAssetKind.Script or ContentAssetKind.FunctionLibrary ? Visibility.Visible : Visibility.Collapsed;
+        MacroSection.Visibility = asset.Kind is ContentAssetKind.Script or ContentAssetKind.MacroLibrary ? Visibility.Visible : Visibility.Collapsed;
+        MacroListBox.Visibility = asset.Kind is ContentAssetKind.Script or ContentAssetKind.MacroLibrary ? Visibility.Visible : Visibility.Collapsed;
+        InspectorPanel.Visibility = Visibility.Visible;
+    }
+
+    private void LoadFirstGraphForContent(ContentAssetViewModel asset)
+    {
+        if (asset.Kind == ContentAssetKind.Script)
+        {
+            if (GraphListItems.Count == 0)
+                GraphListItems.Add(CreateGraphItem(GraphAssetKind.EventGraph, "事件图1"));
+            _graphListController.LoadItem(GraphListItems[0], snapshotCurrent: false);
+            _activeAssetController = _graphListController;
+        }
+        else if (asset.Kind == ContentAssetKind.FunctionLibrary)
+        {
+            if (FunctionListItems.Count == 0)
+                FunctionListItems.Add(CreateGraphItem(GraphAssetKind.Function, "新函数_1"));
+            _functionListController.LoadItem(FunctionListItems[0], snapshotCurrent: false);
+            _activeAssetController = _functionListController;
+        }
+        else if (asset.Kind == ContentAssetKind.MacroLibrary)
+        {
+            if (MacroListItems.Count == 0)
+                MacroListItems.Add(CreateGraphItem(GraphAssetKind.Macro, "新宏_1"));
+            _macroListController.LoadItem(MacroListItems[0], snapshotCurrent: false);
+            _activeAssetController = _macroListController;
+        }
+    }
+
+    private void CloseActiveEditor()
+    {
+        _activeContentAsset = null;
+        _activeAssetController = null;
+        GraphListItems.Clear();
+        FunctionListItems.Clear();
+        MacroListItems.Clear();
+        _editorService.Nodes.Clear();
+        _editorService.Connections.Clear();
+        EmptyEditorPanel.Visibility = Visibility.Visible;
+        EditorGrid.Visibility = Visibility.Collapsed;
+    }
+
+    private void SaveVisibleGraphsToActiveContent()
+    {
+        if (_activeContentAsset is null)
+            return;
+
+        SnapshotActiveAsset();
+        _activeContentAsset.EventGraphs = new ObservableCollection<GraphListItemViewModel>(GraphListItems);
+        _activeContentAsset.Functions = new ObservableCollection<GraphListItemViewModel>(FunctionListItems);
+        _activeContentAsset.Macros = new ObservableCollection<GraphListItemViewModel>(MacroListItems);
+    }
+
+    private void MarkCurrentContentDirty()
+    {
+        if (_activeContentAsset is not null)
+            _activeContentAsset.IsDirty = true;
+    }
+
+    private IEnumerable<CallableGraphItem> GetCallableFunctions()
+    {
+        SaveVisibleGraphsToActiveContent();
+        if (_activeContentAsset?.Kind == ContentAssetKind.Script)
+        {
+            foreach (var function in _activeContentAsset.Functions)
+                yield return new CallableGraphItem(function.Id, function.Name, "本脚本函数", function.Graph);
+        }
+
+        foreach (var library in ContentBrowserItems.Where(asset => asset.Kind == ContentAssetKind.FunctionLibrary))
+        foreach (var function in library.Functions)
+            yield return new CallableGraphItem(function.Id, $"{library.Name}/{function.Name}", "函数库", function.Graph);
+    }
+
+    private IEnumerable<CallableGraphItem> GetCallableMacros()
+    {
+        SaveVisibleGraphsToActiveContent();
+        if (_activeContentAsset?.Kind == ContentAssetKind.Script)
+        {
+            foreach (var macro in _activeContentAsset.Macros)
+                yield return new CallableGraphItem(macro.Id, macro.Name, "本脚本宏", macro.Graph);
+        }
+
+        foreach (var library in ContentBrowserItems.Where(asset => asset.Kind == ContentAssetKind.MacroLibrary))
+        foreach (var macro in library.Macros)
+            yield return new CallableGraphItem(macro.Id, $"{library.Name}/{macro.Name}", "宏库", macro.Graph);
+    }
+
+    private void StartRenameSelectedContentAsset()
+    {
+        if (ContentBrowserListBox.SelectedItem is ContentAssetViewModel item)
+            item.IsEditing = true;
+    }
+
+    private void CommitContentAssetRename(ContentAssetViewModel item)
+    {
+        item.Name = string.IsNullOrWhiteSpace(item.Name) ? "未命名资产" : item.Name.Trim();
+        item.IsEditing = false;
+        item.IsDirty = true;
+        PersistAssetLibrary();
+    }
+
+    private void DeleteSelectedContentAsset()
+    {
+        if (ContentBrowserListBox.SelectedItem is not ContentAssetViewModel item)
+            return;
+
+        var result = WpfMessageBox.Show(this, $"是否删除：{item.Name}？", "删除资产", MessageBoxButton.YesNo, MessageBoxImage.Question);
+        if (result != MessageBoxResult.Yes)
+            return;
+
+        bool deletingActive = ReferenceEquals(item, _activeContentAsset);
+        ContentBrowserItems.Remove(item);
+        if (deletingActive)
+            CloseActiveEditor();
+        PersistAssetLibrary();
+    }
 
     private static T? FindVisualChild<T>(DependencyObject parent) where T : DependencyObject
     {
@@ -482,8 +797,9 @@ public partial class MainWindow : Window
         _executionController.ReleaseAllKeys();
         if (_isClosing) return;
 
-        SnapshotActiveAsset();
-        if (GraphListItems.Concat(FunctionListItems).Concat(MacroListItems).Any(item => item.IsDirty))
+        SaveVisibleGraphsToActiveContent();
+        if (ContentBrowserItems.Any(item => item.IsDirty) ||
+            GraphListItems.Concat(FunctionListItems).Concat(MacroListItems).Any(item => item.IsDirty))
         {
             var result = WpfMessageBox.Show(
                 this,
@@ -513,12 +829,13 @@ public partial class MainWindow : Window
 
     private async void RunGraph_Click(object sender, RoutedEventArgs e)
     {
-        if (!ReferenceEquals(_activeAssetController, _graphListController))
+        if (_activeContentAsset?.Kind != ContentAssetKind.Script || !ReferenceEquals(_activeAssetController, _graphListController))
         {
-            WpfMessageBox.Show(this, "函数和宏不能直接执行，请在事件图中添加调用节点后执行。", "不能执行", MessageBoxButton.OK, MessageBoxImage.Information);
+            WpfMessageBox.Show(this, "只有脚本里的事件图可以直接执行。请从内容浏览器打开脚本，并进入事件图。", "不能执行", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
+        SaveVisibleGraphsToActiveContent();
         await _executionController.RunAsync();
     }
 
@@ -898,6 +1215,7 @@ public partial class MainWindow : Window
     private void MarkActiveAssetDirty()
     {
         _activeAssetController?.MarkDirty();
+        MarkCurrentContentDirty();
     }
 
     private void SnapshotActiveAsset()
@@ -907,16 +1225,19 @@ public partial class MainWindow : Window
 
     private void PersistAssetLibrary()
     {
-        _graphLibraryService.Save(GraphListItems, FunctionListItems, MacroListItems, _activeAssetController?.ActiveItem?.Id);
+        SaveVisibleGraphsToActiveContent();
+        _graphLibraryService.SaveContentLibrary(ContentBrowserItems, _activeContentAsset?.Id);
     }
 
     private void SaveAllAssets()
     {
-        SnapshotActiveAsset();
+        SaveVisibleGraphsToActiveContent();
         foreach (var item in GraphListItems.Concat(FunctionListItems).Concat(MacroListItems))
             item.IsDirty = false;
+        foreach (var item in ContentBrowserItems)
+            item.IsDirty = false;
         PersistAssetLibrary();
-        SetStatus($"已保存全部资产：事件图 {GraphListItems.Count} 个，函数 {FunctionListItems.Count} 个，宏 {MacroListItems.Count} 个。");
+        SetStatus($"已保存全部内容资产：{ContentBrowserItems.Count} 个。");
     }
 
     private void EnsureCanvasLargeEnough()

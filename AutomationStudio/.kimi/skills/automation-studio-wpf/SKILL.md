@@ -402,3 +402,26 @@ Runtime
 8. **点击 vs 拖动延迟判断**：右键同时承载菜单和平移时，用位移阈值（如 3px）在 MouseMove 中决定行为转换
 9. **WinForms + WPF 混合项目用完整限定名**：`System.Windows.Controls.Button`、`System.Windows.HorizontalAlignment` 等避免歧义
 10. **不在 StrReplaceFile 中使用中文**：`old`/`new` 参数仅使用 ASCII 字符；中文文本通过 WriteFile 或按行号覆写注入
+### 2026-06-04: Content Browser + Script / Function Library / Macro Library assets
+
+- Bottom panel now has a UE-style content browser on the left and log panel on the right, separated by a `GridSplitter`.
+- Startup does not open graph editing UI by default. `EditorGrid` is hidden and `EmptyEditorPanel` asks the user to open an asset from the content browser.
+- New content asset kinds:
+  - `Folder`: content browser placeholder/category item for now.
+  - `Script`: blueprint-like executable asset with its own event graphs, private functions, and private macros.
+  - `FunctionLibrary`: global function library; functions can be searched/called by scripts.
+  - `MacroLibrary`: global macro library; macros can be searched/called by scripts.
+- `ContentAssetViewModel` owns `EventGraphs`, `Functions`, and `Macros`.
+- `GraphLibraryService.SaveContentLibrary()` writes the new `ContentAssets` model.
+- Old `graph-library.json` compatibility:
+  - old `Graphs` -> default script event graphs.
+  - old `Functions` -> default script private functions.
+  - old `Macros` -> default script private macros.
+- Function/macro call visibility:
+  - scripts can call their own private functions/macros.
+  - scripts can call all functions/macros from function/macro libraries.
+  - scripts cannot call private functions/macros from other scripts.
+- `CallableGraphItem` is the bridge DTO used by `NodePaletteController` and `ExecutionController`; do not return raw global `GraphListItemViewModel` lists for callable assets anymore.
+- Important: call `SnapshotActiveAsset()` before opening/filtering node palette or executing. Otherwise just-edited function/macro parameters may not be in `GraphFileModel`, causing call nodes to miss pins.
+- `GraphListController.LoadItem(item, snapshotCurrent: false)` is used when `MainWindow` already snapshots the active asset. Do not let each list controller snapshot cross-asset by itself, or event/function/macro canvases can get mixed.
+- Direct execution is only valid for a script event graph. Function libraries, macro libraries, private functions, and macros are edit/call-only.

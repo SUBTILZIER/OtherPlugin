@@ -97,7 +97,31 @@ public sealed class GraphListController
         }
     }
 
-    public void AddAndRename() => Add(loadImmediately: true);
+    public void AddAndRename(bool snapshotCurrent = true) => Add(loadImmediately: true, snapshotCurrent);
+
+    public void ReplaceItems(IEnumerable<GraphListItemViewModel> items)
+    {
+        _items.Clear();
+        foreach (var item in items)
+            _items.Add(item);
+
+        ClearActive();
+    }
+
+    public void ClearActive()
+    {
+        _activeItem = null;
+        _graphListBox.SelectedItem = null;
+    }
+
+    public void LoadItem(GraphListItemViewModel item, bool snapshotCurrent = true) => Load(item, snapshotCurrent);
+
+    public GraphListItemViewModel AddDefaultItem(string name, bool loadImmediately, bool snapshotCurrent = true)
+    {
+        var item = Add(loadImmediately, snapshotCurrent, name);
+        item.IsEditing = false;
+        return item;
+    }
 
     public void SaveAll()
     {
@@ -307,11 +331,12 @@ public sealed class GraphListController
 
     public void Persist() => _persistAll();
 
-    private GraphListItemViewModel Add(bool loadImmediately)
+    private GraphListItemViewModel Add(bool loadImmediately, bool snapshotCurrent = true, string? fixedName = null)
     {
-        SnapshotActive();
+        if (snapshotCurrent)
+            SnapshotActive();
 
-        string name = CreateUniqueName();
+        string name = string.IsNullOrWhiteSpace(fixedName) ? CreateUniqueName() : fixedName;
         var item = new GraphListItemViewModel
         {
             Name = name,
@@ -325,7 +350,7 @@ public sealed class GraphListController
 
         if (loadImmediately)
         {
-            Load(item);
+            Load(item, snapshotCurrent: false);
             StartRename(item);
         }
         else
@@ -369,9 +394,10 @@ public sealed class GraphListController
         }
     }
 
-    private void Load(GraphListItemViewModel item)
+    private void Load(GraphListItemViewModel item, bool snapshotCurrent = true)
     {
-        SnapshotActive();
+        if (snapshotCurrent)
+            SnapshotActive();
 
         _isLoadingGraph = true;
         try

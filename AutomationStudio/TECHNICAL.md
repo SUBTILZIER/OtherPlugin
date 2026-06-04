@@ -765,3 +765,36 @@ dotnet publish -c Release -r win-x64 \
 - 初始版本
 - 蓝图节点编辑器基础功能
 - 找图、鼠标、键盘、延迟等节点
+## 2026-06-04：内容浏览器 + 脚本/函数库/宏库资产系统 v1
+
+### 新资产层
+- 底部新增“内容浏览器”，资产类型为 `Folder`、`Script`、`FunctionLibrary`、`MacroLibrary`。
+- `Script` 等价 UE 蓝图，包含自己的事件图、私有函数、私有宏。
+- `FunctionLibrary` / `MacroLibrary` 是全局库，库内函数/宏可被其他脚本搜索和调用。
+- `ContentAssetViewModel` 持有 `EventGraphs / Functions / Macros` 三个集合。
+- `CallableGraphItem` 是节点菜单和执行器使用的可调用函数/宏 DTO，包含稳定 `Id`、显示名、分组名、`GraphFileModel`。
+
+### UI 行为
+- 启动默认隐藏 `EditorGrid`，显示 `EmptyEditorPanel`，提示从内容浏览器打开资产。
+- 底部左侧为内容浏览器，右侧为日志，中间 `GridSplitter` 可调比例。
+- 打开脚本：显示事件图、自定义函数、宏、画布和属性面板。
+- 打开函数库：只显示函数列表、画布和属性面板。
+- 打开宏库：只显示宏列表、画布和属性面板。
+- `RunGraph_Click` 只允许脚本里的事件图直接执行。
+
+### 保存与迁移
+- `GraphLibraryService.SaveContentLibrary()` 使用新版 `ContentAssets` 字段保存全部内容资产。
+- 旧 `graph-library.json` 兼容读取：旧 `Graphs` 迁移到默认脚本事件图，旧 `Functions` 迁移到默认脚本私有函数，旧 `Macros` 迁移到默认脚本私有宏。
+- 新保存后以 `ContentAssets` 为准。
+
+### 调用范围
+- 脚本内只能调用本脚本私有函数/宏。
+- 所有脚本都可以调用函数库/宏库中的函数/宏。
+- 右键节点菜单按 `本脚本函数`、`本脚本宏`、`函数库`、`宏库` 分组。
+- 库函数/宏显示为 `库名/函数名` 或 `库名/宏名`，运行时仍用稳定 ID，不靠名字解析。
+
+### 重要坑点
+- 打开节点菜单前必须 `SnapshotActiveAsset()`，否则函数/宏参数刚改完但未写回 `GraphFileModel`，调用节点会缺 pin。
+- `GraphListController.LoadItem(item, snapshotCurrent: false)` 用于上层资产切换；跨事件图/函数/宏切换由 `MainWindow` 统一快照，避免图谱混写。
+- `ExecutionController` 和 `NodePaletteController` 读取 `CallableGraphItem`，不是直接读取全局 `FunctionListItems/MacroListItems`。
+- WPF + WinForms 命名冲突仍要用全限定名，尤其 `Brushes`、`Color`、`Cursors`、`HorizontalAlignment`。

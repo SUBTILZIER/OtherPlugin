@@ -32,8 +32,9 @@ public sealed class NodePaletteController
     private readonly NodeFactory _nodeFactory;
     private readonly GraphEditorService _editorService;
     private readonly NodeRegistry _nodeRegistry;
-    private readonly Func<IEnumerable<GraphListItemViewModel>> _getFunctions;
-    private readonly Func<IEnumerable<GraphListItemViewModel>> _getMacros;
+    private readonly Func<IEnumerable<CallableGraphItem>> _getFunctions;
+    private readonly Func<IEnumerable<CallableGraphItem>> _getMacros;
+    private readonly Action _snapshotActiveAsset;
     private readonly Func<Point, Point> _viewportToGraph;
     private readonly Action<NodeBaseViewModel> _selectNode;
 
@@ -46,8 +47,9 @@ public sealed class NodePaletteController
         NodeFactory nodeFactory,
         GraphEditorService editorService,
         NodeRegistry nodeRegistry,
-        Func<IEnumerable<GraphListItemViewModel>> getFunctions,
-        Func<IEnumerable<GraphListItemViewModel>> getMacros,
+        Func<IEnumerable<CallableGraphItem>> getFunctions,
+        Func<IEnumerable<CallableGraphItem>> getMacros,
+        Action snapshotActiveAsset,
         Func<Point, Point> viewportToGraph,
         Action<NodeBaseViewModel> selectNode)
     {
@@ -59,12 +61,14 @@ public sealed class NodePaletteController
         _nodeRegistry = nodeRegistry;
         _getFunctions = getFunctions;
         _getMacros = getMacros;
+        _snapshotActiveAsset = snapshotActiveAsset;
         _viewportToGraph = viewportToGraph;
         _selectNode = selectNode;
     }
 
     public void Open(Point viewportPoint)
     {
+        _snapshotActiveAsset();
         _openViewportPoint = viewportPoint;
         _searchBox.Text = string.Empty;
         Build(string.Empty);
@@ -94,6 +98,7 @@ public sealed class NodePaletteController
     {
         _content.Children.Clear();
 
+        bool hasAny = false;
         var definitions = _nodeRegistry.Definitions
             .Where(def => !HiddenKinds.Contains(def.NodeKind))
             .Where(def => string.IsNullOrWhiteSpace(filter) ||
@@ -102,7 +107,22 @@ public sealed class NodePaletteController
             .ThenBy(def => def.DisplayName)
             .ToList();
 
-        if (definitions.Count == 0)
+        foreach (var group in definitions.GroupBy(def => def.Category))
+        {
+            hasAny = true;
+            AddGroupHeader(group.Key);
+            foreach (var definition in group)
+            {
+                var button = CreateMenuButton(definition.DisplayName, definition.NodeKind);
+                button.Click += NodeButton_Click;
+                _content.Children.Add(button);
+            }
+        }
+
+        hasAny |= AddAssetGroups(_getFunctions(), filter, isMacro: false);
+        hasAny |= AddAssetGroups(_getMacros(), filter, isMacro: true);
+
+        if (!hasAny)
         {
             _content.Children.Add(new TextBlock
             {
@@ -111,80 +131,59 @@ public sealed class NodePaletteController
                 Margin = new Thickness(12, 8, 12, 8),
                 FontSize = 12,
             });
-            return;
         }
+    }
 
-        foreach (var group in definitions.GroupBy(def => def.Category))
+    private bool AddAssetGroups(IEnumerable<CallableGraphItem> assets, string filter, bool isMacro)
+    {
+        var matched = assets
+            .Where(asset => string.IsNullOrWhiteSpace(filter) ||
+                            asset.Name.Contains(filter, StringComparison.OrdinalIgnoreCase) ||
+                            asset.GroupName.Contains(filter, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(asset => asset.GroupName)
+            .ThenBy(asset => asset.Name)
+            .ToList();
+        if (matched.Count == 0)
+            return false;
+
+        foreach (var group in matched.GroupBy(asset => asset.GroupName))
         {
-            _content.Children.Add(new TextBlock
+            AddGroupHeader(group.Key);
+            foreach (var asset in group)
             {
-                Text = group.Key,
-                Foreground = System.Windows.Media.Brushes.White,
-                FontWeight = FontWeights.SemiBold,
-                FontSize = 12,
-                Margin = new Thickness(12, 10, 12, 4),
-            });
-
-            foreach (var definition in group)
-            {
-                var button = new WpfButton
-                {
-                    Content = definition.DisplayName,
-                    Background = System.Windows.Media.Brushes.Transparent,
-                    BorderThickness = new Thickness(0),
-                    Foreground = Brush(0xD0, 0xD7, 0xE2),
-                    FontSize = 13,
-                    Padding = new Thickness(12, 6, 12, 6),
-                    HorizontalContentAlignment = System.Windows.HorizontalAlignment.Left,
-                    Cursor = System.Windows.Input.Cursors.Hand,
-                    Tag = definition.NodeKind,
-                };
-                button.Click += NodeButton_Click;
+                var button = CreateMenuButton(asset.Name, new PaletteAsset(asset, isMacro));
+                button.Click += AssetButton_Click;
                 _content.Children.Add(button);
             }
         }
 
-        AddAssetGroup("自定义函数", _getFunctions(), filter, isMacro: false);
-        AddAssetGroup("宏", _getMacros(), filter, isMacro: true);
+        return true;
     }
 
-    private void AddAssetGroup(string category, IEnumerable<GraphListItemViewModel> assets, string filter, bool isMacro)
+    private void AddGroupHeader(string text)
     {
-        var matched = assets
-            .Where(asset => string.IsNullOrWhiteSpace(filter) ||
-                            asset.Name.Contains(filter, StringComparison.OrdinalIgnoreCase))
-            .OrderBy(asset => asset.Name)
-            .ToList();
-        if (matched.Count == 0)
-            return;
-
         _content.Children.Add(new TextBlock
         {
-            Text = category,
+            Text = text,
             Foreground = System.Windows.Media.Brushes.White,
             FontWeight = FontWeights.SemiBold,
             FontSize = 12,
             Margin = new Thickness(12, 10, 12, 4),
         });
-
-        foreach (var asset in matched)
-        {
-            var button = new WpfButton
-            {
-                Content = asset.Name,
-                Background = System.Windows.Media.Brushes.Transparent,
-                BorderThickness = new Thickness(0),
-                Foreground = Brush(0xD0, 0xD7, 0xE2),
-                FontSize = 13,
-                Padding = new Thickness(12, 6, 12, 6),
-                HorizontalContentAlignment = System.Windows.HorizontalAlignment.Left,
-                Cursor = System.Windows.Input.Cursors.Hand,
-                Tag = new PaletteAsset(asset, isMacro),
-            };
-            button.Click += AssetButton_Click;
-            _content.Children.Add(button);
-        }
     }
+
+    private static WpfButton CreateMenuButton(string text, object tag) => new()
+    {
+        Content = text,
+        Background = System.Windows.Media.Brushes.Transparent,
+        BorderThickness = new Thickness(0),
+        Foreground = Brush(0xD0, 0xD7, 0xE2),
+        FontSize = 13,
+        Padding = new Thickness(12, 6, 12, 6),
+        HorizontalContentAlignment = System.Windows.HorizontalAlignment.Left,
+        Cursor = System.Windows.Input.Cursors.Hand,
+        Tag = tag,
+    };
 
     private void NodeButton_Click(object sender, RoutedEventArgs e)
     {
@@ -203,6 +202,7 @@ public sealed class NodePaletteController
         if (sender is not WpfButton { Tag: PaletteAsset asset })
             return;
 
+        _snapshotActiveAsset();
         var graphPoint = _viewportToGraph(_openViewportPoint);
         NodeBaseViewModel node;
         if (asset.IsMacro)
@@ -268,5 +268,5 @@ public sealed class NodePaletteController
 
     private static SolidColorBrush Brush(byte r, byte g, byte b) => new(System.Windows.Media.Color.FromRgb(r, g, b));
 
-    private sealed record PaletteAsset(GraphListItemViewModel Item, bool IsMacro);
+    private sealed record PaletteAsset(CallableGraphItem Item, bool IsMacro);
 }
