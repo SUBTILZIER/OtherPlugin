@@ -197,6 +197,16 @@ public sealed class GraphEditorService
         GraphChanged?.Invoke();
     }
 
+    public void ClearGraph()
+    {
+        foreach (var connection in Connections)
+            connection.Dispose();
+
+        Nodes.Clear();
+        Connections.Clear();
+        GraphChanged?.Invoke();
+    }
+
     public GraphExecutionPlan BuildExecutionPlan()
     {
         var runtimeNodes = Nodes.Select(n => NodeSerializer.ToRuntimeNode(n)).ToList();

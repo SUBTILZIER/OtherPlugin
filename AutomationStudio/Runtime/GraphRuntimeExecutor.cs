@@ -114,6 +114,8 @@ public sealed class GraphRuntimeExecutor
             NodeKind.MacroOutput => NodeExecutionResult.Ok(string.Empty, null),
             NodeKind.FunctionCall => ExecuteFunctionCall(plan, node, context, baseDirectory, assets, callStack, ct),
             NodeKind.MacroCall => ExecuteMacroCall(plan, node, context, baseDirectory, assets, callStack, ct),
+            NodeKind.CustomEvent => NodeExecutionResult.Ok(string.Empty, "exec_out"),
+            NodeKind.CustomEventCall => ExecuteCustomEventCall(plan, node, context, baseDirectory, assets, callStack, ct),
             _ => ExecuteRegisteredNode(plan, node, context, baseDirectory, assets, callStack, ct),
         };
     }
@@ -315,6 +317,44 @@ public sealed class GraphRuntimeExecutor
         finally
         {
             callStack.Remove($"macro:{callNode.MacroId}");
+        }
+    }
+
+    private NodeExecutionResult ExecuteCustomEventCall(
+        GraphExecutionPlan plan,
+        GraphRuntimeNode callNode,
+        RuntimeContext context,
+        string baseDirectory,
+        RuntimeAssetLibrary assets,
+        HashSet<string> callStack,
+        CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(callNode.CustomEventId))
+            return NodeExecutionResult.Fatal($"自定义事件不存在：{callNode.Title}");
+
+        var entry = plan.Nodes.FirstOrDefault(node =>
+            node.NodeKind == NodeKind.CustomEvent &&
+            string.Equals(node.CustomEventId, callNode.CustomEventId, StringComparison.Ordinal));
+        if (entry is null)
+            return NodeExecutionResult.Fatal($"自定义事件不存在：{callNode.Title}");
+
+        string stackKey = $"custom_event:{callNode.CustomEventId}";
+        if (!callStack.Add(stackKey))
+            return NodeExecutionResult.Fatal($"检测到自定义事件递归调用：{callNode.Title}");
+
+        try
+        {
+            CopyCallInputsToEntry(plan, callNode, context, entry, context);
+            var result = ExecuteChain(plan, entry.Id, "exec_out", context, baseDirectory, assets, callStack, ct, out _);
+            if (!result.ContinueExecution)
+                return NodeExecutionResult.Fatal(result.Message);
+
+            Logger.Info($"自定义事件调用完成：{callNode.Title}");
+            return NodeExecutionResult.Ok($"自定义事件调用完成：{callNode.Title}", "exec_out");
+        }
+        finally
+        {
+            callStack.Remove(stackKey);
         }
     }
 

@@ -106,6 +106,8 @@ public sealed class NodeRegistry
             Definition(NodeKind.MacroOutput, "macro_output", "宏输出", "宏", [InExec()]),
             Definition(NodeKind.FunctionCall, "function_call", "函数调用", "自定义函数", [InExec(), OutExec()]),
             Definition(NodeKind.MacroCall, "macro_call", "宏调用", "宏", [InExec()]),
+            Definition(NodeKind.CustomEvent, "custom_event", "自定义事件", "事件", [OutExec()]),
+            Definition(NodeKind.CustomEventCall, "custom_event_call", "调用自定义事件", "事件", [InExec(), OutExec()]),
         ];
     }
 

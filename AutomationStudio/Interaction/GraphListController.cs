@@ -34,6 +34,8 @@ public sealed class GraphListController
 
     private GraphListItemViewModel? _activeItem;
     private bool _isLoadingGraph;
+    private bool _isSectionExpanded;
+    private bool _hasUserToggledSection;
 
     public GraphListController(
         Window owner,
@@ -67,9 +69,45 @@ public sealed class GraphListController
 
     public GraphListItemViewModel? ActiveItem => _activeItem;
 
+    public GraphAssetKind AssetKind => _kind;
+
     public IEnumerable<GraphListItemViewModel> Items => _items;
 
     public GraphListItemViewModel? SelectedItem => _graphListBox.SelectedItem as GraphListItemViewModel;
+
+    public bool IsSectionExpanded => _isSectionExpanded;
+
+    public bool HasUserToggledSection => _hasUserToggledSection;
+
+    public int ItemCount => _items.Count;
+
+    public bool HasCompileDirtyItems => _items.Any(item => item.IsCompileDirty);
+
+    public void SetSectionExpanded(bool expanded, bool userToggled = true)
+    {
+        _isSectionExpanded = expanded;
+        if (userToggled)
+            _hasUserToggledSection = true;
+    }
+
+    public void LoadSectionExpansion(bool expanded, bool hasUserState)
+    {
+        _isSectionExpanded = expanded;
+        _hasUserToggledSection = hasUserState;
+        RefreshSectionExpansion();
+    }
+
+    public void RefreshSectionExpansion()
+    {
+        if (_items.Count == 0)
+        {
+            _isSectionExpanded = false;
+            return;
+        }
+
+        if (!_hasUserToggledSection)
+            _isSectionExpanded = true;
+    }
 
     public void LoadLibrary()
     {
@@ -106,6 +144,7 @@ public sealed class GraphListController
             _items.Add(item);
 
         ClearActive();
+        RefreshSectionExpansion();
     }
 
     public void ClearActive()
@@ -115,6 +154,25 @@ public sealed class GraphListController
     }
 
     public void LoadItem(GraphListItemViewModel item, bool snapshotCurrent = true) => Load(item, snapshotCurrent);
+
+    public bool LoadDoubleClickedItem(MouseButtonEventArgs e)
+    {
+        if (!TryGetItemFromMouse(e, out var item))
+        {
+            return false;
+        }
+
+        Load(item, snapshotCurrent: false);
+        e.Handled = true;
+        return true;
+    }
+
+    public bool TryGetItemFromMouse(MouseButtonEventArgs e, out GraphListItemViewModel item)
+    {
+        item = null!;
+        return e.OriginalSource is DependencyObject source &&
+               TryFindGraphItemFromSource(source, out item);
+    }
 
     public GraphListItemViewModel AddDefaultItem(string name, bool loadImmediately, bool snapshotCurrent = true)
     {
@@ -245,13 +303,22 @@ public sealed class GraphListController
             MessageBoxImage.Question);
         if (result != MessageBoxResult.Yes) return;
 
+        DeleteSelectedConfirmed();
+    }
+
+    private void DeleteSelectedConfirmed()
+    {
+        if (SelectedItem is null) return;
+
         bool deletingActive = ReferenceEquals(SelectedItem, _activeItem);
         int oldIndex = _items.IndexOf(SelectedItem);
         _items.Remove(SelectedItem);
 
         if (_items.Count == 0)
         {
-            Add(loadImmediately: true);
+            ClearActive();
+            _editorService.ClearGraph();
+            RefreshSectionExpansion();
         }
         else
         {
@@ -295,10 +362,21 @@ public sealed class GraphListController
         _activeItem.Graph.Name = _activeItem.Name;
     }
 
-    public void MarkDirty()
+    public void MarkDirty() => MarkLogicDirty();
+
+    public void MarkLayoutDirty()
     {
         if (!_isLoadingGraph && _activeItem is not null)
             _activeItem.IsDirty = true;
+    }
+
+    public void MarkLogicDirty()
+    {
+        if (!_isLoadingGraph && _activeItem is not null)
+        {
+            _activeItem.IsDirty = true;
+            _activeItem.IsCompileDirty = true;
+        }
     }
 
     public bool HandleClosing(System.ComponentModel.CancelEventArgs e)
@@ -343,10 +421,13 @@ public sealed class GraphListController
             Kind = _kind,
             Graph = CreateDefaultGraphModel(name),
             IsDirty = true,
+            IsCompileDirty = true,
         };
 
         _items.Add(item);
         _graphListBox.SelectedItem = item;
+        _isSectionExpanded = true;
+        _hasUserToggledSection = false;
 
         if (loadImmediately)
         {
@@ -359,6 +440,22 @@ public sealed class GraphListController
         }
 
         return item;
+    }
+
+    public void ReloadItemWithoutPersist(GraphListItemViewModel item)
+    {
+        _isLoadingGraph = true;
+        try
+        {
+            _editorService.LoadFromModel(item.Graph);
+            _syncNodeFactorySequence();
+            _activeItem = item;
+            _graphListBox.SelectedItem = item;
+        }
+        finally
+        {
+            _isLoadingGraph = false;
+        }
     }
 
     private string CreateUniqueName()
@@ -386,6 +483,7 @@ public sealed class GraphListController
             else
                 _editorService.NewGraph();
             _nodeFactory.ResetCounter(1);
+            ApplyEntryNodeTitle(_editorService.Nodes, name);
             return _editorService.ExportGraphModel(name, _kind);
         }
         finally
@@ -435,6 +533,9 @@ public sealed class GraphListController
     {
         item.Name = string.IsNullOrWhiteSpace(item.Name) ? $"未命名{_displayName}" : item.Name.Trim();
         item.Graph.Name = item.Name;
+        ApplyEntryNodeTitle(item.Graph, item.Name);
+        if (ReferenceEquals(item, _activeItem))
+            ApplyEntryNodeTitle(_editorService.Nodes, item.Name);
         item.IsEditing = false;
         item.IsDirty = true;
         if (ReferenceEquals(item, _activeItem))
@@ -459,6 +560,34 @@ public sealed class GraphListController
 
         item = null!;
         return false;
+    }
+
+    private void ApplyEntryNodeTitle(IEnumerable<NodeBaseViewModel> nodes, string graphName)
+    {
+        string title = $"{graphName}开始";
+        foreach (var node in nodes)
+        {
+            if (_kind == GraphAssetKind.Function && node is FunctionEntryNodeViewModel ||
+                _kind == GraphAssetKind.Macro && node is MacroEntryNodeViewModel)
+            {
+                node.Title = title;
+            }
+        }
+    }
+
+    private void ApplyEntryNodeTitle(GraphFileModel graph, string graphName)
+    {
+        string? entryKey = _kind switch
+        {
+            GraphAssetKind.Function => "function_entry",
+            GraphAssetKind.Macro => "macro_entry",
+            _ => null,
+        };
+        if (entryKey is null)
+            return;
+
+        foreach (var node in graph.Nodes.Where(node => node.NodeTypeKey == entryKey))
+            node.Title = $"{graphName}开始";
     }
 
     private static T? FindVisualChild<T>(DependencyObject parent) where T : DependencyObject

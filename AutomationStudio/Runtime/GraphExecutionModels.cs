@@ -99,6 +99,8 @@ public sealed record GraphRuntimeNode(
 
     public string? MacroId { get; init; }
 
+    public string? CustomEventId { get; init; }
+
     public string? ExitName { get; init; }
 
     public static GraphRuntimeNode ForStart(string id, string title) =>
@@ -229,6 +231,18 @@ public sealed record GraphRuntimeNode(
         new(id, title, NodeKind.MacroCall, null, 0, PressReleaseMode.Press, MouseButton.Left, 0, 0, 0, null, ScrollWheelAction.ScrollForward, 120, 100, 1000, 0, false, PinKind.Execution, ProgramStartFailureAction.None, 0, null)
         {
             MacroId = macroId,
+        };
+
+    public static GraphRuntimeNode ForCustomEvent(string id, string title, string customEventId) =>
+        new(id, title, NodeKind.CustomEvent, null, 0, PressReleaseMode.Press, MouseButton.Left, 0, 0, 0, null, ScrollWheelAction.ScrollForward, 120, 100, 1000, 0, false, PinKind.Execution, ProgramStartFailureAction.None, 0, null)
+        {
+            CustomEventId = customEventId,
+        };
+
+    public static GraphRuntimeNode ForCustomEventCall(string id, string title, string customEventId) =>
+        new(id, title, NodeKind.CustomEventCall, null, 0, PressReleaseMode.Press, MouseButton.Left, 0, 0, 0, null, ScrollWheelAction.ScrollForward, 120, 100, 1000, 0, false, PinKind.Execution, ProgramStartFailureAction.None, 0, null)
+        {
+            CustomEventId = customEventId,
         };
 }
 

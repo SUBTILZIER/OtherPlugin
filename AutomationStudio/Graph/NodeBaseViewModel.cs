@@ -87,6 +87,8 @@ public abstract class NodeBaseViewModel : ObservableObject
     public Brush HeaderBrush => NodeKind switch
     {
         NodeKind.Start => new SolidColorBrush(Color.FromRgb(122, 24, 31)),
+        NodeKind.CustomEvent => new SolidColorBrush(Color.FromRgb(150, 36, 44)),
+        NodeKind.CustomEventCall => new SolidColorBrush(Color.FromRgb(114, 38, 48)),
         NodeKind.FindImage => new SolidColorBrush(Color.FromRgb(34, 102, 143)),
         NodeKind.MouseClick => new SolidColorBrush(Color.FromRgb(148, 90, 40)),
         NodeKind.Delay => new SolidColorBrush(Color.FromRgb(94, 58, 153)),
@@ -100,9 +102,15 @@ public abstract class NodeBaseViewModel : ObservableObject
         NodeKind.StartProgram => new SolidColorBrush(Color.FromRgb(45, 130, 180)),
         NodeKind.PrintLog => new SolidColorBrush(Color.FromRgb(60, 170, 100)),
         NodeKind.SelectWindow => new SolidColorBrush(Color.FromRgb(80, 120, 200)),
-        NodeKind.FunctionEntry or NodeKind.FunctionReturn or NodeKind.FunctionCall => new SolidColorBrush(Color.FromRgb(120, 44, 145)),
-        NodeKind.MacroEntry or NodeKind.MacroOutput or NodeKind.MacroCall => new SolidColorBrush(Color.FromRgb(84, 70, 160)),
+        NodeKind.FunctionEntry or NodeKind.FunctionReturn or NodeKind.FunctionCall => new SolidColorBrush(Color.FromRgb(92, 92, 255)),
+        NodeKind.MacroEntry or NodeKind.MacroOutput or NodeKind.MacroCall => new SolidColorBrush(Color.FromRgb(216, 220, 227)),
         _ => new SolidColorBrush(Color.FromRgb(70, 70, 70)),
+    };
+
+    public Brush HeaderForegroundBrush => NodeKind switch
+    {
+        NodeKind.MacroEntry or NodeKind.MacroOutput or NodeKind.MacroCall => new SolidColorBrush(Color.FromRgb(22, 26, 32)),
+        _ => new SolidColorBrush(Color.FromRgb(255, 255, 255)),
     };
 
     public Brush BorderBrush => IsSelected

@@ -52,6 +52,7 @@ public sealed class NodeFactory
             NodeKind.FunctionReturn => new FunctionReturnNodeViewModel(CreateNodeId()) { Title = "函数返回" },
             NodeKind.MacroEntry => new MacroEntryNodeViewModel(CreateNodeId()) { Title = "宏开始" },
             NodeKind.MacroOutput => new MacroOutputNodeViewModel(CreateNodeId()) { Title = "宏输出" },
+            NodeKind.CustomEvent => new CustomEventNodeViewModel(CreateNodeId()) { Title = "自定义事件" },
             _ => throw new InvalidOperationException($"不支持从菜单创建节点：{kind}"),
         };
 
@@ -126,6 +127,18 @@ public sealed class NodeFactory
     {
         var node = new MacroCallNodeViewModel(CreateNodeId(), macroId, macroName) { X = x, Y = y };
         node.ConfigurePins(inputs.Select(p => p.Clone()), outputs.Select(p => p.Clone()), exits);
+        return node;
+    }
+
+    public CustomEventCallNodeViewModel CreateCustomEventCallNode(
+        string customEventId,
+        string customEventName,
+        IEnumerable<GraphParameterDefinition> inputs,
+        double x,
+        double y)
+    {
+        var node = new CustomEventCallNodeViewModel(CreateNodeId(), customEventId, customEventName) { X = x, Y = y };
+        node.ConfigurePins(inputs.Select(p => p.Clone()));
         return node;
     }
 

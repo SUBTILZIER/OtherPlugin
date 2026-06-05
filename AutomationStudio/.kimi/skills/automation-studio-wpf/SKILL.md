@@ -3,7 +3,32 @@
 ## 项目定位
 WPF 可视化节点自动化编辑器，类似 UE4 蓝图。技术栈 C# 12 / .NET 8.0-windows，零外部 NuGet 包。
 
+## 沟通规则
+- 默认用中文，回答简洁。
+- 中间进度只说：正在做什么、发现什么、下一步。
+- 保留准确文件名、类名、方法名、命令，不为了省字改技术名词。
+
 ## 踩坑记录（按时间倒序，新记录追加到顶部）
+
+### 2026-06-05: 内容浏览器 UE 风格交互与验证门禁
+
+- 内容浏览器顶部不再放新增按钮；新增资产统一走右侧空白右键菜单，菜单项只保留 `脚本 / 文件夹 / 函数库 / 宏库`。不要再加单独“宏”资产，宏跟随脚本/宏库内部编辑面板。
+- 函数库/宏库内函数/宏默认不出现在其他脚本节点搜索里；只有勾选 `公开到库` (`GraphListItemViewModel.IsPublicToLibrary`) 才显示。节点菜单过滤公开项，执行器保留完整 id 查找，避免旧调用因取消公开失效。
+- 自定义事件只属于当前脚本事件图：`CustomEvent` 是入口，`CustomEventCall` 是调用，二者用 `CustomEventId` 绑定。节点菜单只在事件图显示 `本脚本事件`；运行时执行事件链后回到调用节点 `exec_out`，递归用 `custom_event:{id}` 拦截。
+- 右键空白显示新增菜单；右键资产只显示 `重命名 / 删除`。同一个 `ContextMenu` 通过 `ContentBrowserContextMenu_Opened` 切换可见项，避免把带事件的菜单塞进 `ListBoxItem.Style Setter`，那会导致 WPF 启动期 `IStyleConnector` 类型转换崩溃。
+- 文件夹树：单击文件夹行进入该文件夹；点击箭头按钮只展开/收起，不进入。`HasFolderChildren` 只统计子文件夹，不因脚本/库资产显示箭头。
+- 文件夹树缩进用 `TreeIndent` 像素绑定，不用 `TreeDisplayName` 前置空格。箭头图标样式为 `ContentFolderToggleIconStyle`：收起朝右，展开朝下；默认 `Path.Data` 必须放在 `Style Setter`，不要写本地 `Data`，否则 `DataTrigger` 覆盖不了。
+- 内容浏览器左树和右瓦片之间有 `ContentBrowserTreeSplitter`，左树列 `ContentTreeColumn` 默认 180，范围 120-420；右侧瓦片列最小 240，并继续用禁横向滚动的 `WrapPanel` 自动换行。
+- 验证门禁：完成前必须跑 `dotnet build .\AutomationStudioWpf.csproj -o .\bin\CodexBuildCheck`、`dotnet run --project .\bin\CodexSmoke\AutomationStudioSmoke.csproj --no-restore`、`dotnet run --project .\AutomationStudioWpf.csproj` 启动观察 20 秒、`codegraph.cmd sync`。启动命令 20 秒超时代表窗口正常常驻；若输出 `Unhandled exception` 或提前退出，必须先修。
+
+### 2026-06-05: 事件图 / 函数 / 宏画布串图
+
+- 现象：新增事件图、函数、宏后，切换时画布内容串到一起；单个函数/宏时单击不跳转，两个以上时才偶尔正常。
+- 根因：`GraphListController.Load()` 内会触发持久化；如果加载前 `_activeAssetController` 仍指向旧 controller，`PersistAssetLibrary()` 会把“刚加载的新画布”快照写回旧图，导致事件图/函数/宏模型互相污染。
+- 正确顺序：`SnapshotActiveAsset()` -> `_activeAssetController = targetController` -> `targetController.LoadItem(item, snapshotCurrent: false)`。
+- 列表导航规则：事件图、函数、宏列表项单击即激活并切换画布；双击只是兼容。右键菜单也要先激活目标项，再做重命名/删除。
+- 测试要求：切换 event/function/macro 后检查当前画布节点类型，也检查各自 `GraphFileModel.Nodes` 没有被其它图类型覆盖。
+- UI 默认：底部内容浏览器和日志列 50/50，底部行默认 360 高度，避免每次手动拉大内容浏览器。
 
 ### 2026-06-03: Event graphs + custom functions + macros v1
 
@@ -259,7 +284,7 @@ WPF 可视化节点自动化编辑器，类似 UE4 蓝图。技术栈 C# 12 / .N
 
 #### Current verified state
 - `dotnet build AutomationStudioWpf.csproj` 当前通过：0 warning / 0 error
-- CodeGraph 当前阻塞：原索引损坏报 `no such table: unresolved_refs`；删除后用 `codegraph.cmd init` / `codegraph.cmd init -i` 重建均报 `disk I/O error`。不要信任当前 CodeGraph，先解决 CLI/磁盘/权限问题
+- CodeGraph 当前可用；本轮 `codegraph.cmd sync` 已成功。若 PowerShell 策略拦截 `.ps1`，继续优先使用 `codegraph.cmd sync`。
 - `.git/index.lock` 存在，后续提交前需要确认无 Git/Rider 进程占用后清理
 
 ### 2026-05-29: ComboBox disabled text not gray unlike TextBox
@@ -425,3 +450,25 @@ Runtime
 - Important: call `SnapshotActiveAsset()` before opening/filtering node palette or executing. Otherwise just-edited function/macro parameters may not be in `GraphFileModel`, causing call nodes to miss pins.
 - `GraphListController.LoadItem(item, snapshotCurrent: false)` is used when `MainWindow` already snapshots the active asset. Do not let each list controller snapshot cross-asset by itself, or event/function/macro canvases can get mixed.
 - Direct execution is only valid for a script event graph. Function libraries, macro libraries, private functions, and macros are edit/call-only.
+# 2026-06-04 恢复记录
+
+- 远端 `be3b34f` 没有上一轮未提交恢复内容；如果用户说“回退到 git 版了”，要在当前提交上补回功能，不做 reset。
+- 编译系统文件：`Services/GraphCompileService.cs`、`Services/GraphCallReferenceSyncService.cs`。
+- `GraphListItemViewModel.IsCompileDirty` 表示逻辑需要编译；布局移动只保存脏，不编译脏。
+- `GraphListController.MarkLogicDirty()` 用于参数/连线/节点逻辑变化；`MarkLayoutDirty()` 用于节点移动。
+- 左侧栏三块：事件图表、函数、宏。空列表折叠，新建资产默认空，用户点 `+` 才创建图表。
+# 2026-06-04 recovery implementation notes
+
+- Content browser source of truth: `ContentBrowserItems`; visible panes: `ContentFolderItems` (folder tree) and `ContentVisibleItems` (current folder tiles).
+- New content assets inherit `_currentContentFolderId`. Double-click folder enters it; double-click non-folder opens editor.
+- Drag/drop asset onto a folder asks move/copy/cancel. Copy must allocate new content/graph IDs and clone graph DTOs.
+- Event/function/macro lists remain separate `GraphListController` instances. Do not merge selections or load one kind through another controller.
+- Section collapse state is runtime-only per content asset. Use `*SectionHasState` so a user-collapsed non-empty section does not auto-expand on reopen.
+- Deleting the last graph/function/macro must call `GraphEditorService.ClearGraph()` and must not recreate a default event graph/start node.
+- Compile-dirty graph sections show orange header badges; compile-dirty items show `*` and orange row highlighting.
+- Dirty split: graph logic/signature/connection/node changes call `MarkLogicDirty()`; layout-only moves call `MarkLayoutDirty()`.
+- New graph/function/macro list items must start compile-dirty. Isolated tooling can set `AUTOMATION_STUDIO_LIBRARY_DIR` instead of writing to `%APPDATA%/AutomationStudioWpf`.
+- Compile sync clears compile dirty and should only mark assets touched by call-reference updates as save dirty.
+- Global `Delete` / `F2` routing lives in `Window_PreviewKeyDown`; never intercept while a `TextBox` has focus.
+- Content tree commands must preserve `_contentFolderSelectionActive`; otherwise folder right-click/`Delete`/`F2` can accidentally use stale tile selection.
+- Verify with `dotnet build .\AutomationStudioWpf.csproj -o .\bin\CodexBuildCheck` and require `0 warning / 0 error`.

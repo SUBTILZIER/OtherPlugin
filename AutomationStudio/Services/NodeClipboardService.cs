@@ -75,16 +75,33 @@ public sealed class NodeClipboardService
         double centerX = _clipboardNodes.Average(n => n.X);
         double centerY = _clipboardNodes.Average(n => n.Y);
 
+        foreach (var source in _clipboardNodes)
+            nodeIdMap[source.Id] = createNodeId();
+
+        var customEventIdMap = _clipboardNodes
+            .Where(node => node.NodeTypeKey == "custom_event")
+            .GroupBy(node => string.IsNullOrWhiteSpace(node.CustomEventId) ? node.Id : node.CustomEventId!)
+            .ToDictionary(
+                group => group.Key,
+                group => nodeIdMap[group.First().Id]);
+
         // 创建新节点
         foreach (var source in _clipboardNodes)
         {
-            string newId = createNodeId();
+            string newId = nodeIdMap[source.Id];
             double offsetX = source.X - centerX;
             double offsetY = source.Y - centerY;
 
             // 创建新的文件模型副本，使用新的ID
             var newModel = JsonSerializer.Deserialize<NodeFileModel>(JsonSerializer.Serialize(source))!;
             newModel.Id = newId;
+            if (newModel.NodeTypeKey == "custom_event")
+                newModel.CustomEventId = newId;
+            else if (newModel.NodeTypeKey == "custom_event_call" &&
+                     !string.IsNullOrWhiteSpace(newModel.CustomEventId) &&
+                     customEventIdMap.TryGetValue(newModel.CustomEventId, out var remappedEventId))
+                newModel.CustomEventId = remappedEventId;
+
             var node = NodeSerializer.FromFileModel(newModel);
             if (node is null) continue;
 
@@ -93,7 +110,6 @@ public sealed class NodeClipboardService
             node.IsSelected = true;
 
             pastedNodes.Add(node);
-            nodeIdMap[source.Id] = node.Id;
         }
 
         // 构建连接映射

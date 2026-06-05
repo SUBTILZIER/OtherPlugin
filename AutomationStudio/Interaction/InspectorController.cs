@@ -999,6 +999,7 @@ public sealed class InspectorController
             FunctionReturnNodeViewModel => "输出",
             MacroEntryNodeViewModel => "输入",
             MacroOutputNodeViewModel => "输出",
+            CustomEventNodeViewModel => "输入",
             _ => "参数",
         };
 

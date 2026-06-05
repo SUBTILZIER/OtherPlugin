@@ -112,6 +112,11 @@ public sealed class GraphValidator
         var reachable = new HashSet<string>(StringComparer.Ordinal) { start.Id };
         var queue = new Queue<string>();
         queue.Enqueue(start.Id);
+        foreach (var customEvent in plan.Nodes.Where(node => node.NodeKind == NodeKind.CustomEvent))
+        {
+            if (reachable.Add(customEvent.Id))
+                queue.Enqueue(customEvent.Id);
+        }
 
         var execEdges = plan.Connections
             .Where(connection => connection.SourcePinKind == PinKind.Execution && connection.TargetPinKind == PinKind.Execution)

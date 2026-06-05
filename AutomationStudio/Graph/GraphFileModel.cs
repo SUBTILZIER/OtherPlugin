@@ -126,6 +126,8 @@ public sealed class NodeFileModel
 
     public string? MacroId { get; set; }
 
+    public string? CustomEventId { get; set; }
+
     public string? ExitName { get; set; }
 
     public List<GraphParameterFileModel> Parameters { get; set; } = [];

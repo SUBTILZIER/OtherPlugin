@@ -39,6 +39,8 @@ public enum NodeKind
     MacroOutput,
     FunctionCall,
     MacroCall,
+    CustomEvent,
+    CustomEventCall,
 }
 
 public enum GraphAssetKind

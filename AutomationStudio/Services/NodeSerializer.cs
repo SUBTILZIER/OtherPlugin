@@ -112,6 +112,8 @@ public static class NodeSerializer
                 file.Parameters = parameterNode.Parameters.Select(ToParameterFile).ToList();
                 if (parameterNode is MacroOutputNodeViewModel macroOutput)
                     file.ExitName = macroOutput.ExitName;
+                if (parameterNode is CustomEventNodeViewModel customEvent)
+                    file.CustomEventId = customEvent.CustomEventId;
                 break;
 
             case FunctionCallNodeViewModel functionCall:
@@ -128,6 +130,11 @@ public static class NodeSerializer
                     .Where(p => p.Kind == PinKind.Execution)
                     .Select(p => new MacroExitFileModel { Id = p.Name.Replace("exec_", "", StringComparison.Ordinal), Name = p.DisplayName })
                     .ToList();
+                break;
+
+            case CustomEventCallNodeViewModel customEventCall:
+                file.CustomEventId = customEventCall.CustomEventId;
+                file.InputParameters = PinsToParameterFiles(customEventCall.InputPins.Where(p => p.Kind != PinKind.Execution));
                 break;
         }
 
@@ -303,6 +310,8 @@ public static class NodeSerializer
             "macro_output" => CreateMacroOutputFromFile(file),
             "function_call" => CreateFunctionCallFromFile(file),
             "macro_call" => CreateMacroCallFromFile(file),
+            "custom_event" => CreateParameterNodeFromFile(new CustomEventNodeViewModel(file.Id, file.CustomEventId), file, "自定义事件"),
+            "custom_event_call" => CreateCustomEventCallFromFile(file),
 
             _ => null,
         };
@@ -390,6 +399,8 @@ public static class NodeSerializer
             MacroOutputNodeViewModel macroOutput => GraphRuntimeNode.ForMacroOutput(macroOutput.Id, macroOutput.Title, macroOutput.ExitName),
             FunctionCallNodeViewModel functionCall => GraphRuntimeNode.ForFunctionCall(functionCall.Id, functionCall.Title, functionCall.FunctionId),
             MacroCallNodeViewModel macroCall => GraphRuntimeNode.ForMacroCall(macroCall.Id, macroCall.Title, macroCall.MacroId),
+            CustomEventNodeViewModel customEvent => GraphRuntimeNode.ForCustomEvent(customEvent.Id, customEvent.Title, customEvent.CustomEventId),
+            CustomEventCallNodeViewModel customEventCall => GraphRuntimeNode.ForCustomEventCall(customEventCall.Id, customEventCall.Title, customEventCall.CustomEventId),
 
             _ => throw new InvalidOperationException($"不支持执行的节点类型: {node.GetType().Name}"),
         };
@@ -471,6 +482,17 @@ public static class NodeSerializer
             file.InputParameters.Select(FromParameterFile),
             file.OutputParameters.Select(FromParameterFile),
             file.MacroExits.Select(exit => (exit.Id, exit.Name)));
+        return node;
+    }
+
+    private static CustomEventCallNodeViewModel CreateCustomEventCallFromFile(NodeFileModel file)
+    {
+        var node = new CustomEventCallNodeViewModel(file.Id, file.CustomEventId ?? string.Empty, string.IsNullOrWhiteSpace(file.Title) ? "调用自定义事件" : file.Title)
+        {
+            X = file.X,
+            Y = file.Y,
+        };
+        node.ConfigurePins(file.InputParameters.Select(FromParameterFile));
         return node;
     }
 
