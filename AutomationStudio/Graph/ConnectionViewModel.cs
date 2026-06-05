@@ -99,9 +99,12 @@ public sealed class ConnectionViewModel : ObservableObject, IDisposable
         Point start = GetAbsolutePinAnchor(SourcePin);
         Point end = GetAbsolutePinAnchor(TargetPin);
 
+        // 整体流向：source → target 的 X 方向，决定所有段贝塞尔控制点的方向
+        double overallDirection = (end.X >= start.X) ? 1.0 : -1.0;
+
         double tangent = Math.Max(80, Math.Abs(end.X - start.X) * 0.45);
-        Point control1 = new(start.X + tangent, start.Y);
-        Point control2 = new(end.X - tangent, end.Y);
+        Point control1 = new(start.X + tangent * overallDirection, start.Y);
+        Point control2 = new(end.X - tangent * overallDirection, end.Y);
 
         PathFigure figure = new()
         {
