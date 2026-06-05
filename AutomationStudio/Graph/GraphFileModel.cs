@@ -146,6 +146,8 @@ public sealed class GraphParameterFileModel
     public string Name { get; set; } = "NewParam";
 
     public GraphParameterType Type { get; set; } = GraphParameterType.Boolean;
+
+    public string DefaultValue { get; set; } = string.Empty;
 }
 
 public sealed class MacroExitFileModel

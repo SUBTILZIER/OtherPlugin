@@ -31,6 +31,7 @@ public sealed class InspectorController
     private readonly WpfTextBox _nodeTitleTextBox;
     private readonly StackPanel[] _inspectorPanels;
     private readonly StackPanel _parameterInspectorPanel;
+    private readonly WpfButton _addParameterButton;
     private readonly TextBlock _parameterInspectorTitle;
     private readonly StackPanel _parameterRowsPanel;
 
@@ -144,6 +145,7 @@ public sealed class InspectorController
         TextBlock hintTextBlock,
         WpfTextBox nodeTitleTextBox,
         StackPanel parameterInspectorPanel,
+        WpfButton addParameterButton,
         TextBlock parameterInspectorTitle,
         StackPanel parameterRowsPanel,
         StackPanel findImageInspectorPanel,
@@ -235,6 +237,7 @@ public sealed class InspectorController
         _hintTextBlock = hintTextBlock;
         _nodeTitleTextBox = nodeTitleTextBox;
         _parameterInspectorPanel = parameterInspectorPanel;
+        _addParameterButton = addParameterButton;
         _parameterInspectorTitle = parameterInspectorTitle;
         _parameterRowsPanel = parameterRowsPanel;
 
@@ -375,6 +378,21 @@ public sealed class InspectorController
                     LoadParameterNode(parameterNode);
                     if (parameterNode is MacroOutputNodeViewModel macroOutput)
                         _nodeTitleTextBox.Text = macroOutput.ExitName;
+                    break;
+
+                case FunctionCallNodeViewModel functionCall:
+                    _parameterInspectorPanel.Visibility = Visibility.Visible;
+                    LoadCallNodeInputs(functionCall, functionCall.InputParameters);
+                    break;
+
+                case MacroCallNodeViewModel macroCall:
+                    _parameterInspectorPanel.Visibility = Visibility.Visible;
+                    LoadCallNodeInputs(macroCall, macroCall.InputParameters);
+                    break;
+
+                case CustomEventCallNodeViewModel customEventCall:
+                    _parameterInspectorPanel.Visibility = Visibility.Visible;
+                    LoadCallNodeInputs(customEventCall, customEventCall.InputParameters);
                     break;
 
                 case FindImageNodeViewModel findImage:
@@ -987,12 +1005,14 @@ public sealed class InspectorController
             return;
 
         node.AddParameter("NewParam");
+        _editorService.RebindConnectionsToCurrentPins();
         LoadParameterNode(node);
         _markDirty();
     }
 
     private void LoadParameterNode(ParameterNodeBaseViewModel node)
     {
+        _addParameterButton.Visibility = Visibility.Visible;
         _parameterInspectorTitle.Text = node switch
         {
             FunctionEntryNodeViewModel => "输入",
@@ -1008,11 +1028,21 @@ public sealed class InspectorController
             _parameterRowsPanel.Children.Add(CreateParameterRow(node, parameter));
     }
 
+    private void LoadCallNodeInputs(NodeBaseViewModel node, IEnumerable<GraphParameterDefinition> parameters)
+    {
+        _addParameterButton.Visibility = Visibility.Collapsed;
+        _parameterInspectorTitle.Text = "调用输入";
+        _parameterRowsPanel.Children.Clear();
+        foreach (var parameter in parameters.ToList())
+            _parameterRowsPanel.Children.Add(CreateCallInputRow(node, parameter));
+    }
+
     private UIElement CreateParameterRow(ParameterNodeBaseViewModel node, GraphParameterDefinition parameter)
     {
         var row = new Grid { Margin = new Thickness(0, 0, 0, 6) };
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(105) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(94) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(130) });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(24) });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(24) });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(24) });
@@ -1023,7 +1053,7 @@ public sealed class InspectorController
             if (_isLoading) return;
             parameter.Name = nameBox.Text;
             node.SyncPins();
-            _editorService.UpdatePinConnectionStates();
+            _editorService.RebindConnectionsToCurrentPins();
             _markDirty();
         };
         row.Children.Add(nameBox);
@@ -1035,27 +1065,201 @@ public sealed class InspectorController
         typeBox.SelectionChanged += (_, _) =>
         {
             if (_isLoading || typeBox.SelectedItem is not WpfComboBoxItem { Tag: GraphParameterType type }) return;
+            var oldType = parameter.Type;
+            bool shouldResetDefault = string.IsNullOrWhiteSpace(parameter.DefaultValue) ||
+                                      parameter.DefaultValue == GraphParameterDefinition.DefaultValueForType(oldType);
             ClearConnectionsForParameter(node, parameter.Id);
             parameter.Type = type;
+            if (shouldResetDefault)
+                parameter.DefaultValue = GraphParameterDefinition.DefaultValueForType(type);
             node.SyncPins();
-            _editorService.UpdatePinConnectionStates();
+            _editorService.RebindConnectionsToCurrentPins();
             _markDirty();
             LoadParameterNode(node);
         };
         Grid.SetColumn(typeBox, 1);
         row.Children.Add(typeBox);
 
-        AddSmallButton(row, 2, "▲", () => { node.MoveParameter(parameter, -1); LoadParameterNode(node); _markDirty(); });
-        AddSmallButton(row, 3, "▼", () => { node.MoveParameter(parameter, 1); LoadParameterNode(node); _markDirty(); });
-        AddSmallButton(row, 4, "×", () =>
+        bool valueLocked = node is FunctionReturnNodeViewModel or MacroOutputNodeViewModel &&
+                           IsInputPinConnected(node, parameter.Id);
+        var defaultEditor = CreateParameterValueEditor(parameter, valueLocked, () => LoadParameterNode(node));
+        Grid.SetColumn(defaultEditor, 2);
+        row.Children.Add(defaultEditor);
+
+        AddSmallButton(row, 3, "▲", () =>
+        {
+            node.MoveParameter(parameter, -1);
+            _editorService.RebindConnectionsToCurrentPins();
+            LoadParameterNode(node);
+            _markDirty();
+        });
+        AddSmallButton(row, 4, "▼", () =>
+        {
+            node.MoveParameter(parameter, 1);
+            _editorService.RebindConnectionsToCurrentPins();
+            LoadParameterNode(node);
+            _markDirty();
+        });
+        AddSmallButton(row, 5, "×", () =>
         {
             ClearConnectionsForParameter(node, parameter.Id);
             node.RemoveParameter(parameter);
+            _editorService.RebindConnectionsToCurrentPins();
             LoadParameterNode(node);
             _markDirty();
         });
 
         return row;
+    }
+
+    private UIElement CreateCallInputRow(NodeBaseViewModel node, GraphParameterDefinition parameter)
+    {
+        var row = new Grid { Margin = new Thickness(0, 0, 0, 6) };
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(94) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(130) });
+
+        row.Children.Add(new TextBlock
+        {
+            Text = parameter.Name,
+            Foreground = System.Windows.Media.Brushes.White,
+            VerticalAlignment = VerticalAlignment.Center,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            Margin = new Thickness(0, 0, 4, 0),
+        });
+
+        var typeText = new TextBlock
+        {
+            Text = parameter.Type.ToString(),
+            Foreground = Brush(0xB7, 0xC0, 0xCD),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 4, 0),
+        };
+        Grid.SetColumn(typeText, 1);
+        row.Children.Add(typeText);
+
+        var editor = CreateParameterValueEditor(parameter, IsInputPinConnected(node, parameter.Id), null);
+        Grid.SetColumn(editor, 2);
+        row.Children.Add(editor);
+        return row;
+    }
+
+    private UIElement CreateParameterValueEditor(
+        GraphParameterDefinition parameter,
+        bool locked,
+        Action? reload)
+    {
+        if (locked)
+        {
+            var lockedBox = new WpfTextBox { Margin = new Thickness(0, 0, 4, 0), ToolTip = "前置输入" };
+            LockTextBox(lockedBox, locked: true, restoreValue: parameter.DefaultValue);
+            return lockedBox;
+        }
+
+        return parameter.Type switch
+        {
+            GraphParameterType.Boolean => CreateBooleanValueEditor(parameter),
+            GraphParameterType.Vector2D => CreateVectorValueEditor(parameter, 2),
+            GraphParameterType.Vector3D => CreateVectorValueEditor(parameter, 3),
+            GraphParameterType.Vector4D => CreateVectorValueEditor(parameter, 4),
+            GraphParameterType.Float => CreateTextValueEditor(parameter, reload, numeric: true),
+            _ => CreateTextValueEditor(parameter, reload, numeric: false),
+        };
+    }
+
+    private UIElement CreateBooleanValueEditor(GraphParameterDefinition parameter)
+    {
+        var comboBox = new WpfComboBox { Margin = new Thickness(0, 0, 4, 0) };
+        comboBox.Items.Add(new WpfComboBoxItem { Content = "False", Tag = "False" });
+        comboBox.Items.Add(new WpfComboBoxItem { Content = "True", Tag = "True" });
+        comboBox.SelectedIndex = bool.TryParse(parameter.DefaultValue, out bool value) && value ? 1 : 0;
+        comboBox.SelectionChanged += (_, _) =>
+        {
+            if (_isLoading) return;
+            parameter.DefaultValue = comboBox.SelectedIndex == 1 ? "True" : "False";
+            _markDirty();
+        };
+        return comboBox;
+    }
+
+    private UIElement CreateTextValueEditor(GraphParameterDefinition parameter, Action? reload, bool numeric)
+    {
+        var textBox = new WpfTextBox
+        {
+            Text = parameter.DefaultValue,
+            Margin = new Thickness(0, 0, 4, 0),
+            ToolTip = numeric ? "数值默认值" : "默认值",
+        };
+        textBox.TextChanged += (_, _) =>
+        {
+            if (_isLoading) return;
+            parameter.DefaultValue = textBox.Text;
+            _markDirty();
+        };
+        textBox.LostFocus += (_, _) =>
+        {
+            if (!numeric || string.IsNullOrWhiteSpace(parameter.DefaultValue))
+                return;
+
+            var normalized = parameter.DefaultValue.Trim();
+            if (normalized.EndsWith("f", StringComparison.OrdinalIgnoreCase))
+                normalized = normalized[..^1];
+            if (!double.TryParse(normalized, out _))
+                parameter.DefaultValue = GraphParameterDefinition.DefaultValueForType(parameter.Type);
+            reload?.Invoke();
+        };
+        return textBox;
+    }
+
+    private UIElement CreateVectorValueEditor(GraphParameterDefinition parameter, int componentCount)
+    {
+        var values = SplitVectorDefault(parameter.DefaultValue, componentCount);
+        var panel = new StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal, Margin = new Thickness(0, 0, 4, 0) };
+        for (int i = 0; i < componentCount; i++)
+        {
+            int index = i;
+            var box = new WpfTextBox
+            {
+                Text = values[index],
+                Width = componentCount > 3 ? 28 : 36,
+                Margin = new Thickness(index == 0 ? 0 : 3, 0, 0, 0),
+                ToolTip = index switch
+                {
+                    0 => "X",
+                    1 => "Y",
+                    2 => "Z",
+                    _ => "W",
+                },
+            };
+            box.TextChanged += (_, _) =>
+            {
+                if (_isLoading) return;
+                values[index] = box.Text.Trim();
+                parameter.DefaultValue = string.Join(",", values);
+                _markDirty();
+            };
+            panel.Children.Add(box);
+        }
+
+        return panel;
+    }
+
+    private static string[] SplitVectorDefault(string value, int componentCount)
+    {
+        var defaults = GraphParameterDefinition.DefaultValueForType(componentCount switch
+        {
+            2 => GraphParameterType.Vector2D,
+            3 => GraphParameterType.Vector3D,
+            _ => GraphParameterType.Vector4D,
+        }).Split(',');
+        var parts = value
+            .Trim()
+            .Trim('(', ')')
+            .Split(',', StringSplitOptions.TrimEntries);
+        var result = new string[componentCount];
+        for (int i = 0; i < componentCount; i++)
+            result[i] = i < parts.Length && !string.IsNullOrWhiteSpace(parts[i]) ? parts[i] : defaults[i];
+        return result;
     }
 
     private static void AddSmallButton(Grid row, int column, string text, Action action)

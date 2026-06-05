@@ -7,8 +7,10 @@ using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
 using AutomationStudioWpf;
 using AutomationStudioWpf.Graph;
+using AutomationStudioWpf.Interaction;
 using AutomationStudioWpf.Runtime;
 using AutomationStudioWpf.Services;
 
@@ -31,13 +33,20 @@ internal static class Program
             CheckFreshContentLibrary(window);
             ResetContent(window);
             CheckContentBrowser(window);
+            CheckPinConnectionPaletteAutoConnect(window);
             CheckGraphSectionsAndDirty(window);
-        CheckCompileSync();
-        CheckCompileRejectsPrivateLibraryCalls();
-        CheckCompileValidationFailures();
-        CheckCustomEvents();
-        CheckLibraryPublishFlag(window);
-        CheckSaveAllClearsNestedDirty(window);
+            CheckCompileSync();
+            CheckCompileRejectsPrivateLibraryCalls();
+            CheckCompileValidationFailures();
+            CheckCustomEvents();
+            CheckParameterDefaultValues();
+            CheckCallParameterDefaultsAndSync();
+            CheckConnectionRebindAfterParameterReorder();
+            CheckPinBrushColors();
+            CheckRerouteConnectionGeometry();
+            CheckDetailsPanelText(window);
+            CheckLibraryPublishFlag(window);
+            CheckSaveAllClearsNestedDirty(window);
             Console.WriteLine("Smoke OK");
             return 0;
         }
@@ -370,6 +379,50 @@ internal static class Program
         Assert(!window.Nodes.Cast<NodeBaseViewModel>().Any(node => node.NodeKind is NodeKind.FunctionEntry or NodeKind.FunctionReturn or NodeKind.MacroEntry), "reopening script event canvas does not mix function or macro nodes");
     }
 
+    private static void CheckPinConnectionPaletteAutoConnect(MainWindow window)
+    {
+        var editor = Get<GraphEditorService>(window, "_editorService");
+        var connector = Get<PinConnectionController>(window, "_pinConnectionController");
+
+        editor.ClearGraph();
+        var start = new StartNodeViewModel("start") { X = 80, Y = 80 };
+        var log = new PrintLogNodeViewModel("log") { X = 300, Y = 80 };
+        editor.AddNode(start);
+
+        var startPin = start.OutputPins.First(pin => pin.Name == "exec_out");
+        connector.Begin(startPin, new Point(100, 100));
+        connector.Move(new Point(260, 100));
+        connector.CompleteOrCancel(null);
+        editor.AddNode(log);
+        Assert(connector.TryAutoConnectNewNode(log), "wire dropped on blank auto-connects created node from output pin");
+        Assert(editor.Connections.Any(connection =>
+            connection.SourcePin == startPin &&
+            connection.TargetPin.Owner == log &&
+            connection.TargetPin.Name == "exec_in"), "output-start auto connection targets new node input");
+
+        editor.ClearGraph();
+        var logInputTarget = new PrintLogNodeViewModel("log_input") { X = 300, Y = 80 };
+        var newStart = new StartNodeViewModel("new_start") { X = 80, Y = 80 };
+        editor.AddNode(logInputTarget);
+        var execInput = logInputTarget.InputPins.First(pin => pin.Name == "exec_in");
+        connector.Begin(execInput, new Point(300, 100));
+        connector.Move(new Point(160, 100));
+        connector.CompleteOrCancel(null);
+        editor.AddNode(newStart);
+        Assert(connector.TryAutoConnectNewNode(newStart), "wire dropped on blank auto-connects created node from input pin");
+        Assert(editor.Connections.Any(connection =>
+            connection.SourcePin.Owner == newStart &&
+            connection.SourcePin.Name == "exec_out" &&
+            connection.TargetPin == execInput), "input-start auto connection uses new node output");
+
+        var anchor = execInput.Owner.GetPinAnchor(execInput);
+        object?[] args = [new Point(execInput.Owner.X + anchor.X + 18, execInput.Owner.Y + anchor.Y), null];
+        var method = typeof(MainWindow).GetMethod("TryGetPinAtPosition", BindingFlags.Instance | BindingFlags.NonPublic)
+            ?? throw new MissingMethodException(nameof(MainWindow), "TryGetPinAtPosition");
+        bool hit = (bool)(method.Invoke(window, args) ?? false);
+        Assert(hit && ReferenceEquals(args[1], execInput), "pin hit test accepts near-miss within expanded radius");
+    }
+
     private static void ActivateGraphItem(MainWindow window, string controllerFieldName, GraphListItemViewModel item)
     {
         var controller = Get<object>(window, controllerFieldName);
@@ -672,6 +725,251 @@ internal static class Program
         Assert(!recursiveResult.Success && recursiveResult.Message.Contains("递归", StringComparison.Ordinal), "custom event recursion is blocked");
     }
 
+    private static void CheckParameterDefaultValues()
+    {
+        var entry = new FunctionEntryNodeViewModel("entry");
+        entry.Parameters.Add(new GraphParameterDefinition
+        {
+            Id = "flag",
+            Name = "Flag",
+            Type = GraphParameterType.Boolean,
+            DefaultValue = "False",
+        });
+        entry.Parameters.Add(new GraphParameterDefinition
+        {
+            Id = "speed",
+            Name = "Speed",
+            Type = GraphParameterType.Float,
+            DefaultValue = "23.0f",
+        });
+        entry.SyncPins();
+
+        var file = NodeSerializer.ToFileModel(entry);
+        Assert(file.Parameters.First(parameter => parameter.Id == "flag").DefaultValue == "False", "parameter default value serializes");
+        Assert(file.Parameters.First(parameter => parameter.Id == "speed").DefaultValue == "23.0f", "float-like parameter default serializes");
+
+        var reloaded = NodeSerializer.FromFileModel(file) as FunctionEntryNodeViewModel
+            ?? throw new InvalidOperationException("function entry reload failed");
+        Assert(reloaded.Parameters.First(parameter => parameter.Id == "flag").DefaultValue == "False", "parameter default value reloads");
+        Assert(reloaded.Parameters.First(parameter => parameter.Id == "speed").DefaultValue == "23.0f", "float-like parameter default reloads");
+
+        var runtimeNode = NodeSerializer.ToRuntimeNode(reloaded);
+        var context = new RuntimeContext();
+        InvokeStatic(typeof(GraphRuntimeExecutor), "ApplyParameterDefaults", runtimeNode, context, runtimeNode.Id, null);
+        Assert(context.TryGetRaw(runtimeNode.Id, "flag", out var flag) && flag is bool boolValue && !boolValue, "boolean default writes runtime value");
+        Assert(context.TryGetRaw(runtimeNode.Id, "speed", out var speed) && speed is string text && text == "23.0f", "float-like default writes runtime string value");
+    }
+
+    private static void CheckCallParameterDefaultsAndSync()
+    {
+        var input = new GraphParameterFileModel
+        {
+            Id = "input",
+            Name = "Input",
+            Type = GraphParameterType.String,
+            DefaultValue = "signature",
+        };
+        var output = new GraphParameterFileModel
+        {
+            Id = "result",
+            Name = "Result",
+            Type = GraphParameterType.Float,
+            DefaultValue = "2.5",
+        };
+        var function = new GraphListItemViewModel
+        {
+            Name = "Fn",
+            Kind = GraphAssetKind.Function,
+            IsPublicToLibrary = true,
+            Graph = new GraphFileModel
+            {
+                AssetKind = GraphAssetKind.Function,
+                Nodes =
+                [
+                    new NodeFileModel { Id = "entry", NodeTypeKey = "function_entry", Parameters = [input] },
+                    new NodeFileModel { Id = "ret", NodeTypeKey = "function_return", Parameters = [output] },
+                ],
+            },
+            IsCompileDirty = true,
+        };
+        var library = new ContentAssetViewModel { Kind = ContentAssetKind.FunctionLibrary, Name = "Lib" };
+        library.Functions.Add(function);
+        var call = new NodeFileModel
+        {
+            Id = "call",
+            NodeTypeKey = "function_call",
+            FunctionId = function.Id,
+            InputParameters =
+            [
+                new GraphParameterFileModel
+                {
+                    Id = "input",
+                    Name = "OldInput",
+                    Type = GraphParameterType.String,
+                    DefaultValue = "local",
+                },
+            ],
+            OutputParameters = [output],
+        };
+        var scriptGraph = new GraphFileModel
+        {
+            AssetKind = GraphAssetKind.EventGraph,
+            Nodes =
+            [
+                new NodeFileModel { Id = "start", NodeTypeKey = "start" },
+                call,
+                new NodeFileModel { Id = "log", NodeTypeKey = "print_log" },
+            ],
+            Connections =
+            [
+                FileConn("call", "result", "log", "message"),
+            ],
+        };
+        var script = new ContentAssetViewModel { Kind = ContentAssetKind.Script, Name = "Script" };
+        script.EventGraphs.Add(new GraphListItemViewModel
+        {
+            Name = "Event",
+            Kind = GraphAssetKind.EventGraph,
+            Graph = scriptGraph,
+            IsCompileDirty = true,
+        });
+
+        var result = new GraphCompileService().Compile([library, script]);
+        Assert(result.Success, "compile succeeds with function output linked to print log");
+        Assert(scriptGraph.Connections.Count == 1 && scriptGraph.Connections[0].SourcePinName == "result", "compile preserves return value connections");
+        Assert(call.InputParameters.Single().DefaultValue == "local", "compile preserves call-site input default value");
+
+        var reloadedCall = NodeSerializer.FromFileModel(call) as FunctionCallNodeViewModel
+            ?? throw new InvalidOperationException("function call reload failed");
+        Assert(reloadedCall.InputParameters.Single().DefaultValue == "local", "call-site input default reloads");
+        var callFile = NodeSerializer.ToFileModel(reloadedCall);
+        Assert(callFile.InputParameters.Single().DefaultValue == "local", "call-site input default serializes");
+
+        var runtimeCall = GraphRuntimeNode.ForFunctionCall(
+            "call",
+            "Fn",
+            function.Id,
+            [new GraphParameterDefinition { Id = "input", Type = GraphParameterType.String, DefaultValue = "local" }]);
+        var runtimeEntry = GraphRuntimeNode.ForAssetNode(
+            "entry",
+            "Entry",
+            NodeKind.FunctionEntry,
+            [new GraphParameterDefinition { Id = "input", Type = GraphParameterType.String, DefaultValue = "signature" }]);
+        var context = new RuntimeContext();
+        var plan = new GraphExecutionPlan([runtimeCall], []);
+        InvokeStatic(typeof(GraphRuntimeExecutor), "CopyCallInputsToEntry", plan, runtimeCall, context, runtimeEntry, context);
+        Assert(context.TryGetRaw("entry", "input", out var copied) && copied is string copiedText && copiedText == "local", "runtime uses call-site default before entry default");
+
+        var skippedContext = new RuntimeContext();
+        var connectedPlan = new GraphExecutionPlan(
+            [runtimeCall],
+            [new GraphRuntimeConnection("source", "value", PinKind.String, "call", "input", PinKind.String)]);
+        InvokeStatic(typeof(GraphRuntimeExecutor), "CopyCallInputsToEntry", connectedPlan, runtimeCall, skippedContext, runtimeEntry, skippedContext);
+        Assert(!skippedContext.TryGetRaw("entry", "input", out _), "connected input without upstream value does not fall back to defaults");
+    }
+
+    private static void CheckPinBrushColors()
+    {
+        Assert(PinBrushes.ForKind(PinKind.Execution).Color.ToString() == "#FFF4F4F4", "execution pin color matches expected UE-like white");
+        Assert(PinBrushes.ForKind(PinKind.Boolean).Color.ToString() == "#FFB82D30", "boolean pin color matches expected UE-like red");
+        Assert(PinBrushes.ForKind(PinKind.Vector2D).Color.ToString() == "#FF50C472", "vector pin color matches expected UE-like green");
+        Assert(PinBrushes.ForKind(PinKind.String).Color.ToString() == "#FFCA2EA5", "string pin color matches expected UE-like magenta");
+        Assert((new RerouteNodeViewModel("reroute", PinKind.String).CircleFill as System.Windows.Media.SolidColorBrush)?.Color.ToString() == "#FFCA2EA5",
+            "reroute pin color uses shared pin color table");
+    }
+
+    private static void CheckRerouteConnectionGeometry()
+    {
+        var source = new PrintLogNodeViewModel("source") { X = 360, Y = 80 };
+        var reroute = new RerouteNodeViewModel("reroute", PinKind.Execution) { X = 220, Y = 250 };
+        var target = new PrintLogNodeViewModel("target") { X = 40, Y = 80 };
+        var sourcePin = source.OutputPins.First(pin => pin.Name == "exec_out");
+        var rerouteInput = reroute.InputPins.First(pin => pin.Name == "in");
+        var rerouteOutput = reroute.OutputPins.First(pin => pin.Name == "out");
+        var targetPin = target.InputPins.First(pin => pin.Name == "exec_in");
+
+        rerouteInput.AnchorPoint = new Point(3, 10);
+        rerouteOutput.AnchorPoint = new Point(17, 10);
+
+        Assert(reroute.GetPinAnchor(rerouteInput) == new Point(10, 10), "reroute input anchor stays centered");
+        Assert(reroute.GetPinAnchor(rerouteOutput) == new Point(10, 10), "reroute output anchor stays centered");
+
+        var intoReroute = new ConnectionViewModel(sourcePin, rerouteInput);
+        var fromReroute = new ConnectionViewModel(rerouteOutput, targetPin);
+        var rerouteCenter = new Point(reroute.X + 10, reroute.Y + 10);
+        Assert(GetBezierEnd(intoReroute) == rerouteCenter, "connection into reroute ends at route center");
+        Assert(GetBezierStart(fromReroute) == rerouteCenter, "connection from reroute starts at route center");
+        Assert(RerouteBezierTangentIsHorizontal(intoReroute, useStartTangent: false), "connection into reroute keeps horizontal route tangent");
+        Assert(RerouteBezierTangentIsHorizontal(fromReroute, useStartTangent: true), "connection from reroute keeps horizontal route tangent");
+        intoReroute.Dispose();
+        fromReroute.Dispose();
+    }
+
+    private static Point GetBezierStart(ConnectionViewModel connection)
+    {
+        var geometry = (PathGeometry)connection.PathGeometry;
+        var figure = geometry.Figures.Single();
+        return figure.StartPoint;
+    }
+
+    private static Point GetBezierEnd(ConnectionViewModel connection)
+    {
+        var geometry = (PathGeometry)connection.PathGeometry;
+        var figure = geometry.Figures.Single();
+        var segment = (BezierSegment)figure.Segments.Single();
+        return segment.Point3;
+    }
+
+    private static bool RerouteBezierTangentIsHorizontal(ConnectionViewModel connection, bool useStartTangent)
+    {
+        const double epsilon = 0.001;
+        var geometry = (PathGeometry)connection.PathGeometry;
+        var figure = geometry.Figures.Single();
+        var segment = (BezierSegment)figure.Segments.Single();
+        return useStartTangent
+            ? Math.Abs(segment.Point1.Y - figure.StartPoint.Y) < epsilon
+            : Math.Abs(segment.Point2.Y - segment.Point3.Y) < epsilon;
+    }
+
+    private static void CheckConnectionRebindAfterParameterReorder()
+    {
+        var editor = new GraphEditorService();
+        var entry = new FunctionEntryNodeViewModel("entry");
+        var ret = new FunctionReturnNodeViewModel("ret");
+        string[] ids = ["float1", "float2", "float3"];
+        foreach (var id in ids)
+        {
+            entry.Parameters.Add(new GraphParameterDefinition { Id = id, Name = id, Type = GraphParameterType.Float });
+            ret.Parameters.Add(new GraphParameterDefinition { Id = $"out_{id}", Name = $"out_{id}", Type = GraphParameterType.Float });
+        }
+        entry.SyncPins();
+        ret.SyncPins();
+        editor.Nodes.Add(entry);
+        editor.Nodes.Add(ret);
+        editor.CreateConnection(entry.OutputPins.First(pin => pin.Name == "float1"), ret.InputPins.First(pin => pin.Name == "out_float1"));
+        editor.CreateConnection(entry.OutputPins.First(pin => pin.Name == "float2"), ret.InputPins.First(pin => pin.Name == "out_float2"));
+        editor.CreateConnection(entry.OutputPins.First(pin => pin.Name == "float3"), ret.InputPins.First(pin => pin.Name == "out_float3"));
+        var oldFloat1Pin = entry.OutputPins.First(pin => pin.Name == "float1");
+
+        entry.MoveParameter(entry.Parameters.First(parameter => parameter.Id == "float2"), -1);
+        ret.MoveParameter(ret.Parameters.First(parameter => parameter.Id == "out_float2"), -1);
+        editor.RebindConnectionsToCurrentPins();
+
+        Assert(editor.Connections.Count == 3, "parameter reorder keeps all connections");
+        Assert(editor.Connections.All(connection => entry.OutputPins.Contains(connection.SourcePin) && ret.InputPins.Contains(connection.TargetPin)),
+            "parameter reorder rebinds connections to current pin objects");
+        Assert(!editor.Connections.Any(connection => ReferenceEquals(connection.SourcePin, oldFloat1Pin)),
+            "parameter reorder does not keep old pin objects");
+        Assert(editor.Connections.Any(connection => connection.SourcePin.Name == "float2" && connection.TargetPin.Name == "out_float2"),
+            "parameter reorder keeps connections by stable parameter ids");
+    }
+
+    private static void CheckDetailsPanelText(MainWindow window)
+    {
+        var title = window.FindName("DetailsPanelTitleTextBlock") as TextBlock;
+        Assert(title?.Text == "细节面板", "details panel title uses new text");
+    }
+
     private static void CheckLibraryPublishFlag(MainWindow window)
     {
         ResetContent(window);
@@ -776,6 +1074,13 @@ internal static class Program
         var method = target.GetType().GetMethod(name, BindingFlags.Instance | BindingFlags.Static | BindingFlags.NonPublic)
             ?? throw new MissingMethodException(target.GetType().Name, name);
         return method.Invoke(target, args);
+    }
+
+    private static object? InvokeStatic(Type type, string name, params object?[] args)
+    {
+        var method = type.GetMethod(name, BindingFlags.Static | BindingFlags.NonPublic)
+            ?? throw new MissingMethodException(type.Name, name);
+        return method.Invoke(null, args);
     }
 
     private static T Get<T>(object target, string name) where T : class

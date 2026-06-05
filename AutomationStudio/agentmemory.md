@@ -4,6 +4,7 @@
 
 - 用户偏好中文、简洁说明。中间进度说清“在做什么/发现什么/下一步”，少废话。
 - 技术细节保留准确名词、文件名、命令；解释原因时用短句。
+- 不要自动 `git push`。只有用户明确要求推送时才推；推送前必须确认不包含测试功能相关文件夹。
 
 ## 2026-06-05 graph isolation fix
 
@@ -12,7 +13,8 @@
 - Folder tree UX: single-click row enters folder; arrow button only expands/collapses. `HasFolderChildren` counts child folders only. `TreeIndent` controls pixel indentation; `TreeDisplayName` is plain name, no leading spaces.
 - Folder tree arrow uses `ContentFolderToggleIconStyle`. Keep default `Path.Data` in style setter so `DataTrigger` can switch expanded state to the down triangle.
 - Content browser layout: `ContentTreeColumn` default width 180, min 120, max 420; `ContentBrowserTreeSplitter` separates tree and tile grid; tile grid stays in column 2 and wraps with horizontal scrolling disabled.
-- Verification gates now include startup check: build, smoke, launch `dotnet run --project .\AutomationStudioWpf.csproj` for ~20s, then `codegraph.cmd sync`. Timeout during launch is OK if no exception appears; early exit or `Unhandled exception` is failure.
+- Verification gates now include startup crash probe: build, smoke, run `dotnet run --project .\AutomationStudioWpf.csproj` only long enough to confirm the window starts, then `codegraph.cmd sync`. Do not wait 20s; early exit, WPF startup exception, or `Unhandled exception` is failure and requires collecting stdout/stderr/stack output first.
+- `Tests/CodexSmoke` is lightweight regression smoke, not a full test framework. Keep it focused on critical UI/data regressions and do not push test-related folders unless the user explicitly asks.
 
 - Event graph / function / macro share one editor canvas instance, but data must stay isolated in separate `GraphListItemViewModel.Graph` models.
 - Critical rule: before loading a graph from another section, first `SnapshotActiveAsset()`, then set `_activeAssetController` to the target controller, then call `LoadItem(..., snapshotCurrent: false)`.
@@ -24,6 +26,8 @@
 - FunctionLibrary/MacroLibrary entries have `IsPublicToLibrary` (`公开到库`). `CallableGraphResolver` is the single source for palette, compile sync, and runtime lookup. Other scripts can only use public library functions/macros; old private-library calls fail compile and keep dirty.
 - Compile issue paths must be full content-browser paths: `content/父文件夹/.../资产/图`. This includes function/macro library graphs under nested folders.
 - Custom events are event-graph local: `CustomEventNodeViewModel` + `CustomEventCallNodeViewModel`, bound by `CustomEventId`. Palette lists calls under `本脚本事件` only while editing an event graph. Runtime executes target event chain then returns to caller `exec_out`; recursion key is `custom_event:{id}`.
+- Pin wiring UX: dragging from either input or output pin to blank canvas opens the node palette. The next created node auto-connects its first compatible opposite pin. `TryGetPinAtPosition` also has an expanded near-hit radius for easier pin drops.
+- Parameter defaults: `GraphParameterDefinition.DefaultValue` persists through file/runtime models. Function/macro/custom event entry defaults are used when call inputs are unconnected; return/macro output defaults are used when return inputs are unconnected.
 
 ## 2026-06-04 recovery state
 
@@ -37,4 +41,4 @@
 - Save may prompt compile. Run is blocked while compile-dirty changes exist.
 - Shared dark context menu style is `DarkContextMenuStyle`; content browser/tree and graph lists must keep it attached.
 - Isolated tests can set `AUTOMATION_STUDIO_LIBRARY_DIR`; default library path remains `%APPDATA%/AutomationStudioWpf`.
-- Verification gates: `dotnet build .\AutomationStudioWpf.csproj -o .\bin\CodexBuildCheck`, `dotnet run --project .\Tests\CodexSmoke\AutomationStudioSmoke.csproj --no-restore`, launch check `dotnet run --project .\AutomationStudioWpf.csproj`, then `codegraph.cmd sync`.
+- Verification gates: `dotnet build .\AutomationStudioWpf.csproj -o .\bin\CodexBuildCheck`, `dotnet run --project .\Tests\CodexSmoke\AutomationStudioSmoke.csproj --no-restore`, launch crash probe `dotnet run --project .\AutomationStudioWpf.csproj` without fixed 20s wait, then `codegraph.cmd sync`.

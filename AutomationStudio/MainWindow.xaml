@@ -148,9 +148,11 @@
 
             <Grid x:Name="EditorGrid" Grid.Row="0" Visibility="Collapsed">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="220" />
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="360" />
+                    <ColumnDefinition x:Name="GraphSidebarColumn" Width="240" MinWidth="180" MaxWidth="420" />
+                    <ColumnDefinition x:Name="GraphSidebarSplitterColumn" Width="Auto" />
+                    <ColumnDefinition x:Name="GraphCanvasColumn" Width="*" MinWidth="360" />
+                    <ColumnDefinition x:Name="InspectorSplitterColumn" Width="Auto" />
+                    <ColumnDefinition x:Name="InspectorColumn" Width="460" MinWidth="420" MaxWidth="720" />
                 </Grid.ColumnDefinitions>
 
                 <Border Grid.Column="0"
@@ -512,7 +514,17 @@
                     </ScrollViewer>
                 </Border>
 
-                <Border Grid.Column="1"
+                <GridSplitter x:Name="GraphSidebarSplitter"
+                              Grid.Column="1"
+                              Width="5"
+                              HorizontalAlignment="Stretch"
+                              VerticalAlignment="Stretch"
+                              Background="#2E3440"
+                              ResizeDirection="Columns"
+                              ResizeBehavior="PreviousAndNext"
+                              ShowsPreview="True" />
+
+                <Border Grid.Column="2"
                         Margin="0,10,10,10"
                         Background="#11151A"
                         BorderBrush="#303744"
@@ -857,8 +869,18 @@
                     </Border>
                 </Border>
 
+                <GridSplitter x:Name="InspectorSplitter"
+                              Grid.Column="3"
+                              Width="5"
+                              HorizontalAlignment="Stretch"
+                              VerticalAlignment="Stretch"
+                              Background="#2E3440"
+                              ResizeDirection="Columns"
+                              ResizeBehavior="PreviousAndNext"
+                              ShowsPreview="True" />
+
                 <Border x:Name="InspectorPanel"
-                        Grid.Column="2"
+                        Grid.Column="4"
                         Margin="0,10,10,10"
                         Padding="14"
                         Background="#20242B"
@@ -867,7 +889,11 @@
                         CornerRadius="8">
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
                         <StackPanel>
-                            <TextBlock Text="节点属性" Foreground="White" FontSize="18" FontWeight="Bold" />
+                            <TextBlock x:Name="DetailsPanelTitleTextBlock"
+                                       Text="细节面板"
+                                       Foreground="White"
+                                       FontSize="18"
+                                       FontWeight="Bold" />
                             <TextBlock x:Name="InspectorHintTextBlock"
                                        Margin="0,8,0,14"
                                        Text="请选择一个节点进行编辑。"
@@ -879,7 +905,8 @@
 
                             <StackPanel x:Name="ParameterInspectorPanel" Visibility="Collapsed" Margin="0,0,0,12">
                                 <DockPanel Margin="0,0,0,8">
-                                    <Button Content="+"
+                                    <Button x:Name="AddParameterButton"
+                                            Content="+"
                                             DockPanel.Dock="Right"
                                             Width="28"
                                             Height="24"

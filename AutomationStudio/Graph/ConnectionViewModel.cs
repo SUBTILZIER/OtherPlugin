@@ -96,11 +96,8 @@ public sealed class ConnectionViewModel : ObservableObject, IDisposable
 
     private Geometry BuildPathGeometry()
     {
-        Point startAnchor = SourcePin.Owner.GetPinAnchor(SourcePin);
-        Point endAnchor = TargetPin.Owner.GetPinAnchor(TargetPin);
-
-        Point start = new(SourcePin.Owner.X + startAnchor.X, SourcePin.Owner.Y + startAnchor.Y);
-        Point end = new(TargetPin.Owner.X + endAnchor.X, TargetPin.Owner.Y + endAnchor.Y);
+        Point start = GetAbsolutePinAnchor(SourcePin);
+        Point end = GetAbsolutePinAnchor(TargetPin);
 
         double tangent = Math.Max(80, Math.Abs(end.X - start.X) * 0.45);
         Point control1 = new(start.X + tangent, start.Y);
@@ -122,5 +119,11 @@ public sealed class ConnectionViewModel : ObservableObject, IDisposable
         }
 
         return geometry;
+    }
+
+    private static Point GetAbsolutePinAnchor(PinViewModel pin)
+    {
+        Point anchor = pin.Owner.GetPinAnchor(pin);
+        return new Point(pin.Owner.X + anchor.X, pin.Owner.Y + anchor.Y);
     }
 }

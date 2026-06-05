@@ -118,14 +118,14 @@ public static class NodeSerializer
 
             case FunctionCallNodeViewModel functionCall:
                 file.FunctionId = functionCall.FunctionId;
-                file.InputParameters = PinsToParameterFiles(functionCall.InputPins.Where(p => p.Kind != PinKind.Execution));
-                file.OutputParameters = PinsToParameterFiles(functionCall.OutputPins.Where(p => p.Kind != PinKind.Execution));
+                file.InputParameters = functionCall.InputParameters.Select(ToParameterFile).ToList();
+                file.OutputParameters = functionCall.OutputParameters.Select(ToParameterFile).ToList();
                 break;
 
             case MacroCallNodeViewModel macroCall:
                 file.MacroId = macroCall.MacroId;
-                file.InputParameters = PinsToParameterFiles(macroCall.InputPins.Where(p => p.Kind != PinKind.Execution));
-                file.OutputParameters = PinsToParameterFiles(macroCall.OutputPins.Where(p => p.Kind != PinKind.Execution));
+                file.InputParameters = macroCall.InputParameters.Select(ToParameterFile).ToList();
+                file.OutputParameters = macroCall.OutputParameters.Select(ToParameterFile).ToList();
                 file.MacroExits = macroCall.OutputPins
                     .Where(p => p.Kind == PinKind.Execution)
                     .Select(p => new MacroExitFileModel { Id = p.Name.Replace("exec_", "", StringComparison.Ordinal), Name = p.DisplayName })
@@ -134,7 +134,7 @@ public static class NodeSerializer
 
             case CustomEventCallNodeViewModel customEventCall:
                 file.CustomEventId = customEventCall.CustomEventId;
-                file.InputParameters = PinsToParameterFiles(customEventCall.InputPins.Where(p => p.Kind != PinKind.Execution));
+                file.InputParameters = customEventCall.InputParameters.Select(ToParameterFile).ToList();
                 break;
         }
 
@@ -393,14 +393,14 @@ public static class NodeSerializer
                 commonNode.Number4,
                 commonNode.Flag),
 
-            FunctionEntryNodeViewModel functionEntry => GraphRuntimeNode.ForAssetNode(functionEntry.Id, functionEntry.Title, functionEntry.NodeKind),
-            FunctionReturnNodeViewModel functionReturn => GraphRuntimeNode.ForAssetNode(functionReturn.Id, functionReturn.Title, functionReturn.NodeKind),
-            MacroEntryNodeViewModel macroEntry => GraphRuntimeNode.ForAssetNode(macroEntry.Id, macroEntry.Title, macroEntry.NodeKind),
-            MacroOutputNodeViewModel macroOutput => GraphRuntimeNode.ForMacroOutput(macroOutput.Id, macroOutput.Title, macroOutput.ExitName),
-            FunctionCallNodeViewModel functionCall => GraphRuntimeNode.ForFunctionCall(functionCall.Id, functionCall.Title, functionCall.FunctionId),
-            MacroCallNodeViewModel macroCall => GraphRuntimeNode.ForMacroCall(macroCall.Id, macroCall.Title, macroCall.MacroId),
-            CustomEventNodeViewModel customEvent => GraphRuntimeNode.ForCustomEvent(customEvent.Id, customEvent.Title, customEvent.CustomEventId),
-            CustomEventCallNodeViewModel customEventCall => GraphRuntimeNode.ForCustomEventCall(customEventCall.Id, customEventCall.Title, customEventCall.CustomEventId),
+            FunctionEntryNodeViewModel functionEntry => GraphRuntimeNode.ForAssetNode(functionEntry.Id, functionEntry.Title, functionEntry.NodeKind, functionEntry.Parameters),
+            FunctionReturnNodeViewModel functionReturn => GraphRuntimeNode.ForAssetNode(functionReturn.Id, functionReturn.Title, functionReturn.NodeKind, functionReturn.Parameters),
+            MacroEntryNodeViewModel macroEntry => GraphRuntimeNode.ForAssetNode(macroEntry.Id, macroEntry.Title, macroEntry.NodeKind, macroEntry.Parameters),
+            MacroOutputNodeViewModel macroOutput => GraphRuntimeNode.ForMacroOutput(macroOutput.Id, macroOutput.Title, macroOutput.ExitName, macroOutput.Parameters),
+            FunctionCallNodeViewModel functionCall => GraphRuntimeNode.ForFunctionCall(functionCall.Id, functionCall.Title, functionCall.FunctionId, functionCall.InputParameters),
+            MacroCallNodeViewModel macroCall => GraphRuntimeNode.ForMacroCall(macroCall.Id, macroCall.Title, macroCall.MacroId, macroCall.InputParameters),
+            CustomEventNodeViewModel customEvent => GraphRuntimeNode.ForCustomEvent(customEvent.Id, customEvent.Title, customEvent.CustomEventId, customEvent.Parameters),
+            CustomEventCallNodeViewModel customEventCall => GraphRuntimeNode.ForCustomEventCall(customEventCall.Id, customEventCall.Title, customEventCall.CustomEventId, customEventCall.InputParameters),
 
             _ => throw new InvalidOperationException($"不支持执行的节点类型: {node.GetType().Name}"),
         };
@@ -501,6 +501,7 @@ public static class NodeSerializer
         Id = parameter.Id,
         Name = parameter.Name,
         Type = parameter.Type,
+        DefaultValue = parameter.DefaultValue,
     };
 
     private static GraphParameterDefinition FromParameterFile(GraphParameterFileModel parameter) => new()
@@ -508,6 +509,9 @@ public static class NodeSerializer
         Id = string.IsNullOrWhiteSpace(parameter.Id) ? Guid.NewGuid().ToString("N") : parameter.Id,
         Name = string.IsNullOrWhiteSpace(parameter.Name) ? "NewParam" : parameter.Name,
         Type = parameter.Type,
+        DefaultValue = string.IsNullOrWhiteSpace(parameter.DefaultValue)
+            ? GraphParameterDefinition.DefaultValueForType(parameter.Type)
+            : parameter.DefaultValue,
     };
 
     private static List<GraphParameterFileModel> PinsToParameterFiles(IEnumerable<PinViewModel> pins) =>
@@ -521,6 +525,12 @@ public static class NodeSerializer
                 PinKind.Vector2D => GraphParameterType.Vector2D,
                 _ => GraphParameterType.String,
             },
+            DefaultValue = GraphParameterDefinition.DefaultValueForType(pin.Kind switch
+            {
+                PinKind.Boolean => GraphParameterType.Boolean,
+                PinKind.Vector2D => GraphParameterType.Vector2D,
+                _ => GraphParameterType.String,
+            }),
         }).ToList();
 
     private static PressReleaseMode DeserializeOperationMode(string? mode)

@@ -129,23 +129,64 @@ public sealed class GraphCallReferenceSyncService
         HashSet<(string NodeId, string PinName)> invalidPins)
     {
         int changed = 0;
-        if (!SameParameters(node.InputParameters, inputs))
-        {
-            foreach (var oldInput in node.InputParameters)
-                invalidPins.Add((node.Id, oldInput.Id));
-            node.InputParameters = inputs.Select(CloneParameter).ToList();
-            changed++;
-        }
-
-        if (!SameParameters(node.OutputParameters, outputs))
-        {
-            foreach (var oldOutput in node.OutputParameters)
-                invalidPins.Add((node.Id, oldOutput.Id));
-            node.OutputParameters = outputs.Select(CloneParameter).ToList();
-            changed++;
-        }
+        changed += ReplaceParameterSide(node, node.InputParameters, inputs, invalidPins, preserveDefaultValue: true);
+        changed += ReplaceParameterSide(node, node.OutputParameters, outputs, invalidPins, preserveDefaultValue: false);
 
         return changed;
+    }
+
+    private static int ReplaceParameterSide(
+        NodeFileModel node,
+        List<GraphParameterFileModel> current,
+        List<GraphParameterFileModel> signature,
+        HashSet<(string NodeId, string PinName)> invalidPins,
+        bool preserveDefaultValue)
+    {
+        var merged = MergeParameters(current, signature, preserveDefaultValue);
+        MarkInvalidPins(node, current, signature, invalidPins);
+        if (SameParameters(current, merged))
+            return 0;
+
+        current.Clear();
+        current.AddRange(merged);
+        return 1;
+    }
+
+    private static List<GraphParameterFileModel> MergeParameters(
+        IReadOnlyList<GraphParameterFileModel> current,
+        IReadOnlyList<GraphParameterFileModel> signature,
+        bool preserveDefaultValue)
+    {
+        var currentById = current.ToDictionary(parameter => parameter.Id, StringComparer.Ordinal);
+        var merged = new List<GraphParameterFileModel>();
+        foreach (var parameter in signature)
+        {
+            var next = CloneParameter(parameter);
+            if (preserveDefaultValue &&
+                currentById.TryGetValue(parameter.Id, out var old) &&
+                old.Type == parameter.Type)
+            {
+                next.DefaultValue = old.DefaultValue;
+            }
+
+            merged.Add(next);
+        }
+
+        return merged;
+    }
+
+    private static void MarkInvalidPins(
+        NodeFileModel node,
+        IReadOnlyList<GraphParameterFileModel> current,
+        IReadOnlyList<GraphParameterFileModel> signature,
+        HashSet<(string NodeId, string PinName)> invalidPins)
+    {
+        var nextById = signature.ToDictionary(parameter => parameter.Id, StringComparer.Ordinal);
+        foreach (var old in current)
+        {
+            if (!nextById.TryGetValue(old.Id, out var next) || ToPinKind(old.Type) != ToPinKind(next.Type))
+                invalidPins.Add((node.Id, old.Id));
+        }
     }
 
     private static List<GraphParameterFileModel> GetParameterFiles(GraphFileModel graph, string nodeTypeKey) =>
@@ -160,13 +201,22 @@ public sealed class GraphCallReferenceSyncService
         Id = parameter.Id,
         Name = parameter.Name,
         Type = parameter.Type,
+        DefaultValue = parameter.DefaultValue,
     };
 
     private static bool SameParameters(IReadOnlyList<GraphParameterFileModel> left, IReadOnlyList<GraphParameterFileModel> right) =>
         left.Count == right.Count &&
         left.Zip(right).All(pair => pair.First.Id == pair.Second.Id &&
                                     pair.First.Name == pair.Second.Name &&
-                                    pair.First.Type == pair.Second.Type);
+                                    pair.First.Type == pair.Second.Type &&
+                                    pair.First.DefaultValue == pair.Second.DefaultValue);
+
+    private static PinKind ToPinKind(GraphParameterType type) => type switch
+    {
+        GraphParameterType.Boolean => PinKind.Boolean,
+        GraphParameterType.Vector2D => PinKind.Vector2D,
+        _ => PinKind.String,
+    };
 
     private static bool SameMacroExits(IReadOnlyList<MacroExitFileModel> left, IReadOnlyList<MacroExitFileModel> right) =>
         left.Count == right.Count &&

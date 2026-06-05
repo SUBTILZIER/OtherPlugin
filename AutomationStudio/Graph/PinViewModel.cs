@@ -1,8 +1,6 @@
 using Point = System.Windows.Point;
 using Brush = System.Windows.Media.Brush;
 using Brushes = System.Windows.Media.Brushes;
-using SolidColorBrush = System.Windows.Media.SolidColorBrush;
-using Color = System.Windows.Media.Color;
 
 namespace AutomationStudioWpf.Graph;
 
@@ -21,7 +19,7 @@ public sealed class PinViewModel : ObservableObject
         DisplayName = displayName;
         Direction = direction;
         Kind = kind;
-        PinBrush = CreateBrush(kind);
+        PinBrush = PinBrushes.ForKind(kind);
     }
 
     public NodeBaseViewModel Owner { get; }
@@ -63,16 +61,4 @@ public sealed class PinViewModel : ObservableObject
         _ => Kind.ToString(),
     };
 
-    private static Brush CreateBrush(PinKind kind)
-    {
-        SolidColorBrush brush = kind switch
-        {
-            PinKind.Execution => new SolidColorBrush(Color.FromRgb(244, 244, 244)),
-            PinKind.Boolean => new SolidColorBrush(Color.FromRgb(180, 60, 60)),
-            PinKind.Vector2D => new SolidColorBrush(Color.FromRgb(88, 188, 255)),
-            _ => new SolidColorBrush(Color.FromRgb(190, 190, 190)),
-        };
-        brush.Freeze();
-        return brush;
-    }
 }

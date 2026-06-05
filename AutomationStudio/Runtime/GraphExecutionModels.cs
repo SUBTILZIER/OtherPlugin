@@ -18,6 +18,11 @@ public sealed record RuntimeAssetLibrary(
     IReadOnlyDictionary<string, GraphExecutionPlan> Functions,
     IReadOnlyDictionary<string, GraphExecutionPlan> Macros);
 
+public sealed record GraphRuntimeParameter(
+    string Id,
+    GraphParameterType Type,
+    string DefaultValue);
+
 /// <summary>
 /// 运行时节点数据模型 - 扁平化设计用于执行引擎
 /// </summary>
@@ -102,6 +107,8 @@ public sealed record GraphRuntimeNode(
     public string? CustomEventId { get; init; }
 
     public string? ExitName { get; init; }
+
+    public IReadOnlyList<GraphRuntimeParameter> Parameters { get; init; } = [];
 
     public static GraphRuntimeNode ForStart(string id, string title) =>
         new(id, title, NodeKind.Start, null, 0, PressReleaseMode.Press, MouseButton.Left, 0, 0, 0, null, ScrollWheelAction.ScrollForward, 120, 100, 1000, 0, false, PinKind.Execution, ProgramStartFailureAction.None, 0, null);
@@ -212,38 +219,76 @@ public sealed record GraphRuntimeNode(
             Flag = flag,
         };
 
-    public static GraphRuntimeNode ForAssetNode(string id, string title, NodeKind kind) =>
-        new(id, title, kind, null, 0, PressReleaseMode.Press, MouseButton.Left, 0, 0, 0, null, ScrollWheelAction.ScrollForward, 120, 100, 1000, 0, false, PinKind.Execution, ProgramStartFailureAction.None, 0, null);
+    public static GraphRuntimeNode ForAssetNode(
+        string id,
+        string title,
+        NodeKind kind,
+        IEnumerable<GraphParameterDefinition>? parameters = null) =>
+        new(id, title, kind, null, 0, PressReleaseMode.Press, MouseButton.Left, 0, 0, 0, null, ScrollWheelAction.ScrollForward, 120, 100, 1000, 0, false, PinKind.Execution, ProgramStartFailureAction.None, 0, null)
+        {
+            Parameters = ToRuntimeParameters(parameters),
+        };
 
-    public static GraphRuntimeNode ForMacroOutput(string id, string title, string exitName) =>
+    public static GraphRuntimeNode ForMacroOutput(
+        string id,
+        string title,
+        string exitName,
+        IEnumerable<GraphParameterDefinition>? parameters = null) =>
         new(id, title, NodeKind.MacroOutput, null, 0, PressReleaseMode.Press, MouseButton.Left, 0, 0, 0, null, ScrollWheelAction.ScrollForward, 120, 100, 1000, 0, false, PinKind.Execution, ProgramStartFailureAction.None, 0, null)
         {
             ExitName = exitName,
+            Parameters = ToRuntimeParameters(parameters),
         };
 
-    public static GraphRuntimeNode ForFunctionCall(string id, string title, string functionId) =>
+    public static GraphRuntimeNode ForFunctionCall(
+        string id,
+        string title,
+        string functionId,
+        IEnumerable<GraphParameterDefinition>? parameters = null) =>
         new(id, title, NodeKind.FunctionCall, null, 0, PressReleaseMode.Press, MouseButton.Left, 0, 0, 0, null, ScrollWheelAction.ScrollForward, 120, 100, 1000, 0, false, PinKind.Execution, ProgramStartFailureAction.None, 0, null)
         {
             FunctionId = functionId,
+            Parameters = ToRuntimeParameters(parameters),
         };
 
-    public static GraphRuntimeNode ForMacroCall(string id, string title, string macroId) =>
+    public static GraphRuntimeNode ForMacroCall(
+        string id,
+        string title,
+        string macroId,
+        IEnumerable<GraphParameterDefinition>? parameters = null) =>
         new(id, title, NodeKind.MacroCall, null, 0, PressReleaseMode.Press, MouseButton.Left, 0, 0, 0, null, ScrollWheelAction.ScrollForward, 120, 100, 1000, 0, false, PinKind.Execution, ProgramStartFailureAction.None, 0, null)
         {
             MacroId = macroId,
+            Parameters = ToRuntimeParameters(parameters),
         };
 
-    public static GraphRuntimeNode ForCustomEvent(string id, string title, string customEventId) =>
+    public static GraphRuntimeNode ForCustomEvent(
+        string id,
+        string title,
+        string customEventId,
+        IEnumerable<GraphParameterDefinition>? parameters = null) =>
         new(id, title, NodeKind.CustomEvent, null, 0, PressReleaseMode.Press, MouseButton.Left, 0, 0, 0, null, ScrollWheelAction.ScrollForward, 120, 100, 1000, 0, false, PinKind.Execution, ProgramStartFailureAction.None, 0, null)
         {
             CustomEventId = customEventId,
+            Parameters = ToRuntimeParameters(parameters),
         };
 
-    public static GraphRuntimeNode ForCustomEventCall(string id, string title, string customEventId) =>
+    public static GraphRuntimeNode ForCustomEventCall(
+        string id,
+        string title,
+        string customEventId,
+        IEnumerable<GraphParameterDefinition>? parameters = null) =>
         new(id, title, NodeKind.CustomEventCall, null, 0, PressReleaseMode.Press, MouseButton.Left, 0, 0, 0, null, ScrollWheelAction.ScrollForward, 120, 100, 1000, 0, false, PinKind.Execution, ProgramStartFailureAction.None, 0, null)
         {
             CustomEventId = customEventId,
+            Parameters = ToRuntimeParameters(parameters),
         };
+
+    private static IReadOnlyList<GraphRuntimeParameter> ToRuntimeParameters(IEnumerable<GraphParameterDefinition>? parameters) =>
+        parameters?
+            .Select(parameter => new GraphRuntimeParameter(parameter.Id, parameter.Type, parameter.DefaultValue))
+            .ToList()
+        ?? [];
 }
 
 public sealed record GraphExecutionResult(bool Success, string Message, bool ContinueExecution = true);

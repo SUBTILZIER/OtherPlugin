@@ -1,7 +1,5 @@
-using System.Windows.Media;
 using Point = System.Windows.Point;
 using Brush = System.Windows.Media.Brush;
-using Color = System.Windows.Media.Color;
 
 namespace AutomationStudioWpf.Graph;
 
@@ -22,20 +20,11 @@ public sealed class RerouteNodeViewModel : NodeBaseViewModel
 
     public PinKind RoutedKind { get; }
 
-    public Brush CircleFill => RoutedKind switch
-    {
-        PinKind.Execution => new SolidColorBrush(Color.FromRgb(244, 244, 244)),
-        PinKind.Boolean => new SolidColorBrush(Color.FromRgb(180, 60, 60)),
-        PinKind.Vector2D => new SolidColorBrush(Color.FromRgb(88, 188, 255)),
-        _ => new SolidColorBrush(Color.FromRgb(190, 190, 190)),
-    };
+    public Brush CircleFill => PinBrushes.ForKind(RoutedKind);
 
     public override Point GetPinAnchor(PinViewModel pin)
     {
-        if (pin.AnchorPoint != default)
-            return pin.AnchorPoint;
-
-        return new Point(10, 10);
+        return new Point(Width / 2.0, Height / 2.0);
     }
 
     public override void RefreshDescription()

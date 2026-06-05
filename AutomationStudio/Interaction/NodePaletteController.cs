@@ -42,6 +42,7 @@ public sealed class NodePaletteController
     private readonly Func<Point, Point> _viewportToGraph;
     private readonly Func<Size> _getViewportSize;
     private readonly Action<NodeBaseViewModel> _selectNode;
+    private readonly Func<NodeBaseViewModel, bool> _tryAutoConnectNode;
 
     private Point _openViewportPoint;
 
@@ -59,7 +60,8 @@ public sealed class NodePaletteController
         Action snapshotActiveAsset,
         Func<Point, Point> viewportToGraph,
         Func<Size> getViewportSize,
-        Action<NodeBaseViewModel> selectNode)
+        Action<NodeBaseViewModel> selectNode,
+        Func<NodeBaseViewModel, bool> tryAutoConnectNode)
     {
         _palette = palette;
         _searchBox = searchBox;
@@ -75,6 +77,7 @@ public sealed class NodePaletteController
         _viewportToGraph = viewportToGraph;
         _getViewportSize = getViewportSize;
         _selectNode = selectNode;
+        _tryAutoConnectNode = tryAutoConnectNode;
     }
 
     public void Open(Point viewportPoint)
@@ -274,6 +277,7 @@ public sealed class NodePaletteController
         var graphPoint = _viewportToGraph(_openViewportPoint);
         var node = _nodeFactory.CreateNode(kind, graphPoint.X, graphPoint.Y);
         _editorService.AddNode(node);
+        _tryAutoConnectNode(node);
         _selectNode(node);
         Close();
     }
@@ -292,6 +296,7 @@ public sealed class NodePaletteController
             graphPoint.X,
             graphPoint.Y);
         _editorService.AddNode(node);
+        _tryAutoConnectNode(node);
         _selectNode(node);
         Close();
     }
@@ -327,6 +332,7 @@ public sealed class NodePaletteController
         }
 
         _editorService.AddNode(node);
+        _tryAutoConnectNode(node);
         _selectNode(node);
         Close();
     }
@@ -354,6 +360,7 @@ public sealed class NodePaletteController
         Id = file.Id,
         Name = file.Name,
         Type = file.Type,
+        DefaultValue = file.DefaultValue,
     };
 
     private static NodeKind? NodeKindFromTypeKey(string typeKey) => typeKey switch

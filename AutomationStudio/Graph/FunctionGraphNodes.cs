@@ -12,7 +12,11 @@ public abstract class ParameterNodeBaseViewModel : NodeBaseViewModel
 
     public void AddParameter(string prefix = "NewParam")
     {
-        Parameters.Add(new GraphParameterDefinition { Name = $"{prefix}{Parameters.Count + 1}" });
+        Parameters.Add(new GraphParameterDefinition
+        {
+            Name = $"{prefix}{Parameters.Count + 1}",
+            DefaultValue = GraphParameterDefinition.DefaultValueForType(GraphParameterType.Boolean),
+        });
         SyncPins();
     }
 
@@ -155,16 +159,25 @@ public sealed class FunctionCallNodeViewModel : NodeBaseViewModel
     public override NodeKind NodeKind => NodeKind.FunctionCall;
     public override string NodeTypeKey => "function_call";
     public string FunctionId { get; set; }
+    public ObservableCollection<GraphParameterDefinition> InputParameters { get; } = [];
+    public ObservableCollection<GraphParameterDefinition> OutputParameters { get; } = [];
 
     public void ConfigurePins(IEnumerable<GraphParameterDefinition> inputs, IEnumerable<GraphParameterDefinition> outputs)
+    {
+        CallNodeParameterSync.Merge(InputParameters, inputs, preserveDefaultValue: true);
+        CallNodeParameterSync.Merge(OutputParameters, outputs, preserveDefaultValue: false);
+        SyncPins();
+    }
+
+    public void SyncPins()
     {
         InputPins.Clear();
         OutputPins.Clear();
         AddInput("exec_in", "执行输入", PinKind.Execution);
-        foreach (var input in inputs)
+        foreach (var input in InputParameters)
             AddInput(input.Id, input.Name, input.ToPinKind());
         AddOutput("exec_out", "执行输出", PinKind.Execution);
-        foreach (var output in outputs)
+        foreach (var output in OutputParameters)
             AddOutput(output.Id, output.Name, output.ToPinKind());
         RefreshDescription();
     }
@@ -182,23 +195,56 @@ public sealed class MacroCallNodeViewModel : NodeBaseViewModel
     public override NodeKind NodeKind => NodeKind.MacroCall;
     public override string NodeTypeKey => "macro_call";
     public string MacroId { get; set; }
+    public ObservableCollection<GraphParameterDefinition> InputParameters { get; } = [];
+    public ObservableCollection<GraphParameterDefinition> OutputParameters { get; } = [];
 
     public void ConfigurePins(
         IEnumerable<GraphParameterDefinition> inputs,
         IEnumerable<GraphParameterDefinition> outputs,
         IEnumerable<(string Id, string Name)> exits)
     {
+        CallNodeParameterSync.Merge(InputParameters, inputs, preserveDefaultValue: true);
+        CallNodeParameterSync.Merge(OutputParameters, outputs, preserveDefaultValue: false);
+        SyncPins(exits);
+    }
+
+    public void SyncPins(IEnumerable<(string Id, string Name)> exits)
+    {
         InputPins.Clear();
         OutputPins.Clear();
         AddInput("exec_in", "执行输入", PinKind.Execution);
-        foreach (var input in inputs)
+        foreach (var input in InputParameters)
             AddInput(input.Id, input.Name, input.ToPinKind());
         foreach (var exit in exits)
             AddOutput($"exec_{exit.Id}", exit.Name, PinKind.Execution);
-        foreach (var output in outputs)
+        foreach (var output in OutputParameters)
             AddOutput(output.Id, output.Name, output.ToPinKind());
         RefreshDescription();
     }
 
     public override void RefreshDescription() => Description = $"调用宏：{Title}";
+}
+
+internal static class CallNodeParameterSync
+{
+    public static void Merge(
+        ObservableCollection<GraphParameterDefinition> target,
+        IEnumerable<GraphParameterDefinition> signature,
+        bool preserveDefaultValue)
+    {
+        var oldById = target.ToDictionary(parameter => parameter.Id, StringComparer.Ordinal);
+        target.Clear();
+        foreach (var parameter in signature)
+        {
+            var next = parameter.Clone();
+            if (preserveDefaultValue &&
+                oldById.TryGetValue(parameter.Id, out var old) &&
+                old.Type == parameter.Type)
+            {
+                next.DefaultValue = old.DefaultValue;
+            }
+
+            target.Add(next);
+        }
+    }
 }

@@ -2,6 +2,7 @@ using AutomationStudioWpf.Adapters;
 using AutomationStudioWpf.Graph;
 using AutomationStudioWpf.Logging;
 using AutomationStudioWpf.Nodes;
+using DrawingPoint = System.Drawing.Point;
 
 namespace AutomationStudioWpf.Runtime;
 
@@ -365,11 +366,16 @@ public sealed class GraphRuntimeExecutor
         GraphRuntimeNode entryNode,
         RuntimeContext childContext)
     {
+        var connectedPins = new HashSet<string>(StringComparer.Ordinal);
         foreach (var input in callerPlan.Connections.Where(c => c.TargetNodeId == callNode.Id && c.TargetPinKind != PinKind.Execution))
         {
+            connectedPins.Add(input.TargetPinName);
             if (callerContext.TryGetRaw(input.SourceNodeId, input.SourcePinName, out object value))
                 childContext.Set(entryNode.Id, input.TargetPinName, value);
         }
+
+        ApplyParameterDefaults(callNode, childContext, entryNode.Id, connectedPins);
+        ApplyParameterDefaults(entryNode, childContext, entryNode.Id, connectedPins);
     }
 
     private static void CopyReturnInputsToCallOutputs(
@@ -379,11 +385,61 @@ public sealed class GraphRuntimeExecutor
         GraphRuntimeNode callNode,
         RuntimeContext callerContext)
     {
+        var connectedPins = new HashSet<string>(StringComparer.Ordinal);
         foreach (var input in assetPlan.Connections.Where(c => c.TargetNodeId == returnNode.Id && c.TargetPinKind != PinKind.Execution))
         {
+            connectedPins.Add(input.TargetPinName);
             if (childContext.TryGetRaw(input.SourceNodeId, input.SourcePinName, out object value))
                 callerContext.Set(callNode.Id, input.TargetPinName, value);
         }
+
+        ApplyParameterDefaults(returnNode, callerContext, callNode.Id, connectedPins);
+    }
+
+    private static void ApplyParameterDefaults(
+        GraphRuntimeNode parameterNode,
+        RuntimeContext context,
+        string targetNodeId,
+        ISet<string>? skippedPins = null)
+    {
+        foreach (var parameter in parameterNode.Parameters)
+        {
+            if (skippedPins?.Contains(parameter.Id) == true)
+                continue;
+            if (context.TryGetRaw(targetNodeId, parameter.Id, out _))
+                continue;
+
+            context.Set(targetNodeId, parameter.Id, ConvertParameterDefault(parameter));
+        }
+    }
+
+    private static object ConvertParameterDefault(GraphRuntimeParameter parameter)
+    {
+        string value = parameter.DefaultValue ?? string.Empty;
+        return parameter.Type switch
+        {
+            GraphParameterType.Boolean => bool.TryParse(value, out bool boolean) && boolean,
+            GraphParameterType.Vector2D => TryParsePoint(value, out var point) ? point : new DrawingPoint(0, 0),
+            _ => value,
+        };
+    }
+
+    private static bool TryParsePoint(string value, out DrawingPoint point)
+    {
+        var parts = value
+            .Trim()
+            .Trim('(', ')')
+            .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length >= 2 &&
+            double.TryParse(parts[0], out double x) &&
+            double.TryParse(parts[1], out double y))
+        {
+            point = new DrawingPoint((int)Math.Round(x), (int)Math.Round(y));
+            return true;
+        }
+
+        point = default;
+        return false;
     }
 
     private static GraphRuntimeNode? GetNextExecutionNode(GraphExecutionPlan plan, string sourceNodeId, string sourcePinName)

@@ -16,11 +16,13 @@ public sealed class PinConnectionController
     private readonly Path _previewPath;
     private readonly Func<Point, Point> _viewportToGraph;
     private readonly Func<Point, PinViewModel?> _pinAtGraphPosition;
+    private readonly Action<Point> _openNodePaletteForConnection;
     private readonly Action<NodeBaseViewModel?> _selectNode;
     private readonly Action<bool> _setCanvasFocusActive;
     private readonly Action<string> _setStatus;
 
-    private PinViewModel? _pendingOutputPin;
+    private PinViewModel? _pendingStartPin;
+    private PinViewModel? _pendingPalettePin;
     private bool _isConnecting;
     private bool _wireWasDragged;
 
@@ -31,6 +33,7 @@ public sealed class PinConnectionController
         Path previewPath,
         Func<Point, Point> viewportToGraph,
         Func<Point, PinViewModel?> pinAtGraphPosition,
+        Action<Point> openNodePaletteForConnection,
         Action<NodeBaseViewModel?> selectNode,
         Action<bool> setCanvasFocusActive,
         Action<string> setStatus)
@@ -41,6 +44,7 @@ public sealed class PinConnectionController
         _previewPath = previewPath;
         _viewportToGraph = viewportToGraph;
         _pinAtGraphPosition = pinAtGraphPosition;
+        _openNodePaletteForConnection = openNodePaletteForConnection;
         _selectNode = selectNode;
         _setCanvasFocusActive = setCanvasFocusActive;
         _setStatus = setStatus;
@@ -63,18 +67,15 @@ public sealed class PinConnectionController
             return;
         }
 
-        if (pin.Direction == PinDirection.Output)
+        if (IsConnecting)
         {
-            Begin(pin, _viewportToGraph(e.GetPosition(_captureElement)));
+            Complete(pin);
             e.Handled = true;
             return;
         }
 
-        if (pin.Direction == PinDirection.Input && IsConnecting)
-        {
-            Complete(pin);
-            e.Handled = true;
-        }
+        Begin(pin, _viewportToGraph(e.GetPosition(_captureElement)));
+        e.Handled = true;
     }
 
     public void HandlePinMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
@@ -141,43 +142,48 @@ public sealed class PinConnectionController
         _setStatus($"已断开 {pin.Owner.Title}.{pin.DisplayName} 的所有连接。");
     }
 
-    public void Begin(PinViewModel outputPin, Point currentPoint)
+    public void Begin(PinViewModel startPin, Point currentPoint)
     {
-        _pendingOutputPin = outputPin;
+        _pendingStartPin = startPin;
+        _pendingPalettePin = null;
         _isConnecting = true;
         _wireWasDragged = false;
         _captureElement.CaptureMouse();
-        UpdatePreviewGeometry(outputPin, currentPoint);
+        UpdatePreviewGeometry(startPin, currentPoint);
         _previewPath.Visibility = Visibility.Visible;
-        _setStatus($"从{outputPin.Owner.Title}.{outputPin.DisplayName} 拖拽连线...");
+        _setStatus($"从{startPin.Owner.Title}.{startPin.DisplayName} 拖拽连线...");
     }
 
     public void Move(Point currentPoint)
     {
-        if (!_isConnecting || _pendingOutputPin is null)
+        if (!_isConnecting || _pendingStartPin is null)
             return;
 
         _wireWasDragged = true;
-        UpdatePreviewGeometry(_pendingOutputPin, currentPoint);
+        UpdatePreviewGeometry(_pendingStartPin, currentPoint);
     }
 
     public bool Complete(PinViewModel targetPin)
     {
-        if (_pendingOutputPin is null || !_isConnecting)
+        if (_pendingStartPin is null || !_isConnecting)
             return false;
 
-        if (targetPin == _pendingOutputPin)
+        if (targetPin == _pendingStartPin)
+        {
+            Cancel(null);
             return true;
+        }
 
-        if (!_editorService.CanConnect(_pendingOutputPin, targetPin, out var reason))
+        if (!TryNormalizeConnection(_pendingStartPin, targetPin, out var sourcePin, out var inputPin, out var reason) ||
+            !_editorService.CanConnect(sourcePin, inputPin, out reason))
         {
             _setStatus(reason);
             Cancel(null);
             return true;
         }
 
-        _editorService.CreateConnection(_pendingOutputPin, targetPin);
-        _setStatus($"已连接：{_pendingOutputPin.Owner.Title}.{_pendingOutputPin.DisplayName} -> {targetPin.Owner.Title}.{targetPin.DisplayName}");
+        _editorService.CreateConnection(sourcePin, inputPin);
+        _setStatus($"已连接：{sourcePin.Owner.Title}.{sourcePin.DisplayName} -> {inputPin.Owner.Title}.{inputPin.DisplayName}");
         Cancel(null);
         return true;
     }
@@ -187,26 +193,63 @@ public sealed class PinConnectionController
         if (!_isConnecting)
             return;
 
-        if (targetPin is not null && targetPin != _pendingOutputPin)
+        if (targetPin is not null && targetPin != _pendingStartPin)
         {
             Complete(targetPin);
-        }
-        else if (_wireWasDragged)
-        {
-            Cancel("已取消连线。");
+            return;
         }
 
-        ReleasePreviewWire();
+        if (_wireWasDragged)
+        {
+            OpenPaletteFromPendingWire();
+            return;
+        }
+
+        Cancel(null);
     }
 
     public void Cancel(string? statusMessage)
     {
-        _pendingOutputPin = null;
+        _pendingStartPin = null;
         _isConnecting = false;
         ReleasePreviewWire();
 
         if (!string.IsNullOrWhiteSpace(statusMessage))
             _setStatus(statusMessage);
+    }
+
+    public void CancelPendingPaletteConnection()
+    {
+        _pendingPalettePin = null;
+    }
+
+    public bool TryAutoConnectNewNode(NodeBaseViewModel newNode)
+    {
+        if (_pendingPalettePin is null)
+            return false;
+
+        var startPin = _pendingPalettePin;
+        _pendingPalettePin = null;
+        var candidates = startPin.Direction == PinDirection.Output
+            ? newNode.InputPins
+            : newNode.OutputPins;
+
+        foreach (var candidate in candidates)
+        {
+            if (!TryNormalizeConnection(startPin, candidate, out var sourcePin, out var inputPin, out _) ||
+                !_editorService.CanConnect(sourcePin, inputPin, out _))
+            {
+                continue;
+            }
+
+            _editorService.CreateConnection(sourcePin, inputPin);
+            _editorService.UpdatePinConnectionStates();
+            _setStatus($"已创建节点并连接：{sourcePin.Owner.Title}.{sourcePin.DisplayName} -> {inputPin.Owner.Title}.{inputPin.DisplayName}");
+            return true;
+        }
+
+        _setStatus("已创建节点，但没有找到可自动连接的匹配引脚。");
+        return false;
     }
 
     public void RemoveConnection(ConnectionViewModel connection)
@@ -229,9 +272,10 @@ public sealed class PinConnectionController
         var start = new Point(sourcePin.Owner.X + startAnchor.X, sourcePin.Owner.Y + startAnchor.Y);
         var end = currentPoint;
 
+        double direction = sourcePin.Direction == PinDirection.Output ? 1.0 : -1.0;
         var tangent = Math.Max(80, Math.Abs(end.X - start.X) * 0.45);
-        var control1 = new Point(start.X + tangent, start.Y);
-        var control2 = new Point(end.X - tangent, end.Y);
+        var control1 = new Point(start.X + tangent * direction, start.Y);
+        var control2 = new Point(end.X - tangent * direction, end.Y);
 
         var figure = new PathFigure
         {
@@ -244,6 +288,48 @@ public sealed class PinConnectionController
         var geometry = new PathGeometry();
         geometry.Figures.Add(figure);
         _previewPath.Data = geometry;
+    }
+
+    private void OpenPaletteFromPendingWire()
+    {
+        if (_pendingStartPin is null)
+            return;
+
+        _pendingPalettePin = _pendingStartPin;
+        _pendingStartPin = null;
+        _isConnecting = false;
+        ReleasePreviewWire();
+        _openNodePaletteForConnection(Mouse.GetPosition(_captureElement));
+        _setStatus("选择节点后将自动连接引脚。");
+    }
+
+    private static bool TryNormalizeConnection(
+        PinViewModel first,
+        PinViewModel second,
+        out PinViewModel sourcePin,
+        out PinViewModel inputPin,
+        out string reason)
+    {
+        if (first.Direction == PinDirection.Output && second.Direction == PinDirection.Input)
+        {
+            sourcePin = first;
+            inputPin = second;
+            reason = string.Empty;
+            return true;
+        }
+
+        if (first.Direction == PinDirection.Input && second.Direction == PinDirection.Output)
+        {
+            sourcePin = second;
+            inputPin = first;
+            reason = string.Empty;
+            return true;
+        }
+
+        sourcePin = first;
+        inputPin = second;
+        reason = "连线方向不正确，必须连接输出引脚和输入引脚。";
+        return false;
     }
 
     private static ConnectionViewModel? FindConnectionFromSource(DependencyObject? source)

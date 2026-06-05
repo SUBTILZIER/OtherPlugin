@@ -172,7 +172,8 @@ public partial class MainWindow : Window
             SnapshotActiveAsset,
             ViewportToGraph,
             () => new System.Windows.Size(GraphViewport.ActualWidth, GraphViewport.ActualHeight),
-            SelectNode);
+            SelectNode,
+            node => _pinConnectionController.TryAutoConnectNewNode(node));
 
         _canvasPanZoomController = new CanvasPanZoomController(
             GraphViewport,
@@ -203,6 +204,7 @@ public partial class MainWindow : Window
             InspectorHintTextBlock,
             NodeTitleTextBox,
             ParameterInspectorPanel,
+            AddParameterButton,
             ParameterInspectorTitle,
             ParameterRowsPanel,
             FindImageInspectorPanel,
@@ -293,6 +295,7 @@ public partial class MainWindow : Window
             PreviewConnectionPath,
             ViewportToGraph,
             position => TryGetPinAtPosition(position, out var pin) ? pin : null,
+            OpenNodePaletteForConnection,
             SelectNode,
             _nodeDragSelectionController.SetCanvasFocusActive,
             SetStatus);
@@ -2208,7 +2211,35 @@ public partial class MainWindow : Window
     private bool TryGetPinAtPosition(Point position, out PinViewModel? pin)
     {
         var hit = GraphSurface.InputHitTest(position) as DependencyObject;
-        return TryGetPinFromSource(hit, out pin);
+        if (TryGetPinFromSource(hit, out pin))
+            return true;
+
+        return TryGetNearestPinAtPosition(position, out pin);
+    }
+
+    private bool TryGetNearestPinAtPosition(Point position, out PinViewModel? pin)
+    {
+        const double hitRadius = 24.0;
+        double bestDistanceSquared = hitRadius * hitRadius;
+        PinViewModel? bestPin = null;
+
+        foreach (var candidate in _editorService.Nodes.SelectMany(node => node.InputPins.Concat(node.OutputPins)))
+        {
+            var anchor = candidate.Owner.GetPinAnchor(candidate);
+            double x = candidate.Owner.X + anchor.X;
+            double y = candidate.Owner.Y + anchor.Y;
+            double dx = position.X - x;
+            double dy = position.Y - y;
+            double distanceSquared = dx * dx + dy * dy;
+            if (distanceSquared > bestDistanceSquared)
+                continue;
+
+            bestDistanceSquared = distanceSquared;
+            bestPin = candidate;
+        }
+
+        pin = bestPin;
+        return pin is not null;
     }
 
     private static bool TryGetPinFromSource(DependencyObject? source, out PinViewModel? pin)
@@ -2313,11 +2344,18 @@ public partial class MainWindow : Window
 
     private void OpenNodePalette(Point viewportPos)
     {
+        _pinConnectionController.CancelPendingPaletteConnection();
+        _nodePaletteController.Open(viewportPos);
+    }
+
+    private void OpenNodePaletteForConnection(Point viewportPos)
+    {
         _nodePaletteController.Open(viewportPos);
     }
 
     private void CloseNodePalette()
     {
+        _pinConnectionController.CancelPendingPaletteConnection();
         _nodePaletteController.Close();
     }
 

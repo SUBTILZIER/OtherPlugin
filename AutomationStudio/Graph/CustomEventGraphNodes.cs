@@ -1,3 +1,5 @@
+using System.Collections.ObjectModel;
+
 namespace AutomationStudioWpf.Graph;
 
 public sealed class CustomEventNodeViewModel : ParameterNodeBaseViewModel
@@ -40,13 +42,20 @@ public sealed class CustomEventCallNodeViewModel : NodeBaseViewModel
     public override string NodeTypeKey => "custom_event_call";
 
     public string CustomEventId { get; set; }
+    public ObservableCollection<GraphParameterDefinition> InputParameters { get; } = [];
 
     public void ConfigurePins(IEnumerable<GraphParameterDefinition> inputs)
+    {
+        CallNodeParameterSync.Merge(InputParameters, inputs, preserveDefaultValue: true);
+        SyncPins();
+    }
+
+    public void SyncPins()
     {
         InputPins.Clear();
         OutputPins.Clear();
         AddInput("exec_in", "执行输入", PinKind.Execution);
-        foreach (var input in inputs)
+        foreach (var input in InputParameters)
             AddInput(input.Id, input.Name, input.ToPinKind());
         AddOutput("exec_out", "执行输出", PinKind.Execution);
         RefreshDescription();

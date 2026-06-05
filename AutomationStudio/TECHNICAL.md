@@ -446,14 +446,27 @@ Python 参数规则：
 - 左侧树禁横向滚动，长名称用 `TextTrimming=CharacterEllipsis`；用户可拖 splitter 加宽。
 - 右侧 `ContentBrowserListBox` 保持 `ScrollViewer.HorizontalScrollBarVisibility="Disabled"`，`WrapPanel` 绑定 ListBox 实际宽度，拖动分栏后自动重排瓦片。
 
+#### 画布连线交互
+- 从输入或输出引脚拖线到空白画布并抬起，会打开同一个节点菜单；创建节点后由 `PinConnectionController.TryAutoConnectNewNode()` 自动连接第一个兼容的相反方向引脚。
+- 普通右键打开节点菜单前必须清掉待自动连接状态；连线落空打开菜单时不能清。
+- 引脚释放判定不只依赖 WPF 精确 `InputHitTest`，还会按图空间距离查找最近引脚，当前半径为 24。
+
+#### 参数默认值
+- `GraphParameterDefinition.DefaultValue` 是函数/宏/自定义事件参数默认值，必须写入 `GraphParameterFileModel`，并通过 `GraphRuntimeParameter` 进入运行时。
+- 函数/宏/自定义事件入口参数：调用节点对应输入未连接时，运行时使用入口参数默认值。
+- 函数返回/宏输出参数：返回节点对应输入未连接时，调用节点输出使用返回/输出参数默认值。
+- Float/Vector3D/Vector4D/ImageAsset/String 目前仍映射为 `String` pin；默认值按字符串传递，例如 `23.0f`。Boolean 默认值解析为 bool，Vector2D 默认值可写 `x,y`。
+
 #### 验证门禁
 - `Tests/CodexSmoke/Program.cs` 负责 UI smoke：检查 header 无新建按钮、右键菜单模式、暗色菜单模板、树缩进、箭头几何、splitter 列宽、单击进入/箭头展开行为、图表隔离、公开到库硬隔离与编译校验。
+- Smoke 是轻量启动/回归验收，不是完整测试框架。只放关键交互和数据隔离断言；如果单次执行明显变慢，要优先拆小或删除低价值断言。
 - 完成功能前固定执行：
   - `dotnet build .\AutomationStudioWpf.csproj -o .\bin\CodexBuildCheck`
   - `dotnet run --project .\Tests\CodexSmoke\AutomationStudioSmoke.csproj --no-restore`
-  - `dotnet run --project .\AutomationStudioWpf.csproj` 启动观察约 20 秒
+  - `dotnet run --project .\AutomationStudioWpf.csproj` 做短启动探测，能正常拉起窗口即可
   - `codegraph.cmd sync`
-- 启动验证 20 秒超时代表 WPF 窗口正常常驻；如果出现 `Unhandled exception` 或提前退出，必须先修。
+- 启动验证不再固定等待 20 秒；只确认能正常启动。若进程快速退出、输出 `Unhandled exception` 或 WPF 初始化异常，必须收集终端输出/异常栈并先修。
+- 不要自动 `git push`。只有用户明确要求推送时才推；推送前确认不包含测试功能相关文件夹。
 
 ### 2026-06-05：事件图 / 函数 / 宏画布隔离修复
 

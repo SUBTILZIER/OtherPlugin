@@ -7,6 +7,7 @@ WPF 可视化节点自动化编辑器，类似 UE4 蓝图。技术栈 C# 12 / .N
 - 默认用中文，回答简洁。
 - 中间进度只说：正在做什么、发现什么、下一步。
 - 保留准确文件名、类名、方法名、命令，不为了省字改技术名词。
+- 不要自动 `git push`。只有用户明确要求推送时才推；推送前确认不包含测试功能相关文件夹。
 
 ## 踩坑记录（按时间倒序，新记录追加到顶部）
 
@@ -16,11 +17,14 @@ WPF 可视化节点自动化编辑器，类似 UE4 蓝图。技术栈 C# 12 / .N
 - 函数库/宏库内函数/宏默认不出现在其他脚本节点搜索里；只有勾选 `公开到库` (`GraphListItemViewModel.IsPublicToLibrary`) 才显示。`CallableGraphResolver` 是节点菜单、编译同步、运行时查找的统一来源；未公开库项被其他脚本引用时编译失败并保留 dirty。
 - 编译错误路径必须打印内容浏览器完整路径：`content/父文件夹/.../资产/图`。函数库、宏库在嵌套文件夹里报错时也不能只显示 `资产/图`。
 - 自定义事件只属于当前脚本事件图：`CustomEvent` 是入口，`CustomEventCall` 是调用，二者用 `CustomEventId` 绑定。节点菜单只在事件图显示 `本脚本事件`；运行时执行事件链后回到调用节点 `exec_out`，递归用 `custom_event:{id}` 拦截。
+- 连线交互：从输入或输出引脚拖到空白画布并抬起，会打开节点菜单；创建节点后自动连接第一个兼容的相反方向引脚。引脚释放判定使用放大半径，不只依赖精确 hit test。
+- 参数默认值：`GraphParameterDefinition.DefaultValue` 必须随保存/加载/编译同步/运行时模型传递。函数、宏、自定义事件入口参数未由调用节点输入时使用默认值；函数返回/宏输出参数未接输入时也使用默认值。
 - 右键空白显示新增菜单；右键资产只显示 `重命名 / 删除`。同一个 `ContextMenu` 通过 `ContentBrowserContextMenu_Opened` 切换可见项，避免把带事件的菜单塞进 `ListBoxItem.Style Setter`，那会导致 WPF 启动期 `IStyleConnector` 类型转换崩溃。
 - 文件夹树：单击文件夹行进入该文件夹；点击箭头按钮只展开/收起，不进入。`HasFolderChildren` 只统计子文件夹，不因脚本/库资产显示箭头。
 - 文件夹树缩进用 `TreeIndent` 像素绑定，不用 `TreeDisplayName` 前置空格。箭头图标样式为 `ContentFolderToggleIconStyle`：收起朝右，展开朝下；默认 `Path.Data` 必须放在 `Style Setter`，不要写本地 `Data`，否则 `DataTrigger` 覆盖不了。
 - 内容浏览器左树和右瓦片之间有 `ContentBrowserTreeSplitter`，左树列 `ContentTreeColumn` 默认 180，范围 120-420；右侧瓦片列最小 240，并继续用禁横向滚动的 `WrapPanel` 自动换行。
-- 验证门禁：完成前必须跑 `dotnet build .\AutomationStudioWpf.csproj -o .\bin\CodexBuildCheck`、`dotnet run --project .\Tests\CodexSmoke\AutomationStudioSmoke.csproj --no-restore`、`dotnet run --project .\AutomationStudioWpf.csproj` 启动观察 20 秒、`codegraph.cmd sync`。启动命令 20 秒超时代表窗口正常常驻；若输出 `Unhandled exception` 或提前退出，必须先修。
+- 验证门禁：完成前必须跑 `dotnet build .\AutomationStudioWpf.csproj -o .\bin\CodexBuildCheck`、`dotnet run --project .\Tests\CodexSmoke\AutomationStudioSmoke.csproj --no-restore`、`dotnet run --project .\AutomationStudioWpf.csproj` 启动崩溃探测、`codegraph.cmd sync`。启动检查不固定等待 20 秒；能正常创建窗口即可。若进程快速退出、输出 `Unhandled exception` 或 WPF 初始化异常，必须收集终端输出/异常栈并先修。
+- `Tests/CodexSmoke` 是轻量 smoke/回归验收，不是完整测试框架。只覆盖关键 UI/数据回归，避免越加越慢；测试相关文件夹不要推送，除非用户明确要求纳入版本。
 
 ### 2026-06-05: 事件图 / 函数 / 宏画布串图
 

@@ -323,6 +323,54 @@ public sealed class GraphEditorService
         }
     }
 
+    public void RebindConnectionsToCurrentPins()
+    {
+        if (Connections.Count == 0)
+            return;
+
+        var nodesById = Nodes.ToDictionary(node => node.Id, StringComparer.Ordinal);
+        var rebound = new List<ConnectionViewModel>();
+        foreach (var connection in Connections.ToList())
+        {
+            string sourceNodeId = connection.SourcePin.Owner.Id;
+            string sourcePinName = connection.SourcePin.Name;
+            string targetNodeId = connection.TargetPin.Owner.Id;
+            string targetPinName = connection.TargetPin.Name;
+
+            connection.Dispose();
+
+            if (!nodesById.TryGetValue(sourceNodeId, out var sourceNode) ||
+                !nodesById.TryGetValue(targetNodeId, out var targetNode))
+            {
+                Logger.Warn($"连线重绑定时节点不存在，已移除：{sourceNodeId}.{sourcePinName} -> {targetNodeId}.{targetPinName}");
+                continue;
+            }
+
+            var sourcePin = sourceNode.OutputPins.FirstOrDefault(pin => pin.Name == sourcePinName);
+            var targetPin = targetNode.InputPins.FirstOrDefault(pin => pin.Name == targetPinName);
+            if (sourcePin is null || targetPin is null)
+            {
+                Logger.Warn($"连线重绑定时引脚不存在，已移除：{sourceNodeId}.{sourcePinName} -> {targetNodeId}.{targetPinName}");
+                continue;
+            }
+
+            if (!CanConnect(sourcePin, targetPin, out string reason))
+            {
+                Logger.Warn($"连线重绑定时类型无效，已移除：{sourceNodeId}.{sourcePinName} -> {targetNodeId}.{targetPinName}。{reason}");
+                continue;
+            }
+
+            rebound.Add(new ConnectionViewModel(sourcePin, targetPin));
+        }
+
+        Connections.Clear();
+        foreach (var connection in rebound)
+            Connections.Add(connection);
+
+        UpdatePinConnectionStates();
+        GraphChanged?.Invoke();
+    }
+
     public bool CanConnect(PinViewModel sourcePin, PinViewModel targetPin, out string reason)
     {
         if (sourcePin.Owner == targetPin.Owner)
