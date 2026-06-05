@@ -11,23 +11,25 @@ public sealed class GraphCallReferenceSyncResult
 
 public sealed class GraphCallReferenceSyncService
 {
+    private readonly CallableGraphResolver _callableResolver;
+
+    public GraphCallReferenceSyncService(CallableGraphResolver callableResolver)
+    {
+        _callableResolver = callableResolver;
+    }
+
     public GraphCallReferenceSyncResult Sync(IEnumerable<ContentAssetViewModel> assets)
     {
         var assetList = assets.Where(asset => asset.Kind != ContentAssetKind.Folder).ToList();
-        var functions = assetList
-            .SelectMany(asset => asset.Functions)
-            .Concat(assetList.Where(asset => asset.Kind == ContentAssetKind.FunctionLibrary).SelectMany(asset => asset.Functions))
-            .GroupBy(item => item.Id)
-            .ToDictionary(group => group.Key, group => group.First());
-        var macros = assetList
-            .SelectMany(asset => asset.Macros)
-            .Concat(assetList.Where(asset => asset.Kind == ContentAssetKind.MacroLibrary).SelectMany(asset => asset.Macros))
-            .GroupBy(item => item.Id)
-            .ToDictionary(group => group.Key, group => group.First());
 
         var result = new GraphCallReferenceSyncResult();
         foreach (var asset in assetList)
         {
+            var functions = _callableResolver.ResolveFunctions(assetList, asset)
+                .ToDictionary(item => item.Id, StringComparer.Ordinal);
+            var macros = _callableResolver.ResolveMacros(assetList, asset)
+                .ToDictionary(item => item.Id, StringComparer.Ordinal);
+
             foreach (var graph in asset.EventGraphs.Concat(asset.Functions).Concat(asset.Macros).Select(item => item.Graph))
             {
                 int updated = SyncGraph(graph, functions, macros, out int removed);
@@ -43,8 +45,8 @@ public sealed class GraphCallReferenceSyncService
 
     private static int SyncGraph(
         GraphFileModel graph,
-        IReadOnlyDictionary<string, GraphListItemViewModel> functions,
-        IReadOnlyDictionary<string, GraphListItemViewModel> macros,
+        IReadOnlyDictionary<string, CallableGraphItem> functions,
+        IReadOnlyDictionary<string, CallableGraphItem> macros,
         out int removedConnections)
     {
         int updated = 0;

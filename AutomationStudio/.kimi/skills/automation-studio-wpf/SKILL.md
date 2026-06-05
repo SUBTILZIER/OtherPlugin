@@ -13,13 +13,14 @@ WPF 可视化节点自动化编辑器，类似 UE4 蓝图。技术栈 C# 12 / .N
 ### 2026-06-05: 内容浏览器 UE 风格交互与验证门禁
 
 - 内容浏览器顶部不再放新增按钮；新增资产统一走右侧空白右键菜单，菜单项只保留 `脚本 / 文件夹 / 函数库 / 宏库`。不要再加单独“宏”资产，宏跟随脚本/宏库内部编辑面板。
-- 函数库/宏库内函数/宏默认不出现在其他脚本节点搜索里；只有勾选 `公开到库` (`GraphListItemViewModel.IsPublicToLibrary`) 才显示。节点菜单过滤公开项，执行器保留完整 id 查找，避免旧调用因取消公开失效。
+- 函数库/宏库内函数/宏默认不出现在其他脚本节点搜索里；只有勾选 `公开到库` (`GraphListItemViewModel.IsPublicToLibrary`) 才显示。`CallableGraphResolver` 是节点菜单、编译同步、运行时查找的统一来源；未公开库项被其他脚本引用时编译失败并保留 dirty。
+- 编译错误路径必须打印内容浏览器完整路径：`content/父文件夹/.../资产/图`。函数库、宏库在嵌套文件夹里报错时也不能只显示 `资产/图`。
 - 自定义事件只属于当前脚本事件图：`CustomEvent` 是入口，`CustomEventCall` 是调用，二者用 `CustomEventId` 绑定。节点菜单只在事件图显示 `本脚本事件`；运行时执行事件链后回到调用节点 `exec_out`，递归用 `custom_event:{id}` 拦截。
 - 右键空白显示新增菜单；右键资产只显示 `重命名 / 删除`。同一个 `ContextMenu` 通过 `ContentBrowserContextMenu_Opened` 切换可见项，避免把带事件的菜单塞进 `ListBoxItem.Style Setter`，那会导致 WPF 启动期 `IStyleConnector` 类型转换崩溃。
 - 文件夹树：单击文件夹行进入该文件夹；点击箭头按钮只展开/收起，不进入。`HasFolderChildren` 只统计子文件夹，不因脚本/库资产显示箭头。
 - 文件夹树缩进用 `TreeIndent` 像素绑定，不用 `TreeDisplayName` 前置空格。箭头图标样式为 `ContentFolderToggleIconStyle`：收起朝右，展开朝下；默认 `Path.Data` 必须放在 `Style Setter`，不要写本地 `Data`，否则 `DataTrigger` 覆盖不了。
 - 内容浏览器左树和右瓦片之间有 `ContentBrowserTreeSplitter`，左树列 `ContentTreeColumn` 默认 180，范围 120-420；右侧瓦片列最小 240，并继续用禁横向滚动的 `WrapPanel` 自动换行。
-- 验证门禁：完成前必须跑 `dotnet build .\AutomationStudioWpf.csproj -o .\bin\CodexBuildCheck`、`dotnet run --project .\bin\CodexSmoke\AutomationStudioSmoke.csproj --no-restore`、`dotnet run --project .\AutomationStudioWpf.csproj` 启动观察 20 秒、`codegraph.cmd sync`。启动命令 20 秒超时代表窗口正常常驻；若输出 `Unhandled exception` 或提前退出，必须先修。
+- 验证门禁：完成前必须跑 `dotnet build .\AutomationStudioWpf.csproj -o .\bin\CodexBuildCheck`、`dotnet run --project .\Tests\CodexSmoke\AutomationStudioSmoke.csproj --no-restore`、`dotnet run --project .\AutomationStudioWpf.csproj` 启动观察 20 秒、`codegraph.cmd sync`。启动命令 20 秒超时代表窗口正常常驻；若输出 `Unhandled exception` 或提前退出，必须先修。
 
 ### 2026-06-05: 事件图 / 函数 / 宏画布串图
 

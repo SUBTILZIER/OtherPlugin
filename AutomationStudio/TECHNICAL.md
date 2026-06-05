@@ -447,10 +447,10 @@ Python 参数规则：
 - 右侧 `ContentBrowserListBox` 保持 `ScrollViewer.HorizontalScrollBarVisibility="Disabled"`，`WrapPanel` 绑定 ListBox 实际宽度，拖动分栏后自动重排瓦片。
 
 #### 验证门禁
-- `bin/CodexSmoke/Program.cs` 负责 UI smoke：检查 header 无新建按钮、右键菜单模式、暗色菜单模板、树缩进、箭头几何、splitter 列宽、单击进入/箭头展开行为、图表隔离与编译同步。
+- `Tests/CodexSmoke/Program.cs` 负责 UI smoke：检查 header 无新建按钮、右键菜单模式、暗色菜单模板、树缩进、箭头几何、splitter 列宽、单击进入/箭头展开行为、图表隔离、公开到库硬隔离与编译校验。
 - 完成功能前固定执行：
   - `dotnet build .\AutomationStudioWpf.csproj -o .\bin\CodexBuildCheck`
-  - `dotnet run --project .\bin\CodexSmoke\AutomationStudioSmoke.csproj --no-restore`
+  - `dotnet run --project .\Tests\CodexSmoke\AutomationStudioSmoke.csproj --no-restore`
   - `dotnet run --project .\AutomationStudioWpf.csproj` 启动观察约 20 秒
   - `codegraph.cmd sync`
 - 启动验证 20 秒超时代表 WPF 窗口正常常驻；如果出现 `Unhandled exception` 或提前退出，必须先修。
@@ -836,8 +836,10 @@ dotnet publish -c Release -r win-x64 \
 - 新保存后以 `ContentAssets` 为准。
 
 ### 调用范围
-- 脚本内只能调用本脚本私有函数/宏。
-- 所有脚本都可以搜索函数库/宏库中已勾选 `公开到库` 的函数/宏。
+- `CallableGraphResolver` 是函数/宏可调用项的唯一来源，节点菜单、编译同步、运行时都必须走它。
+- 脚本内只能调用本脚本私有函数/宏，以及函数库/宏库中已勾选 `公开到库` 的函数/宏。
+- 函数库/宏库内部可以调用本库私有项；其他脚本不能搜索、编译同步或运行未公开库项。
+- 编译错误路径必须用内容浏览器完整路径：`content/父文件夹/.../资产/图`。函数库、宏库在文件夹内时报错也必须带完整层级。
 - 右键节点菜单按 `本脚本函数`、`本脚本宏`、`函数库`、`宏库` 分组。
 - 库函数/宏显示为 `库名/函数名` 或 `库名/宏名`，运行时仍用稳定 ID，不靠名字解析。
 - 自定义事件显示在节点菜单 `本脚本事件` 分组，只能在当前脚本事件图内调用，不跨脚本/函数库/宏库。
@@ -845,8 +847,8 @@ dotnet publish -c Release -r win-x64 \
 ### 重要坑点
 - 打开节点菜单前必须 `SnapshotActiveAsset()`，否则函数/宏参数刚改完但未写回 `GraphFileModel`，调用节点会缺 pin。
 - `GraphListController.LoadItem(item, snapshotCurrent: false)` 用于上层资产切换；跨事件图/函数/宏切换由 `MainWindow` 统一快照，避免图谱混写。
-- `ExecutionController` 和 `NodePaletteController` 读取 `CallableGraphItem`，不是直接读取全局 `FunctionListItems/MacroListItems`。
-- `NodePaletteController` 使用公开过滤后的库函数/宏；`ExecutionController` 使用完整 id 库，避免已有调用因取消公开直接失效。
+- `ExecutionController`、`NodePaletteController`、`GraphCallReferenceSyncService` 都读取 `CallableGraphResolver` 产出的 `CallableGraphItem`，不要直接扫全局 `FunctionListItems/MacroListItems`。
+- `公开到库` 是硬隔离：旧图如果跨脚本引用未公开库项，编译时报错并保留 dirty，不自动删节点。
 - `CustomEventCall` 在当前 `GraphExecutionPlan` 内找 `CustomEventId` 对应入口；运行时用 `custom_event:{id}` 调用栈阻止递归。
 - WPF + WinForms 命名冲突仍要用全限定名，尤其 `Brushes`、`Color`、`Cursors`、`HorizontalAlignment`。
 ## 2026-06-04 恢复记录：编译系统、dirty 规则、左侧折叠栏
@@ -867,11 +869,11 @@ dotnet publish -c Release -r win-x64 \
 - Section collapse state is transient per opened asset. `*SectionHasState` distinguishes user-collapsed non-empty sections from never-toggled default sections.
 - Dirty graph sections show orange header badges; dirty graph items show `*` plus orange item highlighting.
 - `MarkLogicDirty()` marks compile dirty. `MarkLayoutDirty()` only marks save dirty.
-- New graph/function/macro list items start with `IsCompileDirty = true`; compile clears graph dirty flags after signature/call-node sync.
-- Function/macro library rows persist `IsPublicToLibrary`; only public rows appear in node search from other scripts. Runtime keeps full id lookup for existing calls.
+- New graph/function/macro list items start with `IsCompileDirty = true`; compile clears graph dirty flags only after signature/call-node sync and validation succeed.
+- Function/macro library rows persist `IsPublicToLibrary`; only public rows appear in node search, compile sync, and runtime lookup from other scripts.
 - `CustomEvent` stores `CustomEventId`; call nodes serialize it separately from `FunctionId` / `MacroId`. Do not reuse function/macro ids for events.
 - `GraphLibraryService` defaults to `%APPDATA%/AutomationStudioWpf`, but tooling may set `AUTOMATION_STUDIO_LIBRARY_DIR` for isolated smoke tests.
-- Compile clears graph compile flags and marks only assets changed by call-reference sync as save dirty.
+- Compile only clears graph compile flags when validation succeeds, and marks only assets changed by call-reference sync as save dirty.
 - `Window_PreviewKeyDown` routes `Delete` / `F2` to focused graph/content list, while text boxes keep normal editing behavior.
 - Content tree commands track `_contentFolderSelectionActive` so folder right-click/`Delete`/`F2` cannot act on a stale tile selection.
 - Build gate: `dotnet build .\AutomationStudioWpf.csproj -o .\bin\CodexBuildCheck` must stay `0 warning / 0 error`.

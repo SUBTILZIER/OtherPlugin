@@ -21,7 +21,8 @@
 - Right-click graph/function/macro items also activates the item before opening the context menu so rename/delete target the correct controller.
 - Bottom panel default: content browser and log split 50/50; bottom row height starts at 360 with min 180.
 - Smoke test must cover event/function/macro switching and assert graph models stay event-only/function-only/macro-only.
-- FunctionLibrary/MacroLibrary entries have `IsPublicToLibrary` (`公开到库`). Node palette only lists public library functions/macros for other scripts; script-local functions/macros remain searchable inside their own script. Runtime lookup still includes hidden library ids so existing calls do not break.
+- FunctionLibrary/MacroLibrary entries have `IsPublicToLibrary` (`公开到库`). `CallableGraphResolver` is the single source for palette, compile sync, and runtime lookup. Other scripts can only use public library functions/macros; old private-library calls fail compile and keep dirty.
+- Compile issue paths must be full content-browser paths: `content/父文件夹/.../资产/图`. This includes function/macro library graphs under nested folders.
 - Custom events are event-graph local: `CustomEventNodeViewModel` + `CustomEventCallNodeViewModel`, bound by `CustomEventId`. Palette lists calls under `本脚本事件` only while editing an event graph. Runtime executes target event chain then returns to caller `exec_out`; recursion key is `custom_event:{id}`.
 
 ## 2026-06-04 recovery state
@@ -36,4 +37,4 @@
 - Save may prompt compile. Run is blocked while compile-dirty changes exist.
 - Shared dark context menu style is `DarkContextMenuStyle`; content browser/tree and graph lists must keep it attached.
 - Isolated tests can set `AUTOMATION_STUDIO_LIBRARY_DIR`; default library path remains `%APPDATA%/AutomationStudioWpf`.
-- Verification gates: `dotnet build .\AutomationStudioWpf.csproj -o .\bin\CodexBuildCheck`, `dotnet run --project .\bin\CodexSmoke\AutomationStudioSmoke.csproj --no-restore`, launch check `dotnet run --project .\AutomationStudioWpf.csproj`, then `codegraph.cmd sync`.
+- Verification gates: `dotnet build .\AutomationStudioWpf.csproj -o .\bin\CodexBuildCheck`, `dotnet run --project .\Tests\CodexSmoke\AutomationStudioSmoke.csproj --no-restore`, launch check `dotnet run --project .\AutomationStudioWpf.csproj`, then `codegraph.cmd sync`.

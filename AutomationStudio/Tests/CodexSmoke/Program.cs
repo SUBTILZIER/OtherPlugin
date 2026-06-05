@@ -32,9 +32,12 @@ internal static class Program
             ResetContent(window);
             CheckContentBrowser(window);
             CheckGraphSectionsAndDirty(window);
-            CheckCompileSync();
-            CheckCustomEvents();
-            CheckLibraryPublishFlag(window);
+        CheckCompileSync();
+        CheckCompileRejectsPrivateLibraryCalls();
+        CheckCompileValidationFailures();
+        CheckCustomEvents();
+        CheckLibraryPublishFlag(window);
+        CheckSaveAllClearsNestedDirty(window);
             Console.WriteLine("Smoke OK");
             return 0;
         }
@@ -290,6 +293,7 @@ internal static class Program
 
     private static void CheckGraphSectionsAndDirty(MainWindow window)
     {
+        ResetContent(window);
         var script = window.ContentBrowserItems.First(item => item.Kind == ContentAssetKind.Script);
         Invoke(window, "OpenContentAsset", script);
 
@@ -381,6 +385,7 @@ internal static class Program
         {
             Name = "Fn",
             Kind = GraphAssetKind.Function,
+            IsPublicToLibrary = true,
             Graph = new GraphFileModel
             {
                 AssetKind = GraphAssetKind.Function,
@@ -391,6 +396,11 @@ internal static class Program
                         Id = "function_entry",
                         NodeTypeKey = "function_entry",
                         Parameters = [parameter],
+                    },
+                    new NodeFileModel
+                    {
+                        Id = "function_return",
+                        NodeTypeKey = "function_return",
                     },
                 ],
             },
@@ -412,7 +422,11 @@ internal static class Program
             Graph = new GraphFileModel
             {
                 AssetKind = GraphAssetKind.EventGraph,
-                Nodes = [call],
+                Nodes =
+                [
+                    new NodeFileModel { Id = "start", NodeTypeKey = "start" },
+                    call,
+                ],
             },
             IsCompileDirty = true,
         });
@@ -422,6 +436,152 @@ internal static class Program
         Assert(result.ChangedAssetIds.Contains(script.Id), "compile marks only affected asset dirty");
         Assert(call.InputParameters.Count == 1 && call.InputParameters[0].Id == parameter.Id, "call node input pins match function signature");
         Assert(!function.IsCompileDirty && !script.EventGraphs[0].IsCompileDirty, "compile clears dirty graph flags");
+    }
+
+    private static void CheckCompileRejectsPrivateLibraryCalls()
+    {
+        var hiddenFunction = new GraphListItemViewModel
+        {
+            Name = "HiddenFn",
+            Kind = GraphAssetKind.Function,
+            IsPublicToLibrary = false,
+            Graph = new GraphFileModel
+            {
+                AssetKind = GraphAssetKind.Function,
+                Nodes =
+                [
+                    new NodeFileModel { Id = "function_entry", NodeTypeKey = "function_entry" },
+                    new NodeFileModel { Id = "function_return", NodeTypeKey = "function_return" },
+                ],
+            },
+            IsCompileDirty = true,
+        };
+        var library = new ContentAssetViewModel { Kind = ContentAssetKind.FunctionLibrary, Name = "Lib" };
+        library.Functions.Add(hiddenFunction);
+
+        var scriptGraph = new GraphListItemViewModel
+        {
+            Name = "Event",
+            Kind = GraphAssetKind.EventGraph,
+            Graph = new GraphFileModel
+            {
+                AssetKind = GraphAssetKind.EventGraph,
+                Nodes =
+                [
+                    new NodeFileModel { Id = "start", NodeTypeKey = "start" },
+                    new NodeFileModel { Id = "call", NodeTypeKey = "function_call", FunctionId = hiddenFunction.Id, Title = "HiddenFn" },
+                ],
+            },
+            IsCompileDirty = true,
+        };
+        var script = new ContentAssetViewModel { Kind = ContentAssetKind.Script, Name = "Script" };
+        script.EventGraphs.Add(scriptGraph);
+
+        var result = new GraphCompileService().Compile([library, script]);
+        Assert(!result.Success, "compile rejects private library function from other script");
+        Assert(scriptGraph.IsCompileDirty, "failed compile keeps dirty flag");
+        Assert(result.Issues.Any(issue => issue.Message.Contains("未公开", StringComparison.Ordinal)), "private library compile issue is explicit");
+
+        hiddenFunction.IsPublicToLibrary = true;
+        result = new GraphCompileService().Compile([library, script]);
+        Assert(result.Success, "compile accepts function after publishing to library");
+        Assert(!scriptGraph.IsCompileDirty, "successful compile clears dirty flag");
+    }
+
+    private static void CheckCompileValidationFailures()
+    {
+        var missingStart = new ContentAssetViewModel { Kind = ContentAssetKind.Script, Name = "MissingStart" };
+        missingStart.EventGraphs.Add(new GraphListItemViewModel
+        {
+            Name = "Event",
+            Kind = GraphAssetKind.EventGraph,
+            Graph = new GraphFileModel { AssetKind = GraphAssetKind.EventGraph },
+            IsCompileDirty = true,
+        });
+        var missingStartResult = new GraphCompileService().Compile([missingStart]);
+        Assert(!missingStartResult.Success, "compile fails when event graph has no start node");
+        Assert(missingStart.EventGraphs[0].IsCompileDirty, "failed missing-start compile keeps dirty");
+        Assert(missingStartResult.Issues.Any(issue => issue.Message.StartsWith("content/MissingStart/Event:", StringComparison.Ordinal)),
+            "compile issue path starts at content root");
+
+        var duplicateExec = new ContentAssetViewModel { Kind = ContentAssetKind.Script, Name = "DuplicateExec" };
+        duplicateExec.EventGraphs.Add(new GraphListItemViewModel
+        {
+            Name = "Event",
+            Kind = GraphAssetKind.EventGraph,
+            Graph = new GraphFileModel
+            {
+                AssetKind = GraphAssetKind.EventGraph,
+                Nodes =
+                [
+                    new NodeFileModel { Id = "start", NodeTypeKey = "start" },
+                    new NodeFileModel { Id = "log1", NodeTypeKey = "print_log" },
+                    new NodeFileModel { Id = "log2", NodeTypeKey = "print_log" },
+                ],
+                Connections =
+                [
+                    FileConn("start", "exec_out", "log1", "exec_in"),
+                    FileConn("start", "exec_out", "log2", "exec_in"),
+                ],
+            },
+            IsCompileDirty = true,
+        });
+        var duplicateExecResult = new GraphCompileService().Compile([duplicateExec]);
+        Assert(!duplicateExecResult.Success, "compile fails on duplicate execution output connections");
+
+        var hiddenMacro = new GraphListItemViewModel
+        {
+            Name = "HiddenMacro",
+            Kind = GraphAssetKind.Macro,
+            IsPublicToLibrary = false,
+            Graph = new GraphFileModel
+            {
+                AssetKind = GraphAssetKind.Macro,
+                Nodes =
+                [
+                    new NodeFileModel { Id = "macro_entry", NodeTypeKey = "macro_entry" },
+                    new NodeFileModel { Id = "macro_output", NodeTypeKey = "macro_output" },
+                ],
+            },
+        };
+        var folder1 = new ContentAssetViewModel { Kind = ContentAssetKind.Folder, Name = "Folder1" };
+        var folder2 = new ContentAssetViewModel { Kind = ContentAssetKind.Folder, Name = "Folder2", ParentFolderId = folder1.Id };
+        var macroLibrary = new ContentAssetViewModel { Kind = ContentAssetKind.MacroLibrary, Name = "MacroLib", ParentFolderId = folder2.Id };
+        macroLibrary.Macros.Add(hiddenMacro);
+        var macroCaller = new ContentAssetViewModel { Kind = ContentAssetKind.Script, Name = "MacroCaller" };
+        macroCaller.EventGraphs.Add(new GraphListItemViewModel
+        {
+            Name = "Event",
+            Kind = GraphAssetKind.EventGraph,
+            Graph = new GraphFileModel
+            {
+                AssetKind = GraphAssetKind.EventGraph,
+                Nodes =
+                [
+                    new NodeFileModel { Id = "start", NodeTypeKey = "start" },
+                    new NodeFileModel { Id = "macro_call", NodeTypeKey = "macro_call", MacroId = hiddenMacro.Id, Title = "HiddenMacro" },
+                ],
+            },
+            IsCompileDirty = true,
+        });
+
+        var macroResult = new GraphCompileService().Compile([folder1, folder2, macroLibrary, macroCaller]);
+        Assert(!macroResult.Success, "compile rejects private macro library calls from other script");
+        Assert(macroResult.Issues.Any(issue => issue.Message.StartsWith("content/MacroCaller/Event:", StringComparison.Ordinal)),
+            "caller compile issue path starts at caller content path");
+
+        var brokenMacroLibrary = new ContentAssetViewModel { Kind = ContentAssetKind.MacroLibrary, Name = "BrokenMacroLib", ParentFolderId = folder2.Id };
+        brokenMacroLibrary.Macros.Add(new GraphListItemViewModel
+        {
+            Name = "BrokenMacro",
+            Kind = GraphAssetKind.Macro,
+            Graph = new GraphFileModel { AssetKind = GraphAssetKind.Macro },
+            IsCompileDirty = true,
+        });
+        var brokenMacroResult = new GraphCompileService().Compile([folder1, folder2, brokenMacroLibrary]);
+        Assert(!brokenMacroResult.Success, "compile fails invalid macro library graph");
+        Assert(brokenMacroResult.Issues.Any(issue => issue.Message.StartsWith("content/Folder1/Folder2/BrokenMacroLib/BrokenMacro:", StringComparison.Ordinal)),
+            "library compile issue path includes full folder hierarchy");
     }
 
     private static void CheckCustomEvents()
@@ -460,7 +620,12 @@ internal static class Program
         var graph = new GraphFileModel
         {
             AssetKind = GraphAssetKind.EventGraph,
-            Nodes = [customEventFile, callFile],
+            Nodes =
+            [
+                new NodeFileModel { Id = "start", NodeTypeKey = "start" },
+                customEventFile,
+                callFile,
+            ],
         };
         var script = new ContentAssetViewModel { Kind = ContentAssetKind.Script, Name = "Script" };
         script.EventGraphs.Add(new GraphListItemViewModel
@@ -567,7 +732,7 @@ internal static class Program
         Assert(!searchableMacros.Contains("MacroLib/HiddenMacro"), "hidden library macro is not searchable");
 
         var runtimeFunctions = ((IEnumerable<CallableGraphItem>)Invoke(window, "GetRuntimeCallableFunctions")!).Select(item => item.Name).ToArray();
-        Assert(runtimeFunctions.Contains("FnLib/HiddenFn"), "runtime library keeps hidden function for existing calls");
+        Assert(!runtimeFunctions.Contains("FnLib/HiddenFn"), "runtime library hides private functions from other scripts");
 
         Invoke(window, "OpenContentAsset", functionLibrary);
         Assert(window.FunctionListItems.All(item => item.ShowLibraryPublishOption), "function library rows show publish checkbox");
@@ -581,8 +746,30 @@ internal static class Program
         Assert(!reloaded.First(item => item.Kind == ContentAssetKind.MacroLibrary).Macros.Single(item => item.Name == "HiddenMacro").IsPublicToLibrary, "macro hidden flag persists");
     }
 
+    private static void CheckSaveAllClearsNestedDirty(MainWindow window)
+    {
+        ResetContent(window);
+        var script = window.ContentBrowserItems.First(item => item.Kind == ContentAssetKind.Script);
+        script.EventGraphs.Add(new GraphListItemViewModel { Name = "NestedEvent", IsDirty = true });
+        script.Functions.Add(new GraphListItemViewModel { Name = "NestedFunction", Kind = GraphAssetKind.Function, IsDirty = true });
+        script.Macros.Add(new GraphListItemViewModel { Name = "NestedMacro", Kind = GraphAssetKind.Macro, IsDirty = true });
+        script.IsDirty = true;
+
+        Invoke(window, "SaveAllAssets");
+        Assert(!script.IsDirty, "save all clears asset dirty");
+        Assert(script.EventGraphs.Concat(script.Functions).Concat(script.Macros).All(item => !item.IsDirty), "save all clears nested graph dirty");
+    }
+
     private static GraphRuntimeConnection Exec(string sourceNodeId, string sourcePinName, string targetNodeId, string targetPinName) =>
         new(sourceNodeId, sourcePinName, PinKind.Execution, targetNodeId, targetPinName, PinKind.Execution);
+
+    private static ConnectionFileModel FileConn(string sourceNodeId, string sourcePinName, string targetNodeId, string targetPinName) => new()
+    {
+        SourceNodeId = sourceNodeId,
+        SourcePinName = sourcePinName,
+        TargetNodeId = targetNodeId,
+        TargetPinName = targetPinName,
+    };
 
     private static object? Invoke(object target, string name, params object?[] args)
     {

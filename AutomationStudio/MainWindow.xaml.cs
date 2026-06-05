@@ -34,7 +34,8 @@ public partial class MainWindow : Window
     private readonly NodeClipboardService _clipboardService = new();
     private readonly NodeFactory _nodeFactory = new();
     private readonly GraphLibraryService _graphLibraryService = new();
-    private readonly GraphCompileService _graphCompileService = new();
+    private readonly CallableGraphResolver _callableGraphResolver = new();
+    private readonly GraphCompileService _graphCompileService;
     private readonly NodeRegistry _nodeRegistry = NodeRegistry.CreateDefault();
     private ExecutionController _executionController = null!;
     private NodePaletteController _nodePaletteController = null!;
@@ -77,6 +78,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         DataContext = this;
+        _graphCompileService = new GraphCompileService(_callableGraphResolver);
         InitializeComponent();
         InitializeControllers();
         InitializeServices();
@@ -1039,57 +1041,25 @@ public partial class MainWindow : Window
     private IEnumerable<CallableGraphItem> GetCallableFunctions()
     {
         SaveVisibleGraphsToActiveContent();
-        if (_activeContentAsset?.Kind == ContentAssetKind.Script)
-        {
-            foreach (var function in _activeContentAsset.Functions)
-                yield return new CallableGraphItem(function.Id, function.Name, "本脚本函数", function.Graph);
-        }
-
-        foreach (var library in ContentBrowserItems.Where(asset => asset.Kind == ContentAssetKind.FunctionLibrary))
-        foreach (var function in library.Functions.Where(function => function.IsPublicToLibrary))
-            yield return new CallableGraphItem(function.Id, $"{library.Name}/{function.Name}", "函数库", function.Graph);
+        return _callableGraphResolver.ResolveFunctions(ContentBrowserItems, _activeContentAsset);
     }
 
     private IEnumerable<CallableGraphItem> GetRuntimeCallableFunctions()
     {
         SaveVisibleGraphsToActiveContent();
-        if (_activeContentAsset?.Kind == ContentAssetKind.Script)
-        {
-            foreach (var function in _activeContentAsset.Functions)
-                yield return new CallableGraphItem(function.Id, function.Name, "本脚本函数", function.Graph);
-        }
-
-        foreach (var library in ContentBrowserItems.Where(asset => asset.Kind == ContentAssetKind.FunctionLibrary))
-        foreach (var function in library.Functions)
-            yield return new CallableGraphItem(function.Id, $"{library.Name}/{function.Name}", "函数库", function.Graph);
+        return _callableGraphResolver.ResolveFunctions(ContentBrowserItems, _activeContentAsset);
     }
 
     private IEnumerable<CallableGraphItem> GetCallableMacros()
     {
         SaveVisibleGraphsToActiveContent();
-        if (_activeContentAsset?.Kind == ContentAssetKind.Script)
-        {
-            foreach (var macro in _activeContentAsset.Macros)
-                yield return new CallableGraphItem(macro.Id, macro.Name, "本脚本宏", macro.Graph);
-        }
-
-        foreach (var library in ContentBrowserItems.Where(asset => asset.Kind == ContentAssetKind.MacroLibrary))
-        foreach (var macro in library.Macros.Where(macro => macro.IsPublicToLibrary))
-            yield return new CallableGraphItem(macro.Id, $"{library.Name}/{macro.Name}", "宏库", macro.Graph);
+        return _callableGraphResolver.ResolveMacros(ContentBrowserItems, _activeContentAsset);
     }
 
     private IEnumerable<CallableGraphItem> GetRuntimeCallableMacros()
     {
         SaveVisibleGraphsToActiveContent();
-        if (_activeContentAsset?.Kind == ContentAssetKind.Script)
-        {
-            foreach (var macro in _activeContentAsset.Macros)
-                yield return new CallableGraphItem(macro.Id, macro.Name, "本脚本宏", macro.Graph);
-        }
-
-        foreach (var library in ContentBrowserItems.Where(asset => asset.Kind == ContentAssetKind.MacroLibrary))
-        foreach (var macro in library.Macros)
-            yield return new CallableGraphItem(macro.Id, $"{library.Name}/{macro.Name}", "宏库", macro.Graph);
+        return _callableGraphResolver.ResolveMacros(ContentBrowserItems, _activeContentAsset);
     }
 
     private IEnumerable<CallableCustomEventItem> GetCallableCustomEvents()
@@ -2107,8 +2077,16 @@ public partial class MainWindow : Window
     private void SaveAllAssets()
     {
         SaveVisibleGraphsToActiveContent();
-        foreach (var item in GraphListItems.Concat(FunctionListItems).Concat(MacroListItems))
+        foreach (var item in ContentBrowserItems
+                     .Where(asset => asset.Kind != ContentAssetKind.Folder)
+                     .SelectMany(asset => asset.EventGraphs.Concat(asset.Functions).Concat(asset.Macros))
+                     .Concat(GraphListItems)
+                     .Concat(FunctionListItems)
+                     .Concat(MacroListItems))
+        {
             item.IsDirty = false;
+        }
+
         foreach (var item in ContentBrowserItems)
             item.IsDirty = false;
         PersistAssetLibrary();
@@ -2146,6 +2124,27 @@ public partial class MainWindow : Window
         var result = _graphCompileService.Compile(ContentBrowserItems);
         foreach (var item in ContentBrowserItems.Where(item => result.ChangedAssetIds.Contains(item.Id)))
             item.IsDirty = true;
+        if (!result.Success)
+        {
+            foreach (var issue in result.Issues)
+            {
+                if (issue.Severity == GraphCore.GraphValidationSeverity.Error)
+                    Logger.Error($"编译：{issue.Message}");
+                else
+                    Logger.Warn($"编译：{issue.Message}");
+            }
+
+            string message = string.Join(Environment.NewLine, result.Issues
+                .Where(issue => issue.Severity == GraphCore.GraphValidationSeverity.Error)
+                .Take(6)
+                .Select(issue => issue.Message));
+            if (showPrompt && !string.IsNullOrWhiteSpace(message))
+                WpfMessageBox.Show(this, message, "编译失败", MessageBoxButton.OK, MessageBoxImage.Error);
+            SetStatus($"编译失败：{result.Issues.Count(issue => issue.Severity == GraphCore.GraphValidationSeverity.Error)} 个错误。");
+            UpdateGraphSectionVisibility();
+            return false;
+        }
+
         if (_activeAssetController?.ActiveItem is { } active)
             _activeAssetController.ReloadItemWithoutPersist(active);
         PersistAssetLibrary();
