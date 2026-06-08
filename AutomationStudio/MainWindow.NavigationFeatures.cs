@@ -24,13 +24,17 @@ namespace AutomationStudioWpf;
 
 public partial class MainWindow
 {
+    private const int AutoFitReadyStableFrames = 2;
+    private const int AutoFitMaxRenderFrames = 90;
+
     private WpfTextBox? _contentBrowserSearchBox;
     private bool _isApplyingContentBrowserSearch;
     private bool _contentBrowserSearchRefreshQueued;
     private bool _navigationFeaturesInstalled;
     private bool _autoFitGraphQueued;
     private bool _autoFitRenderingAttached;
-    private int _autoFitRenderFramesRemaining;
+    private int _autoFitStableFrames;
+    private int _autoFitFramesRemaining;
 
     protected override void OnInitialized(EventArgs e)
     {
@@ -66,15 +70,16 @@ public partial class MainWindow
             return;
 
         _autoFitGraphQueued = true;
-        _autoFitRenderFramesRemaining = 4;
+        _autoFitStableFrames = 0;
+        _autoFitFramesRemaining = AutoFitMaxRenderFrames;
         if (_autoFitRenderingAttached)
             return;
 
         _autoFitRenderingAttached = true;
-        CompositionTarget.Rendering += AutoFitGraphAfterRenderFrames;
+        CompositionTarget.Rendering += AutoFitGraphWhenLayoutIsReady;
     }
 
-    private void AutoFitGraphAfterRenderFrames(object? sender, EventArgs e)
+    private void AutoFitGraphWhenLayoutIsReady(object? sender, EventArgs e)
     {
         if (!_autoFitGraphQueued)
         {
@@ -82,11 +87,18 @@ public partial class MainWindow
             return;
         }
 
-        if (_autoFitRenderFramesRemaining > 0)
+        _autoFitFramesRemaining--;
+        if (IsGraphVisualLayoutReady())
         {
-            _autoFitRenderFramesRemaining--;
-            return;
+            _autoFitStableFrames++;
         }
+        else
+        {
+            _autoFitStableFrames = 0;
+        }
+
+        if (_autoFitStableFrames < AutoFitReadyStableFrames && _autoFitFramesRemaining > 0)
+            return;
 
         DetachAutoFitRendering();
         Dispatcher.BeginInvoke(new Action(() =>
@@ -96,12 +108,28 @@ public partial class MainWindow
         }), DispatcherPriority.ApplicationIdle);
     }
 
+    private bool IsGraphVisualLayoutReady()
+    {
+        if (_editorService.Nodes.Count == 0)
+            return false;
+        if (GraphViewport.ActualWidth <= 1 || GraphViewport.ActualHeight <= 1)
+            return false;
+        if (EditorGrid.ActualWidth <= 1 || EditorGrid.ActualHeight <= 1)
+            return false;
+
+        return _editorService.Nodes.All(node =>
+            !double.IsNaN(node.X) &&
+            !double.IsNaN(node.Y) &&
+            node.Width > 1 &&
+            node.Height > 1);
+    }
+
     private void DetachAutoFitRendering()
     {
         if (!_autoFitRenderingAttached)
             return;
 
-        CompositionTarget.Rendering -= AutoFitGraphAfterRenderFrames;
+        CompositionTarget.Rendering -= AutoFitGraphWhenLayoutIsReady;
         _autoFitRenderingAttached = false;
     }
 
