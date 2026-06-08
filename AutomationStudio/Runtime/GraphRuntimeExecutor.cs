@@ -64,7 +64,8 @@ public sealed class GraphRuntimeExecutor
         RuntimeAssetLibrary assets,
         RuntimeExecutionState state,
         CancellationToken ct,
-        out GraphRuntimeNode? terminalNode)
+        out GraphRuntimeNode? terminalNode,
+        string? stopBeforeNodeId = null)
     {
         return ExecuteFromNode(
             plan,
@@ -74,7 +75,8 @@ public sealed class GraphRuntimeExecutor
             assets,
             state,
             ct,
-            out terminalNode);
+            out terminalNode,
+            stopBeforeNodeId);
     }
 
     private GraphExecutionResult ExecuteFromNode(
@@ -85,7 +87,8 @@ public sealed class GraphRuntimeExecutor
         RuntimeAssetLibrary assets,
         RuntimeExecutionState state,
         CancellationToken ct,
-        out GraphRuntimeNode? terminalNode)
+        out GraphRuntimeNode? terminalNode,
+        string? stopBeforeNodeId = null)
     {
         terminalNode = null;
         GraphRuntimeNode? currentNode = firstNode;
@@ -94,6 +97,13 @@ public sealed class GraphRuntimeExecutor
         while (currentNode is not null)
         {
             ct.ThrowIfCancellationRequested();
+
+            if (stopBeforeNodeId is not null && string.Equals(currentNode.Id, stopBeforeNodeId, StringComparison.Ordinal))
+            {
+                terminalNode = currentNode;
+                return new GraphExecutionResult(true, "执行完成。");
+            }
+
             stepCount++;
             if (stepCount > MaxChainSteps)
             {
@@ -170,7 +180,7 @@ public sealed class GraphRuntimeExecutor
 
         try
         {
-            return ExecuteFromNode(plan, jumpTarget, context, baseDirectory, assets, state, ct, out _);
+            return ExecuteFromNode(plan, jumpTarget, context, baseDirectory, assets, state, ct, out _, sourceNode.Id);
         }
         finally
         {
