@@ -33,6 +33,7 @@ public partial class MainWindow
     private bool _navigationFeaturesInstalled;
     private bool _autoFitGraphQueued;
     private bool _autoFitRenderingAttached;
+    private bool _assetCompileButtonStateQueued;
     private int _autoFitStableFrames;
     private int _autoFitFramesRemaining;
 
@@ -52,16 +53,71 @@ public partial class MainWindow
 
         InstallContentBrowserSearchBox();
         _editorService.GraphChanged += NavigationFeatures_GraphChanged;
+        GraphListItems.CollectionChanged += GraphCollections_AssetCompileStateChanged;
+        FunctionListItems.CollectionChanged += GraphCollections_AssetCompileStateChanged;
+        MacroListItems.CollectionChanged += GraphCollections_AssetCompileStateChanged;
+        ContentBrowserItems.CollectionChanged += GraphCollections_AssetCompileStateChanged;
         AddHandler(WpfUIElement.PreviewMouseLeftButtonDownEvent, new WpfMouseButtonEventHandler(GraphCallableNode_PreviewMouseLeftButtonDown), true);
         ContentBrowserListBox.PreviewKeyDown += ContentBrowserListBox_NavigationPreviewKeyDown;
         ContentVisibleItems.CollectionChanged += ContentVisibleItems_SearchRefreshRequested;
         ScheduleFitActiveGraphToView();
+        QueueAssetCompileButtonStateUpdate();
     }
 
     private void NavigationFeatures_GraphChanged()
     {
         if (_activeAssetController?.IsLoadingGraph == true)
             ScheduleFitActiveGraphToView();
+
+        QueueAssetCompileButtonStateUpdate();
+    }
+
+    private void GraphCollections_AssetCompileStateChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        QueueAssetCompileButtonStateUpdate();
+    }
+
+    private void QueueAssetCompileButtonStateUpdate()
+    {
+        if (_assetCompileButtonStateQueued)
+            return;
+
+        _assetCompileButtonStateQueued = true;
+        Dispatcher.BeginInvoke(new Action(() =>
+        {
+            _assetCompileButtonStateQueued = false;
+            ApplyAssetCompileButtonState();
+        }), DispatcherPriority.ContextIdle);
+    }
+
+    private void ApplyAssetCompileButtonState()
+    {
+        if (CompileGraphButton is null || CompileButtonText is null || CompileDirtyIcon is null)
+            return;
+
+        bool dirty = ActiveContentAssetHasCompileDirtyGraphs();
+        CompileButtonText.Text = dirty ? "编译*" : "编译";
+        CompileDirtyIcon.Visibility = dirty ? Visibility.Visible : Visibility.Collapsed;
+        CompileGraphButton.Background = dirty
+            ? new WpfSolidColorBrush(WpfColor.FromRgb(75, 54, 28))
+            : new WpfSolidColorBrush(WpfColor.FromRgb(32, 36, 43));
+        CompileGraphButton.BorderBrush = dirty
+            ? new WpfSolidColorBrush(WpfColor.FromRgb(214, 138, 34))
+            : new WpfSolidColorBrush(WpfColor.FromRgb(46, 52, 64));
+    }
+
+    private bool ActiveContentAssetHasCompileDirtyGraphs()
+    {
+        if (_activeContentAsset is null)
+            return false;
+
+        return _activeContentAsset.Kind switch
+        {
+            ContentAssetKind.Script => GraphListItems.Concat(FunctionListItems).Concat(MacroListItems).Any(item => item.IsCompileDirty),
+            ContentAssetKind.FunctionLibrary => FunctionListItems.Any(item => item.IsCompileDirty),
+            ContentAssetKind.MacroLibrary => MacroListItems.Any(item => item.IsCompileDirty),
+            _ => false,
+        };
     }
 
     private void ScheduleFitActiveGraphToView()
@@ -382,15 +438,20 @@ public partial class MainWindow
         }
 
         var controller = kind == GraphAssetKind.Function ? _functionListController : _macroListController;
+        var listBox = kind == GraphAssetKind.Function ? FunctionListBox : MacroListBox;
         controller.SetSectionExpanded(true);
         SaveSectionExpansionForActiveAsset(controller);
         LoadGraphItem(controller, target.Graph, snapshotCurrent: false);
+        listBox.SelectedItem = target.Graph;
+        listBox.ScrollIntoView(target.Graph);
+        listBox.Focus();
         UpdateGraphSectionVisibility();
         ScheduleFitActiveGraphToView();
+        QueueAssetCompileButtonStateUpdate();
 
         SetStatus(kind == GraphAssetKind.Function
-            ? $"已跳转到函数：{target.Asset.Name}/{target.Graph.Name}"
-            : $"已跳转到宏：{target.Asset.Name}/{target.Graph.Name}");
+            ? $"已跳转到函数：{GetContentAssetPath(target.Asset)}/{target.Graph.Name}"
+            : $"已跳转到宏：{GetContentAssetPath(target.Asset)}/{target.Graph.Name}");
         return true;
     }
 
