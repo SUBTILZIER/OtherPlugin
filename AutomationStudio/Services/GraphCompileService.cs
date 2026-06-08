@@ -70,22 +70,28 @@ public sealed class GraphCompileService
         ContentAssetViewModel owner,
         GraphListItemViewModel item)
     {
-        var assetList = assets.ToList();
-        var changedAssetIds = new HashSet<string>(StringComparer.Ordinal);
-        bool graphChanged = EnsureGraphNodeNumbers(item.Graph, item.Kind);
-        graphChanged |= EnsureGraphToDoTargets(item.Graph);
-        if (graphChanged)
-            changedAssetIds.Add(owner.Id);
+        // Toolbar compile is asset-scoped: script assets compile all event graphs/functions/macros,
+        // function libraries compile all functions, and macro libraries compile all macros.
+        // Keep the historical method name so existing callers continue to work.
+        return CompileAsset(assets, owner);
+    }
 
-        var sync = _referenceSyncService.SyncGraph(assetList, owner, item.Graph);
+    public GraphCompileResult CompileAsset(
+        IEnumerable<ContentAssetViewModel> assets,
+        ContentAssetViewModel owner)
+    {
+        var assetList = assets.ToList();
+        var changedAssetIds = EnsureAssetNodeNumbers(owner);
+        var sync = SyncAssetGraphs(assetList, owner);
         changedAssetIds.UnionWith(sync.ChangedAssetIds);
 
-        var issues = new List<GraphValidationIssue>();
-        var assetsById = assetList.ToDictionary(asset => asset.Id, StringComparer.Ordinal);
-        ValidateGraph(assetList, assetsById, owner, item, issues);
+        var issues = ValidateAsset(assetList, owner);
         bool success = issues.All(issue => issue.Severity != GraphValidationSeverity.Error);
         if (success)
-            item.IsCompileDirty = false;
+        {
+            foreach (var item in GetCompilableGraphs(owner))
+                item.IsCompileDirty = false;
+        }
 
         return new GraphCompileResult
         {
@@ -95,6 +101,22 @@ public sealed class GraphCompileService
             ChangedAssetIds = changedAssetIds,
             Issues = issues,
         };
+    }
+
+    private GraphCallReferenceSyncResult SyncAssetGraphs(
+        IReadOnlyList<ContentAssetViewModel> assets,
+        ContentAssetViewModel owner)
+    {
+        var result = new GraphCallReferenceSyncResult();
+        foreach (var item in GetCompilableGraphs(owner))
+        {
+            var sync = _referenceSyncService.SyncGraph(assets, owner, item.Graph);
+            result.UpdatedCallNodes += sync.UpdatedCallNodes;
+            result.RemovedConnections += sync.RemovedConnections;
+            result.ChangedAssetIds.UnionWith(sync.ChangedAssetIds);
+        }
+
+        return result;
     }
 
     private static HashSet<string> EnsureNodeNumbers(IReadOnlyList<ContentAssetViewModel> assets)
@@ -113,6 +135,28 @@ public sealed class GraphCompileService
 
         return changedAssetIds;
     }
+
+    private static HashSet<string> EnsureAssetNodeNumbers(ContentAssetViewModel asset)
+    {
+        var changedAssetIds = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var item in GetCompilableGraphs(asset))
+        {
+            bool changed = EnsureGraphNodeNumbers(item.Graph, item.Kind);
+            changed |= EnsureGraphToDoTargets(item.Graph);
+            if (changed)
+                changedAssetIds.Add(asset.Id);
+        }
+
+        return changedAssetIds;
+    }
+
+    private static IEnumerable<GraphListItemViewModel> GetCompilableGraphs(ContentAssetViewModel asset) => asset.Kind switch
+    {
+        ContentAssetKind.Script => asset.EventGraphs.Concat(asset.Functions).Concat(asset.Macros),
+        ContentAssetKind.FunctionLibrary => asset.Functions,
+        ContentAssetKind.MacroLibrary => asset.Macros,
+        _ => Enumerable.Empty<GraphListItemViewModel>(),
+    };
 
     private static bool EnsureGraphNodeNumbers(GraphFileModel graph, GraphAssetKind kind)
     {
@@ -229,6 +273,18 @@ public sealed class GraphCompileService
             foreach (var item in asset.EventGraphs.Concat(asset.Functions).Concat(asset.Macros))
                 ValidateGraph(assets, assetsById, asset, item, issues);
         }
+
+        return issues;
+    }
+
+    private IReadOnlyList<GraphValidationIssue> ValidateAsset(
+        IReadOnlyList<ContentAssetViewModel> assets,
+        ContentAssetViewModel owner)
+    {
+        var issues = new List<GraphValidationIssue>();
+        var assetsById = assets.ToDictionary(asset => asset.Id, StringComparer.Ordinal);
+        foreach (var item in GetCompilableGraphs(owner))
+            ValidateGraph(assets, assetsById, owner, item, issues);
 
         return issues;
     }
