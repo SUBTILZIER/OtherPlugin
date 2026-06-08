@@ -3,6 +3,8 @@ using System.Windows.Media;
 using System.Windows.Threading;
 using WpfBorder = System.Windows.Controls.Border;
 using WpfBrush = System.Windows.Media.Brush;
+using WpfBrushes = System.Windows.Media.Brushes;
+using WpfColor = System.Windows.Media.Color;
 using WpfContextMenu = System.Windows.Controls.ContextMenu;
 using WpfContextMenuEventArgs = System.Windows.Controls.ContextMenuEventArgs;
 using WpfFrameworkElement = System.Windows.FrameworkElement;
@@ -149,11 +151,11 @@ public partial class MainWindow
 
     private static void StyleMenuItem(WpfMenuItem item)
     {
-        item.Background = Brushes.Transparent;
+        item.Background = WpfBrushes.Transparent;
         item.Foreground = item.IsEnabled ? UnifiedTextBrush : UnifiedMutedTextBrush;
         item.Padding = new Thickness(10, 6, 10, 6);
         item.MinWidth = Math.Max(item.MinWidth, 130);
-        item.BorderBrush = Brushes.Transparent;
+        item.BorderBrush = WpfBrushes.Transparent;
     }
 
     private static IEnumerable<WpfMenuItem> EnumerateMenuItems(WpfItemsControl root)
@@ -223,7 +225,7 @@ public partial class MainWindow
 
     private static SolidColorBrush FrozenBrush(byte r, byte g, byte b)
     {
-        var brush = new SolidColorBrush(Color.FromRgb(r, g, b));
+        var brush = new SolidColorBrush(WpfColor.FromRgb(r, g, b));
         brush.Freeze();
         return brush;
     }
