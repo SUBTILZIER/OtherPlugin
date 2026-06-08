@@ -1,16 +1,23 @@
 using System.Collections.Specialized;
 using System.Windows;
-using System.Windows.Controls;
 using System.Windows.Input;
-using System.Windows.Media;
 using AutomationStudioWpf.Graph;
 using AutomationStudioWpf.Services;
+using WpfBrushes = System.Windows.Media.Brushes;
+using WpfColor = System.Windows.Media.Color;
+using WpfControl = System.Windows.Controls.Control;
+using WpfSolidColorBrush = System.Windows.Media.SolidColorBrush;
+using WpfStackPanel = System.Windows.Controls.StackPanel;
+using WpfTextBlock = System.Windows.Controls.TextBlock;
+using WpfTextBox = System.Windows.Controls.TextBox;
+using WpfTextChangedEventArgs = System.Windows.Controls.TextChangedEventArgs;
+using WpfVisualTreeHelper = System.Windows.Media.VisualTreeHelper;
 
 namespace AutomationStudioWpf;
 
 public partial class MainWindow
 {
-    private TextBox? _contentBrowserSearchBox;
+    private WpfTextBox? _contentBrowserSearchBox;
     private bool _isApplyingContentBrowserSearch;
     private bool _contentBrowserSearchRefreshQueued;
     private bool _navigationFeaturesInstalled;
@@ -30,7 +37,7 @@ public partial class MainWindow
         Loaded -= MainWindow_NavigationFeaturesLoaded;
 
         InstallContentBrowserSearchBox();
-        AddHandler(Control.MouseDoubleClickEvent, new MouseButtonEventHandler(GraphCallableNode_MouseDoubleClick), true);
+        AddHandler(WpfControl.MouseDoubleClickEvent, new MouseButtonEventHandler(GraphCallableNode_MouseDoubleClick), true);
         ContentBrowserListBox.PreviewKeyDown += ContentBrowserListBox_NavigationPreviewKeyDown;
         ContentVisibleItems.CollectionChanged += ContentVisibleItems_SearchRefreshRequested;
     }
@@ -40,16 +47,16 @@ public partial class MainWindow
         if (_contentBrowserSearchBox is not null)
             return;
 
-        var label = new TextBlock
+        var label = new WpfTextBlock
         {
             Text = "搜索",
-            Foreground = Brushes.White,
+            Foreground = WpfBrushes.White,
             Margin = new Thickness(14, 0, 6, 0),
             VerticalAlignment = VerticalAlignment.Center,
             FontSize = 12,
         };
 
-        _contentBrowserSearchBox = new TextBox
+        _contentBrowserSearchBox = new WpfTextBox
         {
             Width = 240,
             Height = 22,
@@ -59,10 +66,10 @@ public partial class MainWindow
         };
         _contentBrowserSearchBox.TextChanged += ContentBrowserSearchBox_TextChanged;
 
-        var hint = new TextBlock
+        var hint = new WpfTextBlock
         {
             Text = "双击打开，Ctrl+B 定位真实路径",
-            Foreground = new SolidColorBrush(Color.FromRgb(122, 135, 151)),
+            Foreground = new WpfSolidColorBrush(WpfColor.FromRgb(122, 135, 151)),
             Margin = new Thickness(0, 0, 8, 0),
             VerticalAlignment = VerticalAlignment.Center,
             FontSize = 11,
@@ -73,7 +80,7 @@ public partial class MainWindow
         ContentBrowserHeaderBar.Children.Add(hint);
     }
 
-    private void ContentBrowserSearchBox_TextChanged(object sender, TextChangedEventArgs e)
+    private void ContentBrowserSearchBox_TextChanged(object sender, WpfTextChangedEventArgs e)
     {
         if (_isApplyingContentBrowserSearch)
             return;
@@ -330,7 +337,7 @@ public partial class MainWindow
             if (current is FrameworkElement { DataContext: T value })
                 return value;
 
-            current = VisualTreeHelper.GetParent(current);
+            current = WpfVisualTreeHelper.GetParent(current);
         }
 
         return null;
