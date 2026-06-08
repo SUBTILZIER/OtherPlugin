@@ -1,0 +1,46 @@
+name: Build AutomationStudio
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - 'AutomationStudio/**'
+      - '.github/workflows/build-automationstudio.yml'
+  pull_request:
+    branches:
+      - master
+    paths:
+      - 'AutomationStudio/**'
+      - '.github/workflows/build-automationstudio.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build WPF app
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore AutomationStudio
+        working-directory: AutomationStudio
+        run: dotnet restore AutomationStudioWpf.csproj
+
+      - name: Build AutomationStudio
+        working-directory: AutomationStudio
+        run: dotnet build AutomationStudioWpf.csproj --configuration Release --no-restore
+
+      - name: Restore smoke tests
+        working-directory: AutomationStudio/Tests/CodexSmoke
+        run: dotnet restore AutomationStudioSmoke.csproj
+
+      - name: Build smoke tests
+        working-directory: AutomationStudio/Tests/CodexSmoke
+        run: dotnet build AutomationStudioSmoke.csproj --configuration Release --no-restore
