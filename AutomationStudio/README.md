@@ -1,11 +1,12 @@
 # AutomationStudioWpf
 
-## Current Notes (2026-06-06)
+## Current Notes (2026-06-08)
 
-- 2026-06-08: CodeGraph, project skill, technical docs, README, and agent memory were refreshed before git push. CodeGraph database files remain local and ignored; only the CodeGraph ignore policy is tracked.
+- 2026-06-08: CodeGraph, project skill, technical docs, README, and agent memory were audited against the current local code. CodeGraph database files remain local and ignored; only the CodeGraph ignore policy is tracked.
 - Visual wires bind to `GraphEditorService.ConnectionPaths`; persisted graph data and runtime execution still use `GraphEditorService.Connections`.
 - `ConnectionPathViewModel` aggregates linear reroute chains only for drawing. Reroute order follows the real `Connections` chain, not point distance, so moving route nodes does not reorder or jump the wire.
-- `ConnectionSplinePlanner` builds Bezier/spline geometry and keeps control handles distance-clamped.
+- `ConnectionSplinePlanner` is the active visible-wire geometry builder. Single backing connections use one cubic Bezier; aggregated reroute chains use per-segment spline handles scaled from neighboring point distance.
+- Known limitation: tight or backward reroute layouts can still produce local loops; fix this in `ConnectionSplinePlanner`, not in the unused `ConnectionChain` / `ConnectionChainFinder` path.
 - Double-clicking a visible wire inserts a reroute node by mapping the visual path back to the nearest backing `ConnectionViewModel`; Alt-click still removes the nearest backing connection.
 - Reroute nodes use centered anchors and a UE-style yellow selection glow/ring for click and box selection feedback.
 - `GraphCommandService` records graph-edit snapshots for Undo/Redo. Ctrl+Z undoes graph edits; Ctrl+Y or Ctrl+Shift+Z redoes them.
@@ -98,14 +99,17 @@ AutomationStudioWpf/
 │   ├── InputNodeBase.cs         # 输入类节点基类
 │   ├── PinViewModel.cs          # 引脚模型
 │   ├── ConnectionViewModel.cs   # 连线模型
+│   ├── ConnectionPathViewModel.cs # 可见连线路径聚合
+│   ├── ConnectionSplinePlanner.cs # 可见连线几何
 │   ├── *NodeViewModel.cs        # 各节点类型实现
 │   ├── GraphTypes.cs            # 枚举定义
 │   └── GraphFileModel.cs        # 文件模型
 ├── Runtime/                     # 执行引擎
-│   ├── GraphRuntimeExecutor.cs  # 执行器 (Win32 API)
+│   ├── GraphRuntimeExecutor.cs  # 执行调度 + 结构节点
 │   └── GraphExecutionModels.cs  # 运行时数据模型
 ├── Services/                    # 业务服务层
 │   ├── GraphEditorService.cs    # 图谱编辑核心逻辑
+│   ├── GraphCommandService.cs   # Undo/Redo 快照命令
 │   ├── GraphLibraryService.cs   # 图谱/资产库持久化
 │   ├── GraphCompileService.cs   # 编译同步与校验
 │   ├── NodeSerializer.cs        # 节点序列化/反序列化
@@ -136,6 +140,8 @@ AutomationStudioWpf/
 │   ├── IWindowAdapter.cs        # 窗口操作
 │   ├── IScreenshotAdapter.cs    # 截图
 │   └── PythonScriptAdapter.cs   # Python JSON 文件通信
+├── Nodes/                       # 节点注册与分类执行器
+│   └── NodeRegistry.cs          # 节点定义 + 执行器入口
 ├── Tests/CodexSmoke/            # UI smoke 门禁
 ├── MainWindow.xaml(.cs)         # 主窗口
 ├── LogWindow.xaml(.cs)          # 独立日志窗口
@@ -176,7 +182,7 @@ saved/log/Log_2026_05_28_22_11.txt
 ## 最近更新
 
 ### v1.2.3 (2026-06-08)
-- **Changed**: Refreshed CodeGraph, project skill, technical documentation, README, and agent memory before git push.
+- **Changed**: Audited CodeGraph, project skill, technical documentation, README, and agent memory against current local code.
 - **Note**: CodeGraph runtime database/log files remain local through `.codegraph/.gitignore`; they are synced but not committed.
 
 ### v1.2.2 (2026-06-06)
@@ -188,7 +194,7 @@ saved/log/Log_2026_05_28_22_11.txt
 - **Added**: Smoke coverage for command undo/redo, selected wire deletion, and definition metadata search.
 
 ### v1.2.1 (2026-06-06)
-- **Fixed**: Reroute-backed wires no longer loop or jump when route points move.
+- **Changed**: Reroute-backed wires aggregate into visible paths, but tight/backward layouts still need planner work to eliminate local loops.
 - **Changed**: Visual wire rendering uses `ConnectionPaths`; graph persistence/runtime still use `Connections`.
 - **Changed**: Reroute chain draw order follows the actual connection chain, not distance sorting.
 - **Fixed**: Double-clicking aggregated visual wires inserts a reroute node again.

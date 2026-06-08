@@ -10,6 +10,8 @@
 
 - Visual wiring now binds XAML to `GraphEditorService.ConnectionPaths`; persisted/runtime logic still uses `Connections`.
 - Reroute chains are aggregated by `ConnectionPathViewModel` and shaped by `ConnectionSplinePlanner`; linear reroute chains keep the persisted `Connections` chain order so moving route nodes never reorders the drawn path. Ambiguous reroute branch/merge falls back to individual connection paths.
+- Current `ConnectionSplinePlanner` uses one cubic Bezier for single backing connections and distance-scaled spline handles for aggregated reroute chains. Tight/backward layouts can still create local loops; route fixes belong in `ConnectionSplinePlanner`.
+- `ConnectionChain`, `ConnectionChainFinder`, `ConnectionSettings`, and `SplineTangentCalculator` are present but not wired into the visible XAML path pipeline.
 - Visible wire double-click/Alt-click must map `ConnectionPathViewModel` back to nearest backing `ConnectionViewModel`; `IsGraphBlankSource` must treat `ConnectionPathViewModel` as non-blank or selection will swallow wire double-click.
 - Reroute selection uses a UE-style yellow glow/ring in XAML; keep it visible for click and box selection.
 - Optional repro smoke: set `AUTOMATION_STUDIO_REROUTE_GRAPH_JSON` to a graph file such as `C:/Users/Administrator/Desktop/graph.json`.
@@ -23,11 +25,11 @@
 - `NodeDefinition` now has `SearchTags`, `InspectorSchemaKey`, `DefaultValues`, and `ValidationHints`; palette search uses display/category/type key/kind/tags and shows recent node kinds.
 - Node movement snaps to the 20px grid by default; Alt keeps precision movement.
 
-## 2026-06-08 git push prep
+## 2026-06-08 local docs/codegraph audit
 
-- User explicitly requested CodeGraph, project skill, TECHNICAL, README, agentmemory refresh and git push; pushing is allowed for this task after verification.
+- User requested CodeGraph, project skill, TECHNICAL, README, and agentmemory audit/update against current local code. Do not push unless the user explicitly asks in the same task.
 - Track `.codegraph/.gitignore`; do not commit CodeGraph db/wal/shm/log/cache files.
-- Track the project skill under `.agents/skills/automationstudio-wpf/`; avoid staging unrelated third-party skill folders unless explicitly requested.
+- Current project skill lives under `.kimi/skills/automation-studio-wpf/SKILL.md`; there is no `.agents/skills/automationstudio-wpf/` tree in this local project.
 - Before push, run build, smoke, optional external reroute graph smoke, WPF startup probe, and `codegraph.cmd sync`.
 
 ## 2026-06-05 graph isolation fix

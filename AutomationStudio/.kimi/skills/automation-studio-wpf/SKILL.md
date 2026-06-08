@@ -11,6 +11,17 @@ WPF 可视化节点自动化编辑器，类似 UE4 蓝图。技术栈 C# 12 / .N
 
 ## 踩坑记录（按时间倒序，新记录追加到顶部）
 
+### 2026-06-08: 本地文档 / CodeGraph / 连线渲染现状
+
+- 当前项目 skill 源文件是 `.kimi/skills/automation-studio-wpf/SKILL.md`；本地没有 `.agents/skills/automationstudio-wpf/`。
+- CodeGraph 数据库在 `.codegraph/codegraph.db`，`.codegraph/.gitignore` 负责忽略 db/wal/shm/cache/log/dirty 等本机文件。
+- 可见连线绑定 `GraphEditorService.ConnectionPaths`；持久化和运行时仍使用 `GraphEditorService.Connections`。
+- `ConnectionPathViewModel` 只负责把线性 reroute 链聚合成一条可见路径，链顺序来自真实 `Connections` 拓扑，不按点距离重排。
+- 当前可见路径几何由 `ConnectionSplinePlanner` 生成；单段连接是一条 cubic Bezier，多 reroute 链使用按相邻点距离缩放的分段 spline handle。
+- 已知限制：紧凑或反向 reroute 布局仍可能出现局部绕圈。修复应改 `ConnectionSplinePlanner` 的 handle 计算，不要改未接入渲染链路的 `ConnectionChain` / `ConnectionChainFinder`。
+- `ConnectionSettings` / `SplineTangentCalculator` 当前存在但不被 XAML 绑定的可见连线路径调用，除非接线到 `ConnectionSplinePlanner`，否则改它们不会改变画布线形。
+- `NodeRegistry.CreateDefaultDefinitions()` 当前有 38 个定义；`NodeKind.Comment` 是历史残留枚举，旧 `comment` 文件节点由 `NodeSerializer` 跳过。
+
 ### 2026-06-05: 内容浏览器 UE 风格交互与验证门禁
 
 - 内容浏览器顶部不再放新增按钮；新增资产统一走右侧空白右键菜单，菜单项只保留 `脚本 / 文件夹 / 函数库 / 宏库`。不要再加单独“宏”资产，宏跟随脚本/宏库内部编辑面板。
@@ -403,7 +414,8 @@ MainWindow (View)
     └─ Inspector Panel
 
 Services
-    ├─ GraphEditorService    ← 节点/连接增删、保存加载、执行计划
+    ├─ GraphEditorService    ← 节点/Connections/ConnectionPaths、保存加载、执行计划
+    ├─ GraphCommandService   ← Undo/Redo 快照命令
     ├─ NodeFactory           ← ID 生成 + 节点创建
     ├─ NodeSerializer        ← ViewModel ↔ FileModel ↔ RuntimeModel
     ├─ NodeClipboardService  ← 复制粘贴（JSON 深拷贝）
@@ -413,10 +425,12 @@ Graph (ViewModel)
     ├─ NodeBaseViewModel     ← abstract, virtual GetPinAnchor
     ├─ PinViewModel          ← Direction + Kind
     ├─ ConnectionViewModel   ← IDisposable, 监听 Node.PropertyChanged
+    ├─ ConnectionPathViewModel ← 可见连线路径聚合
+    ├─ ConnectionSplinePlanner ← 当前 XAML 可见连线几何
     └─ ObservableObject      ← INotifyPropertyChanged 基类
 
 Runtime
-    ├─ GraphRuntimeExecutor  ← 顺序执行，HashSet 环路检测
+    ├─ GraphRuntimeExecutor  ← 顺序执行，最大步数环路保护
     └─ GraphExecutionModels  ← record，扁平化运行时数据
 ```
 

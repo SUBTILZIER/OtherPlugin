@@ -24,7 +24,8 @@ Interaction
 
 GraphCore / Services
     ├─ GraphValidator            ← 执行前图谱校验
-    ├─ GraphEditorService        ← 节点/连线编辑、执行计划构建
+    ├─ GraphEditorService        ← 节点/Connections/ConnectionPaths、执行计划构建
+    ├─ GraphCommandService       ← Undo/Redo 快照命令
     ├─ GraphLibraryService       ← 图谱列表本地持久化
     ├─ NodeFactory               ← ID 生成 + ViewModel 创建
     └─ NodeSerializer            ← ViewModel/FileModel/RuntimeModel 转换
@@ -100,6 +101,7 @@ Runtime / Nodes / Adapters
 #### GraphEditorService
 负责图谱的核心编辑逻辑：
 - 节点和连接的增删改查
+- 可见连线路径 `ConnectionPaths` 的重建
 - 图谱的加载和保存
 - 执行计划的构建
 - 引脚连接状态管理
@@ -109,6 +111,7 @@ public class GraphEditorService
 {
     public ObservableCollection<NodeBaseViewModel> Nodes { get; }
     public ObservableCollection<ConnectionViewModel> Connections { get; }
+    public ObservableCollection<ConnectionPathViewModel> ConnectionPaths { get; }
     
     public void NewGraph()
     public void SaveGraph(string path)
@@ -145,8 +148,9 @@ public class NodeFactory
 
 #### NodeRegistry
 统一管理节点定义和执行器注册：
-- `Definitions`：节点菜单分类、显示名、引脚定义。
-- `TryGetExecutor`：Runtime 根据 `NodeKind` 找到对应 `INodeExecutor`。
+- `Definitions`：节点菜单分类、显示名、引脚定义、搜索标签和属性面板 schema key。
+- `TryGetExecutor`：Runtime 对普通能力节点按 `NodeKind` 找到对应 `INodeExecutor`。
+- `GraphRuntimeExecutor` 仍直接处理结构节点：`Start`、`Reroute`、`If`、`ForLoop`、`WhileLoop`、函数/宏/自定义事件入口与调用节点。
 - 右键节点菜单由 `NodePaletteController` 读取 `NodeRegistry.Definitions` 生成，禁止再在 `MainWindow` 手写菜单列表。
 
 新增节点时至少更新：
@@ -186,7 +190,9 @@ public abstract class NodeBaseViewModel : ObservableObject
 - **PinKind**: Execution / Boolean / Vector2D / String
 - 支持动态引脚位置计算
 
-#### 当前全部节点 (30个)
+#### 当前节点定义 (38 个)
+
+`NodeRegistry.CreateDefaultDefinitions()` 当前注册 38 个菜单/运行时定义；`NodeKind.Comment` 仍是历史残留枚举，但不在 `NodeRegistry.Definitions`，旧 `comment` 图节点由 `NodeSerializer.IsRemovedNodeType()` 丢弃。
 
 | 节点 | NodeKind | 分类 | 引脚 |
 |------|----------|------|------|
@@ -473,9 +479,9 @@ Python 参数规则：
 ### 2026-06-08: CodeGraph / docs / skill refresh
 
 - CodeGraph sync is part of the final gate. Commit `.codegraph/.gitignore` so database, wal/shm, cache, and logs stay local.
-- Project skill source of truth is `.agents/skills/automationstudio-wpf/SKILL.md`. Do not commit unrelated third-party skill folders unless the user asks.
+- Project skill source of truth in this local project is `.kimi/skills/automation-studio-wpf/SKILL.md`; no `.agents/skills/automationstudio-wpf/` tree exists here.
 - README, TECHNICAL, `agentmemory.md`, and project skill should mention durable graph-editor rules: `ConnectionPaths` for visuals, `Connections` for persistence/runtime, command-stack boundaries, and wire/reroute UX.
-- User explicitly requested git push on 2026-06-08, so pushing after verification is allowed for this task.
+- Do not describe git push as allowed unless the user explicitly requests push in the current task.
 
 ### 2026-06-06: editor command and wire UX foundation
 
@@ -489,6 +495,8 @@ Python 参数规则：
 - Visible wire selection is stored on `ConnectionPathViewModel.IsSelected`; runtime/persistence still use `ConnectionViewModel` and `GraphEditorService.Connections`.
 - `PinConnectionController` maps visual `ConnectionPathViewModel` back to backing `ConnectionViewModel` for double-click, Alt-click, and context-menu reroute insertion.
 - Delete/Backspace on a selected visible path removes all backing connections in that visual path as one undoable command. Reroute nodes are not deleted automatically.
+- Active visible geometry is `ConnectionSplinePlanner.BuildGeometry(...)`. `ConnectionChain` / `ConnectionChainFinder` and `SplineTangentCalculator` are currently not called by XAML-bound paths.
+- Known limitation: tight/backward reroute layouts can still form local loops. Fix route-point behavior in `ConnectionSplinePlanner` by using endpoint/reroute distances when computing handles.
 
 #### NodeDefinition metadata
 - `Runtime/NodeDefinition.cs` now exposes `SearchTags`, `InspectorSchemaKey`, `DefaultValues`, and `ValidationHints`.
