@@ -1,0 +1,4 @@
+interface:
+  display_name: "AutomationStudio WPF"
+  short_description: "Project workflow for AutomationStudioWpf"
+  default_prompt: "Use AutomationStudio WPF project workflow for code changes, docs, validation, and CodeGraph sync."

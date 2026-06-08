@@ -586,25 +586,42 @@
                                     </TransformGroup>
                                 </Canvas.RenderTransform>
 
-                                <ItemsControl ItemsSource="{Binding Connections}">
+                                <ItemsControl ItemsSource="{Binding ConnectionPaths}">
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate>
                                         <Canvas />
                                     </ItemsPanelTemplate>
                                 </ItemsControl.ItemsPanel>
                                 <ItemsControl.ItemTemplate>
-                                    <DataTemplate DataType="{x:Type graph:ConnectionViewModel}">
+                                    <DataTemplate DataType="{x:Type graph:ConnectionPathViewModel}">
                                         <ContentControl MouseDoubleClick="ConnectionPath_MouseDoubleClick"
                                                         Background="Transparent"
                                                         BorderThickness="0">
-                                            <Path Data="{Binding PathGeometry}"
-                                                  Stroke="{Binding StrokeBrush}"
-                                                  StrokeThickness="4"
-                                                  SnapsToDevicePixels="True"
-                                                  StrokeStartLineCap="Round"
-                                                  StrokeEndLineCap="Round"
-                                                  Cursor="Hand"
-                                                  PreviewMouseLeftButtonDown="ConnectionPath_PreviewMouseLeftButtonDown" />
+                                            <ContentControl.ContextMenu>
+                                                <ContextMenu Style="{StaticResource DarkContextMenuStyle}">
+                                                    <MenuItem Header="添加路由点" Click="AddRerouteToConnectionPath_Click" />
+                                                    <MenuItem Header="删除连线" Click="DeleteConnectionPath_Click" />
+                                                </ContextMenu>
+                                            </ContentControl.ContextMenu>
+                                            <Grid PreviewMouseRightButtonDown="ConnectionPath_PreviewMouseRightButtonDown">
+                                                <Path Data="{Binding PathGeometry}"
+                                                      Stroke="#2BA8FF"
+                                                      StrokeThickness="10"
+                                                      Opacity="{Binding SelectionOpacity}"
+                                                      SnapsToDevicePixels="True"
+                                                      StrokeStartLineCap="Round"
+                                                      StrokeEndLineCap="Round"
+                                                      IsHitTestVisible="False" />
+                                                <Path Data="{Binding PathGeometry}"
+                                                      Stroke="{Binding StrokeBrush}"
+                                                      StrokeThickness="{Binding StrokeThickness}"
+                                                      SnapsToDevicePixels="True"
+                                                      StrokeStartLineCap="Round"
+                                                      StrokeEndLineCap="Round"
+                                                      Cursor="Hand"
+                                                      MouseLeftButtonDown="ConnectionPath_MouseLeftButtonDown"
+                                                      PreviewMouseLeftButtonDown="ConnectionPath_PreviewMouseLeftButtonDown" />
+                                            </Grid>
                                         </ContentControl>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
@@ -642,6 +659,29 @@
                                                 PreviewMouseMove="NodeHeader_PreviewMouseMove"
                                                 PreviewMouseLeftButtonUp="NodeHeader_PreviewMouseLeftButtonUp">
                                             <Grid>
+                                                <Ellipse x:Name="RerouteSelectionGlow"
+                                                         Width="26"
+                                                         Height="26"
+                                                         Fill="Transparent"
+                                                         Stroke="#FFD24A"
+                                                         StrokeThickness="2.4"
+                                                         Opacity="0"
+                                                         IsHitTestVisible="False">
+                                                    <Ellipse.Effect>
+                                                        <DropShadowEffect Color="#FF9F1C"
+                                                                          BlurRadius="12"
+                                                                          ShadowDepth="0"
+                                                                          Opacity="0.95" />
+                                                    </Ellipse.Effect>
+                                                </Ellipse>
+                                                <Ellipse x:Name="RerouteSelectionRing"
+                                                         Width="19"
+                                                         Height="19"
+                                                         Fill="Transparent"
+                                                         Stroke="#0D0F12"
+                                                         StrokeThickness="4"
+                                                         Opacity="0"
+                                                         IsHitTestVisible="False" />
                                                 <Grid Width="6" Height="6"
                                                       HorizontalAlignment="Left"
                                                       VerticalAlignment="Center"
@@ -660,6 +700,12 @@
                                                       DataContext="{Binding OutputPins[0]}" />
                                             </Grid>
                                         </Border>
+                                        <DataTemplate.Triggers>
+                                            <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                <Setter TargetName="RerouteSelectionGlow" Property="Opacity" Value="1" />
+                                                <Setter TargetName="RerouteSelectionRing" Property="Opacity" Value="1" />
+                                            </DataTrigger>
+                                        </DataTemplate.Triggers>
                                     </DataTemplate>
 
                                     <DataTemplate DataType="{x:Type graph:NodeBaseViewModel}">

@@ -5,6 +5,7 @@ using System.Windows.Media;
 using System.Windows.Threading;
 using AutomationStudioWpf.Graph;
 using AutomationStudioWpf.Nodes;
+using AutomationStudioWpf.Runtime;
 using AutomationStudioWpf.Services;
 using Point = System.Windows.Point;
 using Size = System.Windows.Size;
@@ -33,6 +34,7 @@ public sealed class NodePaletteController
     private readonly StackPanel _content;
     private readonly NodeFactory _nodeFactory;
     private readonly GraphEditorService _editorService;
+    private readonly GraphCommandService _commandService;
     private readonly NodeRegistry _nodeRegistry;
     private readonly Func<IEnumerable<CallableGraphItem>> _getFunctions;
     private readonly Func<IEnumerable<CallableGraphItem>> _getMacros;
@@ -43,6 +45,7 @@ public sealed class NodePaletteController
     private readonly Func<Size> _getViewportSize;
     private readonly Action<NodeBaseViewModel> _selectNode;
     private readonly Func<NodeBaseViewModel, bool> _tryAutoConnectNode;
+    private readonly List<NodeKind> _recentKinds = [];
 
     private Point _openViewportPoint;
 
@@ -52,6 +55,7 @@ public sealed class NodePaletteController
         StackPanel content,
         NodeFactory nodeFactory,
         GraphEditorService editorService,
+        GraphCommandService commandService,
         NodeRegistry nodeRegistry,
         Func<IEnumerable<CallableGraphItem>> getFunctions,
         Func<IEnumerable<CallableGraphItem>> getMacros,
@@ -68,6 +72,7 @@ public sealed class NodePaletteController
         _content = content;
         _nodeFactory = nodeFactory;
         _editorService = editorService;
+        _commandService = commandService;
         _nodeRegistry = nodeRegistry;
         _getFunctions = getFunctions;
         _getMacros = getMacros;
@@ -127,11 +132,13 @@ public sealed class NodePaletteController
         var definitions = _nodeRegistry.Definitions
             .Where(def => !HiddenKinds.Contains(def.NodeKind))
             .Where(def => def.NodeKind != NodeKind.CustomEvent || isEventGraph)
-            .Where(def => string.IsNullOrWhiteSpace(filter) ||
-                          def.DisplayName.Contains(filter, StringComparison.OrdinalIgnoreCase))
+            .Where(def => MatchesFilter(def, filter))
             .OrderBy(def => def.Category)
             .ThenBy(def => def.DisplayName)
             .ToList();
+
+        if (string.IsNullOrWhiteSpace(filter))
+            hasAny |= AddRecentGroup(definitions);
 
         foreach (var group in definitions.GroupBy(def => def.Category))
         {
@@ -276,8 +283,12 @@ public sealed class NodePaletteController
 
         var graphPoint = _viewportToGraph(_openViewportPoint);
         var node = _nodeFactory.CreateNode(kind, graphPoint.X, graphPoint.Y);
-        _editorService.AddNode(node);
-        _tryAutoConnectNode(node);
+        _commandService.Execute("Add node", () =>
+        {
+            _editorService.AddNode(node);
+            _tryAutoConnectNode(node);
+        });
+        RememberRecent(kind);
         _selectNode(node);
         Close();
     }
@@ -295,8 +306,11 @@ public sealed class NodePaletteController
             customEvent.Item.Parameters.Select(ToParameter),
             graphPoint.X,
             graphPoint.Y);
-        _editorService.AddNode(node);
-        _tryAutoConnectNode(node);
+        _commandService.Execute("Add custom event call", () =>
+        {
+            _editorService.AddNode(node);
+            _tryAutoConnectNode(node);
+        });
         _selectNode(node);
         Close();
     }
@@ -331,11 +345,58 @@ public sealed class NodePaletteController
                 graphPoint.Y);
         }
 
-        _editorService.AddNode(node);
-        _tryAutoConnectNode(node);
+        _commandService.Execute(asset.IsMacro ? "Add macro call" : "Add function call", () =>
+        {
+            _editorService.AddNode(node);
+            _tryAutoConnectNode(node);
+        });
         _selectNode(node);
         Close();
     }
+
+    private bool AddRecentGroup(IReadOnlyCollection<INodeDefinition> definitions)
+    {
+        var recent = _recentKinds
+            .Select(kind => definitions.FirstOrDefault(def => def.NodeKind == kind))
+            .Where(def => def is not null)
+            .Cast<INodeDefinition>()
+            .ToList();
+        if (recent.Count == 0)
+            return false;
+
+        AddGroupHeader("Recent");
+        foreach (var definition in recent)
+        {
+            var button = CreateMenuButton(definition.DisplayName, definition.NodeKind);
+            button.Click += NodeButton_Click;
+            _content.Children.Add(button);
+        }
+
+        return true;
+    }
+
+    private void RememberRecent(NodeKind kind)
+    {
+        _recentKinds.Remove(kind);
+        _recentKinds.Insert(0, kind);
+        if (_recentKinds.Count > 6)
+            _recentKinds.RemoveAt(_recentKinds.Count - 1);
+    }
+
+    private static bool MatchesFilter(INodeDefinition definition, string filter)
+    {
+        if (string.IsNullOrWhiteSpace(filter))
+            return true;
+
+        return Contains(definition.DisplayName, filter) ||
+               Contains(definition.Category, filter) ||
+               Contains(definition.TypeKey, filter) ||
+               Contains(definition.NodeKind.ToString(), filter) ||
+               definition.SearchTags.Any(tag => Contains(tag, filter));
+    }
+
+    private static bool Contains(string text, string filter) =>
+        text.Contains(filter, StringComparison.OrdinalIgnoreCase);
 
     private static IEnumerable<GraphParameterDefinition> GetEntryParameters(GraphFileModel graph, NodeKind kind) =>
         graph.Nodes

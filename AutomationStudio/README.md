@@ -1,5 +1,18 @@
 # AutomationStudioWpf
 
+## Current Notes (2026-06-06)
+
+- 2026-06-08: CodeGraph, project skill, technical docs, README, and agent memory were refreshed before git push. CodeGraph database files remain local and ignored; only the CodeGraph ignore policy is tracked.
+- Visual wires bind to `GraphEditorService.ConnectionPaths`; persisted graph data and runtime execution still use `GraphEditorService.Connections`.
+- `ConnectionPathViewModel` aggregates linear reroute chains only for drawing. Reroute order follows the real `Connections` chain, not point distance, so moving route nodes does not reorder or jump the wire.
+- `ConnectionSplinePlanner` builds Bezier/spline geometry and keeps control handles distance-clamped.
+- Double-clicking a visible wire inserts a reroute node by mapping the visual path back to the nearest backing `ConnectionViewModel`; Alt-click still removes the nearest backing connection.
+- Reroute nodes use centered anchors and a UE-style yellow selection glow/ring for click and box selection feedback.
+- `GraphCommandService` records graph-edit snapshots for Undo/Redo. Ctrl+Z undoes graph edits; Ctrl+Y or Ctrl+Shift+Z redoes them.
+- Visible wires can be selected, highlighted, deleted with Delete/Backspace, or edited through the wire context menu.
+- Node palette search now matches display name, category, type key, `NodeKind`, and generated `NodeDefinition.SearchTags`; recent created node kinds appear first.
+- Node dragging and arrow-key nudging snap to the 20px grid by default; hold Alt for 1px precision movement.
+
 UE4 风格的 WPF 蓝图节点编辑器 — 用于桌面自动化脚本编排。
 
 ## 功能
@@ -144,6 +157,13 @@ dotnet publish -c Release -r win-x64 --self-contained true /p:PublishSingleFile=
 # Smoke 验证
 dotnet build .\AutomationStudioWpf.csproj -o .\bin\CodexBuildCheck
 dotnet run --project .\Tests\CodexSmoke\AutomationStudioSmoke.csproj --no-restore
+
+# Optional reroute repro smoke
+$env:AUTOMATION_STUDIO_REROUTE_GRAPH_JSON='C:\Users\Administrator\Desktop\graph.json'
+dotnet run --project .\Tests\CodexSmoke\AutomationStudioSmoke.csproj --no-restore
+
+# CodeGraph sync
+& 'C:\Users\Administrator\nodejs\node-v20.18.1-win-x64\codegraph.cmd' sync
 ```
 
 ## 日志位置
@@ -154,6 +174,26 @@ saved/log/Log_2026_05_28_22_11.txt
 ```
 
 ## 最近更新
+
+### v1.2.3 (2026-06-08)
+- **Changed**: Refreshed CodeGraph, project skill, technical documentation, README, and agent memory before git push.
+- **Note**: CodeGraph runtime database/log files remain local through `.codegraph/.gitignore`; they are synced but not committed.
+
+### v1.2.2 (2026-06-06)
+- **Added**: `GraphCommandService` snapshot-based Undo/Redo for graph edit actions.
+- **Added**: Selectable visual wire paths with blue UE-style highlight, Delete/Backspace removal, and right-click actions for delete/add reroute.
+- **Improved**: Node move UX with 20px grid snapping, arrow-key nudging, Shift fast nudge, and Alt precision movement.
+- **Added**: `NodeDefinition` metadata for search tags, inspector schema key, default values, and validation hints.
+- **Improved**: Node palette search now matches category/type key/kind/tags and shows recent node kinds.
+- **Added**: Smoke coverage for command undo/redo, selected wire deletion, and definition metadata search.
+
+### v1.2.1 (2026-06-06)
+- **Fixed**: Reroute-backed wires no longer loop or jump when route points move.
+- **Changed**: Visual wire rendering uses `ConnectionPaths`; graph persistence/runtime still use `Connections`.
+- **Changed**: Reroute chain draw order follows the actual connection chain, not distance sorting.
+- **Fixed**: Double-clicking aggregated visual wires inserts a reroute node again.
+- **Improved**: Reroute selection now has a stronger UE-style glow/ring.
+- **Added**: Smoke coverage for reroute chain geometry, movement stability, visual wire hit-testing, and optional external `graph.json` repro.
 
 ### v1.2.0 (2026-06-05)
 - **新增**: 内容浏览器 — 文件夹树 + 瓦片视图，资产拖拽管理

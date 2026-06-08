@@ -5,12 +5,14 @@ using System.Windows.Shapes;
 using AutomationStudioWpf.Graph;
 using AutomationStudioWpf.Services;
 using Point = System.Windows.Point;
+using WpfKeyEventArgs = System.Windows.Input.KeyEventArgs;
 
 namespace AutomationStudioWpf.Interaction;
 
 public sealed class PinConnectionController
 {
     private readonly GraphEditorService _editorService;
+    private readonly GraphCommandService _commandService;
     private readonly NodeFactory _nodeFactory;
     private readonly FrameworkElement _captureElement;
     private readonly Path _previewPath;
@@ -18,16 +20,20 @@ public sealed class PinConnectionController
     private readonly Func<Point, PinViewModel?> _pinAtGraphPosition;
     private readonly Action<Point> _openNodePaletteForConnection;
     private readonly Action<NodeBaseViewModel?> _selectNode;
+    private readonly Action _clearNodeSelection;
     private readonly Action<bool> _setCanvasFocusActive;
     private readonly Action<string> _setStatus;
 
     private PinViewModel? _pendingStartPin;
     private PinViewModel? _pendingPalettePin;
+    private ConnectionPathViewModel? _selectedConnectionPath;
+    private Point _lastConnectionClickGraphPoint;
     private bool _isConnecting;
     private bool _wireWasDragged;
 
     public PinConnectionController(
         GraphEditorService editorService,
+        GraphCommandService commandService,
         NodeFactory nodeFactory,
         FrameworkElement captureElement,
         Path previewPath,
@@ -35,10 +41,12 @@ public sealed class PinConnectionController
         Func<Point, PinViewModel?> pinAtGraphPosition,
         Action<Point> openNodePaletteForConnection,
         Action<NodeBaseViewModel?> selectNode,
+        Action clearNodeSelection,
         Action<bool> setCanvasFocusActive,
         Action<string> setStatus)
     {
         _editorService = editorService;
+        _commandService = commandService;
         _nodeFactory = nodeFactory;
         _captureElement = captureElement;
         _previewPath = previewPath;
@@ -46,6 +54,7 @@ public sealed class PinConnectionController
         _pinAtGraphPosition = pinAtGraphPosition;
         _openNodePaletteForConnection = openNodePaletteForConnection;
         _selectNode = selectNode;
+        _clearNodeSelection = clearNodeSelection;
         _setCanvasFocusActive = setCanvasFocusActive;
         _setStatus = setStatus;
     }
@@ -100,35 +109,31 @@ public sealed class PinConnectionController
 
     public void HandleConnectionDoubleClick(object sender, MouseButtonEventArgs e)
     {
-        var connection = FindConnectionFromSource(e.OriginalSource as DependencyObject);
+        var clickPos = _viewportToGraph(e.GetPosition(_captureElement));
+        var connection = FindConnectionFromSource(e.OriginalSource as DependencyObject, clickPos);
         if (connection is null) return;
 
         _setCanvasFocusActive(false);
-        var clickPos = _viewportToGraph(e.GetPosition(_captureElement));
-        var reroute = _nodeFactory.CreateRerouteNode(connection.SourcePin.Kind, clickPos.X - 10, clickPos.Y - 10);
-        _editorService.AddNode(reroute);
-
-        var sourcePin = connection.SourcePin;
-        var targetPin = connection.TargetPin;
-        _editorService.RemoveConnection(connection);
-
-        var rerouteIn = reroute.FindPin("in");
-        var rerouteOut = reroute.FindPin("out");
-        if (rerouteIn is not null && rerouteOut is not null)
-        {
-            _editorService.CreateConnection(sourcePin, rerouteIn);
-            _editorService.CreateConnection(rerouteOut, targetPin);
-        }
-
-        _editorService.UpdatePinConnectionStates();
-        _setStatus("已添加路由节点。");
+        var reroute = InsertReroute(connection, clickPos);
+        if (reroute is not null)
+            _selectNode(reroute);
         e.Handled = true;
     }
 
     public void HandleConnectionMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        if ((Keyboard.Modifiers & ModifierKeys.Alt) == 0) return;
-        if (sender is not FrameworkElement element || element.DataContext is not ConnectionViewModel connection)
+        var clickPos = _viewportToGraph(e.GetPosition(_captureElement));
+        _lastConnectionClickGraphPoint = clickPos;
+
+        if ((Keyboard.Modifiers & ModifierKeys.Alt) == 0)
+        {
+            SelectConnectionPath(e.OriginalSource as DependencyObject);
+            _setCanvasFocusActive(false);
+            return;
+        }
+
+        var connection = FindConnectionFromSource(e.OriginalSource as DependencyObject, clickPos);
+        if (connection is null)
             return;
 
         _setCanvasFocusActive(false);
@@ -136,9 +141,16 @@ public sealed class PinConnectionController
         e.Handled = true;
     }
 
+    public void HandleConnectionMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        _lastConnectionClickGraphPoint = _viewportToGraph(e.GetPosition(_captureElement));
+        SelectConnectionPath(e.OriginalSource as DependencyObject);
+        _setCanvasFocusActive(false);
+    }
+
     public void DisconnectPin(PinViewModel pin)
     {
-        _editorService.ClearConnectionsForPin(pin);
+        _commandService.Execute("Disconnect pin", () => _editorService.ClearConnectionsForPin(pin));
         _setStatus($"已断开 {pin.Owner.Title}.{pin.DisplayName} 的所有连接。");
     }
 
@@ -182,7 +194,7 @@ public sealed class PinConnectionController
             return true;
         }
 
-        _editorService.CreateConnection(sourcePin, inputPin);
+        _commandService.Execute("Create connection", () => _editorService.CreateConnection(sourcePin, inputPin));
         _setStatus($"已连接：{sourcePin.Owner.Title}.{sourcePin.DisplayName} -> {inputPin.Owner.Title}.{inputPin.DisplayName}");
         Cancel(null);
         return true;
@@ -242,7 +254,7 @@ public sealed class PinConnectionController
                 continue;
             }
 
-            _editorService.CreateConnection(sourcePin, inputPin);
+            _commandService.Execute("Auto-connect node", () => _editorService.CreateConnection(sourcePin, inputPin));
             _editorService.UpdatePinConnectionStates();
             _setStatus($"已创建节点并连接：{sourcePin.Owner.Title}.{sourcePin.DisplayName} -> {inputPin.Owner.Title}.{inputPin.DisplayName}");
             return true;
@@ -254,9 +266,110 @@ public sealed class PinConnectionController
 
     public void RemoveConnection(ConnectionViewModel connection)
     {
-        _editorService.RemoveConnection(connection);
+        _commandService.Execute("Remove connection", () => _editorService.RemoveConnection(connection));
         _editorService.UpdatePinConnectionStates();
         _setStatus("已断开连接。");
+    }
+
+    public bool HandleKeyDown(WpfKeyEventArgs e)
+    {
+        if (e.Key is not (Key.Delete or Key.Back))
+            return false;
+
+        if (!DeleteSelectedConnectionPath())
+            return false;
+
+        e.Handled = true;
+        return true;
+    }
+
+    public void ClearSelectedConnectionPath()
+    {
+        foreach (var path in _editorService.ConnectionPaths)
+            path.IsSelected = false;
+
+        _selectedConnectionPath = null;
+    }
+
+    public bool DeleteSelectedConnectionPath()
+    {
+        var path = GetLiveSelectedPath();
+        if (path is null)
+            return false;
+
+        var connections = path.Connections.ToList();
+        _commandService.Execute("Delete connection path", () =>
+        {
+            foreach (var connection in connections)
+                _editorService.RemoveConnection(connection);
+        });
+
+        ClearSelectedConnectionPath();
+        _editorService.UpdatePinConnectionStates();
+        _setStatus("Deleted selected connection path.");
+        return true;
+    }
+
+    public bool InsertRerouteOnSelectedPath()
+    {
+        var path = GetLiveSelectedPath();
+        if (path is null)
+            return false;
+
+        var connection = path.FindNearestConnection(_lastConnectionClickGraphPoint);
+        var reroute = InsertReroute(connection, _lastConnectionClickGraphPoint);
+        if (reroute is not null)
+            _selectNode(reroute);
+
+        return reroute is not null;
+    }
+
+    private RerouteNodeViewModel? InsertReroute(ConnectionViewModel connection, Point graphPoint)
+    {
+        RerouteNodeViewModel? reroute = null;
+        _commandService.Execute("Add reroute", () =>
+        {
+            reroute = _nodeFactory.CreateRerouteNode(connection.SourcePin.Kind, graphPoint.X - 10, graphPoint.Y - 10);
+            _editorService.AddNode(reroute);
+
+            var sourcePin = connection.SourcePin;
+            var targetPin = connection.TargetPin;
+            _editorService.RemoveConnection(connection);
+
+            var rerouteIn = reroute.FindPin("in");
+            var rerouteOut = reroute.FindPin("out");
+            if (rerouteIn is not null && rerouteOut is not null)
+            {
+                _editorService.CreateConnection(sourcePin, rerouteIn);
+                _editorService.CreateConnection(rerouteOut, targetPin);
+            }
+        });
+
+        _editorService.UpdatePinConnectionStates();
+        _setStatus("Added reroute point.");
+        return reroute;
+    }
+
+    private void SelectConnectionPath(DependencyObject? source)
+    {
+        var path = FindConnectionPathFromSource(source);
+        if (path is null)
+            return;
+
+        _clearNodeSelection();
+        foreach (var item in _editorService.ConnectionPaths)
+            item.IsSelected = ReferenceEquals(item, path);
+
+        _selectedConnectionPath = path;
+    }
+
+    private ConnectionPathViewModel? GetLiveSelectedPath()
+    {
+        if (_selectedConnectionPath is not null && _editorService.ConnectionPaths.Contains(_selectedConnectionPath))
+            return _selectedConnectionPath;
+
+        _selectedConnectionPath = _editorService.ConnectionPaths.FirstOrDefault(path => path.IsSelected);
+        return _selectedConnectionPath;
     }
 
     private void ReleasePreviewWire()
@@ -273,7 +386,7 @@ public sealed class PinConnectionController
         var end = currentPoint;
 
         double direction = sourcePin.Direction == PinDirection.Output ? 1.0 : -1.0;
-        var tangent = Math.Max(80, Math.Abs(end.X - start.X) * 0.45);
+        var tangent = Math.Abs(end.X - start.X) * 0.45;
         var control1 = new Point(start.X + tangent * direction, start.Y);
         var control2 = new Point(end.X - tangent * direction, end.Y);
 
@@ -332,15 +445,31 @@ public sealed class PinConnectionController
         return false;
     }
 
-    private static ConnectionViewModel? FindConnectionFromSource(DependencyObject? source)
+    private static ConnectionViewModel? FindConnectionFromSource(DependencyObject? source, Point graphPoint)
     {
         var current = source;
         while (current is not null)
         {
             if (current is FrameworkElement fe && fe.DataContext is ConnectionViewModel c)
                 return c;
+            if (current is FrameworkElement pathElement && pathElement.DataContext is ConnectionPathViewModel path)
+                return path.FindNearestConnection(graphPoint);
             current = VisualTreeHelper.GetParent(current);
         }
+        return null;
+    }
+
+    private static ConnectionPathViewModel? FindConnectionPathFromSource(DependencyObject? source)
+    {
+        var current = source;
+        while (current is not null)
+        {
+            if (current is FrameworkElement { DataContext: ConnectionPathViewModel path })
+                return path;
+
+            current = VisualTreeHelper.GetParent(current);
+        }
+
         return null;
     }
 }

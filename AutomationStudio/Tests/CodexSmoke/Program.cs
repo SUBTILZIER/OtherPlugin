@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -11,6 +12,7 @@ using System.Windows.Media;
 using AutomationStudioWpf;
 using AutomationStudioWpf.Graph;
 using AutomationStudioWpf.Interaction;
+using AutomationStudioWpf.Nodes;
 using AutomationStudioWpf.Runtime;
 using AutomationStudioWpf.Services;
 
@@ -34,6 +36,10 @@ internal static class Program
             ResetContent(window);
             CheckContentBrowser(window);
             CheckPinConnectionPaletteAutoConnect(window);
+            CheckConnectionPathHitIsNotBlank(window);
+            CheckGraphCommandUndoRedo();
+            CheckConnectionPathSelectionDelete();
+            CheckNodeDefinitionMetadata();
             CheckGraphSectionsAndDirty(window);
             CheckCompileSync();
             CheckCompileRejectsPrivateLibraryCalls();
@@ -44,6 +50,7 @@ internal static class Program
             CheckConnectionRebindAfterParameterReorder();
             CheckPinBrushColors();
             CheckRerouteConnectionGeometry();
+            CheckExternalRerouteGraphFile();
             CheckDetailsPanelText(window);
             CheckLibraryPublishFlag(window);
             CheckSaveAllClearsNestedDirty(window);
@@ -421,6 +428,95 @@ internal static class Program
             ?? throw new MissingMethodException(nameof(MainWindow), "TryGetPinAtPosition");
         bool hit = (bool)(method.Invoke(window, args) ?? false);
         Assert(hit && ReferenceEquals(args[1], execInput), "pin hit test accepts near-miss within expanded radius");
+    }
+
+    private static void CheckConnectionPathHitIsNotBlank(MainWindow window)
+    {
+        var editor = Get<GraphEditorService>(window, "_editorService");
+
+        editor.ClearGraph();
+        var source = new PrintLogNodeViewModel("source");
+        var target = new PrintLogNodeViewModel("target") { X = 360 };
+        editor.AddNode(source);
+        editor.AddNode(target);
+        editor.CreateConnection(source.OutputPins.First(pin => pin.Name == "exec_out"), target.InputPins.First(pin => pin.Name == "exec_in"));
+
+        var path = new System.Windows.Shapes.Path { DataContext = editor.ConnectionPaths.Single() };
+        bool isBlank = (bool)(Invoke(window, "IsGraphBlankSource", path) ?? true);
+        Assert(!isBlank, "connection path hit is not treated as blank canvas");
+    }
+
+    private static void CheckGraphCommandUndoRedo()
+    {
+        var editor = new GraphEditorService();
+        var command = new GraphCommandService(editor, () => GraphAssetKind.EventGraph, () => { }, _ => { });
+        editor.NewGraph();
+        var start = editor.Nodes.OfType<StartNodeViewModel>().Single();
+        var log = new PrintLogNodeViewModel("log") { X = 320, Y = 120 };
+
+        command.Execute("Add nodes", () =>
+        {
+            editor.AddNode(log);
+            editor.CreateConnection(start.OutputPins.First(pin => pin.Name == "exec_out"), log.InputPins.First(pin => pin.Name == "exec_in"));
+        });
+        Assert(editor.Nodes.Count == 2 && editor.Connections.Count == 1, "command execute applies graph edit");
+
+        Assert(command.Undo(), "command undo succeeds");
+        Assert(editor.Nodes.Count == 1 && editor.Nodes.Single().NodeKind == NodeKind.Start && editor.Connections.Count == 0,
+            "command undo restores previous graph snapshot");
+
+        Assert(command.Redo(), "command redo succeeds");
+        Assert(editor.Nodes.Count == 2 && editor.Connections.Count == 1, "command redo restores next graph snapshot");
+
+        var beforeMove = command.Capture();
+        editor.Nodes.First(node => node.Id == "log").X = 500;
+        command.RecordApplied("Move node", beforeMove, command.Capture());
+        Assert(command.Undo(), "recorded move undo succeeds");
+        Assert(Math.Abs(editor.Nodes.First(node => node.Id == "log").X - 320) < 0.01, "recorded move undo restores coordinates");
+    }
+
+    private static void CheckConnectionPathSelectionDelete()
+    {
+        var editor = new GraphEditorService();
+        var command = new GraphCommandService(editor, () => GraphAssetKind.EventGraph, () => { }, _ => { });
+        var source = new StartNodeViewModel("source") { X = 80, Y = 120 };
+        var target = new PrintLogNodeViewModel("target") { X = 320, Y = 120 };
+        editor.AddNode(source);
+        editor.AddNode(target);
+        editor.CreateConnection(source.OutputPins.First(pin => pin.Name == "exec_out"), target.InputPins.First(pin => pin.Name == "exec_in"));
+
+        var controller = new PinConnectionController(
+            editor,
+            command,
+            new NodeFactory(),
+            new Canvas(),
+            new System.Windows.Shapes.Path(),
+            point => point,
+            _ => null,
+            _ => { },
+            _ => { },
+            () => { },
+            _ => { },
+            _ => { });
+
+        var path = editor.ConnectionPaths.Single();
+        path.IsSelected = true;
+        Assert(path.SelectionOpacity == 1.0 && path.StrokeThickness > 4.0, "selected connection path exposes highlight state");
+        Assert(controller.DeleteSelectedConnectionPath(), "selected connection path can be deleted");
+        Assert(editor.Connections.Count == 0, "deleting selected visual path removes backing connections");
+        Assert(command.Undo(), "connection path delete is undoable");
+        Assert(editor.Connections.Count == 1 && editor.ConnectionPaths.Count == 1, "undo restores deleted connection path");
+    }
+
+    private static void CheckNodeDefinitionMetadata()
+    {
+        var registry = NodeRegistry.CreateDefault();
+        var waitImage = registry.Definitions.Single(def => def.NodeKind == NodeKind.WaitImage);
+
+        Assert(waitImage.SearchTags.Contains("wait_image"), "node definition exposes generated type-key search tag");
+        Assert(!string.IsNullOrWhiteSpace(waitImage.InspectorSchemaKey), "node definition exposes inspector schema key");
+        Assert((bool)(InvokeStatic(typeof(NodePaletteController), "MatchesFilter", waitImage, "wait") ?? false),
+            "node palette search matches generated tags");
     }
 
     private static void ActivateGraphItem(MainWindow window, string controllerFieldName, GraphListItemViewModel item)
@@ -903,6 +999,87 @@ internal static class Program
         Assert(RerouteBezierTangentIsHorizontal(fromReroute, useStartTangent: true), "connection from reroute keeps horizontal route tangent");
         intoReroute.Dispose();
         fromReroute.Dispose();
+
+        CheckSingleRerouteConnectionPath();
+        CheckMultiRerouteBacklinkConnectionPath();
+    }
+
+    private static void CheckSingleRerouteConnectionPath()
+    {
+        var editor = new GraphEditorService();
+        var source = new PrintLogNodeViewModel("source") { X = 520, Y = 90 };
+        var reroute = new RerouteNodeViewModel("reroute", PinKind.Execution) { X = 350, Y = 300 };
+        var target = new PrintLogNodeViewModel("target") { X = 40, Y = 90 };
+        editor.Nodes.Add(source);
+        editor.Nodes.Add(reroute);
+        editor.Nodes.Add(target);
+
+        editor.CreateConnection(source.OutputPins.First(pin => pin.Name == "exec_out"), reroute.InputPins.First(pin => pin.Name == "in"));
+        editor.CreateConnection(reroute.OutputPins.First(pin => pin.Name == "out"), target.InputPins.First(pin => pin.Name == "exec_in"));
+
+        Assert(editor.ConnectionPaths.Count == 1, "single reroute chain renders as one path");
+        var geometry = (PathGeometry)editor.ConnectionPaths.Single().PathGeometry;
+        Assert(geometry.Figures.Single().Segments.Count == 2, "single reroute path has one segment per ordered span");
+        AssertSplineControlsAreClamped(geometry, "single reroute path clamps bezier handles by span distance");
+        AssertInteriorTangentsContinuous(geometry, "single reroute path keeps continuous tangent through route point");
+    }
+
+    private static void CheckMultiRerouteBacklinkConnectionPath()
+    {
+        var editor = new GraphEditorService();
+        var source = new PrintLogNodeViewModel("source") { X = 760, Y = 110 };
+        var target = new PrintLogNodeViewModel("target") { X = 40, Y = 110 };
+        var routeNearTarget = new RerouteNodeViewModel("route_a", PinKind.Execution) { X = 260, Y = 350 };
+        var routeNearSource = new RerouteNodeViewModel("route_b", PinKind.Execution) { X = 610, Y = 310 };
+        editor.Nodes.Add(source);
+        editor.Nodes.Add(target);
+        editor.Nodes.Add(routeNearTarget);
+        editor.Nodes.Add(routeNearSource);
+
+        editor.CreateConnection(source.OutputPins.First(pin => pin.Name == "exec_out"), routeNearTarget.InputPins.First(pin => pin.Name == "in"));
+        editor.CreateConnection(routeNearTarget.OutputPins.First(pin => pin.Name == "out"), routeNearSource.InputPins.First(pin => pin.Name == "in"));
+        editor.CreateConnection(routeNearSource.OutputPins.First(pin => pin.Name == "out"), target.InputPins.First(pin => pin.Name == "exec_in"));
+
+        Assert(editor.ConnectionPaths.Count == 1, "multi reroute backlink renders as one path");
+        var geometry = (PathGeometry)editor.ConnectionPaths.Single().PathGeometry;
+        var figure = geometry.Figures.Single();
+        var firstSegment = (BezierSegment)figure.Segments[0];
+        AssertPointClose(firstSegment.Point3, RerouteCenter(routeNearTarget), "reroute path keeps connection-chain route order");
+        Assert(figure.Segments.Count == 3, "multi reroute path has one segment per ordered span");
+        AssertSplineControlsAreClamped(geometry, "multi reroute backlink clamps bezier handles by span distance");
+
+        routeNearTarget.X = 120;
+        routeNearTarget.Y = 500;
+        routeNearSource.X = 930;
+        routeNearSource.Y = 150;
+        FlushDispatcher();
+
+        geometry = (PathGeometry)editor.ConnectionPaths.Single().PathGeometry;
+        figure = geometry.Figures.Single();
+        var movedFirstSegment = (BezierSegment)figure.Segments[0];
+        var movedSecondSegment = (BezierSegment)figure.Segments[1];
+        Assert(figure.Segments.Count == 3, "moving reroute nodes keeps segment count stable");
+        AssertPointClose(movedFirstSegment.Point3, RerouteCenter(routeNearTarget), "moving reroute nodes does not reorder first route point");
+        AssertPointClose(movedSecondSegment.Point3, RerouteCenter(routeNearSource), "moving reroute nodes does not reorder second route point");
+    }
+
+    private static void CheckExternalRerouteGraphFile()
+    {
+        string? path = Environment.GetEnvironmentVariable("AUTOMATION_STUDIO_REROUTE_GRAPH_JSON");
+        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+        {
+            return;
+        }
+
+        var file = JsonSerializer.Deserialize<GraphFileModel>(File.ReadAllText(path))
+            ?? throw new InvalidOperationException("external reroute graph json failed to deserialize");
+        var editor = new GraphEditorService();
+        editor.LoadFromModel(file);
+        Assert(editor.ConnectionPaths.Any(pathView =>
+        {
+            var geometry = (PathGeometry)pathView.PathGeometry;
+            return geometry.Figures.Single().Segments.Count >= 4;
+        }), "external reroute graph renders multi-reroute chain as one aggregated path");
     }
 
     private static Point GetBezierStart(ConnectionViewModel connection)
@@ -929,6 +1106,57 @@ internal static class Program
         return useStartTangent
             ? Math.Abs(segment.Point1.Y - figure.StartPoint.Y) < epsilon
             : Math.Abs(segment.Point2.Y - segment.Point3.Y) < epsilon;
+    }
+
+    private static void AssertSplineControlsAreClamped(PathGeometry geometry, string message)
+    {
+        const double epsilon = 0.001;
+        var figure = geometry.Figures.Single();
+        Point start = figure.StartPoint;
+        foreach (BezierSegment segment in figure.Segments.OfType<BezierSegment>())
+        {
+            double spanLength = Distance(start, segment.Point3);
+            Assert(Distance(start, segment.Point1) <= spanLength * 0.36 + epsilon, message);
+            Assert(Distance(segment.Point3, segment.Point2) <= spanLength * 0.36 + epsilon, message);
+            start = segment.Point3;
+        }
+    }
+
+    private static void AssertInteriorTangentsContinuous(PathGeometry geometry, string message)
+    {
+        const double epsilon = 0.001;
+        var segments = geometry.Figures.Single().Segments.OfType<BezierSegment>().ToArray();
+        for (int i = 0; i < segments.Length - 1; i++)
+        {
+            Point routePoint = segments[i].Point3;
+            Vector incoming = routePoint - segments[i].Point2;
+            Vector outgoing = segments[i + 1].Point1 - routePoint;
+            Assert(incoming.Length > epsilon && outgoing.Length > epsilon, message);
+            incoming.Normalize();
+            outgoing.Normalize();
+            Assert(Vector.Multiply(incoming, outgoing) > 0.95, message);
+        }
+    }
+
+    private static Point RerouteCenter(RerouteNodeViewModel reroute) =>
+        new(reroute.X + reroute.Width / 2.0, reroute.Y + reroute.Height / 2.0);
+
+    private static void AssertPointClose(Point actual, Point expected, string message)
+    {
+        Assert(Distance(actual, expected) < 0.001, $"{message}: got ({actual.X:0.###},{actual.Y:0.###}), expected ({expected.X:0.###},{expected.Y:0.###})");
+    }
+
+    private static double Distance(Point first, Point second)
+    {
+        double dx = second.X - first.X;
+        double dy = second.Y - first.Y;
+        return Math.Sqrt(dx * dx + dy * dy);
+    }
+
+    private static void FlushDispatcher()
+    {
+        var dispatcher = Application.Current?.Dispatcher;
+        dispatcher?.Invoke(new Action(() => { }), System.Windows.Threading.DispatcherPriority.Render);
     }
 
     private static void CheckConnectionRebindAfterParameterReorder()

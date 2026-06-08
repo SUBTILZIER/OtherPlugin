@@ -112,7 +112,39 @@ public sealed class NodeRegistry
     }
 
     private static NodeDefinition Definition(NodeKind kind, string typeKey, string displayName, string category, IReadOnlyList<NodePinDefinition> pins) =>
-        new(kind, typeKey, displayName, category, pins);
+        new(kind, typeKey, displayName, category, pins, BuildSearchTags(kind, typeKey, category, pins), InspectorSchemaKey(kind));
+
+    private static IReadOnlyList<string> BuildSearchTags(NodeKind kind, string typeKey, string category, IReadOnlyList<NodePinDefinition> pins)
+    {
+        return
+        [
+            kind.ToString(),
+            typeKey,
+            .. typeKey.Split('_', StringSplitOptions.RemoveEmptyEntries),
+            category,
+            .. category.Split('/', StringSplitOptions.RemoveEmptyEntries),
+            .. pins.Select(pin => pin.Name),
+            .. pins.Select(pin => pin.Label),
+        ];
+    }
+
+    private static string InspectorSchemaKey(NodeKind kind) => kind switch
+    {
+        NodeKind.FindImage => "find_image",
+        NodeKind.MouseClick => "mouse_click",
+        NodeKind.MouseMove => "mouse_move",
+        NodeKind.Keyboard => "keyboard",
+        NodeKind.ScrollWheel => "scroll_wheel",
+        NodeKind.Delay => "delay",
+        NodeKind.If => "if",
+        NodeKind.ForLoop => "for_loop",
+        NodeKind.WhileLoop => "while_loop",
+        NodeKind.StartProgram => "start_program",
+        NodeKind.SelectWindow => "select_window",
+        NodeKind.FunctionEntry or NodeKind.FunctionReturn or NodeKind.MacroEntry or NodeKind.MacroOutput => "parameterized_entry",
+        NodeKind.FunctionCall or NodeKind.MacroCall or NodeKind.CustomEvent or NodeKind.CustomEventCall => "callable",
+        _ => "common",
+    };
 
     private static NodePinDefinition InExec(string name = "exec_in", string label = "执行输入") =>
         new(name, label, PinKind.Execution, PinDirection.Input);

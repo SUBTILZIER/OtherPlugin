@@ -1,10 +1,6 @@
 using System.ComponentModel;
-using Point = System.Windows.Point;
 using Brush = System.Windows.Media.Brush;
 using Geometry = System.Windows.Media.Geometry;
-using PathFigure = System.Windows.Media.PathFigure;
-using BezierSegment = System.Windows.Media.BezierSegment;
-using PathGeometry = System.Windows.Media.PathGeometry;
 using DispatcherPriority = System.Windows.Threading.DispatcherPriority;
 
 namespace AutomationStudioWpf.Graph;
@@ -96,37 +92,6 @@ public sealed class ConnectionViewModel : ObservableObject, IDisposable
 
     private Geometry BuildPathGeometry()
     {
-        Point start = GetAbsolutePinAnchor(SourcePin);
-        Point end = GetAbsolutePinAnchor(TargetPin);
-
-        // 整体流向：source → target 的 X 方向，决定所有段贝塞尔控制点的方向
-        double overallDirection = (end.X >= start.X) ? 1.0 : -1.0;
-
-        double tangent = Math.Max(80, Math.Abs(end.X - start.X) * 0.45);
-        Point control1 = new(start.X + tangent * overallDirection, start.Y);
-        Point control2 = new(end.X - tangent * overallDirection, end.Y);
-
-        PathFigure figure = new()
-        {
-            StartPoint = start,
-            IsClosed = false,
-            IsFilled = false,
-        };
-        figure.Segments.Add(new BezierSegment(control1, control2, end, true));
-
-        PathGeometry geometry = new();
-        geometry.Figures.Add(figure);
-        if (geometry.CanFreeze)
-        {
-            geometry.Freeze();
-        }
-
-        return geometry;
-    }
-
-    private static Point GetAbsolutePinAnchor(PinViewModel pin)
-    {
-        Point anchor = pin.Owner.GetPinAnchor(pin);
-        return new Point(pin.Owner.X + anchor.X, pin.Owner.Y + anchor.Y);
+        return ConnectionSplinePlanner.BuildPinConnectionGeometry(SourcePin, TargetPin);
     }
 }

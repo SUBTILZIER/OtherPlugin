@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Text.Json;
+using System.Collections.Specialized;
 using AutomationStudioWpf.Graph;
 using AutomationStudioWpf.Logging;
 using AutomationStudioWpf.Runtime;
@@ -16,16 +17,26 @@ public sealed class GraphEditorService
 
     public ObservableCollection<NodeBaseViewModel> Nodes { get; } = [];
     public ObservableCollection<ConnectionViewModel> Connections { get; } = [];
+    public ObservableCollection<ConnectionPathViewModel> ConnectionPaths { get; } = [];
+
+    public GraphEditorService()
+    {
+        Connections.CollectionChanged += ConnectionsCollectionChanged;
+    }
 
     public string? CurrentGraphPath { get; private set; }
 
     public event Action? GraphChanged;
     public event Action<string>? StatusChanged;
 
+    private void ConnectionsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        RebuildConnectionPaths();
+    }
+
     public void NewGraph()
     {
-        Nodes.Clear();
-        Connections.Clear();
+        ClearNodesAndConnections();
         CurrentGraphPath = null;
 
         var startNode = CreateDefaultStartNode();
@@ -37,8 +48,7 @@ public sealed class GraphEditorService
 
     public void NewFunctionGraph()
     {
-        Nodes.Clear();
-        Connections.Clear();
+        ClearNodesAndConnections();
         CurrentGraphPath = null;
 
         var entry = new FunctionEntryNodeViewModel("node_001")
@@ -63,8 +73,7 @@ public sealed class GraphEditorService
 
     public void NewMacroGraph()
     {
-        Nodes.Clear();
-        Connections.Clear();
+        ClearNodesAndConnections();
         CurrentGraphPath = null;
 
         var entry = new MacroEntryNodeViewModel("node_001")
@@ -139,13 +148,7 @@ public sealed class GraphEditorService
 
     public void LoadFromModel(GraphFileModel file)
     {
-        foreach (var connection in Connections)
-        {
-            connection.Dispose();
-        }
-
-        Nodes.Clear();
-        Connections.Clear();
+        ClearNodesAndConnections();
 
         var nodesById = new Dictionary<string, NodeBaseViewModel>();
 
@@ -199,11 +202,7 @@ public sealed class GraphEditorService
 
     public void ClearGraph()
     {
-        foreach (var connection in Connections)
-            connection.Dispose();
-
-        Nodes.Clear();
-        Connections.Clear();
+        ClearNodesAndConnections();
         GraphChanged?.Invoke();
     }
 
@@ -298,6 +297,107 @@ public sealed class GraphEditorService
         Connections.RemoveAt(index);
         connection.Dispose();
         GraphChanged?.Invoke();
+    }
+
+    private void RebuildConnectionPaths()
+    {
+        ClearConnectionPaths();
+
+        var incomingByReroute = Connections
+            .Where(connection => connection.TargetPin.Owner.NodeKind == NodeKind.Reroute)
+            .GroupBy(connection => connection.TargetPin.Owner)
+            .ToDictionary(group => group.Key, group => group.ToList());
+        var outgoingByReroute = Connections
+            .Where(connection => connection.SourcePin.Owner.NodeKind == NodeKind.Reroute)
+            .GroupBy(connection => connection.SourcePin.Owner)
+            .ToDictionary(group => group.Key, group => group.ToList());
+
+        HashSet<ConnectionViewModel> visited = [];
+        foreach (var connection in Connections)
+        {
+            if (visited.Contains(connection))
+            {
+                continue;
+            }
+
+            if (connection.SourcePin.Owner.NodeKind == NodeKind.Reroute &&
+                incomingByReroute.TryGetValue(connection.SourcePin.Owner, out var incoming) &&
+                incoming.Count == 1)
+            {
+                continue;
+            }
+
+            var chain = BuildRenderableConnectionChain(connection, incomingByReroute, outgoingByReroute);
+            foreach (var chainConnection in chain)
+            {
+                visited.Add(chainConnection);
+            }
+
+            ConnectionPaths.Add(new ConnectionPathViewModel(chain));
+        }
+
+        foreach (var connection in Connections)
+        {
+            if (!visited.Contains(connection))
+            {
+                ConnectionPaths.Add(new ConnectionPathViewModel([connection]));
+            }
+        }
+    }
+
+    private static List<ConnectionViewModel> BuildRenderableConnectionChain(
+        ConnectionViewModel start,
+        IReadOnlyDictionary<NodeBaseViewModel, List<ConnectionViewModel>> incomingByReroute,
+        IReadOnlyDictionary<NodeBaseViewModel, List<ConnectionViewModel>> outgoingByReroute)
+    {
+        List<ConnectionViewModel> chain = [start];
+        HashSet<ConnectionViewModel> seen = [start];
+        ConnectionViewModel current = start;
+
+        while (current.TargetPin.Owner.NodeKind == NodeKind.Reroute)
+        {
+            var reroute = current.TargetPin.Owner;
+            if (!incomingByReroute.TryGetValue(reroute, out var incoming) ||
+                !outgoingByReroute.TryGetValue(reroute, out var outgoing) ||
+                incoming.Count != 1 ||
+                outgoing.Count != 1)
+            {
+                return [start];
+            }
+
+            var next = outgoing[0];
+            if (!seen.Add(next))
+            {
+                return [start];
+            }
+
+            chain.Add(next);
+            current = next;
+        }
+
+        return chain;
+    }
+
+    private void ClearConnectionPaths()
+    {
+        foreach (var path in ConnectionPaths)
+        {
+            path.Dispose();
+        }
+
+        ConnectionPaths.Clear();
+    }
+
+    private void ClearNodesAndConnections()
+    {
+        ClearConnectionPaths();
+        foreach (var connection in Connections)
+        {
+            connection.Dispose();
+        }
+
+        Connections.Clear();
+        Nodes.Clear();
     }
 
     public void ClearConnectionsForPin(PinViewModel pin)
