@@ -16,6 +16,7 @@ public static class NodeSerializer
             Id = node.Id,
             NodeTypeKey = node.NodeTypeKey,
             Title = node.Title,
+            NodeNumber = node.NodeNumber,
             X = node.X,
             Y = node.Y,
         };
@@ -72,6 +73,13 @@ public static class NodeSerializer
                 file.ConditionValue = whileNode.ConditionValue;
                 file.WhileLoopMode = whileNode.LoopMode.ToString();
                 file.MaxIterations = whileNode.MaxIterations;
+                break;
+
+            case ToDoNodeViewModel toDoNode:
+                file.TargetNodeTitle = toDoNode.TargetNodeTitle;
+                file.TargetNodeNumber = toDoNode.TargetNodeNumber;
+                file.TargetNodeId = toDoNode.TargetNodeId;
+                file.ReturnAfterTarget = toDoNode.ReturnAfterTarget;
                 break;
 
             case ForLoopNodeViewModel forNode:
@@ -149,7 +157,7 @@ public static class NodeSerializer
             return null;
         }
 
-        return file.NodeTypeKey switch
+        NodeBaseViewModel? node = file.NodeTypeKey switch
         {
             "start" => new StartNodeViewModel(file.Id)
             {
@@ -249,9 +257,22 @@ public static class NodeSerializer
                 Title = file.Title,
                 X = file.X,
                 Y = file.Y,
+                NodeNumber = file.NodeNumber,
                 ConditionValue = file.ConditionValue,
                 LoopMode = Enum.TryParse<WhileLoopMode>(file.WhileLoopMode ?? file.ScrollAction, true, out var lm) ? lm : WhileLoopMode.Finite,
                 MaxIterations = file.MaxIterations > 0 ? file.MaxIterations : (file.DelayMs > 0 ? file.DelayMs : 10000),
+            },
+
+            "todo" => new ToDoNodeViewModel(file.Id)
+            {
+                Title = string.IsNullOrWhiteSpace(file.Title) ? "ToDo跳转" : file.Title,
+                NodeNumber = file.NodeNumber,
+                X = file.X,
+                Y = file.Y,
+                TargetNodeTitle = file.TargetNodeTitle ?? string.Empty,
+                TargetNodeNumber = file.TargetNodeNumber ?? string.Empty,
+                TargetNodeId = file.TargetNodeId,
+                ReturnAfterTarget = file.ReturnAfterTarget,
             },
 
             "delay" => new DelayNodeViewModel(file.Id)
@@ -315,6 +336,14 @@ public static class NodeSerializer
 
             _ => null,
         };
+
+        if (node is not null)
+        {
+            node.NodeNumber = file.NodeNumber;
+            node.RefreshDescription();
+        }
+
+        return node;
     }
 
     private static bool IsDiscardedNodeType(string? nodeTypeKey) =>
@@ -323,7 +352,7 @@ public static class NodeSerializer
 
     public static GraphRuntimeNode ToRuntimeNode(NodeBaseViewModel node)
     {
-        return node switch
+        GraphRuntimeNode runtime = node switch
         {
             StartNodeViewModel startNode => GraphRuntimeNode.ForStart(startNode.Id, startNode.Title),
 
@@ -375,6 +404,14 @@ public static class NodeSerializer
             WhileLoopNodeViewModel whileNode => GraphRuntimeNode.ForWhileLoop(
                 whileNode.Id, whileNode.Title, whileNode.ConditionValue, whileNode.LoopMode, whileNode.MaxIterations),
 
+            ToDoNodeViewModel toDoNode => GraphRuntimeNode.ForToDo(
+                toDoNode.Id,
+                toDoNode.Title,
+                toDoNode.TargetNodeTitle,
+                toDoNode.TargetNodeNumber,
+                toDoNode.TargetNodeId,
+                toDoNode.ReturnAfterTarget),
+
             PrintLogNodeViewModel printNode => GraphRuntimeNode.ForPrintLog(printNode.Id, printNode.Title, printNode.Message),
 
             SelectWindowNodeViewModel selectWindowNode => GraphRuntimeNode.ForSelectWindow(
@@ -404,6 +441,8 @@ public static class NodeSerializer
 
             _ => throw new InvalidOperationException($"不支持执行的节点类型: {node.GetType().Name}"),
         };
+
+        return runtime with { NodeNumber = node.NodeNumber };
     }
 
     private static RerouteNodeViewModel CreateRerouteFromFile(NodeFileModel file)

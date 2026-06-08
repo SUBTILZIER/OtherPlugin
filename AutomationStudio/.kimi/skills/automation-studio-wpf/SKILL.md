@@ -11,6 +11,23 @@ WPF 可视化节点自动化编辑器，类似 UE4 蓝图。技术栈 C# 12 / .N
 
 ## 踩坑记录（按时间倒序，新记录追加到顶部）
 
+### 2026-06-08: ToDo 持久化 / Log 复制 / 待实现导航
+
+- 编译、保存、运行前必须先走 `MainWindow.CommitInspectorAndSnapshotActive()`，保证属性面板内容写入 VM 和当前 `GraphFileModel`。
+- `InspectorController.ToDoTargetSelected()` 选择目标后要立即写 `TargetNodeTitle`、`TargetNodeNumber`、`TargetNodeId`，刷新描述、标脏并快照 active graph。不要等保存/编译时才读 UI。
+- `GraphCompileService.EnsureGraphToDoTargets()` 会用有效 `TargetNodeId` 回填旧数据缺失的 title/number；`target_title` / `target_number` 有输入连线时跳过静态目标必填，但静态下拉值仍要保留。
+- 日志面板是只读 `RichTextBox`。全局快捷键必须对 `TextBoxBase` 放行；`LogPanelController` 显式绑定 `ApplicationCommands.Copy` / `SelectAll`，避免 `Ctrl+C` 被节点复制截获。
+- 当前内容浏览器还没有递归模糊搜索、搜索结果双击打开、`Ctrl+B` 定位真实文件夹。右侧瓦片仍只显示当前目录 `ContentVisibleItems`。
+- 当前 `FunctionCallNodeViewModel` / `MacroCallNodeViewModel` 没有双击跳转到目标函数/宏编辑器；后续实现应通过 `CallableGraphResolver` 和 stable id 打开对应资产与图。
+
+### 2026-06-08: ToDo 跳转与可复用节点编号
+
+- 非 `Reroute` 节点有可见 `NodeNumber`：事件图 `N###`、函数图 `Fun###`、宏图 `Mac###`。`GraphEditorService` 分配当前图最小空闲编号，删除节点会释放编号。
+- `ToDoNodeViewModel` 用 `TargetNodeTitle + TargetNodeNumber` 双键在当前图内跳转；`TargetNodeId` 只用于编辑器维护引用，目标改名/改号时自动同步字段。
+- `ReturnAfterTarget=false` 是 Goto，不走 `ToDo.exec_out`；`true` 会先执行目标链，结束后再走 `ToDo.exec_out`。
+- ToDo 详情面板有搜索框和结果列表，按节点名或编号过滤；选择项会填入节点名与编号。
+- Runtime/validation 必须拒绝空目标、不存在目标、重复目标和自跳。编号被删除后可复用，但 ToDo 仍要求节点名也匹配，不能只按编号跳。
+
 ### 2026-06-08: 本地文档 / CodeGraph / 连线渲染现状
 
 - 当前项目 skill 源文件是 `.kimi/skills/automation-studio-wpf/SKILL.md`；本地没有 `.agents/skills/automationstudio-wpf/`。
@@ -18,7 +35,10 @@ WPF 可视化节点自动化编辑器，类似 UE4 蓝图。技术栈 C# 12 / .N
 - 可见连线绑定 `GraphEditorService.ConnectionPaths`；持久化和运行时仍使用 `GraphEditorService.Connections`。
 - `ConnectionPathViewModel` 只负责把线性 reroute 链聚合成一条可见路径，链顺序来自真实 `Connections` 拓扑，不按点距离重排。
 - 当前可见路径几何由 `ConnectionSplinePlanner` 生成；单段连接是一条 cubic Bezier，多 reroute 链使用按相邻点距离缩放的分段 spline handle。
-- 已知限制：紧凑或反向 reroute 布局仍可能出现局部绕圈。修复应改 `ConnectionSplinePlanner` 的 handle 计算，不要改未接入渲染链路的 `ConnectionChain` / `ConnectionChainFinder`。
+- 紧凑或反向 reroute 布局已有 no-loop smoke 回归保护；没有新明确复现前不要重写 `ConnectionSplinePlanner` 线形。
+- `ConnectionPathViewModel.FindNearestConnection` 用可见 Bezier 曲线采样映射 backing `ConnectionViewModel`，不要退回只按端点直线命中。
+- `GraphEditorService.RunBatchedEdit(...)` 批量连接变更；批量内只标记 `ConnectionPaths` 脏和 `GraphChanged` pending，最外层退出时统一 flush。
+- 运行时查找走 `GraphExecutionPlan` 的 internal lazy `GraphExecutionIndex`；不要改 graph JSON 或 `GraphExecutionPlan(nodes, connections)` 构造形状。
 - `ConnectionSettings` / `SplineTangentCalculator` 当前存在但不被 XAML 绑定的可见连线路径调用，除非接线到 `ConnectionSplinePlanner`，否则改它们不会改变画布线形。
 - `NodeRegistry.CreateDefaultDefinitions()` 当前有 38 个定义；`NodeKind.Comment` 是历史残留枚举，旧 `comment` 文件节点由 `NodeSerializer` 跳过。
 
@@ -414,7 +434,7 @@ MainWindow (View)
     └─ Inspector Panel
 
 Services
-    ├─ GraphEditorService    ← 节点/Connections/ConnectionPaths、保存加载、执行计划
+    ├─ GraphEditorService    ← 节点/Connections/ConnectionPaths、批量连接变更、保存加载、执行计划
     ├─ GraphCommandService   ← Undo/Redo 快照命令
     ├─ NodeFactory           ← ID 生成 + 节点创建
     ├─ NodeSerializer        ← ViewModel ↔ FileModel ↔ RuntimeModel
@@ -431,7 +451,7 @@ Graph (ViewModel)
 
 Runtime
     ├─ GraphRuntimeExecutor  ← 顺序执行，最大步数环路保护
-    └─ GraphExecutionModels  ← record，扁平化运行时数据
+    └─ GraphExecutionModels  ← record，扁平化运行时数据 + internal lazy GraphExecutionIndex
 ```
 
 ## 开发规范

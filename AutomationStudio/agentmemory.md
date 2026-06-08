@@ -6,13 +6,42 @@
 - 技术细节保留准确名词、文件名、命令；解释原因时用短句。
 - 不要自动 `git push`。只有用户明确要求推送时才推；推送前必须确认不包含测试功能相关文件夹。
 
+## 2026-06-08 ToDo jump and reusable node numbers
+
+- Non-reroute nodes now have visible reusable per-graph `NodeNumber`: event `N###`, function `Fun###`, macro `Mac###`. `GraphEditorService` assigns the smallest free number, so deleting a node frees that number for future nodes.
+- `ToDoNodeViewModel` jumps inside the current graph by matching both `TargetNodeTitle` and `TargetNodeNumber`; `TargetNodeId` is only a maintenance reference for editor-side auto-sync when the target title/number changes.
+- `ToDo.ReturnAfterTarget == false` is Goto mode and skips `ToDo.exec_out`; `true` executes the target chain and then continues from `ToDo.exec_out`.
+- The ToDo inspector has a search box plus result list. Search filters by node title or node number; selecting a result fills both target fields.
+- Runtime/validation must reject empty target, missing target, duplicate target, and self-jump. Reused number alone is not enough; title must also match.
+
+## 2026-06-08 ToDo persistence and log copy
+
+- Before compile/save/run, call `MainWindow.CommitInspectorAndSnapshotActive()` so inspector fields are applied and the active `GraphListItemViewModel.Graph` is refreshed.
+- `InspectorController.ToDoTargetSelected()` must immediately write `TargetNodeTitle`, `TargetNodeNumber`, and `TargetNodeId` to the selected `ToDoNodeViewModel`, refresh description, mark dirty, then snapshot the active graph.
+- `GraphCompileService.EnsureGraphToDoTargets()` repairs old ToDo data that has only `TargetNodeId` by filling title/number from the referenced same-graph node before validation.
+- Connected ToDo `target_title` / `target_number` pins are runtime overrides. They must not clear the persisted static dropdown target.
+- Main log panel is a read-only `RichTextBox`. `Window_PreviewKeyDown` must pass through any `TextBoxBase` focus, and `LogPanelController` owns `Ctrl+A`/`Ctrl+C` command bindings for selecting/copying filtered log text.
+
+## 2026-06-08 pending UE-style browser/navigation work
+
+- Current content browser has no recursive fuzzy search box, no search-result mode, and no `Ctrl+B` locate-to-real-folder behavior. It only shows current folder tiles from `ContentVisibleItems`.
+- Current asset tile double-click opens the selected asset/folder. It does not search recursively.
+- Current function/macro call nodes do not double-click navigate to the target graph. Implement later by resolving stable `FunctionId` / `MacroId` through `CallableGraphResolver`, opening the owner asset, then loading the matching function/macro `GraphListItemViewModel`.
+
+## 2026-06-08 connection batching and runtime lookup
+
+- `GraphEditorService.RunBatchedEdit(...)` batches composed graph edits. Inside a batch, `Connections.CollectionChanged` only marks `ConnectionPaths` dirty, and `GraphChanged` is emitted once after the outermost batch exits.
+- Use `GraphEditorService.RemoveConnections(...)` for deleting a selected visual connection path. `PinConnectionController` wraps reroute insertion in one batch: add reroute node, remove old connection, create two new connections.
+- Runtime lookup uses internal lazy `GraphExecutionIndex` on `GraphExecutionPlan`. Do not change graph JSON or the public `GraphExecutionPlan(nodes, connections)` call shape for lookup optimization.
+- Smoke now covers visible-curve hit mapping, pin state refresh, no-loop reroute regressions, and batched connection edit event counts.
+
 ## 2026-06-06 reroute connection rendering
 
 - Visual wiring now binds XAML to `GraphEditorService.ConnectionPaths`; persisted/runtime logic still uses `Connections`.
 - Reroute chains are aggregated by `ConnectionPathViewModel` and shaped by `ConnectionSplinePlanner`; linear reroute chains keep the persisted `Connections` chain order so moving route nodes never reorders the drawn path. Ambiguous reroute branch/merge falls back to individual connection paths.
-- Current `ConnectionSplinePlanner` uses one cubic Bezier for single backing connections and distance-scaled spline handles for aggregated reroute chains. Tight/backward layouts can still create local loops; route fixes belong in `ConnectionSplinePlanner`.
+- Current `ConnectionSplinePlanner` uses one cubic Bezier for single backing connections and distance-scaled spline handles for aggregated reroute chains. Tight/backward layouts are covered by no-loop smoke regressions; do not rewrite line shape without a new concrete repro.
 - `ConnectionChain`, `ConnectionChainFinder`, `ConnectionSettings`, and `SplineTangentCalculator` are present but not wired into the visible XAML path pipeline.
-- Visible wire double-click/Alt-click must map `ConnectionPathViewModel` back to nearest backing `ConnectionViewModel`; `IsGraphBlankSource` must treat `ConnectionPathViewModel` as non-blank or selection will swallow wire double-click.
+- Visible wire double-click/Alt-click must map `ConnectionPathViewModel` back to nearest backing `ConnectionViewModel` by visible-curve hit sampling; `IsGraphBlankSource` must treat `ConnectionPathViewModel` as non-blank or selection will swallow wire double-click.
 - Reroute selection uses a UE-style yellow glow/ring in XAML; keep it visible for click and box selection.
 - Optional repro smoke: set `AUTOMATION_STUDIO_REROUTE_GRAPH_JSON` to a graph file such as `C:/Users/Administrator/Desktop/graph.json`.
 

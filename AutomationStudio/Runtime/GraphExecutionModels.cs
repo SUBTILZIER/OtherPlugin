@@ -4,7 +4,107 @@ namespace AutomationStudioWpf.Runtime;
 
 public sealed record GraphExecutionPlan(
     IReadOnlyList<GraphRuntimeNode> Nodes,
-    IReadOnlyList<GraphRuntimeConnection> Connections);
+    IReadOnlyList<GraphRuntimeConnection> Connections)
+{
+    private GraphExecutionIndex? _index;
+
+    internal GraphExecutionIndex Index => _index ??= new GraphExecutionIndex(Nodes, Connections);
+}
+
+internal sealed class GraphExecutionIndex
+{
+    private readonly Dictionary<string, GraphRuntimeNode> _nodesById = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, GraphRuntimeNode> _nodesByNumber = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<NodeTitleNumberKey, List<GraphRuntimeNode>> _nodesByTitleAndNumber = [];
+    private readonly Dictionary<NodeKind, GraphRuntimeNode> _firstNodeByKind = [];
+    private readonly Dictionary<string, GraphRuntimeNode> _customEventsById = new(StringComparer.Ordinal);
+    private readonly Dictionary<ConnectionKey, GraphRuntimeConnection> _executionBySource = [];
+    private readonly Dictionary<ConnectionKey, GraphRuntimeConnection> _inputByTarget = [];
+    private readonly Dictionary<TypedConnectionKey, GraphRuntimeConnection> _inputByTargetAndSourceKind = [];
+    private readonly Dictionary<string, List<GraphRuntimeConnection>> _nonExecutionInputsByTargetNode = new(StringComparer.Ordinal);
+
+    public GraphExecutionIndex(IReadOnlyList<GraphRuntimeNode> nodes, IReadOnlyList<GraphRuntimeConnection> connections)
+    {
+        foreach (var node in nodes)
+        {
+            _nodesById.TryAdd(node.Id, node);
+            if (!string.IsNullOrWhiteSpace(node.NodeNumber))
+            {
+                _nodesByNumber.TryAdd(node.NodeNumber, node);
+                var key = new NodeTitleNumberKey(node.Title, node.NodeNumber);
+                if (!_nodesByTitleAndNumber.TryGetValue(key, out var matchingNodes))
+                {
+                    matchingNodes = [];
+                    _nodesByTitleAndNumber[key] = matchingNodes;
+                }
+
+                matchingNodes.Add(node);
+            }
+
+            _firstNodeByKind.TryAdd(node.NodeKind, node);
+            if (node.NodeKind == NodeKind.CustomEvent && !string.IsNullOrWhiteSpace(node.CustomEventId))
+            {
+                _customEventsById.TryAdd(node.CustomEventId, node);
+            }
+        }
+
+        foreach (var connection in connections)
+        {
+            if (connection.TargetPinKind == PinKind.Execution)
+            {
+                _executionBySource.TryAdd(new ConnectionKey(connection.SourceNodeId, connection.SourcePinName), connection);
+                continue;
+            }
+
+            var targetKey = new ConnectionKey(connection.TargetNodeId, connection.TargetPinName);
+            _inputByTarget.TryAdd(targetKey, connection);
+            _inputByTargetAndSourceKind.TryAdd(new TypedConnectionKey(connection.TargetNodeId, connection.TargetPinName, connection.SourcePinKind), connection);
+            if (!_nonExecutionInputsByTargetNode.TryGetValue(connection.TargetNodeId, out var nodeInputs))
+            {
+                nodeInputs = [];
+                _nonExecutionInputsByTargetNode[connection.TargetNodeId] = nodeInputs;
+            }
+
+            nodeInputs.Add(connection);
+        }
+    }
+
+    public GraphRuntimeNode? FirstNode(NodeKind kind) =>
+        _firstNodeByKind.TryGetValue(kind, out var node) ? node : null;
+
+    public GraphRuntimeNode? GetNode(string nodeId) =>
+        _nodesById.TryGetValue(nodeId, out var node) ? node : null;
+
+    public GraphRuntimeNode? GetNodeByNumber(string nodeNumber) =>
+        _nodesByNumber.TryGetValue(nodeNumber, out var node) ? node : null;
+
+    public IReadOnlyList<GraphRuntimeNode> FindNodesByTitleAndNumber(string title, string nodeNumber) =>
+        _nodesByTitleAndNumber.TryGetValue(new NodeTitleNumberKey(title, nodeNumber), out var nodes) ? nodes : [];
+
+    public GraphRuntimeNode? GetCustomEvent(string customEventId) =>
+        _customEventsById.TryGetValue(customEventId, out var node) ? node : null;
+
+    public GraphRuntimeConnection? GetExecutionConnection(string sourceNodeId, string sourcePinName) =>
+        _executionBySource.TryGetValue(new ConnectionKey(sourceNodeId, sourcePinName), out var connection) ? connection : null;
+
+    public bool HasInputConnection(string targetNodeId, string targetPinName) =>
+        _inputByTarget.ContainsKey(new ConnectionKey(targetNodeId, targetPinName));
+
+    public GraphRuntimeConnection? GetInputConnection(string targetNodeId, string targetPinName) =>
+        _inputByTarget.TryGetValue(new ConnectionKey(targetNodeId, targetPinName), out var connection) ? connection : null;
+
+    public GraphRuntimeConnection? GetInputConnection(string targetNodeId, string targetPinName, PinKind sourceKind) =>
+        _inputByTargetAndSourceKind.TryGetValue(new TypedConnectionKey(targetNodeId, targetPinName, sourceKind), out var connection) ? connection : null;
+
+    public IReadOnlyList<GraphRuntimeConnection> GetNonExecutionInputs(string targetNodeId) =>
+        _nonExecutionInputsByTargetNode.TryGetValue(targetNodeId, out var connections) ? connections : [];
+
+    private readonly record struct ConnectionKey(string NodeId, string PinName);
+
+    private readonly record struct TypedConnectionKey(string NodeId, string PinName, PinKind SourceKind);
+
+    private readonly record struct NodeTitleNumberKey(string Title, string NodeNumber);
+}
 
 public sealed record GraphRuntimeConnection(
     string SourceNodeId,
@@ -108,6 +208,16 @@ public sealed record GraphRuntimeNode(
 
     public string? ExitName { get; init; }
 
+    public string NodeNumber { get; init; } = string.Empty;
+
+    public string TargetNodeTitle { get; init; } = string.Empty;
+
+    public string TargetNodeNumber { get; init; } = string.Empty;
+
+    public string? TargetNodeId { get; init; }
+
+    public bool ReturnAfterTarget { get; init; }
+
     public IReadOnlyList<GraphRuntimeParameter> Parameters { get; init; } = [];
 
     public static GraphRuntimeNode ForStart(string id, string title) =>
@@ -169,6 +279,21 @@ public sealed record GraphRuntimeNode(
 
     public static GraphRuntimeNode ForReroute(string id, string title, PinKind routedKind) =>
         new(id, title, NodeKind.Reroute, null, 0, PressReleaseMode.Press, MouseButton.Left, 0, 0, 0, null, ScrollWheelAction.ScrollForward, 120, 100, 1000, 0, false, routedKind, ProgramStartFailureAction.None, 0, null);
+
+    public static GraphRuntimeNode ForToDo(
+        string id,
+        string title,
+        string targetNodeTitle,
+        string targetNodeNumber,
+        string? targetNodeId,
+        bool returnAfterTarget) =>
+        new(id, title, NodeKind.ToDo, null, 0, PressReleaseMode.Press, MouseButton.Left, 0, 0, 0, null, ScrollWheelAction.ScrollForward, 120, 100, 1000, 0, false, PinKind.Execution, ProgramStartFailureAction.None, 0, null)
+        {
+            TargetNodeTitle = targetNodeTitle,
+            TargetNodeNumber = targetNodeNumber,
+            TargetNodeId = targetNodeId,
+            ReturnAfterTarget = returnAfterTarget,
+        };
 
     public static GraphRuntimeNode ForPrintLog(string id, string title, string message) =>
         new(id, title, NodeKind.PrintLog, null, 0, PressReleaseMode.Press, MouseButton.Left,

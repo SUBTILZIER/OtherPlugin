@@ -31,7 +31,9 @@ public sealed class GraphCompileService
     public GraphCompileResult Compile(IEnumerable<ContentAssetViewModel> assets)
     {
         var assetList = assets.ToList();
+        var changedAssetIds = EnsureNodeNumbers(assetList);
         var sync = _referenceSyncService.Sync(assetList);
+        changedAssetIds.UnionWith(sync.ChangedAssetIds);
         var issues = ValidateAssets(assetList);
         bool success = issues.All(issue => issue.Severity != GraphValidationSeverity.Error);
         if (!success)
@@ -41,7 +43,7 @@ public sealed class GraphCompileService
                 Success = false,
                 UpdatedCallNodes = sync.UpdatedCallNodes,
                 RemovedConnections = sync.RemovedConnections,
-                ChangedAssetIds = sync.ChangedAssetIds,
+                ChangedAssetIds = changedAssetIds,
                 Issues = issues,
             };
         }
@@ -58,9 +60,164 @@ public sealed class GraphCompileService
             Success = success,
             UpdatedCallNodes = sync.UpdatedCallNodes,
             RemovedConnections = sync.RemovedConnections,
-            ChangedAssetIds = sync.ChangedAssetIds,
+            ChangedAssetIds = changedAssetIds,
             Issues = issues,
         };
+    }
+
+    public GraphCompileResult CompileGraph(
+        IEnumerable<ContentAssetViewModel> assets,
+        ContentAssetViewModel owner,
+        GraphListItemViewModel item)
+    {
+        var assetList = assets.ToList();
+        var changedAssetIds = new HashSet<string>(StringComparer.Ordinal);
+        bool graphChanged = EnsureGraphNodeNumbers(item.Graph, item.Kind);
+        graphChanged |= EnsureGraphToDoTargets(item.Graph);
+        if (graphChanged)
+            changedAssetIds.Add(owner.Id);
+
+        var sync = _referenceSyncService.SyncGraph(assetList, owner, item.Graph);
+        changedAssetIds.UnionWith(sync.ChangedAssetIds);
+
+        var issues = new List<GraphValidationIssue>();
+        var assetsById = assetList.ToDictionary(asset => asset.Id, StringComparer.Ordinal);
+        ValidateGraph(assetList, assetsById, owner, item, issues);
+        bool success = issues.All(issue => issue.Severity != GraphValidationSeverity.Error);
+        if (success)
+            item.IsCompileDirty = false;
+
+        return new GraphCompileResult
+        {
+            Success = success,
+            UpdatedCallNodes = sync.UpdatedCallNodes,
+            RemovedConnections = sync.RemovedConnections,
+            ChangedAssetIds = changedAssetIds,
+            Issues = issues,
+        };
+    }
+
+    private static HashSet<string> EnsureNodeNumbers(IReadOnlyList<ContentAssetViewModel> assets)
+    {
+        var changedAssetIds = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var asset in assets.Where(asset => asset.Kind != ContentAssetKind.Folder))
+        {
+            foreach (var item in asset.EventGraphs.Concat(asset.Functions).Concat(asset.Macros))
+            {
+                bool changed = EnsureGraphNodeNumbers(item.Graph, item.Kind);
+                changed |= EnsureGraphToDoTargets(item.Graph);
+                if (changed)
+                    changedAssetIds.Add(asset.Id);
+            }
+        }
+
+        return changedAssetIds;
+    }
+
+    private static bool EnsureGraphNodeNumbers(GraphFileModel graph, GraphAssetKind kind)
+    {
+        string prefix = NodeNumberPrefix(kind);
+        var used = new HashSet<int>();
+        var pending = new List<NodeFileModel>();
+        bool changed = false;
+
+        foreach (var node in graph.Nodes)
+        {
+            if (IsRerouteNode(node))
+            {
+                if (!string.IsNullOrWhiteSpace(node.NodeNumber))
+                {
+                    node.NodeNumber = string.Empty;
+                    changed = true;
+                }
+
+                continue;
+            }
+
+            int? ordinal = ParseNodeOrdinal(node.NodeNumber, prefix);
+            if (ordinal.HasValue && used.Add(ordinal.Value))
+                continue;
+
+            pending.Add(node);
+        }
+
+        int next = 1;
+        foreach (var node in pending)
+        {
+            while (used.Contains(next))
+                next++;
+
+            string nodeNumber = $"{prefix}{next:000}";
+            if (!string.Equals(node.NodeNumber, nodeNumber, StringComparison.Ordinal))
+            {
+                node.NodeNumber = nodeNumber;
+                changed = true;
+            }
+
+            used.Add(next);
+        }
+
+        return changed;
+    }
+
+    private static bool IsRerouteNode(NodeFileModel node) =>
+        string.Equals(node.NodeTypeKey, "reroute", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsToDoNode(NodeFileModel node) =>
+        string.Equals(node.NodeTypeKey, "todo", StringComparison.OrdinalIgnoreCase);
+
+    private static bool EnsureGraphToDoTargets(GraphFileModel graph)
+    {
+        var nodesById = graph.Nodes
+            .Where(node => !IsRerouteNode(node))
+            .Where(node => !string.IsNullOrWhiteSpace(node.Id))
+            .GroupBy(node => node.Id, StringComparer.Ordinal)
+            .Where(group => group.Count() == 1)
+            .ToDictionary(group => group.Key, group => group.Single(), StringComparer.Ordinal);
+
+        bool changed = false;
+        foreach (var node in graph.Nodes.Where(IsToDoNode))
+        {
+            if (string.IsNullOrWhiteSpace(node.TargetNodeId) ||
+                !nodesById.TryGetValue(node.TargetNodeId!, out var target) ||
+                string.Equals(target.Id, node.Id, StringComparison.Ordinal) ||
+                string.IsNullOrWhiteSpace(target.Title) ||
+                string.IsNullOrWhiteSpace(target.NodeNumber))
+            {
+                continue;
+            }
+
+            if (!string.Equals(node.TargetNodeTitle, target.Title, StringComparison.Ordinal))
+            {
+                node.TargetNodeTitle = target.Title;
+                changed = true;
+            }
+
+            if (!string.Equals(node.TargetNodeNumber, target.NodeNumber, StringComparison.OrdinalIgnoreCase))
+            {
+                node.TargetNodeNumber = target.NodeNumber;
+                changed = true;
+            }
+        }
+
+        return changed;
+    }
+
+    private static string NodeNumberPrefix(GraphAssetKind kind) => kind switch
+    {
+        GraphAssetKind.Function => "Fun",
+        GraphAssetKind.Macro => "Mac",
+        _ => "N",
+    };
+
+    private static int? ParseNodeOrdinal(string? nodeNumber, string prefix)
+    {
+        if (string.IsNullOrWhiteSpace(nodeNumber) ||
+            !nodeNumber.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            return null;
+
+        string suffix = nodeNumber[prefix.Length..];
+        return int.TryParse(suffix, out int ordinal) && ordinal > 0 ? ordinal : null;
     }
 
     private IReadOnlyList<GraphValidationIssue> ValidateAssets(IReadOnlyList<ContentAssetViewModel> assets)
@@ -83,6 +240,8 @@ public sealed class GraphCompileService
         GraphListItemViewModel item,
         List<GraphValidationIssue> issues)
     {
+        EnsureGraphNodeNumbers(item.Graph, item.Kind);
+        EnsureGraphToDoTargets(item.Graph);
         string graphName = $"{BuildContentPath(owner, assetsById)}/{item.Name}";
         var nodesById = new Dictionary<string, NodeBaseViewModel>(StringComparer.Ordinal);
         var rawNodeIds = new HashSet<string>(StringComparer.Ordinal);
@@ -109,7 +268,9 @@ public sealed class GraphCompileService
         }
 
         ValidateGraphEntrypoints(graphName, item.Kind, nodesById.Values, issues);
+        ValidateNodeNumbers(graphName, nodesById.Values, issues);
         ValidateConnections(graphName, item.Graph.Connections, nodesById, issues);
+        ValidateToDoTargets(graphName, item.Graph.Connections, nodesById.Values, issues);
         ValidateCallReferences(assets, owner, item.Graph, graphName, issues);
     }
 
@@ -139,6 +300,21 @@ public sealed class GraphCompileService
                 if (Count(NodeKind.MacroOutput) == 0)
                     issues.Add(Error(graphName, "宏图必须至少有一个宏输出节点。"));
                 break;
+        }
+    }
+
+    private static void ValidateNodeNumbers(
+        string graphName,
+        IEnumerable<NodeBaseViewModel> nodes,
+        List<GraphValidationIssue> issues)
+    {
+        var numberedNodes = nodes.Where(node => node.NodeKind != NodeKind.Reroute).ToList();
+        foreach (var group in numberedNodes
+                     .Where(node => !string.IsNullOrWhiteSpace(node.NodeNumber))
+                     .GroupBy(node => node.NodeNumber, StringComparer.OrdinalIgnoreCase)
+                     .Where(group => group.Count() > 1))
+        {
+            issues.Add(Error(graphName, $"节点编号重复：{group.Key}。"));
         }
     }
 
@@ -240,8 +416,52 @@ public sealed class GraphCompileService
         }
     }
 
+    private static void ValidateToDoTargets(
+        string graphName,
+        IReadOnlyList<ConnectionFileModel> connections,
+        IEnumerable<NodeBaseViewModel> nodes,
+        List<GraphValidationIssue> issues)
+    {
+        var candidates = nodes
+            .Where(node => node.NodeKind != NodeKind.Reroute)
+            .ToList();
+        foreach (var toDo in candidates.OfType<ToDoNodeViewModel>())
+        {
+            if (IsInputConnected(connections, toDo.Id, "target_title") ||
+                IsInputConnected(connections, toDo.Id, "target_number"))
+            {
+                continue;
+            }
+
+            if (string.IsNullOrWhiteSpace(toDo.TargetNodeTitle) ||
+                string.IsNullOrWhiteSpace(toDo.TargetNodeNumber))
+            {
+                issues.Add(Error(graphName, $"ToDo 节点缺少目标节点名或编号：{toDo.Title}。"));
+                continue;
+            }
+
+            var matches = candidates
+                .Where(node => string.Equals(node.Title, toDo.TargetNodeTitle, StringComparison.Ordinal) &&
+                               string.Equals(node.NodeNumber, toDo.TargetNodeNumber, StringComparison.OrdinalIgnoreCase))
+                .Take(2)
+                .ToList();
+            if (matches.Count == 0)
+                issues.Add(Error(graphName, $"ToDo 目标不存在：{toDo.Title} -> {toDo.TargetNodeTitle} {toDo.TargetNodeNumber}。"));
+            else if (matches.Count > 1)
+                issues.Add(Error(graphName, $"ToDo 目标不唯一：{toDo.Title} -> {toDo.TargetNodeTitle} {toDo.TargetNodeNumber}。"));
+            else if (matches[0].Id == toDo.Id)
+                issues.Add(Error(graphName, $"ToDo 不能跳转到自身：{toDo.Title}。"));
+        }
+    }
+
+    private static bool IsInputConnected(IReadOnlyList<ConnectionFileModel> connections, string nodeId, string pinName) =>
+        connections.Any(connection => connection.TargetNodeId == nodeId && connection.TargetPinName == pinName);
+
     private static GraphValidationIssue Error(string graphName, string message) =>
         new(GraphValidationSeverity.Error, $"{graphName}: {message}");
+
+    private static GraphValidationIssue Warning(string graphName, string message) =>
+        new(GraphValidationSeverity.Warning, $"{graphName}: {message}");
 
     private static string BuildContentPath(
         ContentAssetViewModel asset,

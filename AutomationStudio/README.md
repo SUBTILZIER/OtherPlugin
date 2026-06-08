@@ -6,8 +6,15 @@
 - Visual wires bind to `GraphEditorService.ConnectionPaths`; persisted graph data and runtime execution still use `GraphEditorService.Connections`.
 - `ConnectionPathViewModel` aggregates linear reroute chains only for drawing. Reroute order follows the real `Connections` chain, not point distance, so moving route nodes does not reorder or jump the wire.
 - `ConnectionSplinePlanner` is the active visible-wire geometry builder. Single backing connections use one cubic Bezier; aggregated reroute chains use per-segment spline handles scaled from neighboring point distance.
-- Known limitation: tight or backward reroute layouts can still produce local loops; fix this in `ConnectionSplinePlanner`, not in the unused `ConnectionChain` / `ConnectionChainFinder` path.
-- Double-clicking a visible wire inserts a reroute node by mapping the visual path back to the nearest backing `ConnectionViewModel`; Alt-click still removes the nearest backing connection.
+- Current tight/backward reroute layouts are covered as no-loop regressions; do not rewrite `ConnectionSplinePlanner` unless a new concrete repro appears.
+- Double-clicking a visible wire inserts a reroute node by sampling the visible curve back to the nearest backing `ConnectionViewModel`; Alt-click still removes the nearest backing connection.
+- `GraphEditorService.RunBatchedEdit(...)` batches connection mutations so `ConnectionPaths` rebuild and `GraphChanged` fire once per composed edit.
+- Runtime lookup uses an internal lazy `GraphExecutionIndex`; `GraphExecutionPlan` constructor/schema stay unchanged.
+- Non-reroute nodes get reusable per-graph numbers: event `N###`, function `Fun###`, macro `Mac###`. Deleting a node frees its number for the next created node.
+- `ToDo` jumps within the current graph by matching both target node title and node number. The inspector has a search box plus result list, and an option to return to `ToDo.exec_out` after the target chain finishes.
+- ToDo inspector selections are committed into the active `GraphFileModel` before compile/save/run. Static dropdown targets persist as `TargetNodeTitle` / `TargetNodeNumber` / `TargetNodeId`; connected `target_title` / `target_number` pins can still override at runtime.
+- The main log panel is a read-only `RichTextBox`: drag-select text freely, `Ctrl+A` selects the filtered log text, and `Ctrl+C` copies selected text without triggering graph-node copy.
+- Current content browser supports folder tree, current-folder tiles, drag move/copy, rename/delete, and double-click asset open. Recursive fuzzy asset search, `Ctrl+B` locate-to-real-folder, and double-clicking a function/macro call node to jump to its source graph are not implemented yet.
 - Reroute nodes use centered anchors and a UE-style yellow selection glow/ring for click and box selection feedback.
 - `GraphCommandService` records graph-edit snapshots for Undo/Redo. Ctrl+Z undoes graph edits; Ctrl+Y or Ctrl+Shift+Z redoes them.
 - Visible wires can be selected, highlighted, deleted with Delete/Backspace, or edited through the wire context menu.
@@ -28,6 +35,7 @@ UE4 风格的 WPF 蓝图节点编辑器 — 用于桌面自动化脚本编排。
 - **蓝图编辑器体验**: 框选、组拖动、复制粘贴、对齐、缩放平移、路由节点、边缘自动平移(EdgePan)、快捷键
 - **自动环境检测**: 启动时自动检测 Python 环境，提供一键安装指引
 - **执行前校验**: 检查节点可达性、参数缺失、连线唯一性、循环/坏图
+- **ToDo 跳转**: 用节点名 + 编号在同图内跳转，可选目标执行完后返回
 
 ## 使用
 
@@ -44,8 +52,9 @@ UE4 风格的 WPF 蓝图节点编辑器 — 用于桌面自动化脚本编排。
 | 快捷键 | 功能 |
 |--------|------|
 | Delete | 删除选中节点 |
-| Ctrl+C | 复制选中节点 |
+| Ctrl+C | 复制选中节点；日志面板焦点内复制选中文本 |
 | Ctrl+V | 粘贴节点(到鼠标位置) |
+| Ctrl+A | 日志面板焦点内全选当前过滤后的日志文本 |
 | Q | 横向对齐(居中对齐Y) |
 | Shift+Alt+S | 纵向对齐(居中对齐X) |
 | F | 缩放到节点全览 |
@@ -70,6 +79,8 @@ UE4 风格的 WPF 蓝图节点编辑器 — 用于桌面自动化脚本编排。
 - 左侧文件夹树，右侧瓦片视图
 - 支持文件夹内新建脚本/函数库/宏库/文件夹
 - 资产拖拽到文件夹支持移动/复制
+- 当前只显示当前目录文件；递归搜索、搜索结果双击打开、`Ctrl+B` 定位真实路径待实现
+- 当前函数/宏调用节点不会双击跳转到被调用函数/宏编辑界面
 
 ## 环境要求
 
@@ -106,9 +117,9 @@ AutomationStudioWpf/
 │   └── GraphFileModel.cs        # 文件模型
 ├── Runtime/                     # 执行引擎
 │   ├── GraphRuntimeExecutor.cs  # 执行调度 + 结构节点
-│   └── GraphExecutionModels.cs  # 运行时数据模型
+│   └── GraphExecutionModels.cs  # 运行时数据模型 + internal lazy index
 ├── Services/                    # 业务服务层
-│   ├── GraphEditorService.cs    # 图谱编辑核心逻辑
+│   ├── GraphEditorService.cs    # 图谱编辑核心逻辑 + 批量连接变更
 │   ├── GraphCommandService.cs   # Undo/Redo 快照命令
 │   ├── GraphLibraryService.cs   # 图谱/资产库持久化
 │   ├── GraphCompileService.cs   # 编译同步与校验
@@ -181,6 +192,19 @@ saved/log/Log_2026_05_28_22_11.txt
 
 ## 最近更新
 
+### v1.2.5 (2026-06-08)
+- **Added**: Reusable per-graph node numbers (`N###` / `Fun###` / `Mac###`) shown in node headers and inspector.
+- **Added**: `ToDo` jump node resolves targets by node title + node number, with inspector search/pick UI and optional return-after-target mode.
+- **Improved**: Runtime/validation reachability understands static ToDo jump targets; compile/save/run commits inspector edits first, and compile can backfill static ToDo title/number from `TargetNodeId`.
+- **Improved**: Log panel uses read-only `RichTextBox` selection so `Ctrl+A` / `Ctrl+C` copy log text instead of graph nodes.
+- **Note**: Recursive content-browser search, `Ctrl+B` locate, and function/macro call-node double-click navigation are still pending implementation.
+
+### v1.2.4 (2026-06-08)
+- **Improved**: Visible wire hit-testing now samples the rendered Bezier geometry before mapping back to backing connections.
+- **Improved**: Connection add/remove/reroute edits batch `ConnectionPaths` rebuild and `GraphChanged` notifications through `GraphEditorService.RunBatchedEdit(...)`.
+- **Improved**: Runtime execution/input lookup uses an internal lazy `GraphExecutionIndex` without changing graph JSON or `GraphExecutionPlan` construction.
+- **Added**: Smoke coverage for visible-curve hit mapping, pin connection state refresh, no-loop reroute regressions, and batched connection edits.
+
 ### v1.2.3 (2026-06-08)
 - **Changed**: Audited CodeGraph, project skill, technical documentation, README, and agent memory against current local code.
 - **Note**: CodeGraph runtime database/log files remain local through `.codegraph/.gitignore`; they are synced but not committed.
@@ -194,7 +218,7 @@ saved/log/Log_2026_05_28_22_11.txt
 - **Added**: Smoke coverage for command undo/redo, selected wire deletion, and definition metadata search.
 
 ### v1.2.1 (2026-06-06)
-- **Changed**: Reroute-backed wires aggregate into visible paths, but tight/backward layouts still need planner work to eliminate local loops.
+- **Changed**: Reroute-backed wires aggregate into visible paths, with tight/backward layouts covered by no-loop smoke regressions.
 - **Changed**: Visual wire rendering uses `ConnectionPaths`; graph persistence/runtime still use `Connections`.
 - **Changed**: Reroute chain draw order follows the actual connection chain, not distance sorting.
 - **Fixed**: Double-clicking aggregated visual wires inserts a reroute node again.

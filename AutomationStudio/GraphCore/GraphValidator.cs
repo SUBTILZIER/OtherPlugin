@@ -31,10 +31,12 @@ public sealed class GraphValidator
         var issues = new List<GraphValidationIssue>();
         ValidateStartNodes(plan, issues);
         ValidateDuplicateNodeIds(plan, issues);
+        ValidateNodeNumbers(plan, issues);
         ValidateConnectionEndpoints(plan, issues);
         ValidateConnectionTypes(plan, issues);
         ValidateConnectionMultiplicity(plan, issues);
         ValidateExecutionReachability(plan, issues);
+        ValidateToDoTargets(plan, issues);
         ValidateRequiredParameters(plan, issues);
         ValidateHighRiskRuntimeInputs(plan, issues);
         return new GraphValidationResult(issues);
@@ -53,6 +55,17 @@ public sealed class GraphValidator
     {
         foreach (var group in plan.Nodes.GroupBy(node => node.Id).Where(group => group.Count() > 1))
             issues.Add(Error($"节点 ID 重复：{group.Key}。"));
+    }
+
+    private static void ValidateNodeNumbers(GraphExecutionPlan plan, List<GraphValidationIssue> issues)
+    {
+        foreach (var group in plan.Nodes
+                     .Where(node => node.NodeKind != NodeKind.Reroute && !string.IsNullOrWhiteSpace(node.NodeNumber))
+                     .GroupBy(node => node.NodeNumber, StringComparer.OrdinalIgnoreCase)
+                     .Where(group => group.Count() > 1))
+        {
+            issues.Add(Error($"节点编号重复：{group.Key}。"));
+        }
     }
 
     private static void ValidateConnectionEndpoints(GraphExecutionPlan plan, List<GraphValidationIssue> issues)
@@ -122,17 +135,27 @@ public sealed class GraphValidator
             .Where(connection => connection.SourcePinKind == PinKind.Execution && connection.TargetPinKind == PinKind.Execution)
             .GroupBy(connection => connection.SourceNodeId)
             .ToDictionary(group => group.Key, group => group.ToList(), StringComparer.Ordinal);
+        var nodesById = plan.Nodes.ToDictionary(node => node.Id, StringComparer.Ordinal);
 
         while (queue.Count > 0)
         {
             string nodeId = queue.Dequeue();
             if (!execEdges.TryGetValue(nodeId, out var outgoing))
-                continue;
+                outgoing = [];
 
             foreach (var connection in outgoing)
             {
                 if (reachable.Add(connection.TargetNodeId))
                     queue.Enqueue(connection.TargetNodeId);
+            }
+
+            if (nodesById.TryGetValue(nodeId, out var node) && node.NodeKind == NodeKind.ToDo)
+            {
+                foreach (var target in FindStaticToDoTargets(plan, node))
+                {
+                    if (reachable.Add(target.Id))
+                        queue.Enqueue(target.Id);
+                }
             }
         }
 
@@ -144,6 +167,32 @@ public sealed class GraphValidator
                 continue;
 
             issues.Add(Warning($"节点未接入开始执行链：{node.Title}（{node.Id}）。执行图谱时不会运行该节点。"));
+        }
+    }
+
+    private static void ValidateToDoTargets(GraphExecutionPlan plan, List<GraphValidationIssue> issues)
+    {
+        foreach (var node in plan.Nodes.Where(node => node.NodeKind == NodeKind.ToDo))
+        {
+            bool titleConnected = IsInputConnected(plan, node.Id, "target_title");
+            bool numberConnected = IsInputConnected(plan, node.Id, "target_number");
+            if (titleConnected || numberConnected)
+                continue;
+
+            var targetKey = ResolveStaticToDoTarget(plan, node);
+            if (targetKey is null)
+            {
+                issues.Add(Error($"ToDo 节点缺少目标节点名或编号：{node.Title}。"));
+                continue;
+            }
+
+            var matches = FindStaticToDoTargets(plan, node).ToList();
+            if (matches.Count == 0)
+                issues.Add(Error($"ToDo 目标不存在：{node.Title} -> {targetKey.Value.Title} {targetKey.Value.NodeNumber}。"));
+            else if (matches.Count > 1)
+                issues.Add(Error($"ToDo 目标不唯一：{node.Title} -> {targetKey.Value.Title} {targetKey.Value.NodeNumber}。"));
+            else if (matches[0].Id == node.Id)
+                issues.Add(Error($"ToDo 不能跳转到自身：{node.Title}。"));
         }
     }
 
@@ -249,6 +298,45 @@ public sealed class GraphValidator
         return plan.Connections.Any(connection =>
             connection.TargetNodeId == nodeId &&
             connection.TargetPinName == pinName);
+    }
+
+    private static IReadOnlyList<GraphRuntimeNode> FindStaticToDoTargets(GraphExecutionPlan plan, GraphRuntimeNode node)
+    {
+        if (IsInputConnected(plan, node.Id, "target_title") ||
+            IsInputConnected(plan, node.Id, "target_number"))
+        {
+            return [];
+        }
+
+        var targetKey = ResolveStaticToDoTarget(plan, node);
+        if (targetKey is null)
+            return [];
+
+        return plan.Index
+            .FindNodesByTitleAndNumber(targetKey.Value.Title, targetKey.Value.NodeNumber)
+            .Where(candidate => candidate.NodeKind != NodeKind.Reroute)
+            .ToList();
+    }
+
+    private static (string Title, string NodeNumber)? ResolveStaticToDoTarget(GraphExecutionPlan plan, GraphRuntimeNode node)
+    {
+        if (!string.IsNullOrWhiteSpace(node.TargetNodeTitle) &&
+            !string.IsNullOrWhiteSpace(node.TargetNodeNumber))
+        {
+            return (node.TargetNodeTitle, node.TargetNodeNumber);
+        }
+
+        if (!string.IsNullOrWhiteSpace(node.TargetNodeId) &&
+            plan.Index.GetNode(node.TargetNodeId!) is { } target &&
+            target.NodeKind != NodeKind.Reroute &&
+            target.Id != node.Id &&
+            !string.IsNullOrWhiteSpace(target.Title) &&
+            !string.IsNullOrWhiteSpace(target.NodeNumber))
+        {
+            return (target.Title, target.NodeNumber);
+        }
+
+        return null;
     }
 
     private static GraphValidationIssue Warning(string message) =>

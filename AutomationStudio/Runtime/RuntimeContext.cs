@@ -30,7 +30,7 @@ public sealed class RuntimeContext
 
     public bool HasInputConnection(GraphExecutionPlan plan, GraphRuntimeNode node, string pinName)
     {
-        return plan.Connections.Any(c => c.TargetNodeId == node.Id && c.TargetPinName == pinName);
+        return plan.Index.HasInputConnection(node.Id, pinName);
     }
 
     public bool TryResolvePointInput(GraphExecutionPlan plan, GraphRuntimeNode node, string pinName, out Point point, out bool hasConnection)
@@ -78,9 +78,7 @@ public sealed class RuntimeContext
 
     public bool TryResolveStringInput(GraphExecutionPlan plan, GraphRuntimeNode node, string pinName, out string value, out bool hasConnection)
     {
-        GraphRuntimeConnection? connection = plan.Connections.FirstOrDefault(c =>
-            c.TargetNodeId == node.Id &&
-            c.TargetPinName == pinName);
+        GraphRuntimeConnection? connection = plan.Index.GetInputConnection(node.Id, pinName);
 
         hasConnection = connection is not null;
         if (connection is not null && _values.TryGetValue(MakeKey(connection.SourceNodeId, connection.SourcePinName), out object? raw))
@@ -107,10 +105,7 @@ public sealed class RuntimeContext
         string pinName,
         PinKind sourceKind)
     {
-        return plan.Connections.FirstOrDefault(c =>
-            c.TargetNodeId == node.Id &&
-            c.TargetPinName == pinName &&
-            c.SourcePinKind == sourceKind);
+        return plan.Index.GetInputConnection(node.Id, pinName, sourceKind);
     }
 
     private static string MakeKey(string nodeId, string pinName) => $"{nodeId}:{pinName}";

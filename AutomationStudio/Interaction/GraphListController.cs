@@ -482,7 +482,7 @@ public sealed class GraphListController
                 _editorService.NewMacroGraph();
             else
                 _editorService.NewGraph();
-            _nodeFactory.ResetCounter(1);
+            _syncNodeFactorySequence();
             ApplyEntryNodeTitle(_editorService.Nodes, name);
             return _editorService.ExportGraphModel(name, _kind);
         }

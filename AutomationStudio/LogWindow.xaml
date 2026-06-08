@@ -40,38 +40,16 @@
                        Foreground="#7A8797"
                        FontSize="11" />
         </StackPanel>
-        <ListBox x:Name="LogListBox"
-                 Background="#11151A"
-                 BorderThickness="0"
-                 Margin="10,0,10,10"
-                 VirtualizingStackPanel.IsVirtualizing="True"
-                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-            <ListBox.ItemTemplate>
-                <DataTemplate>
-                    <TextBox Text="{Binding DisplayText, Mode=OneWay}"
-                             TextWrapping="NoWrap"
-                             FontFamily="Consolas"
-                             FontSize="12"
-                             IsReadOnly="True"
-                             BorderThickness="0"
-                             Background="Transparent"
-                             Padding="0">
-                        <TextBox.Style>
-                            <Style TargetType="TextBox">
-                                <Setter Property="Foreground" Value="#D0D7E2" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding Level}" Value="{x:Static logging:LogLevel.Warn}">
-                                        <Setter Property="Foreground" Value="#FFD700" />
-                                    </DataTrigger>
-                                    <DataTrigger Binding="{Binding Level}" Value="{x:Static logging:LogLevel.Error}">
-                                        <Setter Property="Foreground" Value="#FF6B6B" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </TextBox.Style>
-                    </TextBox>
-                </DataTemplate>
-            </ListBox.ItemTemplate>
-        </ListBox>
+        <RichTextBox x:Name="LogRichTextBox"
+                     Background="#11151A"
+                     Foreground="#D0D7E2"
+                     BorderThickness="0"
+                     Margin="10,0,10,10"
+                     FontFamily="Consolas"
+                     FontSize="12"
+                     IsReadOnly="True"
+                     Padding="6,4"
+                     VerticalScrollBarVisibility="Auto"
+                     HorizontalScrollBarVisibility="Auto" />
     </DockPanel>
 </Window>

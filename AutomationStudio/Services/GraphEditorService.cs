@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.IO;
 using System.Text.Json;
 using System.Collections.Specialized;
+using System.ComponentModel;
 using AutomationStudioWpf.Graph;
 using AutomationStudioWpf.Logging;
 using AutomationStudioWpf.Runtime;
@@ -14,6 +15,9 @@ namespace AutomationStudioWpf.Services;
 public sealed class GraphEditorService
 {
     private readonly JsonSerializerOptions _jsonOptions = new() { WriteIndented = true };
+    private int _batchEditDepth;
+    private bool _connectionPathsDirty;
+    private bool _graphChangedPending;
 
     public ObservableCollection<NodeBaseViewModel> Nodes { get; } = [];
     public ObservableCollection<ConnectionViewModel> Connections { get; } = [];
@@ -26,28 +30,49 @@ public sealed class GraphEditorService
 
     public string? CurrentGraphPath { get; private set; }
 
+    public GraphAssetKind CurrentAssetKind { get; private set; } = GraphAssetKind.EventGraph;
+
     public event Action? GraphChanged;
     public event Action<string>? StatusChanged;
 
     private void ConnectionsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
-        RebuildConnectionPaths();
+        MarkConnectionPathsDirty();
+    }
+
+    public void RunBatchedEdit(Action action)
+    {
+        _batchEditDepth++;
+        try
+        {
+            action();
+        }
+        finally
+        {
+            _batchEditDepth--;
+            if (_batchEditDepth == 0)
+            {
+                FlushBatchedChanges();
+            }
+        }
     }
 
     public void NewGraph()
     {
+        CurrentAssetKind = GraphAssetKind.EventGraph;
         ClearNodesAndConnections();
         CurrentGraphPath = null;
 
         var startNode = CreateDefaultStartNode();
-        Nodes.Add(startNode);
+        AddNodeCore(startNode, CurrentAssetKind);
 
-        GraphChanged?.Invoke();
+        RaiseGraphChanged();
         StatusChanged?.Invoke("已新建图谱，并创建开始节点。");
     }
 
     public void NewFunctionGraph()
     {
+        CurrentAssetKind = GraphAssetKind.Function;
         ClearNodesAndConnections();
         CurrentGraphPath = null;
 
@@ -63,16 +88,17 @@ public sealed class GraphEditorService
             X = 420,
             Y = 210,
         };
-        Nodes.Add(entry);
-        Nodes.Add(ret);
+        AddNodeCore(entry, CurrentAssetKind);
+        AddNodeCore(ret, CurrentAssetKind);
         Connections.Add(new ConnectionViewModel(entry.OutputPins.First(p => p.Name == "exec_out"), ret.InputPins.First(p => p.Name == "exec_in")));
 
-        GraphChanged?.Invoke();
+        RaiseGraphChanged();
         StatusChanged?.Invoke("已新建函数，并创建开始和返回节点。");
     }
 
     public void NewMacroGraph()
     {
+        CurrentAssetKind = GraphAssetKind.Macro;
         ClearNodesAndConnections();
         CurrentGraphPath = null;
 
@@ -88,11 +114,11 @@ public sealed class GraphEditorService
             X = 420,
             Y = 210,
         };
-        Nodes.Add(entry);
-        Nodes.Add(output);
+        AddNodeCore(entry, CurrentAssetKind);
+        AddNodeCore(output, CurrentAssetKind);
         Connections.Add(new ConnectionViewModel(entry.OutputPins.First(p => p.Name == "exec_out"), output.InputPins.First(p => p.Name == "exec_in")));
 
-        GraphChanged?.Invoke();
+        RaiseGraphChanged();
         StatusChanged?.Invoke("已新建宏，并创建开始和输出节点。");
     }
 
@@ -117,6 +143,8 @@ public sealed class GraphEditorService
 
     public GraphFileModel ExportGraphModel(string name, GraphAssetKind kind = GraphAssetKind.EventGraph)
     {
+        CurrentAssetKind = kind;
+        EnsureNodeNumbers(kind);
         return new GraphFileModel
         {
             Name = name,
@@ -148,6 +176,7 @@ public sealed class GraphEditorService
 
     public void LoadFromModel(GraphFileModel file)
     {
+        CurrentAssetKind = file.AssetKind;
         ClearNodesAndConnections();
 
         var nodesById = new Dictionary<string, NodeBaseViewModel>();
@@ -157,7 +186,7 @@ public sealed class GraphEditorService
             var node = NodeSerializer.FromFileModel(nodeFile);
             if (node is null) continue;
 
-            Nodes.Add(node);
+            AddNodeCore(node, file.AssetKind);
             nodesById[node.Id] = node;
         }
 
@@ -175,9 +204,13 @@ public sealed class GraphEditorService
                 X = 80,
                 Y = 210,
             };
+            AssignNodeNumber(startNode, file.AssetKind);
+            SubscribeNode(startNode);
             Nodes.Insert(0, startNode);
             nodesById[startNode.Id] = startNode;
         }
+
+        EnsureNodeNumbers(file.AssetKind);
 
         foreach (var connFile in file.Connections)
         {
@@ -197,13 +230,13 @@ public sealed class GraphEditorService
             }
         }
 
-        GraphChanged?.Invoke();
+        RaiseGraphChanged();
     }
 
     public void ClearGraph()
     {
         ClearNodesAndConnections();
-        GraphChanged?.Invoke();
+        RaiseGraphChanged();
     }
 
     public GraphExecutionPlan BuildExecutionPlan()
@@ -224,62 +257,72 @@ public sealed class GraphEditorService
 
     public void AddNode(NodeBaseViewModel node)
     {
-        Nodes.Add(node);
-        GraphChanged?.Invoke();
+        AddNodeCore(node, CurrentAssetKind);
+        RaiseGraphChanged();
     }
 
     public void RemoveNode(NodeBaseViewModel node)
     {
-        // 移除相关连接
-        for (int i = Connections.Count - 1; i >= 0; i--)
+        RunBatchedEdit(() =>
         {
-            if (Connections[i].SourcePin.Owner == node || Connections[i].TargetPin.Owner == node)
+            // 移除相关连接
+            for (int i = Connections.Count - 1; i >= 0; i--)
             {
-                RemoveConnectionAt(i);
+                if (Connections[i].SourcePin.Owner == node || Connections[i].TargetPin.Owner == node)
+                {
+                    RemoveConnectionAt(i);
+                }
             }
-        }
 
-        Nodes.Remove(node);
-        GraphChanged?.Invoke();
+            UnsubscribeNode(node);
+            Nodes.Remove(node);
+            RaiseGraphChanged();
+        });
     }
 
     public void RemoveSelectedNodes()
     {
-        var toDelete = Nodes.Where(n => n.IsSelected && n.CanDelete).ToList();
-        foreach (var node in toDelete)
+        RunBatchedEdit(() =>
         {
-            RemoveNode(node);
-        }
+            var toDelete = Nodes.Where(n => n.IsSelected && n.CanDelete).ToList();
+            foreach (var node in toDelete)
+            {
+                RemoveNode(node);
+            }
+        });
     }
 
     public void CreateConnection(PinViewModel sourcePin, PinViewModel targetPin)
     {
-        // 执行引脚：输出端最多一条连线
-        if (sourcePin.Kind == PinKind.Execution)
+        RunBatchedEdit(() =>
         {
-            for (int i = Connections.Count - 1; i >= 0; i--)
+            // 执行引脚：输出端最多一条连线
+            if (sourcePin.Kind == PinKind.Execution)
             {
-                if (Connections[i].SourcePin == sourcePin)
+                for (int i = Connections.Count - 1; i >= 0; i--)
                 {
-                    RemoveConnectionAt(i);
+                    if (Connections[i].SourcePin == sourcePin)
+                    {
+                        RemoveConnectionAt(i);
+                    }
                 }
             }
-        }
 
-        // 数据输入引脚：最多一条入线（执行输入引脚允许多条，支持循环）
-        if (targetPin.Kind != PinKind.Execution)
-        {
-            for (int i = Connections.Count - 1; i >= 0; i--)
+            // 数据输入引脚：最多一条入线（执行输入引脚允许多条，支持循环）
+            if (targetPin.Kind != PinKind.Execution)
             {
-                if (Connections[i].TargetPin == targetPin)
+                for (int i = Connections.Count - 1; i >= 0; i--)
                 {
-                    RemoveConnectionAt(i);
+                    if (Connections[i].TargetPin == targetPin)
+                    {
+                        RemoveConnectionAt(i);
+                    }
                 }
             }
-        }
 
-        Connections.Add(new ConnectionViewModel(sourcePin, targetPin));
-        GraphChanged?.Invoke();
+            Connections.Add(new ConnectionViewModel(sourcePin, targetPin));
+            RaiseGraphChanged();
+        });
     }
 
     public void RemoveConnection(ConnectionViewModel connection)
@@ -291,12 +334,23 @@ public sealed class GraphEditorService
         }
     }
 
+    public void RemoveConnections(IEnumerable<ConnectionViewModel> connections)
+    {
+        RunBatchedEdit(() =>
+        {
+            foreach (var connection in connections.ToList())
+            {
+                RemoveConnection(connection);
+            }
+        });
+    }
+
     private void RemoveConnectionAt(int index)
     {
         var connection = Connections[index];
         Connections.RemoveAt(index);
         connection.Dispose();
-        GraphChanged?.Invoke();
+        RaiseGraphChanged();
     }
 
     private void RebuildConnectionPaths()
@@ -396,28 +450,173 @@ public sealed class GraphEditorService
             connection.Dispose();
         }
 
+        foreach (var node in Nodes)
+        {
+            UnsubscribeNode(node);
+        }
+
         Connections.Clear();
         Nodes.Clear();
     }
 
+    private void AddNodeCore(NodeBaseViewModel node, GraphAssetKind kind)
+    {
+        AssignNodeNumber(node, kind);
+        SubscribeNode(node);
+        Nodes.Add(node);
+    }
+
+    private void EnsureNodeNumbers(GraphAssetKind kind)
+    {
+        foreach (var node in Nodes.Where(ShouldAssignNumber))
+        {
+            AssignNodeNumber(node, kind);
+        }
+    }
+
+    private void AssignNodeNumber(NodeBaseViewModel node, GraphAssetKind kind)
+    {
+        if (!ShouldAssignNumber(node))
+        {
+            node.NodeNumber = string.Empty;
+            return;
+        }
+
+        string prefix = NodeNumberPrefix(kind);
+        if (IsNodeNumberUsable(node, prefix))
+            return;
+
+        node.NodeNumber = CreateReusableNodeNumber(prefix, node);
+    }
+
+    private bool IsNodeNumberUsable(NodeBaseViewModel node, string prefix)
+    {
+        if (ParseNodeOrdinal(node.NodeNumber, prefix) is null)
+            return false;
+
+        return Nodes
+            .Where(other => !ReferenceEquals(other, node) && ShouldAssignNumber(other))
+            .All(other => !string.Equals(other.NodeNumber, node.NodeNumber, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private string CreateReusableNodeNumber(string prefix, NodeBaseViewModel node)
+    {
+        HashSet<int> used = Nodes
+            .Where(other => !ReferenceEquals(other, node) && ShouldAssignNumber(other))
+            .Select(other => ParseNodeOrdinal(other.NodeNumber, prefix))
+            .Where(ordinal => ordinal.HasValue)
+            .Select(ordinal => ordinal!.Value)
+            .ToHashSet();
+
+        int next = 1;
+        while (used.Contains(next))
+        {
+            next++;
+        }
+
+        return $"{prefix}{next:000}";
+    }
+
+    private static bool ShouldAssignNumber(NodeBaseViewModel node) =>
+        node.NodeKind != NodeKind.Reroute;
+
+    private static string NodeNumberPrefix(GraphAssetKind kind) => kind switch
+    {
+        GraphAssetKind.Function => "Fun",
+        GraphAssetKind.Macro => "Mac",
+        _ => "N",
+    };
+
+    private static int? ParseNodeOrdinal(string? nodeNumber, string prefix)
+    {
+        if (string.IsNullOrWhiteSpace(nodeNumber) ||
+            !nodeNumber.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            return null;
+
+        string suffix = nodeNumber[prefix.Length..];
+        return int.TryParse(suffix, out int ordinal) && ordinal > 0 ? ordinal : null;
+    }
+
+    private void SubscribeNode(NodeBaseViewModel node)
+    {
+        node.PropertyChanged -= NodePropertyChanged;
+        node.PropertyChanged += NodePropertyChanged;
+    }
+
+    private void UnsubscribeNode(NodeBaseViewModel node)
+    {
+        node.PropertyChanged -= NodePropertyChanged;
+    }
+
+    private void NodePropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (sender is not NodeBaseViewModel node ||
+            e.PropertyName is not (nameof(NodeBaseViewModel.Title) or nameof(NodeBaseViewModel.NodeNumber)))
+        {
+            return;
+        }
+
+        if (SyncToDoTargetsFor(node))
+        {
+            RaiseGraphChanged();
+        }
+    }
+
+    private bool SyncToDoTargetsFor(NodeBaseViewModel target)
+    {
+        bool changed = false;
+        foreach (var toDo in Nodes.OfType<ToDoNodeViewModel>().Where(node => node.TargetNodeId == target.Id))
+        {
+            if (ReferenceEquals(toDo, target))
+                continue;
+
+            if (!string.Equals(toDo.TargetNodeTitle, target.Title, StringComparison.Ordinal))
+            {
+                toDo.TargetNodeTitle = target.Title;
+                changed = true;
+            }
+
+            if (!string.Equals(toDo.TargetNodeNumber, target.NodeNumber, StringComparison.OrdinalIgnoreCase))
+            {
+                toDo.TargetNodeNumber = target.NodeNumber;
+                changed = true;
+            }
+
+            if (changed)
+                toDo.RefreshDescription();
+        }
+
+        return changed;
+    }
+
     public void ClearConnectionsForPin(PinViewModel pin)
     {
-        for (int i = Connections.Count - 1; i >= 0; i--)
+        RunBatchedEdit(() =>
         {
-            if (Connections[i].SourcePin == pin || Connections[i].TargetPin == pin)
+            for (int i = Connections.Count - 1; i >= 0; i--)
             {
-                RemoveConnectionAt(i);
+                if (Connections[i].SourcePin == pin || Connections[i].TargetPin == pin)
+                {
+                    RemoveConnectionAt(i);
+                }
             }
-        }
+        });
     }
 
     public void UpdatePinConnectionStates()
     {
+        HashSet<PinViewModel> connectedPins = [];
+        foreach (var connection in Connections)
+        {
+            connectedPins.Add(connection.SourcePin);
+            connectedPins.Add(connection.TargetPin);
+        }
+
         foreach (var node in Nodes)
         {
             foreach (var pin in node.InputPins.Concat(node.OutputPins))
             {
-                pin.HasConnection = Connections.Any(c => c.SourcePin == pin || c.TargetPin == pin);
+                pin.HasConnection = connectedPins.Contains(pin);
             }
             node.RefreshDescription();
         }
@@ -463,12 +662,15 @@ public sealed class GraphEditorService
             rebound.Add(new ConnectionViewModel(sourcePin, targetPin));
         }
 
-        Connections.Clear();
-        foreach (var connection in rebound)
-            Connections.Add(connection);
+        RunBatchedEdit(() =>
+        {
+            Connections.Clear();
+            foreach (var connection in rebound)
+                Connections.Add(connection);
 
-        UpdatePinConnectionStates();
-        GraphChanged?.Invoke();
+            UpdatePinConnectionStates();
+            RaiseGraphChanged();
+        });
     }
 
     public bool CanConnect(PinViewModel sourcePin, PinViewModel targetPin, out string reason)
@@ -505,5 +707,48 @@ public sealed class GraphEditorService
             X = 80,
             Y = 210,
         };
+    }
+
+    private void MarkConnectionPathsDirty()
+    {
+        _connectionPathsDirty = true;
+        if (_batchEditDepth == 0)
+        {
+            FlushConnectionPaths();
+        }
+    }
+
+    private void FlushConnectionPaths()
+    {
+        if (!_connectionPathsDirty)
+        {
+            return;
+        }
+
+        _connectionPathsDirty = false;
+        RebuildConnectionPaths();
+    }
+
+    private void RaiseGraphChanged()
+    {
+        if (_batchEditDepth > 0)
+        {
+            _graphChangedPending = true;
+            return;
+        }
+
+        GraphChanged?.Invoke();
+    }
+
+    private void FlushBatchedChanges()
+    {
+        FlushConnectionPaths();
+        if (!_graphChangedPending)
+        {
+            return;
+        }
+
+        _graphChangedPending = false;
+        GraphChanged?.Invoke();
     }
 }

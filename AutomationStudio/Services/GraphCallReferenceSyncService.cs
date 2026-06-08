@@ -43,6 +43,26 @@ public sealed class GraphCallReferenceSyncService
         return result;
     }
 
+    public GraphCallReferenceSyncResult SyncGraph(
+        IEnumerable<ContentAssetViewModel> assets,
+        ContentAssetViewModel owner,
+        GraphFileModel graph)
+    {
+        var assetList = assets.Where(asset => asset.Kind != ContentAssetKind.Folder).ToList();
+        var functions = _callableResolver.ResolveFunctions(assetList, owner)
+            .ToDictionary(item => item.Id, StringComparer.Ordinal);
+        var macros = _callableResolver.ResolveMacros(assetList, owner)
+            .ToDictionary(item => item.Id, StringComparer.Ordinal);
+
+        var result = new GraphCallReferenceSyncResult();
+        result.UpdatedCallNodes = SyncGraph(graph, functions, macros, out int removed);
+        result.RemovedConnections = removed;
+        if (result.UpdatedCallNodes > 0 || result.RemovedConnections > 0)
+            result.ChangedAssetIds.Add(owner.Id);
+
+        return result;
+    }
+
     private static int SyncGraph(
         GraphFileModel graph,
         IReadOnlyDictionary<string, CallableGraphItem> functions,

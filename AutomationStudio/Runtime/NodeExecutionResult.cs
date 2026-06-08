@@ -10,7 +10,9 @@ public enum NodeExecutionStatus
 public sealed record NodeExecutionResult(
     NodeExecutionStatus Status,
     string Message,
-    string? NextPinName = "exec_out")
+    string? NextPinName = "exec_out",
+    string? JumpTargetNodeId = null,
+    bool ReturnAfterJump = false)
 {
     public bool ContinueExecution => Status != NodeExecutionStatus.FatalStop;
 
@@ -22,7 +24,9 @@ public sealed record NodeExecutionResult(
     public static NodeExecutionResult Warn(string message, string? nextPinName = "exec_out") =>
         new(NodeExecutionStatus.WarnButContinue, message, nextPinName);
 
+    public static NodeExecutionResult Jump(string message, string targetNodeId, bool returnAfterJump) =>
+        new(NodeExecutionStatus.Success, message, returnAfterJump ? "exec_out" : null, targetNodeId, returnAfterJump);
+
     public static NodeExecutionResult Fatal(string message) =>
         new(NodeExecutionStatus.FatalStop, message, null);
 }
-

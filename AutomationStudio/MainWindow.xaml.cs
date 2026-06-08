@@ -19,6 +19,7 @@ using TextBox = System.Windows.Controls.TextBox;
 using MouseButton = System.Windows.Input.MouseButton;
 using DataFormats = System.Windows.DataFormats;
 using DragDropEffects = System.Windows.DragDropEffects;
+using TextBoxBase = System.Windows.Controls.Primitives.TextBoxBase;
 using WpfMessageBox = System.Windows.MessageBox;
 
 namespace AutomationStudioWpf;
@@ -213,6 +214,7 @@ public partial class MainWindow : Window
             SetStatus,
             InspectorHintTextBlock,
             NodeTitleTextBox,
+            NodeNumberTextBlock,
             ParameterInspectorPanel,
             AddParameterButton,
             ParameterInspectorTitle,
@@ -270,6 +272,12 @@ public partial class MainWindow : Window
             SelectWindowProcessNameTextBox,
             SelectWindowAutoPanel,
             SelectWindowAutoComboBox,
+            ToDoInspectorPanel,
+            ToDoSearchBox,
+            ToDoTargetListBox,
+            ToDoTargetTitleTextBox,
+            ToDoTargetNumberTextBox,
+            ToDoReturnAfterTargetCheckBox,
             CommonInspectorPanel,
             CommonKeyChordAddPanel,
             CommonKeyChordKeyComboBox,
@@ -313,7 +321,7 @@ public partial class MainWindow : Window
             SetStatus);
 
         _logPanelController = new LogPanelController(
-            LogListBox,
+            LogRichTextBox,
             FilterAllRadio,
             FilterInfoRadio,
             FilterWarnRadio,
@@ -381,6 +389,7 @@ public partial class MainWindow : Window
 
     private void CompileGraph_Click(object sender, RoutedEventArgs e)
     {
+        CommitInspectorAndSnapshotActive();
         CompileCurrentAssets(showPrompt: false);
     }
 
@@ -930,7 +939,7 @@ public partial class MainWindow : Window
             _editorService.NewGraph();
 
         ApplyEntryNodeTitle(_editorService.Nodes, kind, name);
-        _nodeFactory.ResetCounter(1);
+        SyncNodeFactorySequence();
         return _editorService.ExportGraphModel(name, kind);
     }
 
@@ -1910,7 +1919,7 @@ public partial class MainWindow : Window
 
         if (IsFocusInside(GraphListBox) || IsFocusInside(FunctionListBox) || IsFocusInside(MacroListBox))
         {
-            if (Keyboard.FocusedElement is not TextBox && GetFocusedGraphController() is { } controller)
+            if (Keyboard.FocusedElement is not TextBoxBase && GetFocusedGraphController() is { } controller)
             {
                 controller.HandleKeyDown(e);
                 if (e.Handled) return;
@@ -1925,8 +1934,8 @@ public partial class MainWindow : Window
             return;
         }
 
-        // 文本框中不处理快捷键
-        if (Keyboard.FocusedElement is TextBox) return;
+        // TextBox/RichTextBox keep their own copy/select shortcuts.
+        if (Keyboard.FocusedElement is TextBoxBase) return;
 
         if ((Keyboard.Modifiers & ModifierKeys.Control) != 0)
         {
@@ -1982,9 +1991,26 @@ public partial class MainWindow : Window
         _inspectorController.ApplyChanges();
     }
 
+    private void CommitInspectorAndSnapshotActive()
+    {
+        ApplyInspectorChanges();
+        SnapshotActiveAsset();
+    }
+
     private void InspectorField_TextChanged(object sender, TextChangedEventArgs e) => ApplyInspectorChanges();
     private void InspectorField_SelectionChanged(object sender, SelectionChangedEventArgs e) => ApplyInspectorChanges();
     private void InspectorField_CheckedChanged(object sender, RoutedEventArgs e) => ApplyInspectorChanges();
+
+    private void ToDoSearchBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        _inspectorController.ToDoSearchChanged();
+    }
+
+    private void ToDoTargetListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_inspectorController.ToDoTargetSelected())
+            CommitInspectorAndSnapshotActive();
+    }
 
     private void BrowseFindImagePath_Click(object sender, RoutedEventArgs e)
     {
@@ -2165,6 +2191,7 @@ public partial class MainWindow : Window
 
     private bool EnsureCompiledBeforeSave()
     {
+        CommitInspectorAndSnapshotActive();
         SaveVisibleGraphsToActiveContent();
         if (!HasCompileDirtyAssets())
             return true;
@@ -2173,12 +2200,13 @@ public partial class MainWindow : Window
         if (result == MessageBoxResult.Cancel)
             return false;
         if (result == MessageBoxResult.Yes)
-            return CompileCurrentAssets(showPrompt: false);
+            return CompileAllAssets(showPrompt: false);
         return true;
     }
 
     private bool EnsureCompiledBeforeRun()
     {
+        CommitInspectorAndSnapshotActive();
         SaveVisibleGraphsToActiveContent();
         if (!HasCompileDirtyAssets())
             return true;
@@ -2189,30 +2217,41 @@ public partial class MainWindow : Window
 
     private bool CompileCurrentAssets(bool showPrompt)
     {
+        CommitInspectorAndSnapshotActive();
+        SaveVisibleGraphsToActiveContent();
+        if (_activeContentAsset is null || _activeAssetController?.ActiveItem is not { } active)
+        {
+            if (showPrompt)
+                WpfMessageBox.Show(this, "没有打开的图表。", "无法编译", MessageBoxButton.OK, MessageBoxImage.Warning);
+            SetStatus("编译失败：没有打开的图表。");
+            return false;
+        }
+
+        var result = _graphCompileService.CompileGraph(ContentBrowserItems, _activeContentAsset, active);
+        foreach (var item in ContentBrowserItems.Where(item => result.ChangedAssetIds.Contains(item.Id)))
+            item.IsDirty = true;
+
+        if (!HandleCompileResult(result, showPrompt))
+            return false;
+
+        _activeAssetController.ReloadItemWithoutPersist(active);
+        _graphCommandService.Clear();
+        PersistAssetLibrary();
+        UpdateGraphSectionVisibility();
+        SetStatus($"编译完成：{active.Name}，同步 {result.UpdatedCallNodes} 个调用节点，移除 {result.RemovedConnections} 条无效连线。");
+        return true;
+    }
+
+    private bool CompileAllAssets(bool showPrompt)
+    {
+        CommitInspectorAndSnapshotActive();
         SaveVisibleGraphsToActiveContent();
         var result = _graphCompileService.Compile(ContentBrowserItems);
         foreach (var item in ContentBrowserItems.Where(item => result.ChangedAssetIds.Contains(item.Id)))
             item.IsDirty = true;
-        if (!result.Success)
-        {
-            foreach (var issue in result.Issues)
-            {
-                if (issue.Severity == GraphCore.GraphValidationSeverity.Error)
-                    Logger.Error($"编译：{issue.Message}");
-                else
-                    Logger.Warn($"编译：{issue.Message}");
-            }
 
-            string message = string.Join(Environment.NewLine, result.Issues
-                .Where(issue => issue.Severity == GraphCore.GraphValidationSeverity.Error)
-                .Take(6)
-                .Select(issue => issue.Message));
-            if (showPrompt && !string.IsNullOrWhiteSpace(message))
-                WpfMessageBox.Show(this, message, "编译失败", MessageBoxButton.OK, MessageBoxImage.Error);
-            SetStatus($"编译失败：{result.Issues.Count(issue => issue.Severity == GraphCore.GraphValidationSeverity.Error)} 个错误。");
-            UpdateGraphSectionVisibility();
+        if (!HandleCompileResult(result, showPrompt))
             return false;
-        }
 
         if (_activeAssetController?.ActiveItem is { } active)
         {
@@ -2223,6 +2262,30 @@ public partial class MainWindow : Window
         UpdateGraphSectionVisibility();
         SetStatus($"编译完成：同步 {result.UpdatedCallNodes} 个调用节点，移除 {result.RemovedConnections} 条无效连线。");
         return result.Success;
+    }
+
+    private bool HandleCompileResult(GraphCompileResult result, bool showPrompt)
+    {
+        if (result.Success)
+            return true;
+
+        foreach (var issue in result.Issues)
+        {
+            if (issue.Severity == GraphCore.GraphValidationSeverity.Error)
+                Logger.Error($"编译：{issue.Message}");
+            else
+                Logger.Warn($"编译：{issue.Message}");
+        }
+
+        string message = string.Join(Environment.NewLine, result.Issues
+            .Where(issue => issue.Severity == GraphCore.GraphValidationSeverity.Error)
+            .Take(6)
+            .Select(issue => issue.Message));
+        if (showPrompt && !string.IsNullOrWhiteSpace(message))
+            WpfMessageBox.Show(this, message, "编译失败", MessageBoxButton.OK, MessageBoxImage.Error);
+        SetStatus($"编译失败：{result.Issues.Count(issue => issue.Severity == GraphCore.GraphValidationSeverity.Error)} 个错误。");
+        UpdateGraphSectionVisibility();
+        return false;
     }
 
     private bool HasCompileDirtyAssets()
@@ -2241,7 +2304,7 @@ public partial class MainWindow : Window
         if (CompileGraphButton is null)
             return;
 
-        bool dirty = HasCompileDirtyAssets();
+        bool dirty = _activeAssetController?.ActiveItem?.IsCompileDirty == true;
         CompileButtonText.Text = dirty ? "编译*" : "编译";
         CompileDirtyIcon.Visibility = dirty ? Visibility.Visible : Visibility.Collapsed;
         CompileGraphButton.Background = dirty

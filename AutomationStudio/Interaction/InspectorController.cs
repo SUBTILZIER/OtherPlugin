@@ -9,6 +9,7 @@ using WpfComboBoxItem = System.Windows.Controls.ComboBoxItem;
 using WpfCheckBox = System.Windows.Controls.CheckBox;
 using WpfButton = System.Windows.Controls.Button;
 using WpfControl = System.Windows.Controls.Control;
+using WpfListBox = System.Windows.Controls.ListBox;
 using WpfOpenFileDialog = Microsoft.Win32.OpenFileDialog;
 using WpfSaveFileDialog = Microsoft.Win32.SaveFileDialog;
 using WpfTextBox = System.Windows.Controls.TextBox;
@@ -29,6 +30,7 @@ public sealed class InspectorController
 
     private readonly TextBlock _hintTextBlock;
     private readonly WpfTextBox _nodeTitleTextBox;
+    private readonly TextBlock _nodeNumberTextBlock;
     private readonly StackPanel[] _inspectorPanels;
     private readonly StackPanel _parameterInspectorPanel;
     private readonly WpfButton _addParameterButton;
@@ -100,6 +102,13 @@ public sealed class InspectorController
     private readonly StackPanel _selectWindowAutoPanel;
     private readonly WpfComboBox _selectWindowAutoComboBox;
 
+    private readonly StackPanel _toDoInspectorPanel;
+    private readonly WpfTextBox _toDoSearchBox;
+    private readonly WpfListBox _toDoTargetListBox;
+    private readonly WpfTextBox _toDoTargetTitleTextBox;
+    private readonly WpfTextBox _toDoTargetNumberTextBox;
+    private readonly WpfCheckBox _toDoReturnAfterTargetCheckBox;
+
     private readonly StackPanel _commonInspectorPanel;
     private readonly StackPanel _commonKeyChordAddPanel;
     private readonly WpfComboBox _commonKeyChordKeyComboBox;
@@ -130,6 +139,8 @@ public sealed class InspectorController
 
     private bool _isLoading;
 
+    private sealed record ToDoTargetOption(string NodeId, string Title, string Number);
+
     private enum ScreenshotSaveMode
     {
         Auto,
@@ -144,6 +155,7 @@ public sealed class InspectorController
         Action<string> setStatus,
         TextBlock hintTextBlock,
         WpfTextBox nodeTitleTextBox,
+        TextBlock nodeNumberTextBlock,
         StackPanel parameterInspectorPanel,
         WpfButton addParameterButton,
         TextBlock parameterInspectorTitle,
@@ -201,6 +213,12 @@ public sealed class InspectorController
         WpfTextBox selectWindowProcessNameTextBox,
         StackPanel selectWindowAutoPanel,
         WpfComboBox selectWindowAutoComboBox,
+        StackPanel toDoInspectorPanel,
+        WpfTextBox toDoSearchBox,
+        WpfListBox toDoTargetListBox,
+        WpfTextBox toDoTargetTitleTextBox,
+        WpfTextBox toDoTargetNumberTextBox,
+        WpfCheckBox toDoReturnAfterTargetCheckBox,
         StackPanel commonInspectorPanel,
         StackPanel commonKeyChordAddPanel,
         WpfComboBox commonKeyChordKeyComboBox,
@@ -236,6 +254,7 @@ public sealed class InspectorController
         _setStatus = setStatus;
         _hintTextBlock = hintTextBlock;
         _nodeTitleTextBox = nodeTitleTextBox;
+        _nodeNumberTextBlock = nodeNumberTextBlock;
         _parameterInspectorPanel = parameterInspectorPanel;
         _addParameterButton = addParameterButton;
         _parameterInspectorTitle = parameterInspectorTitle;
@@ -306,6 +325,13 @@ public sealed class InspectorController
         _selectWindowAutoPanel = selectWindowAutoPanel;
         _selectWindowAutoComboBox = selectWindowAutoComboBox;
 
+        _toDoInspectorPanel = toDoInspectorPanel;
+        _toDoSearchBox = toDoSearchBox;
+        _toDoTargetListBox = toDoTargetListBox;
+        _toDoTargetTitleTextBox = toDoTargetTitleTextBox;
+        _toDoTargetNumberTextBox = toDoTargetNumberTextBox;
+        _toDoReturnAfterTargetCheckBox = toDoReturnAfterTargetCheckBox;
+
         _commonInspectorPanel = commonInspectorPanel;
         _commonKeyChordAddPanel = commonKeyChordAddPanel;
         _commonKeyChordKeyComboBox = commonKeyChordKeyComboBox;
@@ -349,6 +375,7 @@ public sealed class InspectorController
             _startProgramInspectorPanel,
             _printLogInspectorPanel,
             _selectWindowInspectorPanel,
+            _toDoInspectorPanel,
             _commonInspectorPanel,
         ];
     }
@@ -361,6 +388,7 @@ public sealed class InspectorController
             if (node is null)
             {
                 _nodeTitleTextBox.Text = string.Empty;
+                _nodeNumberTextBlock.Text = string.Empty;
                 HideAllPanels();
                 _hintTextBlock.Text = "请选择一个节点进行编辑。";
                 RefreshLocks(null);
@@ -368,6 +396,7 @@ public sealed class InspectorController
             }
 
             _nodeTitleTextBox.Text = node.Title;
+            _nodeNumberTextBlock.Text = string.IsNullOrWhiteSpace(node.NodeNumber) ? "未分配" : node.NodeNumber;
             _hintTextBlock.Text = $"当前选中：{node.Title}";
             HideAllPanels();
 
@@ -498,6 +527,11 @@ public sealed class InspectorController
                         _selectWindowProcessNameTextBox.Text = selectWindowNode.ProcessName;
                     }
                     UpdateSelectWindowModeVisibility(selectWindowNode.InputMode, hasProcessNameInput);
+                    break;
+
+                case ToDoNodeViewModel toDoNode:
+                    _toDoInspectorPanel.Visibility = Visibility.Visible;
+                    LoadToDoNode(toDoNode);
                     break;
 
                 case CommonNodeViewModel commonNode:
@@ -631,6 +665,10 @@ public sealed class InspectorController
                 }
                 break;
 
+            case ToDoNodeViewModel toDoNode:
+                ApplyToDoNodeChanges(toDoNode);
+                break;
+
             case CommonNodeViewModel commonNode:
                 ApplyCommonNodeChanges(commonNode);
                 break;
@@ -671,6 +709,112 @@ public sealed class InspectorController
 
         if (IsWindowCommonNode(commonNode.NodeKind) && _commonModeComboBox.IsEnabled)
             commonNode.Text2 = GetSelectedComboTag(_commonModeComboBox, WindowInputMode.Manual.ToString());
+    }
+
+    private void LoadToDoNode(ToDoNodeViewModel node)
+    {
+        _toDoTargetTitleTextBox.Text = node.TargetNodeTitle;
+        _toDoTargetNumberTextBox.Text = node.TargetNodeNumber;
+        _toDoReturnAfterTargetCheckBox.IsChecked = node.ReturnAfterTarget;
+        _toDoSearchBox.Text = string.Empty;
+        RefreshToDoTargetOptions();
+    }
+
+    private void ApplyToDoNodeChanges(ToDoNodeViewModel node)
+    {
+        node.TargetNodeTitle = _toDoTargetTitleTextBox.Text.Trim();
+        node.TargetNodeNumber = _toDoTargetNumberTextBox.Text.Trim();
+        node.ReturnAfterTarget = _toDoReturnAfterTargetCheckBox.IsChecked == true;
+
+        var target = FindToDoTarget(node, node.TargetNodeTitle, node.TargetNodeNumber);
+        node.TargetNodeId = target?.Id;
+    }
+
+    public void ToDoSearchChanged()
+    {
+        if (_isLoading)
+            return;
+
+        RefreshToDoTargetOptions();
+    }
+
+    public bool ToDoTargetSelected()
+    {
+        if (_isLoading ||
+            _toDoTargetListBox.SelectedItem is not ToDoTargetOption option ||
+            _editorService.Nodes.FirstOrDefault(node => node.IsSelected) is not ToDoNodeViewModel toDoNode)
+        {
+            return false;
+        }
+
+        bool wasLoading = _isLoading;
+        _isLoading = true;
+        try
+        {
+            _toDoTargetTitleTextBox.Text = option.Title;
+            _toDoTargetNumberTextBox.Text = option.Number;
+        }
+        finally
+        {
+            _isLoading = wasLoading;
+        }
+
+        toDoNode.TargetNodeTitle = option.Title;
+        toDoNode.TargetNodeNumber = option.Number;
+        toDoNode.TargetNodeId = option.NodeId;
+        toDoNode.RefreshDescription();
+        RefreshLocks(toDoNode);
+        _markDirty();
+        _setStatus($"ToDo 目标已选择：{option.Title} {option.Number}");
+        return true;
+    }
+
+    private void RefreshToDoTargetOptions()
+    {
+        string filter = _toDoSearchBox.Text.Trim();
+        var selectedToDo = _editorService.Nodes.FirstOrDefault(node => node.IsSelected) as ToDoNodeViewModel;
+        var options = _editorService.Nodes
+            .Where(node => node.NodeKind != NodeKind.Reroute)
+            .Where(node => !ReferenceEquals(node, selectedToDo))
+            .Where(node => string.IsNullOrWhiteSpace(filter) ||
+                           node.Title.Contains(filter, StringComparison.OrdinalIgnoreCase) ||
+                           node.NodeNumber.Contains(filter, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(node => NodeSortOrdinal(node.NodeNumber))
+            .ThenBy(node => node.Title)
+            .Select(node => new ToDoTargetOption(node.Id, node.Title, node.NodeNumber))
+            .ToList();
+
+        _toDoTargetListBox.ItemsSource = options;
+        if (selectedToDo is not null && !string.IsNullOrWhiteSpace(selectedToDo.TargetNodeId))
+        {
+            _toDoTargetListBox.SelectedItem = options.FirstOrDefault(option => option.NodeId == selectedToDo.TargetNodeId);
+        }
+    }
+
+    private NodeBaseViewModel? FindToDoTarget(ToDoNodeViewModel source, string title, string number)
+    {
+        if (string.IsNullOrWhiteSpace(title) || string.IsNullOrWhiteSpace(number))
+            return null;
+
+        var matches = _editorService.Nodes
+            .Where(node => !ReferenceEquals(node, source))
+            .Where(node => node.NodeKind != NodeKind.Reroute)
+            .Where(node => string.Equals(node.Title, title, StringComparison.Ordinal) &&
+                           string.Equals(node.NodeNumber, number, StringComparison.OrdinalIgnoreCase))
+            .Take(2)
+            .ToList();
+        return matches.Count == 1 ? matches[0] : null;
+    }
+
+    private static int NodeSortOrdinal(string nodeNumber)
+    {
+        int start = 0;
+        while (start < nodeNumber.Length && !char.IsDigit(nodeNumber[start]))
+        {
+            start++;
+        }
+
+        return start < nodeNumber.Length && int.TryParse(nodeNumber[start..], out int ordinal) ? ordinal : int.MaxValue;
     }
 
     public void BrowseFindImagePath()
@@ -1422,6 +1566,8 @@ public sealed class InspectorController
 
         LockTextBox(_printLogMessageTextBox, node is PrintLogNodeViewModel printNode && IsInputPinConnected(printNode, "message"), node is PrintLogNodeViewModel printValue ? printValue.Message : string.Empty);
         LockTextBox(_selectWindowProcessNameTextBox, node is SelectWindowNodeViewModel selectNode && IsInputPinConnected(selectNode, "process_name"), node is SelectWindowNodeViewModel selectValue ? selectValue.ProcessName : string.Empty);
+        LockTextBox(_toDoTargetTitleTextBox, node is ToDoNodeViewModel toDoTitle && IsInputPinConnected(toDoTitle, "target_title"), node is ToDoNodeViewModel toDoTitleValue ? toDoTitleValue.TargetNodeTitle : string.Empty);
+        LockTextBox(_toDoTargetNumberTextBox, node is ToDoNodeViewModel toDoNumber && IsInputPinConnected(toDoNumber, "target_number"), node is ToDoNodeViewModel toDoNumberValue ? toDoNumberValue.TargetNodeNumber : string.Empty);
 
         if (node is FindImageNodeViewModel findImageNode)
         {

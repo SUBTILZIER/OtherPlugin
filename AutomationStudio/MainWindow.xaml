@@ -110,6 +110,60 @@
                 </Trigger>
             </Style.Triggers>
         </Style>
+        <Style x:Key="GraphItemDirtyGlyphStyle" TargetType="{x:Type Border}">
+            <Setter Property="Width" Value="8" />
+            <Setter Property="Height" Value="8" />
+            <Setter Property="Margin" Value="0,0,7,0" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Background" Value="#D68A22" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Visibility" Value="Collapsed" />
+            <Setter Property="ToolTip" Value="图表已修改" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsDirty}" Value="True">
+                    <Setter Property="Visibility" Value="Visible" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IsEditing}" Value="True">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="DarkDropdownListBoxItemStyle" TargetType="{x:Type ListBoxItem}">
+            <Setter Property="Foreground" Value="#E8EDF5" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Padding" Value="4,2" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type ListBoxItem}">
+                        <Border x:Name="Border"
+                                Background="{TemplateBinding Background}"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                              TextBlock.Foreground="{TemplateBinding Foreground}" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Border" Property="Background" Value="#263241" />
+                                <Setter Property="Foreground" Value="#FFFFFF" />
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Border" Property="Background" Value="#30455F" />
+                                <Setter Property="Foreground" Value="#FFFFFF" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="DarkDropdownListBoxStyle" TargetType="{x:Type ListBox}">
+            <Setter Property="Foreground" Value="#E8EDF5" />
+            <Setter Property="Background" Value="#1B2028" />
+            <Setter Property="BorderBrush" Value="#3A4554" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="ItemContainerStyle" Value="{StaticResource DarkDropdownListBoxItemStyle}" />
+        </Style>
     </Window.Resources>
     <DockPanel>
         <ToolBar DockPanel.Dock="Top"
@@ -230,7 +284,13 @@
                             <ListBox.ItemTemplate>
                                 <DataTemplate>
                                     <Grid>
-                                        <TextBlock Text="{Binding Name}"
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Grid.Column="0" Style="{StaticResource GraphItemDirtyGlyphStyle}" />
+                                        <TextBlock Grid.Column="1"
+                                                   Text="{Binding Name}"
                                                    VerticalAlignment="Center">
                                             <TextBlock.Style>
                                                 <Style TargetType="TextBlock">
@@ -243,7 +303,9 @@
                                                 </Style>
                                             </TextBlock.Style>
                                         </TextBlock>
-                                        <TextBox Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}"
+                                        <TextBox Grid.Column="0"
+                                                 Grid.ColumnSpan="2"
+                                                 Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}"
                                                  KeyDown="GraphNameTextBox_KeyDown"
                                                  LostFocus="GraphNameTextBox_LostFocus">
                                             <TextBox.Style>
@@ -323,10 +385,12 @@
                                 <DataTemplate>
                                     <Grid>
                                         <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
                                             <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Grid.Column="0"
+                                        <Border Grid.Column="0" Style="{StaticResource GraphItemDirtyGlyphStyle}" />
+                                        <TextBlock Grid.Column="1"
                                                    Text="{Binding Name}"
                                                    VerticalAlignment="Center"
                                                    TextTrimming="CharacterEllipsis">
@@ -341,7 +405,7 @@
                                                 </Style>
                                             </TextBlock.Style>
                                         </TextBlock>
-                                        <CheckBox Grid.Column="1"
+                                        <CheckBox Grid.Column="2"
                                                   Content="公开到库"
                                                   Margin="8,0,0,0"
                                                   VerticalAlignment="Center"
@@ -363,7 +427,7 @@
                                             </CheckBox.Style>
                                         </CheckBox>
                                         <TextBox Grid.Column="0"
-                                                 Grid.ColumnSpan="2"
+                                                 Grid.ColumnSpan="3"
                                                  Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}"
                                                   KeyDown="GraphNameTextBox_KeyDown"
                                                   LostFocus="GraphNameTextBox_LostFocus">
@@ -443,10 +507,12 @@
                                 <DataTemplate>
                                     <Grid>
                                         <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
                                             <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Grid.Column="0"
+                                        <Border Grid.Column="0" Style="{StaticResource GraphItemDirtyGlyphStyle}" />
+                                        <TextBlock Grid.Column="1"
                                                    Text="{Binding Name}"
                                                    VerticalAlignment="Center"
                                                    TextTrimming="CharacterEllipsis">
@@ -461,7 +527,7 @@
                                                 </Style>
                                             </TextBlock.Style>
                                         </TextBlock>
-                                        <CheckBox Grid.Column="1"
+                                        <CheckBox Grid.Column="2"
                                                   Content="公开到库"
                                                   Margin="8,0,0,0"
                                                   VerticalAlignment="Center"
@@ -483,10 +549,10 @@
                                             </CheckBox.Style>
                                         </CheckBox>
                                         <TextBox Grid.Column="0"
-                                                 Grid.ColumnSpan="2"
+                                                 Grid.ColumnSpan="3"
                                                  Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}"
-                                                  KeyDown="GraphNameTextBox_KeyDown"
-                                                  LostFocus="GraphNameTextBox_LostFocus">
+                                                   KeyDown="GraphNameTextBox_KeyDown"
+                                                   LostFocus="GraphNameTextBox_LostFocus">
                                             <TextBox.Style>
                                                 <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
                                                     <Setter Property="Visibility" Value="Collapsed" />
@@ -730,10 +796,23 @@
                                                         Background="{Binding HeaderBrush}"
                                                         CornerRadius="4,4,0,0"
                                                         Padding="10,4">
-                                                    <TextBlock Text="{Binding Title}"
-                                                               FontSize="14"
-                                                               FontWeight="Bold"
-                                                               Foreground="{Binding HeaderForegroundBrush}" />
+                                                    <DockPanel LastChildFill="True">
+                                                        <Border DockPanel.Dock="Left"
+                                                                Background="#660D0F12"
+                                                                CornerRadius="3"
+                                                                Padding="5,1"
+                                                                Margin="0,0,7,0">
+                                                            <TextBlock Text="{Binding NodeNumber}"
+                                                                       FontSize="11"
+                                                                       FontWeight="SemiBold"
+                                                                       Foreground="{Binding HeaderForegroundBrush}" />
+                                                        </Border>
+                                                        <TextBlock Text="{Binding Title}"
+                                                                   FontSize="14"
+                                                                   FontWeight="Bold"
+                                                                   Foreground="{Binding HeaderForegroundBrush}"
+                                                                   TextTrimming="CharacterEllipsis" />
+                                                    </DockPanel>
                                                 </Border>
 
                                                 <Grid Grid.Row="1" Margin="4,6,4,6">
@@ -948,6 +1027,13 @@
 
                             <TextBlock Text="节点名称" Foreground="White" />
                             <TextBox x:Name="NodeTitleTextBox" Margin="0,4,0,12" TextChanged="InspectorField_TextChanged" />
+                            <TextBlock Text="节点编号" Foreground="White" />
+                            <TextBlock x:Name="NodeNumberTextBlock"
+                                       Text="N001"
+                                       Foreground="#D0D7E2"
+                                       Background="#252B34"
+                                       Padding="8,4"
+                                       Margin="0,4,0,12" />
 
                             <StackPanel x:Name="ParameterInspectorPanel" Visibility="Collapsed" Margin="0,0,0,12">
                                 <DockPanel Margin="0,0,0,8">
@@ -1146,6 +1232,47 @@
                                         <Button Grid.Column="1" Content="刷新" Width="48" Height="24" Padding="0" Click="RefreshWindowList_Click" />
                                     </Grid>
                                 </StackPanel>
+                            </StackPanel>
+
+                            <StackPanel x:Name="ToDoInspectorPanel" Visibility="Collapsed">
+                                <TextBlock Text="ToDo 目标" Foreground="#A7B1BF" FontWeight="SemiBold" />
+                                <TextBlock Text="搜索节点名或编号" Foreground="White" Margin="0,10,0,0" />
+                                <TextBox x:Name="ToDoSearchBox" Margin="0,4,0,8" TextChanged="ToDoSearchBox_TextChanged" />
+                                <ListBox x:Name="ToDoTargetListBox"
+                                         Style="{StaticResource DarkDropdownListBoxStyle}"
+                                         MaxHeight="160"
+                                         Margin="0,0,0,10"
+                                         SelectionChanged="ToDoTargetListBox_SelectionChanged"
+                                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                         ScrollViewer.VerticalScrollBarVisibility="Auto">
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <DockPanel Margin="4,3">
+                                                <TextBlock Text="{Binding Number}"
+                                                           DockPanel.Dock="Left"
+                                                           Foreground="#FFD27A"
+                                                           FontWeight="SemiBold"
+                                                           Margin="0,0,8,0" />
+                                                <TextBlock Text="{Binding Title}"
+                                                           Foreground="#E8EDF5"
+                                                           TextTrimming="CharacterEllipsis" />
+                                            </DockPanel>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                                <TextBlock Text="节点名" Foreground="White" />
+                                <TextBox x:Name="ToDoTargetTitleTextBox" Margin="0,4,0,10" TextChanged="InspectorField_TextChanged" />
+                                <TextBlock Text="编号" Foreground="White" />
+                                <TextBox x:Name="ToDoTargetNumberTextBox" Margin="0,4,0,10" TextChanged="InspectorField_TextChanged" />
+                                <CheckBox x:Name="ToDoReturnAfterTargetCheckBox"
+                                          Content="目标执行完后返回 ToDo 输出"
+                                          Foreground="#D0D7E2"
+                                          Margin="0,0,0,10"
+                                          Checked="InspectorField_CheckedChanged"
+                                          Unchecked="InspectorField_CheckedChanged" />
+                                <TextBlock Text="运行时同时匹配节点名和编号；任一不匹配就停止。"
+                                           Foreground="#7A8797"
+                                           TextWrapping="Wrap" />
                             </StackPanel>
 
                             <StackPanel x:Name="KeyboardInspectorPanel" Visibility="Collapsed">
@@ -1542,38 +1669,16 @@
                         <Button Content="清空" Click="ClearLog_Click" Margin="8,2,8,2" Padding="8,2" Height="20" FontSize="11" />
                     </StackPanel>
 
-                    <ListBox x:Name="LogListBox"
-                             Background="#11151A"
-                             BorderThickness="0"
-                             VirtualizingStackPanel.IsVirtualizing="True"
-                             ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-                        <ListBox.ItemTemplate>
-                            <DataTemplate>
-                                <TextBox Text="{Binding DisplayText, Mode=OneWay}"
-                                         TextWrapping="NoWrap"
-                                         FontFamily="Consolas"
-                                         FontSize="11"
-                                         IsReadOnly="True"
-                                         BorderThickness="0"
-                                         Background="Transparent"
-                                         Padding="0">
-                                    <TextBox.Style>
-                                        <Style TargetType="TextBox">
-                                            <Setter Property="Foreground" Value="#D0D7E2" />
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding Level}" Value="{x:Static logging:LogLevel.Warn}">
-                                                    <Setter Property="Foreground" Value="#FFD700" />
-                                                </DataTrigger>
-                                                <DataTrigger Binding="{Binding Level}" Value="{x:Static logging:LogLevel.Error}">
-                                                    <Setter Property="Foreground" Value="#FF6B6B" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </TextBox.Style>
-                                </TextBox>
-                            </DataTemplate>
-                        </ListBox.ItemTemplate>
-                    </ListBox>
+                    <RichTextBox x:Name="LogRichTextBox"
+                                 Background="#11151A"
+                                 Foreground="#D0D7E2"
+                                 BorderThickness="0"
+                                 FontFamily="Consolas"
+                                 FontSize="11"
+                                 IsReadOnly="True"
+                                 Padding="6,4"
+                                 VerticalScrollBarVisibility="Auto"
+                                 HorizontalScrollBarVisibility="Auto" />
                 </DockPanel>
             </Border>
             </Grid>

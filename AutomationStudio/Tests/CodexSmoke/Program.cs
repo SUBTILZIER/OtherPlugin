@@ -12,6 +12,7 @@ using System.Windows.Media;
 using AutomationStudioWpf;
 using AutomationStudioWpf.Graph;
 using AutomationStudioWpf.Interaction;
+using AutomationStudioWpf.Logging;
 using AutomationStudioWpf.Nodes;
 using AutomationStudioWpf.Runtime;
 using AutomationStudioWpf.Services;
@@ -39,9 +40,17 @@ internal static class Program
             CheckConnectionPathHitIsNotBlank(window);
             CheckGraphCommandUndoRedo();
             CheckConnectionPathSelectionDelete();
+            CheckPinConnectionStates();
+            CheckBatchedConnectionEdits();
+            CheckReusableNodeNumbersAndToDoSync();
+            CheckToDoInspectorSearch(window);
+            CheckToDoRuntimeJumpModes();
+            CheckToDoCompileFallbacks();
             CheckNodeDefinitionMetadata();
             CheckGraphSectionsAndDirty(window);
+            CheckCompileCurrentGraphOnly(window);
             CheckCompileSync();
+            CheckCompileAssignsMissingNodeNumbers();
             CheckCompileRejectsPrivateLibraryCalls();
             CheckCompileValidationFailures();
             CheckCustomEvents();
@@ -52,6 +61,7 @@ internal static class Program
             CheckRerouteConnectionGeometry();
             CheckExternalRerouteGraphFile();
             CheckDetailsPanelText(window);
+            CheckLogRichTextBoxCopy(window);
             CheckLibraryPublishFlag(window);
             CheckSaveAllClearsNestedDirty(window);
             Console.WriteLine("Smoke OK");
@@ -386,6 +396,78 @@ internal static class Program
         Assert(!window.Nodes.Cast<NodeBaseViewModel>().Any(node => node.NodeKind is NodeKind.FunctionEntry or NodeKind.FunctionReturn or NodeKind.MacroEntry), "reopening script event canvas does not mix function or macro nodes");
     }
 
+    private static void CheckCompileCurrentGraphOnly(MainWindow window)
+    {
+        ResetContent(window);
+        var script = window.ContentBrowserItems.First(item => item.Kind == ContentAssetKind.Script);
+        Invoke(window, "OpenContentAsset", script);
+
+        Invoke(window, "AddGraphListItem_Click", window, new RoutedEventArgs());
+        var first = window.GraphListItems.Single();
+        Invoke(window, "AddGraphListItem_Click", window, new RoutedEventArgs());
+        var second = window.GraphListItems.Last();
+
+        var controller = Get<GraphListController>(window, "_graphListController");
+        Assert(first.IsCompileDirty && second.IsCompileDirty, "two new graphs start compile dirty");
+        Assert(ReferenceEquals(controller.ActiveItem, second), "second graph is active before compile");
+
+        Invoke(window, "CompileCurrentAssets", false);
+
+        Assert(first.IsCompileDirty, "compile button keeps non-active dirty graph dirty");
+        Assert(!second.IsCompileDirty, "compile button clears only active graph dirty");
+    }
+
+    private static void CheckCompileAssignsMissingNodeNumbers()
+    {
+        var script = new ContentAssetViewModel { Kind = ContentAssetKind.Script, Name = "LegacyScript" };
+        var eventGraph = new GraphListItemViewModel
+        {
+            Name = "Event",
+            Kind = GraphAssetKind.EventGraph,
+            IsCompileDirty = true,
+            Graph = new GraphFileModel
+            {
+                AssetKind = GraphAssetKind.EventGraph,
+                Nodes =
+                [
+                    new NodeFileModel { Id = "start", NodeTypeKey = "start" },
+                    new NodeFileModel { Id = "log", NodeTypeKey = "print_log" },
+                    new NodeFileModel { Id = "route", NodeTypeKey = "reroute", NodeNumber = "N099" },
+                ],
+            },
+        };
+        script.EventGraphs.Add(eventGraph);
+        var functionLibrary = new ContentAssetViewModel { Kind = ContentAssetKind.FunctionLibrary, Name = "LegacyFunctionLibrary" };
+        var functionGraph = new GraphListItemViewModel
+        {
+            Name = "Function",
+            Kind = GraphAssetKind.Function,
+            IsCompileDirty = true,
+            Graph = new GraphFileModel
+            {
+                AssetKind = GraphAssetKind.Function,
+                Nodes =
+                [
+                    new NodeFileModel { Id = "entry", NodeTypeKey = "function_entry" },
+                    new NodeFileModel { Id = "return", NodeTypeKey = "function_return" },
+                ],
+            },
+        };
+        functionLibrary.Functions.Add(functionGraph);
+
+        var result = new GraphCompileService().Compile([script, functionLibrary]);
+
+        Assert(result.Success, "compile succeeds after assigning missing node numbers");
+        Assert(eventGraph.Graph.Nodes.First(node => node.Id == "start").NodeNumber == "N001", "compile assigns first missing event number");
+        Assert(eventGraph.Graph.Nodes.First(node => node.Id == "log").NodeNumber == "N002", "compile assigns next missing event number");
+        Assert(string.IsNullOrWhiteSpace(eventGraph.Graph.Nodes.First(node => node.Id == "route").NodeNumber), "compile clears reroute node number");
+        Assert(functionGraph.Graph.Nodes.First(node => node.Id == "entry").NodeNumber == "Fun001", "compile assigns function entry node number");
+        Assert(functionGraph.Graph.Nodes.First(node => node.Id == "return").NodeNumber == "Fun002", "compile assigns function return node number");
+        Assert(result.ChangedAssetIds.Contains(script.Id), "node number assignment marks owner asset changed");
+        Assert(result.ChangedAssetIds.Contains(functionLibrary.Id), "function number assignment marks owner asset changed");
+        Assert(result.Issues.All(issue => !issue.Message.Contains("节点缺少编号", StringComparison.Ordinal)), "compile no longer warns for auto-assigned node numbers");
+    }
+
     private static void CheckPinConnectionPaletteAutoConnect(MainWindow window)
     {
         var editor = Get<GraphEditorService>(window, "_editorService");
@@ -506,6 +588,384 @@ internal static class Program
         Assert(editor.Connections.Count == 0, "deleting selected visual path removes backing connections");
         Assert(command.Undo(), "connection path delete is undoable");
         Assert(editor.Connections.Count == 1 && editor.ConnectionPaths.Count == 1, "undo restores deleted connection path");
+    }
+
+    private static void CheckPinConnectionStates()
+    {
+        var editor = new GraphEditorService();
+        var source = new StartNodeViewModel("source") { X = 80, Y = 120 };
+        var target = new PrintLogNodeViewModel("target") { X = 320, Y = 120 };
+        editor.AddNode(source);
+        editor.AddNode(target);
+
+        var sourcePin = source.OutputPins.First(pin => pin.Name == "exec_out");
+        var targetPin = target.InputPins.First(pin => pin.Name == "exec_in");
+        editor.UpdatePinConnectionStates();
+        Assert(!sourcePin.HasConnection && !targetPin.HasConnection, "fresh pins start disconnected");
+
+        editor.CreateConnection(sourcePin, targetPin);
+        editor.UpdatePinConnectionStates();
+        Assert(sourcePin.HasConnection && targetPin.HasConnection, "pin state tracks created connection");
+
+        editor.RemoveConnection(editor.Connections.Single());
+        editor.UpdatePinConnectionStates();
+        Assert(!sourcePin.HasConnection && !targetPin.HasConnection, "pin state clears after removed connection");
+    }
+
+    private static void CheckBatchedConnectionEdits()
+    {
+        CheckBatchedConnectionReplacement();
+        CheckBatchedManualConnectionMutations();
+        CheckBatchedMultiReroutePathDelete();
+    }
+
+    private static void CheckBatchedConnectionReplacement()
+    {
+        var editor = new GraphEditorService();
+        var source = new StartNodeViewModel("source") { X = 80, Y = 120 };
+        var firstTarget = new PrintLogNodeViewModel("first") { X = 320, Y = 80 };
+        var secondTarget = new PrintLogNodeViewModel("second") { X = 320, Y = 200 };
+        editor.AddNode(source);
+        editor.AddNode(firstTarget);
+        editor.AddNode(secondTarget);
+
+        var sourcePin = source.OutputPins.First(pin => pin.Name == "exec_out");
+        var firstInput = firstTarget.InputPins.First(pin => pin.Name == "exec_in");
+        var secondInput = secondTarget.InputPins.First(pin => pin.Name == "exec_in");
+        editor.CreateConnection(sourcePin, firstInput);
+
+        int graphChangedCount = 0;
+        editor.GraphChanged += () => graphChangedCount++;
+        editor.CreateConnection(sourcePin, secondInput);
+        editor.UpdatePinConnectionStates();
+
+        Assert(graphChangedCount == 1, "replacing an execution connection raises one graph changed event");
+        Assert(editor.Connections.Count == 1 && ReferenceEquals(editor.Connections.Single().TargetPin, secondInput), "replacement keeps only the new execution connection");
+        Assert(editor.ConnectionPaths.Count == 1, "replacement rebuilds visible paths once to the final state");
+        Assert(!firstInput.HasConnection && secondInput.HasConnection, "replacement refreshes pin states to the final connection");
+    }
+
+    private static void CheckBatchedManualConnectionMutations()
+    {
+        var editor = new GraphEditorService();
+        var source = new StartNodeViewModel("source") { X = 80, Y = 120 };
+        var reroute = new RerouteNodeViewModel("reroute", PinKind.Execution) { X = 260, Y = 160 };
+        var target = new PrintLogNodeViewModel("target") { X = 420, Y = 120 };
+        editor.AddNode(source);
+        editor.AddNode(reroute);
+        editor.AddNode(target);
+
+        int graphChangedCount = 0;
+        editor.GraphChanged += () => graphChangedCount++;
+        editor.RunBatchedEdit(() =>
+        {
+            editor.CreateConnection(source.OutputPins.First(pin => pin.Name == "exec_out"), reroute.InputPins.First(pin => pin.Name == "in"));
+            editor.CreateConnection(reroute.OutputPins.First(pin => pin.Name == "out"), target.InputPins.First(pin => pin.Name == "exec_in"));
+        });
+
+        Assert(graphChangedCount == 1, "manual batched connection mutations raise one graph changed event");
+        Assert(editor.Connections.Count == 2, "manual batch applies all backing connections");
+        Assert(editor.ConnectionPaths.Count == 1, "manual batch rebuilds one aggregated visual path");
+    }
+
+    private static void CheckBatchedMultiReroutePathDelete()
+    {
+        var editor = new GraphEditorService();
+        var command = new GraphCommandService(editor, () => GraphAssetKind.EventGraph, () => { }, _ => { });
+        var source = new StartNodeViewModel("source") { X = 80, Y = 120 };
+        var routeA = new RerouteNodeViewModel("route_a", PinKind.Execution) { X = 220, Y = 220 };
+        var routeB = new RerouteNodeViewModel("route_b", PinKind.Execution) { X = 360, Y = 220 };
+        var target = new PrintLogNodeViewModel("target") { X = 520, Y = 120 };
+        editor.AddNode(source);
+        editor.AddNode(routeA);
+        editor.AddNode(routeB);
+        editor.AddNode(target);
+        editor.CreateConnection(source.OutputPins.First(pin => pin.Name == "exec_out"), routeA.InputPins.First(pin => pin.Name == "in"));
+        editor.CreateConnection(routeA.OutputPins.First(pin => pin.Name == "out"), routeB.InputPins.First(pin => pin.Name == "in"));
+        editor.CreateConnection(routeB.OutputPins.First(pin => pin.Name == "out"), target.InputPins.First(pin => pin.Name == "exec_in"));
+
+        var controller = new PinConnectionController(
+            editor,
+            command,
+            new NodeFactory(),
+            new Canvas(),
+            new System.Windows.Shapes.Path(),
+            point => point,
+            _ => null,
+            _ => { },
+            _ => { },
+            () => { },
+            _ => { },
+            _ => { });
+
+        var path = editor.ConnectionPaths.Single();
+        path.IsSelected = true;
+        int graphChangedCount = 0;
+        editor.GraphChanged += () => graphChangedCount++;
+
+        Assert(controller.DeleteSelectedConnectionPath(), "batched selected multi-reroute path can be deleted");
+        Assert(graphChangedCount == 1, "batched selected path delete raises one graph changed event");
+        Assert(editor.Connections.Count == 0 && editor.ConnectionPaths.Count == 0, "batched path delete removes all backing connections and visible paths");
+        Assert(command.Undo(), "batched selected path delete remains undoable");
+        Assert(editor.Connections.Count == 3 && editor.ConnectionPaths.Count == 1, "undo restores batched deleted multi-reroute path");
+    }
+
+    private static void CheckReusableNodeNumbersAndToDoSync()
+    {
+        var editor = new GraphEditorService();
+        editor.NewGraph();
+        var first = new PrintLogNodeViewModel("first") { Title = "First" };
+        var second = new PrintLogNodeViewModel("second") { Title = "Second" };
+        editor.AddNode(first);
+        editor.AddNode(second);
+
+        Assert(editor.Nodes.OfType<StartNodeViewModel>().Single().NodeNumber == "N001", "event graph start uses N prefix");
+        Assert(first.NodeNumber == "N002" && second.NodeNumber == "N003", "event graph assigns sequential reusable numbers");
+        editor.RemoveNode(first);
+        var replacement = new PrintLogNodeViewModel("replacement") { Title = "Replacement" };
+        editor.AddNode(replacement);
+        Assert(replacement.NodeNumber == "N002", "deleted node number is reused by the next node");
+
+        var toDo = new ToDoNodeViewModel("todo")
+        {
+            TargetNodeId = replacement.Id,
+            TargetNodeTitle = replacement.Title,
+            TargetNodeNumber = replacement.NodeNumber,
+        };
+        editor.AddNode(toDo);
+        replacement.Title = "ReplacementRenamed";
+        Assert(toDo.TargetNodeTitle == "ReplacementRenamed" && toDo.TargetNodeNumber == replacement.NodeNumber,
+            "ToDo target fields sync when referenced node title changes");
+
+        editor.NewFunctionGraph();
+        Assert(editor.Nodes.All(node => node.NodeKind == NodeKind.Reroute || node.NodeNumber.StartsWith("Fun", StringComparison.Ordinal)),
+            "function graph nodes use Fun prefix");
+        editor.NewMacroGraph();
+        Assert(editor.Nodes.All(node => node.NodeKind == NodeKind.Reroute || node.NodeNumber.StartsWith("Mac", StringComparison.Ordinal)),
+            "macro graph nodes use Mac prefix");
+    }
+
+    private static void CheckToDoInspectorSearch(MainWindow window)
+    {
+        var editor = Get<GraphEditorService>(window, "_editorService");
+        editor.NewGraph();
+        var target = new PrintLogNodeViewModel("todo_target") { Title = "SearchTarget" };
+        var toDo = new ToDoNodeViewModel("todo_node") { Title = "ToDo跳转" };
+        editor.AddNode(target);
+        editor.AddNode(toDo);
+        foreach (var node in editor.Nodes)
+            node.IsSelected = false;
+        toDo.IsSelected = true;
+
+        Invoke(window, "LoadNodeToInspector", toDo);
+        var searchBox = Get<TextBox>(window, "ToDoSearchBox");
+        var listBox = Get<ListBox>(window, "ToDoTargetListBox");
+        searchBox.Text = target.NodeNumber;
+        FlushDispatcher();
+
+        Assert(listBox.Items.Count == 1, "ToDo search filters by node number");
+        listBox.SelectedIndex = 0;
+        FlushDispatcher();
+
+        Assert(Get<TextBox>(window, "ToDoTargetTitleTextBox").Text == target.Title, "ToDo picker fills target title");
+        Assert(Get<TextBox>(window, "ToDoTargetNumberTextBox").Text == target.NodeNumber, "ToDo picker fills target number");
+        Assert(toDo.TargetNodeId == target.Id, "ToDo picker stores maintenance target id");
+
+        var exported = editor.ExportGraphModel("todo-export");
+        var exportedToDo = exported.Nodes.Single(node => node.Id == toDo.Id);
+        Assert(exportedToDo.TargetNodeTitle == target.Title && exportedToDo.TargetNodeNumber == target.NodeNumber,
+            "ToDo picker target persists into exported graph model");
+
+        var script = new ContentAssetViewModel { Kind = ContentAssetKind.Script, Name = "ToDoScript" };
+        var graphItem = new GraphListItemViewModel
+        {
+            Name = "Event",
+            Kind = GraphAssetKind.EventGraph,
+            Graph = exported,
+            IsCompileDirty = true,
+        };
+        script.EventGraphs.Add(graphItem);
+        var compile = new GraphCompileService().CompileGraph([script], script, graphItem);
+        Assert(compile.Success && compile.Issues.All(issue => !issue.Message.Contains("缺少目标节点名或编号", StringComparison.Ordinal)),
+            "ToDo selected static target compiles without missing-target error");
+    }
+
+    private static void CheckToDoRuntimeJumpModes()
+    {
+        CheckToDoGotoModeSkipsOwnOutput();
+        CheckToDoReturnModeContinuesOwnOutput();
+        CheckToDoDoesNotJumpToReusedNumberWithDifferentName();
+        CheckToDoConnectedInputsOverrideStaticTarget();
+    }
+
+    private static void CheckToDoCompileFallbacks()
+    {
+        var targetIdOnly = new NodeFileModel
+        {
+            Id = "target",
+            NodeTypeKey = "print_log",
+            Title = "IdOnlyTarget",
+        };
+        var toDoIdOnly = new NodeFileModel
+        {
+            Id = "todo",
+            NodeTypeKey = "todo",
+            Title = "ToDo跳转",
+            TargetNodeId = targetIdOnly.Id,
+        };
+        var script = new ContentAssetViewModel { Kind = ContentAssetKind.Script, Name = "ToDoFallbackScript" };
+        var graphItem = new GraphListItemViewModel
+        {
+            Name = "Event",
+            Kind = GraphAssetKind.EventGraph,
+            Graph = new GraphFileModel
+            {
+                AssetKind = GraphAssetKind.EventGraph,
+                Nodes =
+                [
+                    new NodeFileModel { Id = "start", NodeTypeKey = "start", Title = "事件开始运行" },
+                    targetIdOnly,
+                    toDoIdOnly,
+                ],
+            },
+            IsCompileDirty = true,
+        };
+        script.EventGraphs.Add(graphItem);
+
+        var result = new GraphCompileService().CompileGraph([script], script, graphItem);
+
+        Assert(result.Success, "compile fills ToDo title and number from target id");
+        Assert(toDoIdOnly.TargetNodeTitle == targetIdOnly.Title && toDoIdOnly.TargetNodeNumber == targetIdOnly.NodeNumber,
+            "compile persists ToDo target id fallback into file model");
+
+        var dynamicGraph = new GraphListItemViewModel
+        {
+            Name = "Dynamic",
+            Kind = GraphAssetKind.EventGraph,
+            Graph = new GraphFileModel
+            {
+                AssetKind = GraphAssetKind.EventGraph,
+                Nodes =
+                [
+                    new NodeFileModel { Id = "start", NodeTypeKey = "start", Title = "事件开始运行" },
+                    new NodeFileModel { Id = "title", NodeTypeKey = "string_concat", Title = "TitleSource" },
+                    new NodeFileModel { Id = "number", NodeTypeKey = "string_concat", Title = "NumberSource" },
+                    new NodeFileModel { Id = "todo_dynamic", NodeTypeKey = "todo", Title = "ToDo跳转" },
+                ],
+                Connections =
+                [
+                    FileConn("title", "value", "todo_dynamic", "target_title"),
+                    FileConn("number", "value", "todo_dynamic", "target_number"),
+                ],
+            },
+            IsCompileDirty = true,
+        };
+        script.EventGraphs.Clear();
+        script.EventGraphs.Add(dynamicGraph);
+
+        var dynamicResult = new GraphCompileService().CompileGraph([script], script, dynamicGraph);
+
+        Assert(dynamicResult.Success, "compile accepts ToDo dynamic target inputs without static target");
+    }
+
+    private static void CheckToDoGotoModeSkipsOwnOutput()
+    {
+        var editor = CreateToDoRuntimeGraph(returnAfterTarget: false, "target-goto", "after-goto");
+        int logStart = Logger.Entries.Count;
+        var result = new GraphRuntimeExecutor().Execute(editor.BuildExecutionPlan(), AppContext.BaseDirectory);
+        FlushDispatcher();
+        var messages = Logger.Entries.Skip(logStart).Select(entry => entry.Message).ToArray();
+
+        Assert(result.Success, "ToDo goto mode executes successfully");
+        Assert(messages.Any(message => message.Contains("打印log：target-goto", StringComparison.Ordinal)), "ToDo goto runs target node");
+        Assert(!messages.Any(message => message.Contains("打印log：after-goto", StringComparison.Ordinal)), "ToDo goto skips own exec_out");
+    }
+
+    private static void CheckToDoReturnModeContinuesOwnOutput()
+    {
+        var editor = CreateToDoRuntimeGraph(returnAfterTarget: true, "target-return", "after-return");
+        int logStart = Logger.Entries.Count;
+        var result = new GraphRuntimeExecutor().Execute(editor.BuildExecutionPlan(), AppContext.BaseDirectory);
+        FlushDispatcher();
+        var messages = Logger.Entries.Skip(logStart).Select(entry => entry.Message).ToArray();
+
+        Assert(result.Success, "ToDo return mode executes successfully");
+        Assert(messages.Any(message => message.Contains("打印log：target-return", StringComparison.Ordinal)), "ToDo return runs target node");
+        Assert(messages.Any(message => message.Contains("打印log：after-return", StringComparison.Ordinal)), "ToDo return continues own exec_out");
+    }
+
+    private static void CheckToDoDoesNotJumpToReusedNumberWithDifferentName()
+    {
+        var editor = new GraphEditorService();
+        editor.NewGraph();
+        var oldTarget = new PrintLogNodeViewModel("old_target") { Title = "OldTarget", Message = "old" };
+        editor.AddNode(oldTarget);
+        string reusedNumber = oldTarget.NodeNumber;
+        var toDo = new ToDoNodeViewModel("todo") { TargetNodeTitle = oldTarget.Title, TargetNodeNumber = reusedNumber };
+        editor.AddNode(toDo);
+        editor.RemoveNode(oldTarget);
+        var newTarget = new PrintLogNodeViewModel("new_target") { Title = "NewTarget", Message = "new" };
+        editor.AddNode(newTarget);
+
+        var start = editor.Nodes.OfType<StartNodeViewModel>().Single();
+        editor.CreateConnection(start.OutputPins.First(pin => pin.Name == "exec_out"), toDo.InputPins.First(pin => pin.Name == "exec_in"));
+        var result = new GraphRuntimeExecutor().Execute(editor.BuildExecutionPlan(), AppContext.BaseDirectory);
+
+        Assert(newTarget.NodeNumber == reusedNumber, "replacement target reuses deleted node number");
+        Assert(!result.Success && result.Message.Contains("找不到目标", StringComparison.Ordinal), "ToDo requires title and number, not number alone");
+    }
+
+    private static void CheckToDoConnectedInputsOverrideStaticTarget()
+    {
+        int logStart = Logger.Entries.Count;
+        var plan = new GraphExecutionPlan(
+            [
+                GraphRuntimeNode.ForStart("start", "Start"),
+                GraphRuntimeNode.ForCommon("title", "TitleSource", NodeKind.StringConcat, "DynamicTarget", string.Empty, string.Empty, 0, 0, 0, 0, false),
+                GraphRuntimeNode.ForCommon("number", "NumberSource", NodeKind.StringConcat, "N005", string.Empty, string.Empty, 0, 0, 0, 0, false),
+                GraphRuntimeNode.ForToDo("todo", "ToDo跳转", "StaticTarget", "N999", null, false) with { NodeNumber = "N012" },
+                GraphRuntimeNode.ForPrintLog("static", "StaticTarget", "static") with { NodeNumber = "N999" },
+                GraphRuntimeNode.ForPrintLog("dynamic", "DynamicTarget", "dynamic") with { NodeNumber = "N005" },
+            ],
+            [
+                Exec("start", "exec_out", "title", "exec_in"),
+                Exec("title", "exec_out", "number", "exec_in"),
+                Exec("number", "exec_out", "todo", "exec_in"),
+                StringConn("title", "value", "todo", "target_title"),
+                StringConn("number", "value", "todo", "target_number"),
+            ]);
+
+        var result = new GraphRuntimeExecutor().Execute(plan, AppContext.BaseDirectory);
+        FlushDispatcher();
+        var messages = Logger.Entries.Skip(logStart).Select(entry => entry.Message).ToArray();
+
+        Assert(result.Success, "ToDo connected inputs execute successfully");
+        Assert(messages.Any(message => message.Contains("打印log：dynamic", StringComparison.Ordinal)), "ToDo connected inputs choose dynamic target");
+        Assert(!messages.Any(message => message.Contains("打印log：static", StringComparison.Ordinal)), "ToDo connected inputs override static target");
+    }
+
+    private static GraphEditorService CreateToDoRuntimeGraph(bool returnAfterTarget, string targetMessage, string afterMessage)
+    {
+        var editor = new GraphEditorService();
+        editor.NewGraph();
+        var target = new PrintLogNodeViewModel("target") { Title = "Target", Message = targetMessage };
+        var after = new PrintLogNodeViewModel("after") { Title = "After", Message = afterMessage };
+        var toDo = new ToDoNodeViewModel("todo")
+        {
+            Title = "ToDo",
+            ReturnAfterTarget = returnAfterTarget,
+        };
+        editor.AddNode(target);
+        editor.AddNode(after);
+        editor.AddNode(toDo);
+        toDo.TargetNodeTitle = target.Title;
+        toDo.TargetNodeNumber = target.NodeNumber;
+        toDo.TargetNodeId = target.Id;
+
+        var start = editor.Nodes.OfType<StartNodeViewModel>().Single();
+        editor.CreateConnection(start.OutputPins.First(pin => pin.Name == "exec_out"), toDo.InputPins.First(pin => pin.Name == "exec_in"));
+        editor.CreateConnection(toDo.OutputPins.First(pin => pin.Name == "exec_out"), after.InputPins.First(pin => pin.Name == "exec_in"));
+        return editor;
     }
 
     private static void CheckNodeDefinitionMetadata()
@@ -1021,6 +1481,7 @@ internal static class Program
         var geometry = (PathGeometry)editor.ConnectionPaths.Single().PathGeometry;
         Assert(geometry.Figures.Single().Segments.Count == 2, "single reroute path has one segment per ordered span");
         AssertSplineControlsAreClamped(geometry, "single reroute path clamps bezier handles by span distance");
+        AssertBezierHandlesFollowSegmentDirection(geometry, "single reroute path keeps bezier handles from folding backward");
         AssertInteriorTangentsContinuous(geometry, "single reroute path keeps continuous tangent through route point");
     }
 
@@ -1047,6 +1508,8 @@ internal static class Program
         AssertPointClose(firstSegment.Point3, RerouteCenter(routeNearTarget), "reroute path keeps connection-chain route order");
         Assert(figure.Segments.Count == 3, "multi reroute path has one segment per ordered span");
         AssertSplineControlsAreClamped(geometry, "multi reroute backlink clamps bezier handles by span distance");
+        AssertBezierHandlesFollowSegmentDirection(geometry, "multi reroute backlink keeps bezier handles from folding backward");
+        AssertNearestConnectionFollowsVisibleCurve(editor.ConnectionPaths.Single(), 1, "visible curve hit resolves the middle backing connection");
 
         routeNearTarget.X = 120;
         routeNearTarget.Y = 500;
@@ -1061,6 +1524,29 @@ internal static class Program
         Assert(figure.Segments.Count == 3, "moving reroute nodes keeps segment count stable");
         AssertPointClose(movedFirstSegment.Point3, RerouteCenter(routeNearTarget), "moving reroute nodes does not reorder first route point");
         AssertPointClose(movedSecondSegment.Point3, RerouteCenter(routeNearSource), "moving reroute nodes does not reorder second route point");
+        AssertBezierHandlesFollowSegmentDirection(geometry, "moved multi reroute backlink keeps bezier handles from folding backward");
+        CheckCompactBackwardRerouteNoFoldback();
+    }
+
+    private static void CheckCompactBackwardRerouteNoFoldback()
+    {
+        var editor = new GraphEditorService();
+        var source = new PrintLogNodeViewModel("source") { X = 520, Y = 100 };
+        var routeA = new RerouteNodeViewModel("route_a", PinKind.Execution) { X = 300, Y = 250 };
+        var routeB = new RerouteNodeViewModel("route_b", PinKind.Execution) { X = 340, Y = 290 };
+        var target = new PrintLogNodeViewModel("target") { X = 70, Y = 120 };
+        editor.Nodes.Add(source);
+        editor.Nodes.Add(routeA);
+        editor.Nodes.Add(routeB);
+        editor.Nodes.Add(target);
+
+        editor.CreateConnection(source.OutputPins.First(pin => pin.Name == "exec_out"), routeA.InputPins.First(pin => pin.Name == "in"));
+        editor.CreateConnection(routeA.OutputPins.First(pin => pin.Name == "out"), routeB.InputPins.First(pin => pin.Name == "in"));
+        editor.CreateConnection(routeB.OutputPins.First(pin => pin.Name == "out"), target.InputPins.First(pin => pin.Name == "exec_in"));
+
+        var geometry = (PathGeometry)editor.ConnectionPaths.Single().PathGeometry;
+        AssertSplineControlsAreClamped(geometry, "compact backward reroute path clamps bezier handles by span distance");
+        AssertBezierHandlesFollowSegmentDirection(geometry, "compact backward reroute path keeps bezier handles from folding backward");
     }
 
     private static void CheckExternalRerouteGraphFile()
@@ -1138,6 +1624,46 @@ internal static class Program
         }
     }
 
+    private static void AssertBezierHandlesFollowSegmentDirection(PathGeometry geometry, string message)
+    {
+        const double epsilon = -0.001;
+        var figure = geometry.Figures.Single();
+        Point start = figure.StartPoint;
+        foreach (BezierSegment segment in figure.Segments.OfType<BezierSegment>())
+        {
+            Vector span = segment.Point3 - start;
+            Vector outgoingHandle = segment.Point1 - start;
+            Vector incomingHandle = segment.Point3 - segment.Point2;
+            Assert(Vector.Multiply(outgoingHandle, span) >= epsilon, message);
+            Assert(Vector.Multiply(incomingHandle, span) >= epsilon, message);
+            start = segment.Point3;
+        }
+    }
+
+    private static void AssertNearestConnectionFollowsVisibleCurve(ConnectionPathViewModel path, int segmentIndex, string message)
+    {
+        var geometry = (PathGeometry)path.PathGeometry;
+        var figure = geometry.Figures.Single();
+        var segments = figure.Segments.OfType<BezierSegment>().ToArray();
+        Assert(segmentIndex >= 0 && segmentIndex < segments.Length, "test segment index is valid");
+
+        Point start = segmentIndex == 0 ? figure.StartPoint : segments[segmentIndex - 1].Point3;
+        Point sample = Cubic(start, segments[segmentIndex].Point1, segments[segmentIndex].Point2, segments[segmentIndex].Point3, 0.5);
+        Assert(ReferenceEquals(path.FindNearestConnection(sample), path.Connections[segmentIndex]), message);
+    }
+
+    private static Point Cubic(Point p0, Point p1, Point p2, Point p3, double t)
+    {
+        double u = 1.0 - t;
+        double tt = t * t;
+        double uu = u * u;
+        double uuu = uu * u;
+        double ttt = tt * t;
+        return new Point(
+            uuu * p0.X + 3.0 * uu * t * p1.X + 3.0 * u * tt * p2.X + ttt * p3.X,
+            uuu * p0.Y + 3.0 * uu * t * p1.Y + 3.0 * u * tt * p2.Y + ttt * p3.Y);
+    }
+
     private static Point RerouteCenter(RerouteNodeViewModel reroute) =>
         new(reroute.X + reroute.Width / 2.0, reroute.Y + reroute.Height / 2.0);
 
@@ -1196,6 +1722,27 @@ internal static class Program
     {
         var title = window.FindName("DetailsPanelTitleTextBlock") as TextBlock;
         Assert(title?.Text == "细节面板", "details panel title uses new text");
+    }
+
+    private static void CheckLogRichTextBoxCopy(MainWindow window)
+    {
+        Logger.Entries.Clear();
+        Logger.Info("copy-line-one");
+        Logger.Warn("copy-line-two");
+        Invoke(window, "RefreshLogList");
+        FlushDispatcher();
+
+        var logBox = Get<RichTextBox>(window, "LogRichTextBox");
+        logBox.Focus();
+        FlushDispatcher();
+        Clipboard.SetText("before-copy");
+        ApplicationCommands.SelectAll.Execute(null, logBox);
+        ApplicationCommands.Copy.Execute(null, logBox);
+        string copied = Clipboard.GetText();
+
+        Assert(copied.Contains("copy-line-one", StringComparison.Ordinal) &&
+               copied.Contains("copy-line-two", StringComparison.Ordinal),
+            "log rich text box supports Ctrl+A/C copy across multiple lines");
     }
 
     private static void CheckLibraryPublishFlag(MainWindow window)
@@ -1288,6 +1835,9 @@ internal static class Program
 
     private static GraphRuntimeConnection Exec(string sourceNodeId, string sourcePinName, string targetNodeId, string targetPinName) =>
         new(sourceNodeId, sourcePinName, PinKind.Execution, targetNodeId, targetPinName, PinKind.Execution);
+
+    private static GraphRuntimeConnection StringConn(string sourceNodeId, string sourcePinName, string targetNodeId, string targetPinName) =>
+        new(sourceNodeId, sourcePinName, PinKind.String, targetNodeId, targetPinName, PinKind.String);
 
     private static ConnectionFileModel FileConn(string sourceNodeId, string sourcePinName, string targetNodeId, string targetPinName) => new()
     {

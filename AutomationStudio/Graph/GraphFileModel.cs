@@ -23,6 +23,8 @@ public sealed class NodeFileModel
 
     public string Title { get; set; } = string.Empty;
 
+    public string NodeNumber { get; set; } = string.Empty;
+
     public double X { get; set; }
 
     public double Y { get; set; }
@@ -137,6 +139,15 @@ public sealed class NodeFileModel
     public List<GraphParameterFileModel> OutputParameters { get; set; } = [];
 
     public List<MacroExitFileModel> MacroExits { get; set; } = [];
+
+    // ToDo jump node.
+    public string? TargetNodeTitle { get; set; }
+
+    public string? TargetNodeNumber { get; set; }
+
+    public string? TargetNodeId { get; set; }
+
+    public bool ReturnAfterTarget { get; set; }
 }
 
 public sealed class GraphParameterFileModel

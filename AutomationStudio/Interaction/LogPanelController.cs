@@ -1,37 +1,58 @@
 using AutomationStudioWpf.Logging;
-using WpfListBox = System.Windows.Controls.ListBox;
+using System.Windows.Documents;
+using System.Windows.Input;
+using System.Windows.Media;
+using WpfRichTextBox = System.Windows.Controls.RichTextBox;
 using WpfRadioButton = System.Windows.Controls.RadioButton;
 
 namespace AutomationStudioWpf.Interaction;
 
 public sealed class LogPanelController
 {
-    private readonly WpfListBox _logListBox;
+    private readonly WpfRichTextBox _logTextBox;
     private readonly WpfRadioButton _filterAllRadio;
     private readonly WpfRadioButton _filterInfoRadio;
     private readonly WpfRadioButton _filterWarnRadio;
     private readonly WpfRadioButton _filterErrorRadio;
 
     public LogPanelController(
-        WpfListBox logListBox,
+        WpfRichTextBox logTextBox,
         WpfRadioButton filterAllRadio,
         WpfRadioButton filterInfoRadio,
         WpfRadioButton filterWarnRadio,
         WpfRadioButton filterErrorRadio)
     {
-        _logListBox = logListBox;
+        _logTextBox = logTextBox;
         _filterAllRadio = filterAllRadio;
         _filterInfoRadio = filterInfoRadio;
         _filterWarnRadio = filterWarnRadio;
         _filterErrorRadio = filterErrorRadio;
+        BindTextCommands();
     }
 
     public void Refresh()
     {
         var filtered = LoggingModule.Filter(Logger.Entries).ToList();
-        _logListBox.ItemsSource = filtered;
+        var document = new FlowDocument
+        {
+            PagePadding = new System.Windows.Thickness(0),
+            FontFamily = _logTextBox.FontFamily,
+            FontSize = _logTextBox.FontSize,
+        };
+
+        foreach (var entry in filtered)
+        {
+            var paragraph = new Paragraph(new Run(entry.DisplayText))
+            {
+                Margin = new System.Windows.Thickness(0),
+                Foreground = BrushFor(entry.Level),
+            };
+            document.Blocks.Add(paragraph);
+        }
+
+        _logTextBox.Document = document;
         if (filtered.Count > 0)
-            _logListBox.ScrollIntoView(filtered[^1]);
+            _logTextBox.ScrollToEnd();
     }
 
     public void ApplyFilterFromUi()
@@ -46,6 +67,39 @@ public sealed class LogPanelController
     public void Clear()
     {
         Logger.Entries.Clear();
-        _logListBox.ItemsSource = null;
+        _logTextBox.Document.Blocks.Clear();
     }
+
+    private void BindTextCommands()
+    {
+        _logTextBox.InputBindings.Add(new KeyBinding(ApplicationCommands.Copy, Key.C, ModifierKeys.Control));
+        _logTextBox.InputBindings.Add(new KeyBinding(ApplicationCommands.SelectAll, Key.A, ModifierKeys.Control));
+
+        _logTextBox.CommandBindings.Add(new CommandBinding(
+            ApplicationCommands.Copy,
+            (_, e) =>
+            {
+                string text = _logTextBox.Selection.Text;
+                if (!string.IsNullOrEmpty(text))
+                    System.Windows.Clipboard.SetText(text);
+                e.Handled = true;
+            },
+            (_, e) => e.CanExecute = !_logTextBox.Selection.IsEmpty));
+
+        _logTextBox.CommandBindings.Add(new CommandBinding(
+            ApplicationCommands.SelectAll,
+            (_, e) =>
+            {
+                _logTextBox.SelectAll();
+                e.Handled = true;
+            },
+            (_, e) => e.CanExecute = true));
+    }
+
+    private static System.Windows.Media.Brush BrushFor(LogLevel level) => level switch
+    {
+        LogLevel.Warn => System.Windows.Media.Brushes.Gold,
+        LogLevel.Error => new SolidColorBrush(System.Windows.Media.Color.FromRgb(255, 107, 107)),
+        _ => new SolidColorBrush(System.Windows.Media.Color.FromRgb(208, 215, 226)),
+    };
 }

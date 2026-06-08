@@ -69,6 +69,7 @@ public sealed class NodeRegistry
             Definition(NodeKind.If, "if", "分支", "核心", [InExec(), InBool("condition", "条件"), OutExec("exec_true", "True"), OutExec("exec_false", "False")]),
             Definition(NodeKind.ForLoop, "for_loop", "For循环", "核心", [InExec(), InBool("end_condition", "结束条件"), OutExec("exec_loop_body", "循环体"), OutExec("exec_completed", "完成")]),
             Definition(NodeKind.WhileLoop, "while_loop", "While循环", "核心", [InExec(), InBool("condition", "退出条件"), OutExec("exec_loop_body", "循环体"), OutExec("exec_completed", "完成")]),
+            Definition(NodeKind.ToDo, "todo", "ToDo跳转", "核心", [InExec(), InString("target_title", "节点名"), InString("target_number", "编号"), OutExec()]),
             Definition(NodeKind.Reroute, "reroute", "转接点", "核心", []),
 
             Definition(NodeKind.MouseClick, "mouse_click", "鼠标点击", "输入/鼠标", [InExec(), InVector("position", "点击位置"), OutExec(), OutBool("result", "结果")]),
@@ -139,6 +140,7 @@ public sealed class NodeRegistry
         NodeKind.If => "if",
         NodeKind.ForLoop => "for_loop",
         NodeKind.WhileLoop => "while_loop",
+        NodeKind.ToDo => "todo",
         NodeKind.StartProgram => "start_program",
         NodeKind.SelectWindow => "select_window",
         NodeKind.FunctionEntry or NodeKind.FunctionReturn or NodeKind.MacroEntry or NodeKind.MacroOutput => "parameterized_entry",

@@ -300,8 +300,7 @@ public sealed class PinConnectionController
         var connections = path.Connections.ToList();
         _commandService.Execute("Delete connection path", () =>
         {
-            foreach (var connection in connections)
-                _editorService.RemoveConnection(connection);
+            _editorService.RemoveConnections(connections);
         });
 
         ClearSelectedConnectionPath();
@@ -329,20 +328,23 @@ public sealed class PinConnectionController
         RerouteNodeViewModel? reroute = null;
         _commandService.Execute("Add reroute", () =>
         {
-            reroute = _nodeFactory.CreateRerouteNode(connection.SourcePin.Kind, graphPoint.X - 10, graphPoint.Y - 10);
-            _editorService.AddNode(reroute);
-
-            var sourcePin = connection.SourcePin;
-            var targetPin = connection.TargetPin;
-            _editorService.RemoveConnection(connection);
-
-            var rerouteIn = reroute.FindPin("in");
-            var rerouteOut = reroute.FindPin("out");
-            if (rerouteIn is not null && rerouteOut is not null)
+            _editorService.RunBatchedEdit(() =>
             {
-                _editorService.CreateConnection(sourcePin, rerouteIn);
-                _editorService.CreateConnection(rerouteOut, targetPin);
-            }
+                reroute = _nodeFactory.CreateRerouteNode(connection.SourcePin.Kind, graphPoint.X - 10, graphPoint.Y - 10);
+                _editorService.AddNode(reroute);
+
+                var sourcePin = connection.SourcePin;
+                var targetPin = connection.TargetPin;
+                _editorService.RemoveConnection(connection);
+
+                var rerouteIn = reroute.FindPin("in");
+                var rerouteOut = reroute.FindPin("out");
+                if (rerouteIn is not null && rerouteOut is not null)
+                {
+                    _editorService.CreateConnection(sourcePin, rerouteIn);
+                    _editorService.CreateConnection(rerouteOut, targetPin);
+                }
+            });
         });
 
         _editorService.UpdatePinConnectionStates();

@@ -2,12 +2,15 @@ using System.ComponentModel;
 using Point = System.Windows.Point;
 using Brush = System.Windows.Media.Brush;
 using Geometry = System.Windows.Media.Geometry;
+using BezierSegment = System.Windows.Media.BezierSegment;
+using PathGeometry = System.Windows.Media.PathGeometry;
 using DispatcherPriority = System.Windows.Threading.DispatcherPriority;
 
 namespace AutomationStudioWpf.Graph;
 
 public sealed class ConnectionPathViewModel : ObservableObject, IDisposable
 {
+    private const int BezierHitSampleCount = 32;
     private bool _disposed;
     private bool _pathUpdateQueued;
     private bool _isSelected;
@@ -71,6 +74,49 @@ public sealed class ConnectionPathViewModel : ObservableObject, IDisposable
             throw new InvalidOperationException("Connection path has no backing connections.");
         }
 
+        if (PathGeometry is PathGeometry geometry &&
+            TryFindNearestGeometryConnection(geometry, graphPoint, out var geometryConnection))
+        {
+            return geometryConnection;
+        }
+
+        return FindNearestStraightConnection(graphPoint);
+    }
+
+    private bool TryFindNearestGeometryConnection(PathGeometry geometry, Point graphPoint, out ConnectionViewModel connection)
+    {
+        connection = Connections[0];
+        double nearestDistanceSquared = double.MaxValue;
+        int segmentIndex = 0;
+
+        foreach (var figure in geometry.Figures)
+        {
+            Point start = figure.StartPoint;
+            foreach (var segment in figure.Segments)
+            {
+                if (segment is not BezierSegment bezier)
+                {
+                    continue;
+                }
+
+                int connectionIndex = Math.Min(segmentIndex, Connections.Count - 1);
+                double distanceSquared = DistanceToBezierSquared(graphPoint, start, bezier);
+                if (distanceSquared < nearestDistanceSquared)
+                {
+                    connection = Connections[connectionIndex];
+                    nearestDistanceSquared = distanceSquared;
+                }
+
+                start = bezier.Point3;
+                segmentIndex++;
+            }
+        }
+
+        return segmentIndex > 0;
+    }
+
+    private ConnectionViewModel FindNearestStraightConnection(Point graphPoint)
+    {
         ConnectionViewModel nearest = Connections[0];
         double nearestDistance = double.MaxValue;
         foreach (var connection in Connections)
@@ -86,6 +132,56 @@ public sealed class ConnectionPathViewModel : ObservableObject, IDisposable
         }
 
         return nearest;
+    }
+
+    private static double DistanceToBezierSquared(Point point, Point start, BezierSegment bezier)
+    {
+        Point previous = start;
+        double nearest = double.MaxValue;
+        for (int i = 1; i <= BezierHitSampleCount; i++)
+        {
+            double t = i / (double)BezierHitSampleCount;
+            Point current = Cubic(start, bezier.Point1, bezier.Point2, bezier.Point3, t);
+            nearest = Math.Min(nearest, DistanceToSegmentSquared(point, previous, current));
+            previous = current;
+        }
+
+        return nearest;
+    }
+
+    private static Point Cubic(Point p0, Point p1, Point p2, Point p3, double t)
+    {
+        double u = 1.0 - t;
+        double tt = t * t;
+        double uu = u * u;
+        double uuu = uu * u;
+        double ttt = tt * t;
+        return new Point(
+            uuu * p0.X + 3.0 * uu * t * p1.X + 3.0 * u * tt * p2.X + ttt * p3.X,
+            uuu * p0.Y + 3.0 * uu * t * p1.Y + 3.0 * u * tt * p2.Y + ttt * p3.Y);
+    }
+
+    private static double DistanceToSegmentSquared(Point point, Point start, Point end)
+    {
+        double dx = end.X - start.X;
+        double dy = end.Y - start.Y;
+        double lengthSquared = dx * dx + dy * dy;
+        if (lengthSquared <= double.Epsilon)
+        {
+            return DistanceSquared(point, start);
+        }
+
+        double t = ((point.X - start.X) * dx + (point.Y - start.Y) * dy) / lengthSquared;
+        t = Math.Clamp(t, 0.0, 1.0);
+        Point projection = new(start.X + dx * t, start.Y + dy * t);
+        return DistanceSquared(point, projection);
+    }
+
+    private static double DistanceSquared(Point first, Point second)
+    {
+        double dx = second.X - first.X;
+        double dy = second.Y - first.Y;
+        return dx * dx + dy * dy;
     }
 
     private void NodePropertyChanged(object? sender, PropertyChangedEventArgs e)

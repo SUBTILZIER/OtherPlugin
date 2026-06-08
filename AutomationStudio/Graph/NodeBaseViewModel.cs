@@ -18,6 +18,7 @@ public abstract class NodeBaseViewModel : ObservableObject
     private double _y;
     private bool _isSelected;
     private string _description = string.Empty;
+    private string _nodeNumber = string.Empty;
 
     protected NodeBaseViewModel(string id, string title)
     {
@@ -26,6 +27,20 @@ public abstract class NodeBaseViewModel : ObservableObject
     }
 
     public string Id { get; init; }
+
+    public string NodeNumber
+    {
+        get => _nodeNumber;
+        set
+        {
+            if (SetProperty(ref _nodeNumber, value))
+            {
+                OnPropertyChanged(nameof(HasNodeNumber));
+            }
+        }
+    }
+
+    public bool HasNodeNumber => !string.IsNullOrWhiteSpace(NodeNumber);
 
     public abstract NodeKind NodeKind { get; }
 
@@ -99,6 +114,7 @@ public abstract class NodeBaseViewModel : ObservableObject
         NodeKind.If => new SolidColorBrush(Color.FromRgb(50, 140, 80)),
         NodeKind.ForLoop => new SolidColorBrush(Color.FromRgb(180, 120, 40)),
         NodeKind.WhileLoop => new SolidColorBrush(Color.FromRgb(160, 80, 120)),
+        NodeKind.ToDo => new SolidColorBrush(Color.FromRgb(205, 112, 42)),
         NodeKind.StartProgram => new SolidColorBrush(Color.FromRgb(45, 130, 180)),
         NodeKind.PrintLog => new SolidColorBrush(Color.FromRgb(60, 170, 100)),
         NodeKind.SelectWindow => new SolidColorBrush(Color.FromRgb(80, 120, 200)),

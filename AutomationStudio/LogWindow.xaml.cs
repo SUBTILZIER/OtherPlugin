@@ -1,5 +1,7 @@
 using System.Collections.Specialized;
 using System.Windows;
+using System.Windows.Documents;
+using System.Windows.Media;
 using AutomationStudioWpf.Logging;
 
 namespace AutomationStudioWpf;
@@ -22,11 +24,26 @@ public partial class LogWindow : Window
 
     private void RefreshLogList()
     {
-        if (LogListBox is null) return;
+        if (LogRichTextBox is null) return;
         List<LogEntry> filtered = LoggingModule.Filter(Logger.Entries).ToList();
-        LogListBox.ItemsSource = filtered;
+        var document = new FlowDocument
+        {
+            PagePadding = new Thickness(0),
+            FontFamily = LogRichTextBox.FontFamily,
+            FontSize = LogRichTextBox.FontSize,
+        };
+        foreach (var entry in filtered)
+        {
+            document.Blocks.Add(new Paragraph(new Run(entry.DisplayText))
+            {
+                Margin = new Thickness(0),
+                Foreground = BrushFor(entry.Level),
+            });
+        }
+
+        LogRichTextBox.Document = document;
         if (filtered.Count > 0)
-            LogListBox.ScrollIntoView(filtered[^1]);
+            LogRichTextBox.ScrollToEnd();
     }
 
     private void FilterRadio_Checked(object sender, RoutedEventArgs e)
@@ -52,6 +69,13 @@ public partial class LogWindow : Window
     private void Clear_Click(object sender, RoutedEventArgs e)
     {
         Logger.Entries.Clear();
-        LogListBox.ItemsSource = null;
+        LogRichTextBox.Document.Blocks.Clear();
     }
+
+    private static System.Windows.Media.Brush BrushFor(LogLevel level) => level switch
+    {
+        LogLevel.Warn => System.Windows.Media.Brushes.Gold,
+        LogLevel.Error => new SolidColorBrush(System.Windows.Media.Color.FromRgb(255, 107, 107)),
+        _ => new SolidColorBrush(System.Windows.Media.Color.FromRgb(208, 215, 226)),
+    };
 }

@@ -36,7 +36,7 @@ public sealed class GraphRuntimeExecutor
     {
         Logger.Info("--------开始执行--------");
 
-        GraphRuntimeNode? startNode = plan.Nodes.FirstOrDefault(node => node.NodeKind == NodeKind.Start);
+        GraphRuntimeNode? startNode = plan.Index.FirstNode(NodeKind.Start);
         if (startNode is null)
         {
             Logger.Error("执行失败：图中没有开始节点。");
@@ -63,8 +63,29 @@ public sealed class GraphRuntimeExecutor
         CancellationToken ct,
         out GraphRuntimeNode? terminalNode)
     {
+        return ExecuteFromNode(
+            plan,
+            GetNextExecutionNode(plan, startNodeId, startPinName),
+            context,
+            baseDirectory,
+            assets,
+            callStack,
+            ct,
+            out terminalNode);
+    }
+
+    private GraphExecutionResult ExecuteFromNode(
+        GraphExecutionPlan plan,
+        GraphRuntimeNode? firstNode,
+        RuntimeContext context,
+        string baseDirectory,
+        RuntimeAssetLibrary assets,
+        HashSet<string> callStack,
+        CancellationToken ct,
+        out GraphRuntimeNode? terminalNode)
+    {
         terminalNode = null;
-        GraphRuntimeNode? currentNode = GetNextExecutionNode(plan, startNodeId, startPinName);
+        GraphRuntimeNode? currentNode = firstNode;
         int stepCount = 0;
 
         while (currentNode is not null)
@@ -80,6 +101,32 @@ public sealed class GraphRuntimeExecutor
             NodeExecutionResult result = ExecuteNode(plan, currentNode, context, baseDirectory, assets, callStack, ct);
             if (!result.ContinueExecution)
                 return new GraphExecutionResult(false, result.Message, false);
+
+            if (result.JumpTargetNodeId is not null)
+            {
+                GraphRuntimeNode? jumpTarget = plan.Index.GetNode(result.JumpTargetNodeId);
+                if (jumpTarget is null)
+                    return new GraphExecutionResult(false, $"执行失败：ToDo 目标节点不存在：{result.JumpTargetNodeId}。", false);
+
+                if (result.ReturnAfterJump)
+                {
+                    GraphExecutionResult jumpResult = ExecuteFromNode(plan, jumpTarget, context, baseDirectory, assets, callStack, ct, out _);
+                    if (!jumpResult.ContinueExecution)
+                        return jumpResult;
+
+                    if (result.NextPinName is null)
+                    {
+                        terminalNode = currentNode;
+                        break;
+                    }
+
+                    currentNode = GetNextExecutionNode(plan, currentNode.Id, result.NextPinName);
+                    continue;
+                }
+
+                currentNode = jumpTarget;
+                continue;
+            }
 
             if (result.NextPinName is null)
             {
@@ -109,6 +156,7 @@ public sealed class GraphRuntimeExecutor
             NodeKind.If => ExecuteIfNode(plan, node, context),
             NodeKind.ForLoop => ExecuteForLoopNode(plan, node, context, baseDirectory, assets, callStack, ct),
             NodeKind.WhileLoop => ExecuteWhileLoopNode(plan, node, context, baseDirectory, assets, callStack, ct),
+            NodeKind.ToDo => ExecuteToDoNode(plan, node, context),
             NodeKind.FunctionEntry => NodeExecutionResult.Ok(string.Empty, "exec_out"),
             NodeKind.FunctionReturn => NodeExecutionResult.Ok(string.Empty, null),
             NodeKind.MacroEntry => NodeExecutionResult.Ok(string.Empty, "exec_out"),
@@ -119,6 +167,40 @@ public sealed class GraphRuntimeExecutor
             NodeKind.CustomEventCall => ExecuteCustomEventCall(plan, node, context, baseDirectory, assets, callStack, ct),
             _ => ExecuteRegisteredNode(plan, node, context, baseDirectory, assets, callStack, ct),
         };
+    }
+
+    private static NodeExecutionResult ExecuteToDoNode(GraphExecutionPlan plan, GraphRuntimeNode node, RuntimeContext context)
+    {
+        string targetTitle = context.ResolveStringInput(plan, node, "target_title", node.TargetNodeTitle).Trim();
+        string targetNumber = context.ResolveStringInput(plan, node, "target_number", node.TargetNodeNumber).Trim();
+        if ((string.IsNullOrWhiteSpace(targetTitle) || string.IsNullOrWhiteSpace(targetNumber)) &&
+            !context.HasInputConnection(plan, node, "target_title") &&
+            !context.HasInputConnection(plan, node, "target_number") &&
+            !string.IsNullOrWhiteSpace(node.TargetNodeId) &&
+            plan.Index.GetNode(node.TargetNodeId!) is { } target)
+        {
+            targetTitle = target.Title;
+            targetNumber = target.NodeNumber;
+        }
+
+        if (string.IsNullOrWhiteSpace(targetTitle) || string.IsNullOrWhiteSpace(targetNumber))
+            return NodeExecutionResult.Fatal($"ToDo 跳转失败：{node.Title} 缺少目标节点名或编号。");
+
+        var matches = plan.Index
+            .FindNodesByTitleAndNumber(targetTitle, targetNumber)
+            .Where(candidate => candidate.NodeKind != NodeKind.Reroute)
+            .ToList();
+        if (matches.Count == 0)
+            return NodeExecutionResult.Fatal($"ToDo 跳转失败：找不到目标 {targetTitle} {targetNumber}。");
+        if (matches.Count > 1)
+            return NodeExecutionResult.Fatal($"ToDo 跳转失败：目标不唯一 {targetTitle} {targetNumber}。");
+        if (matches[0].Id == node.Id)
+            return NodeExecutionResult.Fatal($"ToDo 跳转失败：{node.Title} 不能跳转到自身。");
+
+        Logger.Info(node.ReturnAfterTarget
+            ? $"ToDo 跳转：{node.Title} -> {targetTitle} {targetNumber}，完成后返回。"
+            : $"ToDo 跳转：{node.Title} -> {targetTitle} {targetNumber}。");
+        return NodeExecutionResult.Jump($"ToDo 跳转：{targetTitle} {targetNumber}", matches[0].Id, node.ReturnAfterTarget);
     }
 
     private NodeExecutionResult ExecuteRegisteredNode(
@@ -261,8 +343,8 @@ public sealed class GraphRuntimeExecutor
 
         try
         {
-            var entry = functionPlan.Nodes.FirstOrDefault(n => n.NodeKind == NodeKind.FunctionEntry);
-            var ret = functionPlan.Nodes.FirstOrDefault(n => n.NodeKind == NodeKind.FunctionReturn);
+            var entry = functionPlan.Index.FirstNode(NodeKind.FunctionEntry);
+            var ret = functionPlan.Index.FirstNode(NodeKind.FunctionReturn);
             if (entry is null || ret is null)
                 return NodeExecutionResult.Fatal($"函数结构无效：{callNode.Title}");
 
@@ -298,7 +380,7 @@ public sealed class GraphRuntimeExecutor
 
         try
         {
-            var entry = macroPlan.Nodes.FirstOrDefault(n => n.NodeKind == NodeKind.MacroEntry);
+            var entry = macroPlan.Index.FirstNode(NodeKind.MacroEntry);
             if (entry is null)
                 return NodeExecutionResult.Fatal($"宏结构无效：{callNode.Title}");
 
@@ -333,9 +415,7 @@ public sealed class GraphRuntimeExecutor
         if (string.IsNullOrWhiteSpace(callNode.CustomEventId))
             return NodeExecutionResult.Fatal($"自定义事件不存在：{callNode.Title}");
 
-        var entry = plan.Nodes.FirstOrDefault(node =>
-            node.NodeKind == NodeKind.CustomEvent &&
-            string.Equals(node.CustomEventId, callNode.CustomEventId, StringComparison.Ordinal));
+        var entry = plan.Index.GetCustomEvent(callNode.CustomEventId);
         if (entry is null)
             return NodeExecutionResult.Fatal($"自定义事件不存在：{callNode.Title}");
 
@@ -367,7 +447,7 @@ public sealed class GraphRuntimeExecutor
         RuntimeContext childContext)
     {
         var connectedPins = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var input in callerPlan.Connections.Where(c => c.TargetNodeId == callNode.Id && c.TargetPinKind != PinKind.Execution))
+        foreach (var input in callerPlan.Index.GetNonExecutionInputs(callNode.Id))
         {
             connectedPins.Add(input.TargetPinName);
             if (callerContext.TryGetRaw(input.SourceNodeId, input.SourcePinName, out object value))
@@ -386,7 +466,7 @@ public sealed class GraphRuntimeExecutor
         RuntimeContext callerContext)
     {
         var connectedPins = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var input in assetPlan.Connections.Where(c => c.TargetNodeId == returnNode.Id && c.TargetPinKind != PinKind.Execution))
+        foreach (var input in assetPlan.Index.GetNonExecutionInputs(returnNode.Id))
         {
             connectedPins.Add(input.TargetPinName);
             if (childContext.TryGetRaw(input.SourceNodeId, input.SourcePinName, out object value))
@@ -444,13 +524,10 @@ public sealed class GraphRuntimeExecutor
 
     private static GraphRuntimeNode? GetNextExecutionNode(GraphExecutionPlan plan, string sourceNodeId, string sourcePinName)
     {
-        GraphRuntimeConnection? connection = plan.Connections.FirstOrDefault(connection =>
-            connection.SourceNodeId == sourceNodeId &&
-            connection.SourcePinName == sourcePinName &&
-            connection.TargetPinKind == PinKind.Execution);
+        GraphRuntimeConnection? connection = plan.Index.GetExecutionConnection(sourceNodeId, sourcePinName);
 
         return connection is null
             ? null
-            : plan.Nodes.FirstOrDefault(node => node.Id == connection.TargetNodeId);
+            : plan.Index.GetNode(connection.TargetNodeId);
     }
 }

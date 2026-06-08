@@ -101,10 +101,12 @@ Runtime / Nodes / Adapters
 #### GraphEditorService
 负责图谱的核心编辑逻辑：
 - 节点和连接的增删改查
-- 可见连线路径 `ConnectionPaths` 的重建
+- 可见连线路径 `ConnectionPaths` 的重建；批量连接编辑通过 `RunBatchedEdit(...)` 合并重建
 - 图谱的加载和保存
 - 执行计划的构建
 - 引脚连接状态管理
+- 当前图内非 `Reroute` 节点编号分配。编号按图类型使用 `N###` / `Fun###` / `Mac###`，删除节点后空出的最小编号可复用
+- 监听节点 `Title` / `NodeNumber` 变化，并同步已通过 `TargetNodeId` 维护引用到该节点的 `ToDoNodeViewModel`
 
 ```csharp
 public class GraphEditorService
@@ -117,8 +119,26 @@ public class GraphEditorService
     public void SaveGraph(string path)
     public void LoadGraph(string path)
     public GraphExecutionPlan BuildExecutionPlan()
+    public void RunBatchedEdit(Action action)
+    public void RemoveConnections(IEnumerable<ConnectionViewModel> connections)
 }
 ```
+
+#### Node numbering and ToDo jump
+- `NodeBaseViewModel.NodeNumber` 是可见、持久化的当前图内编号；`Reroute` 不分配编号。
+- `GraphEditorService.AddNode(...)` 和 `LoadFromModel(...)` 会给缺失、前缀错误、重复的编号重新分配当前图最小空闲值。
+- `ToDoNodeViewModel` 保存 `TargetNodeTitle`、`TargetNodeNumber`、`TargetNodeId`、`ReturnAfterTarget`。运行时优先用连入 `target_title` / `target_number` pin 的动态值；无连线时用静态 `TargetNodeTitle + TargetNodeNumber` 解析。
+- `InspectorController` 的 ToDo 面板提供搜索框和结果列表，可按节点名或编号过滤并填入双键目标。
+- `MainWindow.CommitInspectorAndSnapshotActive()` 在编译、保存、运行前统一 `ApplyInspectorChanges()` + `SnapshotActiveAsset()`，避免属性面板文字或 ToDo 下拉选择未进入 `GraphFileModel`。
+- `InspectorController.ToDoTargetSelected()` 选择结果后立即写入 VM 的 `TargetNodeTitle`、`TargetNodeNumber`、`TargetNodeId`，刷新描述，标脏，并触发 active graph snapshot。
+- `GraphCompileService.EnsureGraphToDoTargets()` 会在 `TargetNodeId` 有效但 title/number 缺失或变旧时，从同图目标节点回填 `TargetNodeTitle` / `TargetNodeNumber`。
+- `GraphCompileService.ValidateToDoTargets()` 只有在两个目标输入 pin 都未连接，且静态 title/number 也为空或无效时才报错。
+
+#### Current content-browser navigation gaps
+- 当前内容浏览器数据源是 `ContentBrowserItems`；左树投影 `ContentFolderItems`，右侧瓦片投影 `ContentVisibleItems`，只显示 `_currentContentFolderId` 当前目录。
+- 当前右侧瓦片双击只调用 `OpenContentAsset(asset)` 或 `EnterContentFolder(asset)`；没有递归搜索模式、模糊搜索结果列表、`Ctrl+B` 定位真实目录逻辑。
+- 当前画布节点双击事件只处理连线/列表项；`FunctionCallNodeViewModel` / `MacroCallNodeViewModel` 没有双击跳转到被调用函数/宏图的实现。
+- 后续实现 UE 风格跳转时，应先 `CommitInspectorAndSnapshotActive()` / `SaveVisibleGraphsToActiveContent()`，再通过 `CallableGraphResolver` 找 stable id 对应的私有或公开库图，打开所在资产并加载对应 `GraphListItemViewModel`。
 
 #### NodeSerializer
 负责节点与持久化模型之间的转换：
@@ -241,11 +261,13 @@ ExecuteChain() → ExecuteNode() → NodeRegistry → INodeExecutor → Adapter
 - `Success`：成功执行，继续后续节点。
 - `WarnButContinue`：业务未命中或参数可退化，写 Warn，继续后续节点。
 - `FatalStop`：依赖缺失、脚本崩溃、Win32 异常、超时、执行环路等，写 Error，停止执行。
+- `ToDo` 节点通过 `NodeExecutionResult.Jump(...)` 改变执行位置；`ReturnAfterJump` 为 true 时，目标链结束后继续 `ToDo.exec_out`。
 
 重要安全规则：
 - 输入 pin 未连接：可以使用节点本地属性。
 - 输入 pin 已连接但上游没有运行时输出：当前节点 Warn 并跳过，不回退本地属性。
 - 典型场景：找图未命中时，下游鼠标点击不会误用旧坐标或 `(0,0)`。
+- ToDo 跳转必须同时匹配节点名和编号。空目标、找不到、匹配多项或自跳都会 `FatalStop`。
 
 #### Win32 API 调用
 
@@ -309,6 +331,11 @@ static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int x, int 
 #### 日志存储
 - 内存：`ObservableCollection<LogEntry>` 用于实时显示
 - 文件：`saved/log/Log_yyyy_MM_dd_HH_mm.txt`
+
+#### 日志面板交互
+- 主窗口日志显示控件是只读 `RichTextBox`，由 `LogPanelController.Refresh()` 生成带颜色的 `FlowDocument`。
+- `LogPanelController` 显式绑定 `ApplicationCommands.Copy` 和 `ApplicationCommands.SelectAll`：`Ctrl+C` 复制当前选中文本，`Ctrl+A` 全选当前过滤后的日志文本。
+- `MainWindow.Window_PreviewKeyDown` 对 `TextBoxBase` 焦点直接放行，避免日志 `RichTextBox` 焦点内的 `Ctrl+C` / `Ctrl+A` 被全局节点复制快捷键截获。
 
 ## 关键技术决策
 
@@ -438,6 +465,15 @@ Python 参数规则：
 - 新建资产只走右侧空白右键菜单，菜单项为 `脚本 / 文件夹 / 函数库 / 宏库`。没有独立“宏”资产；宏在脚本或宏库编辑面板中新增。
 - 右键资产只显示 `重命名 / 删除`。右键空白显示新建菜单。实现上复用一个 `ContextMenu`，由 `ContentBrowserContextMenu_Opened` 根据 `_contentBrowserContextTargetsAsset` 切换 `Visibility`。
 - 不要把带事件的 `ContextMenu` 放进 `ListBoxItem.Style Setter`。WPF 会在运行期把模板子元素接到 style connector，可能启动崩溃：`Unable to cast object of type 'TextBox' to type 'Style'`。
+- 当前未实现 UE 风格递归资产搜索框、搜索结果双击打开、`Ctrl+B` 从搜索结果定位到真实文件夹；不要在文档或 UX 说明里写成已完成。
+- 当前未实现双击画布中的函数/宏调用节点跳转到目标函数/宏编辑界面；只有左侧事件图/函数/宏列表项支持单击/双击切换。
+
+### 2026-06-08: ToDo persistence and log copy fixes
+
+- Compile/save/run entry points must call `CommitInspectorAndSnapshotActive()` before reading active graph data. This is required for inspector-only edits, especially ToDo target dropdown selection.
+- ToDo static target selection must remain persisted even if `target_title` / `target_number` pins are connected; connected pins are runtime overrides, not a reason to clear static defaults.
+- `GraphCompileService.EnsureGraphToDoTargets()` is a migration/repair pass: when old data keeps only `TargetNodeId`, compile fills title/number from the referenced target node before validation.
+- Log text copy uses `RichTextBox` command bindings plus `TextBoxBase` shortcut passthrough. Do not special-case only `TextBox`, or `RichTextBox` copy will be intercepted by graph shortcuts again.
 
 #### 文件夹树
 - 左侧树绑定 `ContentFolderItems`，右侧瓦片绑定 `ContentVisibleItems`，源数据仍是 `ContentBrowserItems`。
@@ -480,8 +516,13 @@ Python 参数规则：
 
 - CodeGraph sync is part of the final gate. Commit `.codegraph/.gitignore` so database, wal/shm, cache, and logs stay local.
 - Project skill source of truth in this local project is `.kimi/skills/automation-studio-wpf/SKILL.md`; no `.agents/skills/automationstudio-wpf/` tree exists here.
-- README, TECHNICAL, `agentmemory.md`, and project skill should mention durable graph-editor rules: `ConnectionPaths` for visuals, `Connections` for persistence/runtime, command-stack boundaries, and wire/reroute UX.
+- README, TECHNICAL, `agentmemory.md`, and project skill should mention durable graph-editor rules: `ConnectionPaths` for visuals, `Connections` for persistence/runtime, batched connection edits, command-stack boundaries, and wire/reroute UX.
 - Do not describe git push as allowed unless the user explicitly requests push in the current task.
+
+#### Batched graph edits and runtime index
+- `GraphEditorService.RunBatchedEdit(...)` defers `ConnectionPaths` rebuild and `GraphChanged` until the outermost batch exits; use it for composed connection mutations.
+- `PinConnectionController` uses `RemoveConnections(...)` for selected visual path deletion and wraps reroute insertion in one batch.
+- `GraphExecutionPlan` owns an internal lazy `GraphExecutionIndex` for node, execution-edge, and input-edge lookup; public constructor and graph JSON remain unchanged.
 
 ### 2026-06-06: editor command and wire UX foundation
 
@@ -493,10 +534,10 @@ Python 参数规则：
 
 #### Wire selection and reroute editing
 - Visible wire selection is stored on `ConnectionPathViewModel.IsSelected`; runtime/persistence still use `ConnectionViewModel` and `GraphEditorService.Connections`.
-- `PinConnectionController` maps visual `ConnectionPathViewModel` back to backing `ConnectionViewModel` for double-click, Alt-click, and context-menu reroute insertion.
+- `PinConnectionController` maps visual `ConnectionPathViewModel` back to backing `ConnectionViewModel` for double-click, Alt-click, and context-menu reroute insertion by sampling the visible Bezier geometry.
 - Delete/Backspace on a selected visible path removes all backing connections in that visual path as one undoable command. Reroute nodes are not deleted automatically.
 - Active visible geometry is `ConnectionSplinePlanner.BuildGeometry(...)`. `ConnectionChain` / `ConnectionChainFinder` and `SplineTangentCalculator` are currently not called by XAML-bound paths.
-- Known limitation: tight/backward reroute layouts can still form local loops. Fix route-point behavior in `ConnectionSplinePlanner` by using endpoint/reroute distances when computing handles.
+- Tight/backward reroute layouts are treated as no-loop regressions in smoke tests; do not change `ConnectionSplinePlanner` without a new concrete repro.
 
 #### NodeDefinition metadata
 - `Runtime/NodeDefinition.cs` now exposes `SearchTags`, `InspectorSchemaKey`, `DefaultValues`, and `ValidationHints`.
