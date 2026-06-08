@@ -1,9 +1,11 @@
 using System.Collections.Specialized;
 using System.Windows;
+using System.Windows.Threading;
 using AutomationStudioWpf.Graph;
 using AutomationStudioWpf.Services;
 using WpfBrushes = System.Windows.Media.Brushes;
 using WpfColor = System.Windows.Media.Color;
+using WpfControl = System.Windows.Controls.Control;
 using WpfKey = System.Windows.Input.Key;
 using WpfKeyboard = System.Windows.Input.Keyboard;
 using WpfKeyEventArgs = System.Windows.Input.KeyEventArgs;
@@ -26,6 +28,7 @@ public partial class MainWindow
     private bool _isApplyingContentBrowserSearch;
     private bool _contentBrowserSearchRefreshQueued;
     private bool _navigationFeaturesInstalled;
+    private bool _autoFitGraphQueued;
 
     protected override void OnInitialized(EventArgs e)
     {
@@ -43,8 +46,46 @@ public partial class MainWindow
 
         InstallContentBrowserSearchBox();
         AddHandler(WpfUIElement.PreviewMouseLeftButtonDownEvent, new WpfMouseButtonEventHandler(GraphCallableNode_PreviewMouseLeftButtonDown), true);
+        AddGraphAutoFitHandler(GraphListBox);
+        AddGraphAutoFitHandler(FunctionListBox);
+        AddGraphAutoFitHandler(MacroListBox);
+        AddGraphAutoFitHandler(ContentBrowserListBox);
         ContentBrowserListBox.PreviewKeyDown += ContentBrowserListBox_NavigationPreviewKeyDown;
         ContentVisibleItems.CollectionChanged += ContentVisibleItems_SearchRefreshRequested;
+        ScheduleFitActiveGraphToView();
+    }
+
+    private void AddGraphAutoFitHandler(WpfUIElement element)
+    {
+        element.AddHandler(WpfControl.MouseDoubleClickEvent, new WpfMouseButtonEventHandler(GraphOpen_MouseDoubleClickAutoFit), true);
+    }
+
+    private void GraphOpen_MouseDoubleClickAutoFit(object sender, WpfMouseButtonEventArgs e)
+    {
+        if (e.ChangedButton == WpfMouseButton.Left)
+            ScheduleFitActiveGraphToView();
+    }
+
+    private void ScheduleFitActiveGraphToView()
+    {
+        if (_autoFitGraphQueued)
+            return;
+
+        _autoFitGraphQueued = true;
+        Dispatcher.BeginInvoke(new Action(() =>
+        {
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                try
+                {
+                    FitGraphToView();
+                }
+                finally
+                {
+                    _autoFitGraphQueued = false;
+                }
+            }), DispatcherPriority.Render);
+        }), DispatcherPriority.ContextIdle);
     }
 
     private void InstallContentBrowserSearchBox()
@@ -300,6 +341,7 @@ public partial class MainWindow
         SaveSectionExpansionForActiveAsset(controller);
         LoadGraphItem(controller, target.Graph, snapshotCurrent: false);
         UpdateGraphSectionVisibility();
+        ScheduleFitActiveGraphToView();
 
         SetStatus(kind == GraphAssetKind.Function
             ? $"已跳转到函数：{target.Asset.Name}/{target.Graph.Name}"
