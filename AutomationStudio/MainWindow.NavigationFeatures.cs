@@ -1,13 +1,18 @@
 using System.Collections.Specialized;
 using System.Windows;
-using System.Windows.Input;
 using AutomationStudioWpf.Graph;
 using AutomationStudioWpf.Services;
 using WpfBrushes = System.Windows.Media.Brushes;
 using WpfColor = System.Windows.Media.Color;
 using WpfControl = System.Windows.Controls.Control;
+using WpfKey = System.Windows.Input.Key;
+using WpfKeyboard = System.Windows.Input.Keyboard;
+using WpfKeyEventArgs = System.Windows.Input.KeyEventArgs;
+using WpfModifierKeys = System.Windows.Input.ModifierKeys;
+using WpfMouseButton = System.Windows.Input.MouseButton;
+using WpfMouseButtonEventArgs = System.Windows.Input.MouseButtonEventArgs;
+using WpfMouseButtonEventHandler = System.Windows.Input.MouseButtonEventHandler;
 using WpfSolidColorBrush = System.Windows.Media.SolidColorBrush;
-using WpfStackPanel = System.Windows.Controls.StackPanel;
 using WpfTextBlock = System.Windows.Controls.TextBlock;
 using WpfTextBox = System.Windows.Controls.TextBox;
 using WpfTextChangedEventArgs = System.Windows.Controls.TextChangedEventArgs;
@@ -37,7 +42,7 @@ public partial class MainWindow
         Loaded -= MainWindow_NavigationFeaturesLoaded;
 
         InstallContentBrowserSearchBox();
-        AddHandler(WpfControl.MouseDoubleClickEvent, new MouseButtonEventHandler(GraphCallableNode_MouseDoubleClick), true);
+        AddHandler(WpfControl.MouseDoubleClickEvent, new WpfMouseButtonEventHandler(GraphCallableNode_MouseDoubleClick), true);
         ContentBrowserListBox.PreviewKeyDown += ContentBrowserListBox_NavigationPreviewKeyDown;
         ContentVisibleItems.CollectionChanged += ContentVisibleItems_SearchRefreshRequested;
     }
@@ -212,9 +217,9 @@ public partial class MainWindow
         return names.Count == 0 ? item.Name : string.Join("/", names);
     }
 
-    private void ContentBrowserListBox_NavigationPreviewKeyDown(object sender, KeyEventArgs e)
+    private void ContentBrowserListBox_NavigationPreviewKeyDown(object sender, WpfKeyEventArgs e)
     {
-        if ((Keyboard.Modifiers & ModifierKeys.Control) == 0 || e.Key != Key.B)
+        if ((WpfKeyboard.Modifiers & WpfModifierKeys.Control) == 0 || e.Key != WpfKey.B)
             return;
 
         if (ContentBrowserListBox.SelectedItem is not ContentAssetViewModel asset)
@@ -242,9 +247,9 @@ public partial class MainWindow
         SetStatus($"已定位资产：{GetContentAssetPath(asset)}");
     }
 
-    private void GraphCallableNode_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+    private void GraphCallableNode_MouseDoubleClick(object sender, WpfMouseButtonEventArgs e)
     {
-        if (e.ChangedButton != MouseButton.Left)
+        if (e.ChangedButton != WpfMouseButton.Left)
             return;
         if (e.OriginalSource is not DependencyObject source)
             return;
