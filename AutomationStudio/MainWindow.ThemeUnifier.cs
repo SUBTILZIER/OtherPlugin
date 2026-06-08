@@ -2,11 +2,10 @@ using System.Windows;
 using System.Windows.Media;
 using System.Windows.Threading;
 using WpfBorder = System.Windows.Controls.Border;
+using WpfBrush = System.Windows.Media.Brush;
 using WpfContextMenu = System.Windows.Controls.ContextMenu;
 using WpfContextMenuEventArgs = System.Windows.Controls.ContextMenuEventArgs;
-using WpfControl = System.Windows.Controls.Control;
 using WpfFrameworkElement = System.Windows.FrameworkElement;
-using WpfGridSplitter = System.Windows.Controls.GridSplitter;
 using WpfItemsControl = System.Windows.Controls.ItemsControl;
 using WpfListBox = System.Windows.Controls.ListBox;
 using WpfMenuItem = System.Windows.Controls.MenuItem;
@@ -25,7 +24,6 @@ public partial class MainWindow
     private static readonly SolidColorBrush UnifiedSurfaceAltBrush = FrozenBrush(0x18, 0x1B, 0x20);
     private static readonly SolidColorBrush UnifiedBorderBrush = FrozenBrush(0x30, 0x37, 0x44);
     private static readonly SolidColorBrush UnifiedStrongBorderBrush = FrozenBrush(0x38, 0x41, 0x50);
-    private static readonly SolidColorBrush UnifiedHoverBrush = FrozenBrush(0x2B, 0x35, 0x42);
     private static readonly SolidColorBrush UnifiedSelectionBrush = FrozenBrush(0x30, 0x44, 0x5C);
     private static readonly SolidColorBrush UnifiedTextBrush = FrozenBrush(0xE8, 0xED, 0xF5);
     private static readonly SolidColorBrush UnifiedMutedTextBrush = FrozenBrush(0xA7, 0xB1, 0xBF);
@@ -115,7 +113,7 @@ public partial class MainWindow
             StyleContextMenu(menu);
     }
 
-    private static void StyleListBoxSurface(WpfListBox listBox, Brush background)
+    private static void StyleListBoxSurface(WpfListBox listBox, WpfBrush background)
     {
         listBox.Background = background;
         listBox.Foreground = UnifiedTextBrush;
@@ -131,7 +129,7 @@ public partial class MainWindow
         textBox.SelectionBrush = UnifiedSelectionBrush;
     }
 
-    private static void StyleRadioButton(WpfRadioButton radioButton, Brush foreground)
+    private static void StyleRadioButton(WpfRadioButton radioButton, WpfBrush foreground)
     {
         radioButton.Foreground = foreground;
         radioButton.Background = UnifiedSurfaceBrush;
@@ -183,9 +181,6 @@ public partial class MainWindow
     private static IEnumerable<T> EnumerateVisualDescendants<T>(DependencyObject root)
         where T : DependencyObject
     {
-        if (root is null)
-            yield break;
-
         int childCount = WpfVisualTreeHelper.GetChildrenCount(root);
         for (int index = 0; index < childCount; index++)
         {
