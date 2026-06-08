@@ -4,7 +4,6 @@ using AutomationStudioWpf.Graph;
 using AutomationStudioWpf.Services;
 using WpfBrushes = System.Windows.Media.Brushes;
 using WpfColor = System.Windows.Media.Color;
-using WpfControl = System.Windows.Controls.Control;
 using WpfKey = System.Windows.Input.Key;
 using WpfKeyboard = System.Windows.Input.Keyboard;
 using WpfKeyEventArgs = System.Windows.Input.KeyEventArgs;
@@ -16,6 +15,7 @@ using WpfSolidColorBrush = System.Windows.Media.SolidColorBrush;
 using WpfTextBlock = System.Windows.Controls.TextBlock;
 using WpfTextBox = System.Windows.Controls.TextBox;
 using WpfTextChangedEventArgs = System.Windows.Controls.TextChangedEventArgs;
+using WpfUIElement = System.Windows.UIElement;
 using WpfVisualTreeHelper = System.Windows.Media.VisualTreeHelper;
 
 namespace AutomationStudioWpf;
@@ -42,7 +42,7 @@ public partial class MainWindow
         Loaded -= MainWindow_NavigationFeaturesLoaded;
 
         InstallContentBrowserSearchBox();
-        AddHandler(WpfControl.MouseDoubleClickEvent, new WpfMouseButtonEventHandler(GraphCallableNode_MouseDoubleClick), true);
+        AddHandler(WpfUIElement.PreviewMouseLeftButtonDownEvent, new WpfMouseButtonEventHandler(GraphCallableNode_PreviewMouseLeftButtonDown), true);
         ContentBrowserListBox.PreviewKeyDown += ContentBrowserListBox_NavigationPreviewKeyDown;
         ContentVisibleItems.CollectionChanged += ContentVisibleItems_SearchRefreshRequested;
     }
@@ -247,25 +247,28 @@ public partial class MainWindow
         SetStatus($"已定位资产：{GetContentAssetPath(asset)}");
     }
 
-    private void GraphCallableNode_MouseDoubleClick(object sender, WpfMouseButtonEventArgs e)
+    private void GraphCallableNode_PreviewMouseLeftButtonDown(object sender, WpfMouseButtonEventArgs e)
     {
-        if (e.ChangedButton != WpfMouseButton.Left)
+        if (e.ChangedButton != WpfMouseButton.Left || e.ClickCount < 2)
             return;
         if (e.OriginalSource is not DependencyObject source)
             return;
 
+        if (TryOpenCallableGraphFromSource(source))
+            e.Handled = true;
+    }
+
+    private bool TryOpenCallableGraphFromSource(DependencyObject source)
+    {
         var node = FindAncestorDataContext<NodeBaseViewModel>(source);
-        switch (node)
+        return node switch
         {
-            case FunctionCallNodeViewModel functionCall when !string.IsNullOrWhiteSpace(functionCall.FunctionId):
-                if (OpenCallableGraph(functionCall.FunctionId, GraphAssetKind.Function))
-                    e.Handled = true;
-                break;
-            case MacroCallNodeViewModel macroCall when !string.IsNullOrWhiteSpace(macroCall.MacroId):
-                if (OpenCallableGraph(macroCall.MacroId, GraphAssetKind.Macro))
-                    e.Handled = true;
-                break;
-        }
+            FunctionCallNodeViewModel functionCall when !string.IsNullOrWhiteSpace(functionCall.FunctionId) =>
+                OpenCallableGraph(functionCall.FunctionId, GraphAssetKind.Function),
+            MacroCallNodeViewModel macroCall when !string.IsNullOrWhiteSpace(macroCall.MacroId) =>
+                OpenCallableGraph(macroCall.MacroId, GraphAssetKind.Macro),
+            _ => false,
+        };
     }
 
     private bool OpenCallableGraph(string graphId, GraphAssetKind kind)
