@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using AutomationStudioWpf.Adapters;
 using AutomationStudioWpf.Graph;
 using AutomationStudioWpf.Logging;
@@ -12,6 +13,7 @@ namespace AutomationStudioWpf.Runtime;
 public sealed class GraphRuntimeExecutor
 {
     private const int MaxChainSteps = 10000;
+    private const int MaxNestedToDoReturnJumps = 256;
 
     private readonly RuntimeAdapters _adapters;
     private readonly NodeRegistry _nodeRegistry;
@@ -44,7 +46,8 @@ public sealed class GraphRuntimeExecutor
         }
 
         var context = new RuntimeContext();
-        GraphExecutionResult result = ExecuteChain(plan, startNode.Id, "exec_out", context, baseDirectory, assets, [], ct, out _);
+        var state = new RuntimeExecutionState();
+        GraphExecutionResult result = ExecuteChain(plan, startNode.Id, "exec_out", context, baseDirectory, assets, state, ct, out _);
 
         Logger.Info("--------执行结束--------");
         return result;
@@ -59,7 +62,7 @@ public sealed class GraphRuntimeExecutor
         RuntimeContext context,
         string baseDirectory,
         RuntimeAssetLibrary assets,
-        HashSet<string> callStack,
+        RuntimeExecutionState state,
         CancellationToken ct,
         out GraphRuntimeNode? terminalNode)
     {
@@ -69,7 +72,7 @@ public sealed class GraphRuntimeExecutor
             context,
             baseDirectory,
             assets,
-            callStack,
+            state,
             ct,
             out terminalNode);
     }
@@ -80,7 +83,7 @@ public sealed class GraphRuntimeExecutor
         RuntimeContext context,
         string baseDirectory,
         RuntimeAssetLibrary assets,
-        HashSet<string> callStack,
+        RuntimeExecutionState state,
         CancellationToken ct,
         out GraphRuntimeNode? terminalNode)
     {
@@ -98,7 +101,7 @@ public sealed class GraphRuntimeExecutor
                 return new GraphExecutionResult(false, "执行失败：执行链疑似存在环路。", false);
             }
 
-            NodeExecutionResult result = ExecuteNode(plan, currentNode, context, baseDirectory, assets, callStack, ct);
+            NodeExecutionResult result = ExecuteNode(plan, currentNode, context, baseDirectory, assets, state, ct);
             if (!result.ContinueExecution)
                 return new GraphExecutionResult(false, result.Message, false);
 
@@ -110,7 +113,7 @@ public sealed class GraphRuntimeExecutor
 
                 if (result.ReturnAfterJump)
                 {
-                    GraphExecutionResult jumpResult = ExecuteFromNode(plan, jumpTarget, context, baseDirectory, assets, callStack, ct, out _);
+                    GraphExecutionResult jumpResult = ExecuteReturnJump(plan, currentNode, jumpTarget, context, baseDirectory, assets, state, ct);
                     if (!jumpResult.ContinueExecution)
                         return jumpResult;
 
@@ -140,13 +143,48 @@ public sealed class GraphRuntimeExecutor
         return new GraphExecutionResult(true, "执行完成。");
     }
 
+    private GraphExecutionResult ExecuteReturnJump(
+        GraphExecutionPlan plan,
+        GraphRuntimeNode sourceNode,
+        GraphRuntimeNode jumpTarget,
+        RuntimeContext context,
+        string baseDirectory,
+        RuntimeAssetLibrary assets,
+        RuntimeExecutionState state,
+        CancellationToken ct)
+    {
+        if (state.ActiveToDoReturnJumps.Count >= MaxNestedToDoReturnJumps)
+        {
+            string tooDeepMessage = $"执行失败：ToDo 返回跳转嵌套超过安全上限 {MaxNestedToDoReturnJumps}，已停止。";
+            Logger.Error(tooDeepMessage);
+            return new GraphExecutionResult(false, tooDeepMessage, false);
+        }
+
+        string jumpKey = MakeToDoReturnJumpKey(plan, sourceNode.Id, jumpTarget.Id);
+        if (!state.ActiveToDoReturnJumps.Add(jumpKey))
+        {
+            string loopMessage = $"执行失败：检测到 ToDo 返回跳转环路：{sourceNode.Title} -> {jumpTarget.Title} {jumpTarget.NodeNumber}。";
+            Logger.Error(loopMessage);
+            return new GraphExecutionResult(false, loopMessage, false);
+        }
+
+        try
+        {
+            return ExecuteFromNode(plan, jumpTarget, context, baseDirectory, assets, state, ct, out _);
+        }
+        finally
+        {
+            state.ActiveToDoReturnJumps.Remove(jumpKey);
+        }
+    }
+
     private NodeExecutionResult ExecuteNode(
         GraphExecutionPlan plan,
         GraphRuntimeNode node,
         RuntimeContext context,
         string baseDirectory,
         RuntimeAssetLibrary assets,
-        HashSet<string> callStack,
+        RuntimeExecutionState state,
         CancellationToken ct)
     {
         return node.NodeKind switch
@@ -154,18 +192,18 @@ public sealed class GraphRuntimeExecutor
             NodeKind.Start => NodeExecutionResult.Ok(string.Empty, "exec_out"),
             NodeKind.Reroute => NodeExecutionResult.Ok(string.Empty, node.RoutedKind == PinKind.Execution ? "out" : null),
             NodeKind.If => ExecuteIfNode(plan, node, context),
-            NodeKind.ForLoop => ExecuteForLoopNode(plan, node, context, baseDirectory, assets, callStack, ct),
-            NodeKind.WhileLoop => ExecuteWhileLoopNode(plan, node, context, baseDirectory, assets, callStack, ct),
+            NodeKind.ForLoop => ExecuteForLoopNode(plan, node, context, baseDirectory, assets, state, ct),
+            NodeKind.WhileLoop => ExecuteWhileLoopNode(plan, node, context, baseDirectory, assets, state, ct),
             NodeKind.ToDo => ExecuteToDoNode(plan, node, context),
             NodeKind.FunctionEntry => NodeExecutionResult.Ok(string.Empty, "exec_out"),
             NodeKind.FunctionReturn => NodeExecutionResult.Ok(string.Empty, null),
             NodeKind.MacroEntry => NodeExecutionResult.Ok(string.Empty, "exec_out"),
             NodeKind.MacroOutput => NodeExecutionResult.Ok(string.Empty, null),
-            NodeKind.FunctionCall => ExecuteFunctionCall(plan, node, context, baseDirectory, assets, callStack, ct),
-            NodeKind.MacroCall => ExecuteMacroCall(plan, node, context, baseDirectory, assets, callStack, ct),
+            NodeKind.FunctionCall => ExecuteFunctionCall(plan, node, context, baseDirectory, assets, state, ct),
+            NodeKind.MacroCall => ExecuteMacroCall(plan, node, context, baseDirectory, assets, state, ct),
             NodeKind.CustomEvent => NodeExecutionResult.Ok(string.Empty, "exec_out"),
-            NodeKind.CustomEventCall => ExecuteCustomEventCall(plan, node, context, baseDirectory, assets, callStack, ct),
-            _ => ExecuteRegisteredNode(plan, node, context, baseDirectory, assets, callStack, ct),
+            NodeKind.CustomEventCall => ExecuteCustomEventCall(plan, node, context, baseDirectory, assets, state, ct),
+            _ => ExecuteRegisteredNode(plan, node, context, baseDirectory, assets, ct),
         };
     }
 
@@ -209,7 +247,6 @@ public sealed class GraphRuntimeExecutor
         RuntimeContext context,
         string baseDirectory,
         RuntimeAssetLibrary assets,
-        HashSet<string> callStack,
         CancellationToken ct)
     {
         if (!_nodeRegistry.TryGetExecutor(node.NodeKind, out INodeExecutor executor))
@@ -251,7 +288,7 @@ public sealed class GraphRuntimeExecutor
         RuntimeContext context,
         string baseDirectory,
         RuntimeAssetLibrary assets,
-        HashSet<string> callStack,
+        RuntimeExecutionState state,
         CancellationToken ct)
     {
         int count = node.LoopCount > 0 ? node.LoopCount : 1;
@@ -274,7 +311,7 @@ public sealed class GraphRuntimeExecutor
             }
 
             context.Set(node.Id, "index", i);
-            GraphExecutionResult bodyResult = ExecuteChain(plan, node.Id, "exec_loop_body", context, baseDirectory, assets, callStack, ct, out _);
+            GraphExecutionResult bodyResult = ExecuteChain(plan, node.Id, "exec_loop_body", context, baseDirectory, assets, state, ct, out _);
             if (!bodyResult.ContinueExecution)
                 return NodeExecutionResult.Fatal(bodyResult.Message);
         }
@@ -289,7 +326,7 @@ public sealed class GraphRuntimeExecutor
         RuntimeContext context,
         string baseDirectory,
         RuntimeAssetLibrary assets,
-        HashSet<string> callStack,
+        RuntimeExecutionState state,
         CancellationToken ct)
     {
         WhileLoopMode loopMode = node.WhileLoopMode;
@@ -310,7 +347,7 @@ public sealed class GraphRuntimeExecutor
                 break;
 
             context.Set(node.Id, "index", iteration);
-            GraphExecutionResult bodyResult = ExecuteChain(plan, node.Id, "exec_loop_body", context, baseDirectory, assets, callStack, ct, out _);
+            GraphExecutionResult bodyResult = ExecuteChain(plan, node.Id, "exec_loop_body", context, baseDirectory, assets, state, ct, out _);
             if (!bodyResult.ContinueExecution)
                 return NodeExecutionResult.Fatal(bodyResult.Message);
 
@@ -333,12 +370,12 @@ public sealed class GraphRuntimeExecutor
         RuntimeContext callerContext,
         string baseDirectory,
         RuntimeAssetLibrary assets,
-        HashSet<string> callStack,
+        RuntimeExecutionState state,
         CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(callNode.FunctionId) || !assets.Functions.TryGetValue(callNode.FunctionId, out var functionPlan))
             return NodeExecutionResult.Fatal($"函数不存在：{callNode.Title}");
-        if (!callStack.Add($"function:{callNode.FunctionId}"))
+        if (!state.CallStack.Add($"function:{callNode.FunctionId}"))
             return NodeExecutionResult.Fatal($"检测到函数递归调用：{callNode.Title}");
 
         try
@@ -350,7 +387,7 @@ public sealed class GraphRuntimeExecutor
 
             var childContext = new RuntimeContext();
             CopyCallInputsToEntry(callerPlan, callNode, callerContext, entry, childContext);
-            var result = ExecuteChain(functionPlan, entry.Id, "exec_out", childContext, baseDirectory, assets, callStack, ct, out _);
+            var result = ExecuteChain(functionPlan, entry.Id, "exec_out", childContext, baseDirectory, assets, state, ct, out _);
             if (!result.ContinueExecution)
                 return NodeExecutionResult.Fatal(result.Message);
 
@@ -360,7 +397,7 @@ public sealed class GraphRuntimeExecutor
         }
         finally
         {
-            callStack.Remove($"function:{callNode.FunctionId}");
+            state.CallStack.Remove($"function:{callNode.FunctionId}");
         }
     }
 
@@ -370,12 +407,12 @@ public sealed class GraphRuntimeExecutor
         RuntimeContext callerContext,
         string baseDirectory,
         RuntimeAssetLibrary assets,
-        HashSet<string> callStack,
+        RuntimeExecutionState state,
         CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(callNode.MacroId) || !assets.Macros.TryGetValue(callNode.MacroId, out var macroPlan))
             return NodeExecutionResult.Fatal($"宏不存在：{callNode.Title}");
-        if (!callStack.Add($"macro:{callNode.MacroId}"))
+        if (!state.CallStack.Add($"macro:{callNode.MacroId}"))
             return NodeExecutionResult.Fatal($"检测到宏递归调用：{callNode.Title}");
 
         try
@@ -386,7 +423,7 @@ public sealed class GraphRuntimeExecutor
 
             var childContext = new RuntimeContext();
             CopyCallInputsToEntry(callerPlan, callNode, callerContext, entry, childContext);
-            var result = ExecuteChain(macroPlan, entry.Id, "exec_out", childContext, baseDirectory, assets, callStack, ct, out var terminal);
+            var result = ExecuteChain(macroPlan, entry.Id, "exec_out", childContext, baseDirectory, assets, state, ct, out var terminal);
             if (!result.ContinueExecution)
                 return NodeExecutionResult.Fatal(result.Message);
             if (terminal?.NodeKind != NodeKind.MacroOutput)
@@ -399,7 +436,7 @@ public sealed class GraphRuntimeExecutor
         }
         finally
         {
-            callStack.Remove($"macro:{callNode.MacroId}");
+            state.CallStack.Remove($"macro:{callNode.MacroId}");
         }
     }
 
@@ -409,7 +446,7 @@ public sealed class GraphRuntimeExecutor
         RuntimeContext context,
         string baseDirectory,
         RuntimeAssetLibrary assets,
-        HashSet<string> callStack,
+        RuntimeExecutionState state,
         CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(callNode.CustomEventId))
@@ -420,13 +457,13 @@ public sealed class GraphRuntimeExecutor
             return NodeExecutionResult.Fatal($"自定义事件不存在：{callNode.Title}");
 
         string stackKey = $"custom_event:{callNode.CustomEventId}";
-        if (!callStack.Add(stackKey))
+        if (!state.CallStack.Add(stackKey))
             return NodeExecutionResult.Fatal($"检测到自定义事件递归调用：{callNode.Title}");
 
         try
         {
             CopyCallInputsToEntry(plan, callNode, context, entry, context);
-            var result = ExecuteChain(plan, entry.Id, "exec_out", context, baseDirectory, assets, callStack, ct, out _);
+            var result = ExecuteChain(plan, entry.Id, "exec_out", context, baseDirectory, assets, state, ct, out _);
             if (!result.ContinueExecution)
                 return NodeExecutionResult.Fatal(result.Message);
 
@@ -435,7 +472,7 @@ public sealed class GraphRuntimeExecutor
         }
         finally
         {
-            callStack.Remove(stackKey);
+            state.CallStack.Remove(stackKey);
         }
     }
 
@@ -529,5 +566,15 @@ public sealed class GraphRuntimeExecutor
         return connection is null
             ? null
             : plan.Index.GetNode(connection.TargetNodeId);
+    }
+
+    private static string MakeToDoReturnJumpKey(GraphExecutionPlan plan, string sourceNodeId, string targetNodeId) =>
+        $"{RuntimeHelpers.GetHashCode(plan)}:{sourceNodeId}->{targetNodeId}";
+
+    private sealed class RuntimeExecutionState
+    {
+        public HashSet<string> CallStack { get; } = new(StringComparer.Ordinal);
+
+        public HashSet<string> ActiveToDoReturnJumps { get; } = new(StringComparer.Ordinal);
     }
 }
