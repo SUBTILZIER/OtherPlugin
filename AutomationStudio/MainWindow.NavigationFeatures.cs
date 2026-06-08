@@ -1,11 +1,11 @@
 using System.Collections.Specialized;
 using System.Windows;
+using System.Windows.Media;
 using System.Windows.Threading;
 using AutomationStudioWpf.Graph;
 using AutomationStudioWpf.Services;
 using WpfBrushes = System.Windows.Media.Brushes;
 using WpfColor = System.Windows.Media.Color;
-using WpfControl = System.Windows.Controls.Control;
 using WpfKey = System.Windows.Input.Key;
 using WpfKeyboard = System.Windows.Input.Keyboard;
 using WpfKeyEventArgs = System.Windows.Input.KeyEventArgs;
@@ -29,6 +29,8 @@ public partial class MainWindow
     private bool _contentBrowserSearchRefreshQueued;
     private bool _navigationFeaturesInstalled;
     private bool _autoFitGraphQueued;
+    private bool _autoFitRenderingAttached;
+    private int _autoFitRenderFramesRemaining;
 
     protected override void OnInitialized(EventArgs e)
     {
@@ -45,47 +47,62 @@ public partial class MainWindow
         Loaded -= MainWindow_NavigationFeaturesLoaded;
 
         InstallContentBrowserSearchBox();
+        _editorService.GraphChanged += NavigationFeatures_GraphChanged;
         AddHandler(WpfUIElement.PreviewMouseLeftButtonDownEvent, new WpfMouseButtonEventHandler(GraphCallableNode_PreviewMouseLeftButtonDown), true);
-        AddGraphAutoFitHandler(GraphListBox);
-        AddGraphAutoFitHandler(FunctionListBox);
-        AddGraphAutoFitHandler(MacroListBox);
-        AddGraphAutoFitHandler(ContentBrowserListBox);
         ContentBrowserListBox.PreviewKeyDown += ContentBrowserListBox_NavigationPreviewKeyDown;
         ContentVisibleItems.CollectionChanged += ContentVisibleItems_SearchRefreshRequested;
         ScheduleFitActiveGraphToView();
     }
 
-    private void AddGraphAutoFitHandler(WpfUIElement element)
+    private void NavigationFeatures_GraphChanged()
     {
-        element.AddHandler(WpfControl.MouseDoubleClickEvent, new WpfMouseButtonEventHandler(GraphOpen_MouseDoubleClickAutoFit), true);
-    }
-
-    private void GraphOpen_MouseDoubleClickAutoFit(object sender, WpfMouseButtonEventArgs e)
-    {
-        if (e.ChangedButton == WpfMouseButton.Left)
+        if (_activeAssetController?.IsLoadingGraph == true)
             ScheduleFitActiveGraphToView();
     }
 
     private void ScheduleFitActiveGraphToView()
     {
-        if (_autoFitGraphQueued)
+        if (_editorService.Nodes.Count == 0)
             return;
 
         _autoFitGraphQueued = true;
+        _autoFitRenderFramesRemaining = 4;
+        if (_autoFitRenderingAttached)
+            return;
+
+        _autoFitRenderingAttached = true;
+        CompositionTarget.Rendering += AutoFitGraphAfterRenderFrames;
+    }
+
+    private void AutoFitGraphAfterRenderFrames(object? sender, EventArgs e)
+    {
+        if (!_autoFitGraphQueued)
+        {
+            DetachAutoFitRendering();
+            return;
+        }
+
+        if (_autoFitRenderFramesRemaining > 0)
+        {
+            _autoFitRenderFramesRemaining--;
+            return;
+        }
+
+        DetachAutoFitRendering();
         Dispatcher.BeginInvoke(new Action(() =>
         {
-            Dispatcher.BeginInvoke(new Action(() =>
-            {
-                try
-                {
-                    FitGraphToView();
-                }
-                finally
-                {
-                    _autoFitGraphQueued = false;
-                }
-            }), DispatcherPriority.Render);
-        }), DispatcherPriority.ContextIdle);
+            _autoFitGraphQueued = false;
+            FitGraphToView();
+        }), DispatcherPriority.ApplicationIdle);
+    }
+
+    private void DetachAutoFitRendering()
+    {
+        if (!_autoFitRenderingAttached)
+            return;
+
+        CompositionTarget.Rendering -= AutoFitGraphAfterRenderFrames;
+        _autoFitRenderingAttached = false;
     }
 
     private void InstallContentBrowserSearchBox()
