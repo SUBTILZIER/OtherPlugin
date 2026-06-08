@@ -13,7 +13,10 @@ namespace AutomationStudioWpf.Interaction;
 
 public sealed class NodeDragSelectionController
 {
+    private const double GridSize = 20.0;
+
     private readonly GraphEditorService _editorService;
+    private readonly GraphCommandService _commandService;
     private readonly NodeClipboardService _clipboardService;
     private readonly NodeFactory _nodeFactory;
     private readonly FrameworkElement _graphViewport;
@@ -23,10 +26,12 @@ public sealed class NodeDragSelectionController
     private readonly Action _fitGraphToView;
     private readonly Action _ensureCanvasLargeEnough;
     private readonly Action _markDirty;
+    private readonly Action _clearConnectionSelection;
     private readonly Action<string> _setStatus;
 
     private NodeBaseViewModel? _dragNode;
     private List<(NodeBaseViewModel Node, double OffsetX, double OffsetY)> _dragGroup = [];
+    private GraphFileModel? _dragBeforeSnapshot;
     private bool _isSelecting;
     private bool _dragFrameQueued;
     private bool _dragChanged;
@@ -35,6 +40,7 @@ public sealed class NodeDragSelectionController
 
     public NodeDragSelectionController(
         GraphEditorService editorService,
+        GraphCommandService commandService,
         NodeClipboardService clipboardService,
         NodeFactory nodeFactory,
         FrameworkElement graphViewport,
@@ -44,9 +50,11 @@ public sealed class NodeDragSelectionController
         Action fitGraphToView,
         Action ensureCanvasLargeEnough,
         Action markDirty,
+        Action clearConnectionSelection,
         Action<string> setStatus)
     {
         _editorService = editorService;
+        _commandService = commandService;
         _clipboardService = clipboardService;
         _nodeFactory = nodeFactory;
         _graphViewport = graphViewport;
@@ -56,6 +64,7 @@ public sealed class NodeDragSelectionController
         _fitGraphToView = fitGraphToView;
         _ensureCanvasLargeEnough = ensureCanvasLargeEnough;
         _markDirty = markDirty;
+        _clearConnectionSelection = clearConnectionSelection;
         _setStatus = setStatus;
     }
 
@@ -71,6 +80,7 @@ public sealed class NodeDragSelectionController
 
     public void SelectNode(NodeBaseViewModel? node)
     {
+        _clearConnectionSelection();
         ClearSelection();
         if (node is not null)
             node.IsSelected = true;
@@ -110,6 +120,7 @@ public sealed class NodeDragSelectionController
 
         var point = _viewportToGraph(e.GetPosition(_graphViewport));
         _dragNode = node;
+        _dragBeforeSnapshot = _commandService.Capture();
         _pendingDragPoint = point;
         _dragFrameQueued = false;
         _dragChanged = false;
@@ -144,9 +155,14 @@ public sealed class NodeDragSelectionController
             element.ReleaseMouseCapture();
 
         if (_dragChanged)
+        {
+            if (_dragBeforeSnapshot is not null)
+                _commandService.RecordApplied("Move nodes", _dragBeforeSnapshot, _commandService.Capture());
             _markDirty();
+        }
 
         _dragNode = null;
+        _dragBeforeSnapshot = null;
         _dragGroup.Clear();
         _dragFrameQueued = false;
         _dragChanged = false;
@@ -220,6 +236,7 @@ public sealed class NodeDragSelectionController
     public void CancelDrag()
     {
         _dragNode = null;
+        _dragBeforeSnapshot = null;
         _dragGroup.Clear();
         _dragFrameQueued = false;
         _dragChanged = false;
@@ -229,7 +246,7 @@ public sealed class NodeDragSelectionController
     {
         if (e.Key == Key.Delete)
         {
-            _editorService.RemoveSelectedNodes();
+            _commandService.Execute("Delete selected nodes", _editorService.RemoveSelectedNodes);
             SelectNode(null);
             e.Handled = true;
             return true;
@@ -275,6 +292,9 @@ public sealed class NodeDragSelectionController
             return true;
         }
 
+        if (TryMoveSelectedNodesByKeyboard(e))
+            return true;
+
         return false;
     }
 
@@ -311,20 +331,23 @@ public sealed class NodeDragSelectionController
             _nodeFactory.CreateNodeId,
             out var connections);
 
-        foreach (var node in pastedNodes)
-            _editorService.AddNode(node);
-
-        foreach (var (sourceId, sourcePin, targetId, targetPin) in connections)
+        _commandService.Execute("Paste nodes", () =>
         {
-            var sourceNode = _editorService.Nodes.FirstOrDefault(n => n.Id == sourceId);
-            var targetNode = _editorService.Nodes.FirstOrDefault(n => n.Id == targetId);
-            if (sourceNode is null || targetNode is null) continue;
+            foreach (var node in pastedNodes)
+                _editorService.AddNode(node);
 
-            var sPin = sourceNode.OutputPins.FirstOrDefault(p => p.Name == sourcePin);
-            var tPin = targetNode.InputPins.FirstOrDefault(p => p.Name == targetPin);
-            if (sPin is not null && tPin is not null)
-                _editorService.CreateConnection(sPin, tPin);
-        }
+            foreach (var (sourceId, sourcePin, targetId, targetPin) in connections)
+            {
+                var sourceNode = _editorService.Nodes.FirstOrDefault(n => n.Id == sourceId);
+                var targetNode = _editorService.Nodes.FirstOrDefault(n => n.Id == targetId);
+                if (sourceNode is null || targetNode is null) continue;
+
+                var sPin = sourceNode.OutputPins.FirstOrDefault(p => p.Name == sourcePin);
+                var tPin = targetNode.InputPins.FirstOrDefault(p => p.Name == targetPin);
+                if (sPin is not null && tPin is not null)
+                    _editorService.CreateConnection(sPin, tPin);
+            }
+        });
 
         _ensureCanvasLargeEnough();
         _setStatus($"已粘贴 {pastedNodes.Count} 个节点。");
@@ -335,10 +358,12 @@ public sealed class NodeDragSelectionController
         var selectedNodes = _editorService.Nodes.Where(n => n.IsSelected).ToList();
         if (selectedNodes.Count < 2) return;
 
+        var before = _commandService.Capture();
         var avgY = selectedNodes.Average(n => n.Y);
         foreach (var node in selectedNodes)
             node.Y = avgY;
 
+        _commandService.RecordApplied("Align nodes horizontal", before, _commandService.Capture());
         _markDirty();
         _setStatus($"已将 {selectedNodes.Count} 个节点横向对齐。");
     }
@@ -348,12 +373,73 @@ public sealed class NodeDragSelectionController
         var selectedNodes = _editorService.Nodes.Where(n => n.IsSelected).ToList();
         if (selectedNodes.Count < 2) return;
 
+        var before = _commandService.Capture();
         var avgX = selectedNodes.Average(n => n.X);
         foreach (var node in selectedNodes)
             node.X = avgX;
 
+        _commandService.RecordApplied("Align nodes vertical", before, _commandService.Capture());
         _markDirty();
         _setStatus($"已将 {selectedNodes.Count} 个节点纵向对齐。");
+    }
+
+    private bool TryMoveSelectedNodesByKeyboard(WpfKeyEventArgs e)
+    {
+        double dx = 0;
+        double dy = 0;
+        switch (e.Key)
+        {
+            case Key.Left:
+                dx = -KeyboardMoveStep();
+                break;
+            case Key.Right:
+                dx = KeyboardMoveStep();
+                break;
+            case Key.Up:
+                dy = -KeyboardMoveStep();
+                break;
+            case Key.Down:
+                dy = KeyboardMoveStep();
+                break;
+            default:
+                return false;
+        }
+
+        var selectedNodes = _editorService.Nodes.Where(n => n.IsSelected).ToList();
+        if (selectedNodes.Count == 0)
+            return false;
+
+        var before = _commandService.Capture();
+        foreach (var node in selectedNodes)
+        {
+            node.X = SnapIfNeeded(node.X + dx);
+            node.Y = SnapIfNeeded(node.Y + dy);
+        }
+
+        _commandService.RecordApplied("Move nodes", before, _commandService.Capture());
+        _markDirty();
+        _setStatus($"Moved {selectedNodes.Count} node(s).");
+        e.Handled = true;
+        return true;
+    }
+
+    private static double KeyboardMoveStep()
+    {
+        if ((Keyboard.Modifiers & ModifierKeys.Alt) != 0)
+            return 1.0;
+
+        if ((Keyboard.Modifiers & ModifierKeys.Shift) != 0)
+            return GridSize * 2.0;
+
+        return GridSize;
+    }
+
+    private static double SnapIfNeeded(double value)
+    {
+        if ((Keyboard.Modifiers & ModifierKeys.Alt) != 0)
+            return value;
+
+        return Math.Round(value / GridSize) * GridSize;
     }
 
     private void QueueDragFrame()
@@ -373,8 +459,8 @@ public sealed class NodeDragSelectionController
 
         foreach (var (item, offsetX, offsetY) in _dragGroup)
         {
-            double nextX = _pendingDragPoint.X - offsetX;
-            double nextY = _pendingDragPoint.Y - offsetY;
+            double nextX = SnapIfNeeded(_pendingDragPoint.X - offsetX);
+            double nextY = SnapIfNeeded(_pendingDragPoint.Y - offsetY);
 
             if (Math.Abs(item.X - nextX) > 0.01)
             {

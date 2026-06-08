@@ -6,6 +6,30 @@
 - 技术细节保留准确名词、文件名、命令；解释原因时用短句。
 - 不要自动 `git push`。只有用户明确要求推送时才推；推送前必须确认不包含测试功能相关文件夹。
 
+## 2026-06-06 reroute connection rendering
+
+- Visual wiring now binds XAML to `GraphEditorService.ConnectionPaths`; persisted/runtime logic still uses `Connections`.
+- Reroute chains are aggregated by `ConnectionPathViewModel` and shaped by `ConnectionSplinePlanner`; linear reroute chains keep the persisted `Connections` chain order so moving route nodes never reorders the drawn path. Ambiguous reroute branch/merge falls back to individual connection paths.
+- Visible wire double-click/Alt-click must map `ConnectionPathViewModel` back to nearest backing `ConnectionViewModel`; `IsGraphBlankSource` must treat `ConnectionPathViewModel` as non-blank or selection will swallow wire double-click.
+- Reroute selection uses a UE-style yellow glow/ring in XAML; keep it visible for click and box selection.
+- Optional repro smoke: set `AUTOMATION_STUDIO_REROUTE_GRAPH_JSON` to a graph file such as `C:/Users/Administrator/Desktop/graph.json`.
+
+## 2026-06-06 editor command and wire UX foundation
+
+- `GraphCommandService` is snapshot-based Undo/Redo for graph edits. It captures `GraphFileModel` before/after a command and restores through `GraphEditorService.LoadFromModel(...)`.
+- Always capture the active `GraphAssetKind`; function/macro undo must not restore as event graphs. Clear command history when switching content assets or graph/function/macro items.
+- Use `Execute(...)` for direct mutations and `RecordApplied(...)` for continuous interactions that already moved nodes. Node drag records one command at drag end.
+- Visible wire selection lives on `ConnectionPathViewModel.IsSelected`; Delete/Backspace removes all backing connections in the selected visual path as one undoable command, but reroute nodes remain.
+- `NodeDefinition` now has `SearchTags`, `InspectorSchemaKey`, `DefaultValues`, and `ValidationHints`; palette search uses display/category/type key/kind/tags and shows recent node kinds.
+- Node movement snaps to the 20px grid by default; Alt keeps precision movement.
+
+## 2026-06-08 git push prep
+
+- User explicitly requested CodeGraph, project skill, TECHNICAL, README, agentmemory refresh and git push; pushing is allowed for this task after verification.
+- Track `.codegraph/.gitignore`; do not commit CodeGraph db/wal/shm/log/cache files.
+- Track the project skill under `.agents/skills/automationstudio-wpf/`; avoid staging unrelated third-party skill folders unless explicitly requested.
+- Before push, run build, smoke, optional external reroute graph smoke, WPF startup probe, and `codegraph.cmd sync`.
+
 ## 2026-06-05 graph isolation fix
 
 - Content browser current UX: header has title only; asset creation is only through blank right-click menu with `脚本 / 文件夹 / 函数库 / 宏库`. Do not re-add a standalone `宏` asset menu item.

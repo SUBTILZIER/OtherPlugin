@@ -463,10 +463,37 @@ Python 参数规则：
 - 完成功能前固定执行：
   - `dotnet build .\AutomationStudioWpf.csproj -o .\bin\CodexBuildCheck`
   - `dotnet run --project .\Tests\CodexSmoke\AutomationStudioSmoke.csproj --no-restore`
+  - `$env:AUTOMATION_STUDIO_REROUTE_GRAPH_JSON='C:\Users\Administrator\Desktop\graph.json'; dotnet run --project .\Tests\CodexSmoke\AutomationStudioSmoke.csproj --no-restore`
   - `dotnet run --project .\AutomationStudioWpf.csproj` 做短启动探测，能正常拉起窗口即可
   - `codegraph.cmd sync`
+
 - 启动验证不再固定等待 20 秒；只确认能正常启动。若进程快速退出、输出 `Unhandled exception` 或 WPF 初始化异常，必须收集终端输出/异常栈并先修。
 - 不要自动 `git push`。只有用户明确要求推送时才推；推送前确认不包含测试功能相关文件夹。
+
+### 2026-06-08: CodeGraph / docs / skill refresh
+
+- CodeGraph sync is part of the final gate. Commit `.codegraph/.gitignore` so database, wal/shm, cache, and logs stay local.
+- Project skill source of truth is `.agents/skills/automationstudio-wpf/SKILL.md`. Do not commit unrelated third-party skill folders unless the user asks.
+- README, TECHNICAL, `agentmemory.md`, and project skill should mention durable graph-editor rules: `ConnectionPaths` for visuals, `Connections` for persistence/runtime, command-stack boundaries, and wire/reroute UX.
+- User explicitly requested git push on 2026-06-08, so pushing after verification is allowed for this task.
+
+### 2026-06-06: editor command and wire UX foundation
+
+#### GraphCommandService
+- `Services/GraphCommandService.cs` owns graph edit Undo/Redo. It captures `GraphFileModel` snapshots before/after an edit and restores through `GraphEditorService.LoadFromModel(...)`.
+- Commands must use the active `GraphAssetKind`; otherwise function/macro undo can reload as an event graph and auto-create a Start node.
+- Clear the command stack when switching content assets or graph/function/macro items. Do not allow undo across graph boundaries.
+- Use `Execute(...)` for direct graph mutations and `RecordApplied(...)` for edits already applied by continuous interaction, such as node dragging.
+
+#### Wire selection and reroute editing
+- Visible wire selection is stored on `ConnectionPathViewModel.IsSelected`; runtime/persistence still use `ConnectionViewModel` and `GraphEditorService.Connections`.
+- `PinConnectionController` maps visual `ConnectionPathViewModel` back to backing `ConnectionViewModel` for double-click, Alt-click, and context-menu reroute insertion.
+- Delete/Backspace on a selected visible path removes all backing connections in that visual path as one undoable command. Reroute nodes are not deleted automatically.
+
+#### NodeDefinition metadata
+- `Runtime/NodeDefinition.cs` now exposes `SearchTags`, `InspectorSchemaKey`, `DefaultValues`, and `ValidationHints`.
+- `NodeRegistry.Definition(...)` generates baseline tags from `NodeKind`, type key, category, and pin names/labels.
+- `NodePaletteController` search must match display name, category, type key, kind, and generated tags. Keep this path metadata-driven before adding more node families.
 
 ### 2026-06-05：事件图 / 函数 / 宏画布隔离修复
 

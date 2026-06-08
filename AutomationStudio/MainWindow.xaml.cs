@@ -37,6 +37,7 @@ public partial class MainWindow : Window
     private readonly CallableGraphResolver _callableGraphResolver = new();
     private readonly GraphCompileService _graphCompileService;
     private readonly NodeRegistry _nodeRegistry = NodeRegistry.CreateDefault();
+    private GraphCommandService _graphCommandService = null!;
     private ExecutionController _executionController = null!;
     private NodePaletteController _nodePaletteController = null!;
     private GraphListController _graphListController = null!;
@@ -106,6 +107,12 @@ public partial class MainWindow : Window
 
     private void InitializeControllers()
     {
+        _graphCommandService = new GraphCommandService(
+            _editorService,
+            () => GetActiveGraphKind() ?? GraphAssetKind.EventGraph,
+            SyncNodeFactorySequence,
+            SetStatus);
+
         _executionController = new ExecutionController(
             this,
             _editorService,
@@ -164,6 +171,7 @@ public partial class MainWindow : Window
             NodePaletteContent,
             _nodeFactory,
             _editorService,
+            _graphCommandService,
             _nodeRegistry,
             GetCallableFunctions,
             GetCallableMacros,
@@ -184,6 +192,7 @@ public partial class MainWindow : Window
 
         _nodeDragSelectionController = new NodeDragSelectionController(
             _editorService,
+            _graphCommandService,
             _clipboardService,
             _nodeFactory,
             GraphViewport,
@@ -193,6 +202,7 @@ public partial class MainWindow : Window
             FitGraphToView,
             EnsureCanvasLargeEnough,
             MarkActiveAssetLayoutDirty,
+            () => _pinConnectionController?.ClearSelectedConnectionPath(),
             SetStatus);
 
         _inspectorController = new InspectorController(
@@ -290,6 +300,7 @@ public partial class MainWindow : Window
 
         _pinConnectionController = new PinConnectionController(
             _editorService,
+            _graphCommandService,
             _nodeFactory,
             GraphViewport,
             PreviewConnectionPath,
@@ -297,6 +308,7 @@ public partial class MainWindow : Window
             position => TryGetPinAtPosition(position, out var pin) ? pin : null,
             OpenNodePaletteForConnection,
             SelectNode,
+            ClearNodeSelectionForConnection,
             _nodeDragSelectionController.SetCanvasFocusActive,
             SetStatus);
 
@@ -322,7 +334,7 @@ public partial class MainWindow : Window
     #region 属性绑定
 
     public System.Collections.IEnumerable Nodes => _editorService.Nodes;
-    public System.Collections.IEnumerable Connections => _editorService.Connections;
+    public System.Collections.IEnumerable ConnectionPaths => _editorService.ConnectionPaths;
     public ObservableCollection<GraphListItemViewModel> GraphListItems { get; } = [];
     public ObservableCollection<GraphListItemViewModel> FunctionListItems { get; } = [];
     public ObservableCollection<GraphListItemViewModel> MacroListItems { get; } = [];
@@ -546,6 +558,7 @@ public partial class MainWindow : Window
 
         _activeAssetController = controller;
         controller.LoadItem(item, snapshotCurrent: false);
+        _graphCommandService.Clear();
     }
 
     private void GraphNameTextBox_KeyDown(object sender, KeyEventArgs e)
@@ -1003,6 +1016,7 @@ public partial class MainWindow : Window
         try
         {
             _editorService.ClearGraph();
+            _graphCommandService.Clear();
         }
         finally
         {
@@ -1018,8 +1032,8 @@ public partial class MainWindow : Window
         GraphListItems.Clear();
         FunctionListItems.Clear();
         MacroListItems.Clear();
-        _editorService.Nodes.Clear();
-        _editorService.Connections.Clear();
+        _editorService.ClearGraph();
+        _graphCommandService.Clear();
         EmptyEditorPanel.Visibility = Visibility.Visible;
         EditorGrid.Visibility = Visibility.Collapsed;
     }
@@ -1830,9 +1844,30 @@ public partial class MainWindow : Window
         _pinConnectionController.HandleConnectionDoubleClick(sender, e);
     }
 
+    private void ConnectionPath_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ClickCount >= 2)
+            _pinConnectionController.HandleConnectionDoubleClick(sender, e);
+    }
+
     private void ConnectionPath_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         _pinConnectionController.HandleConnectionMouseLeftButtonDown(sender, e);
+    }
+
+    private void ConnectionPath_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        _pinConnectionController.HandleConnectionMouseRightButtonDown(sender, e);
+    }
+
+    private void DeleteConnectionPath_Click(object sender, RoutedEventArgs e)
+    {
+        _pinConnectionController.DeleteSelectedConnectionPath();
+    }
+
+    private void AddRerouteToConnectionPath_Click(object sender, RoutedEventArgs e)
+    {
+        _pinConnectionController.InsertRerouteOnSelectedPath();
     }
 
     #endregion
@@ -1842,6 +1877,14 @@ public partial class MainWindow : Window
     private void SelectNode(NodeBaseViewModel? node)
     {
         _nodeDragSelectionController.SelectNode(node);
+    }
+
+    private void ClearNodeSelectionForConnection()
+    {
+        foreach (var node in _editorService.Nodes)
+            node.IsSelected = false;
+
+        LoadNodeToInspector(null);
     }
 
     #endregion
@@ -1884,6 +1927,29 @@ public partial class MainWindow : Window
 
         // 文本框中不处理快捷键
         if (Keyboard.FocusedElement is TextBox) return;
+
+        if ((Keyboard.Modifiers & ModifierKeys.Control) != 0)
+        {
+            if (e.Key == Key.Z && (Keyboard.Modifiers & ModifierKeys.Shift) == 0)
+            {
+                _graphCommandService.Undo();
+                e.Handled = true;
+                return;
+            }
+
+            if (e.Key == Key.Y || (e.Key == Key.Z && (Keyboard.Modifiers & ModifierKeys.Shift) != 0))
+            {
+                _graphCommandService.Redo();
+                e.Handled = true;
+                return;
+            }
+        }
+
+        if (_pinConnectionController.HandleKeyDown(e))
+        {
+            e.Handled = true;
+            return;
+        }
 
         if (_nodeDragSelectionController.HandleKeyDown(e))
         {
@@ -2149,7 +2215,10 @@ public partial class MainWindow : Window
         }
 
         if (_activeAssetController?.ActiveItem is { } active)
+        {
             _activeAssetController.ReloadItemWithoutPersist(active);
+            _graphCommandService.Clear();
+        }
         PersistAssetLibrary();
         UpdateGraphSectionVisibility();
         SetStatus($"编译完成：同步 {result.UpdatedCallNodes} 个调用节点，移除 {result.RemovedConnections} 条无效连线。");
@@ -2265,7 +2334,7 @@ public partial class MainWindow : Window
         {
             if (current is FrameworkElement element)
             {
-                if (element.DataContext is NodeBaseViewModel or PinViewModel or ConnectionViewModel)
+                if (element.DataContext is NodeBaseViewModel or PinViewModel or ConnectionViewModel or ConnectionPathViewModel)
                     return false;
 
                 if (ReferenceEquals(element, GraphSurface) || ReferenceEquals(element, GraphViewport))
