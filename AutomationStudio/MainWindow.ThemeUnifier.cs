@@ -39,6 +39,8 @@ public partial class MainWindow
     private static readonly SolidColorBrush UnifiedErrorBrush = FrozenBrush(0xFF, 0x6B, 0x6B);
 
     private bool _unifiedThemeInstalled;
+    private DispatcherTimer? _contentFolderSingleClickTimer;
+    private ContentAssetViewModel? _pendingContentFolderClick;
 
     protected override void OnContentRendered(EventArgs e)
     {
@@ -70,6 +72,8 @@ public partial class MainWindow
         var toggleButton = FindVisualAncestor<WpfButton>(source);
         if (toggleButton?.DataContext is ContentAssetViewModel { IsFolder: true } buttonFolder)
         {
+            CancelPendingContentFolderSingleClick();
+            SelectContentFolderFromTree(buttonFolder);
             buttonFolder.IsTreeExpanded = !buttonFolder.IsTreeExpanded;
             RefreshContentBrowserViews();
             e.Handled = true;
@@ -90,11 +94,59 @@ public partial class MainWindow
 
         if (e.ClickCount >= 2)
         {
+            CancelPendingContentFolderSingleClick();
+            SelectContentFolderFromTree(folder);
             folder.IsTreeExpanded = !folder.IsTreeExpanded;
             RefreshContentBrowserViews();
+            e.Handled = true;
+            return;
         }
 
+        QueueContentFolderSingleClick(folder);
         e.Handled = true;
+    }
+
+    private void QueueContentFolderSingleClick(ContentAssetViewModel folder)
+    {
+        _pendingContentFolderClick = folder;
+        _contentFolderSingleClickTimer ??= CreateContentFolderSingleClickTimer();
+        _contentFolderSingleClickTimer.Stop();
+        _contentFolderSingleClickTimer.Start();
+    }
+
+    private DispatcherTimer CreateContentFolderSingleClickTimer()
+    {
+        var timer = new DispatcherTimer(DispatcherPriority.Background, Dispatcher)
+        {
+            Interval = TimeSpan.FromMilliseconds(SystemParameters.DoubleClickTime + 20),
+        };
+        timer.Tick += ContentFolderSingleClickTimer_Tick;
+        return timer;
+    }
+
+    private void ContentFolderSingleClickTimer_Tick(object? sender, EventArgs e)
+    {
+        _contentFolderSingleClickTimer?.Stop();
+        if (_pendingContentFolderClick is not { IsFolder: true } folder)
+            return;
+
+        _pendingContentFolderClick = null;
+        SelectContentFolderFromTree(folder);
+        RefreshContentBrowserViews();
+    }
+
+    private void CancelPendingContentFolderSingleClick()
+    {
+        _contentFolderSingleClickTimer?.Stop();
+        _pendingContentFolderClick = null;
+    }
+
+    private void SelectContentFolderFromTree(ContentAssetViewModel folder)
+    {
+        _contentFolderSelectionActive = true;
+        _currentContentFolderId = ReferenceEquals(folder, _rootContentFolder) ? null : folder.Id;
+        ContentBrowserListBox.SelectedItem = null;
+        SetStatus(ReferenceEquals(folder, _rootContentFolder) ? "已进入内容根目录。" : $"已进入文件夹：{folder.Name}");
     }
 
     private void ApplyUnifiedDarkTheme()
