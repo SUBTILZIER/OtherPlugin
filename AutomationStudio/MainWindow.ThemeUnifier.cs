@@ -57,6 +57,7 @@ public partial class MainWindow
         _unifiedThemeInstalled = true;
         ContextMenuOpening += MainWindow_ContextMenuOpeningTheme;
         ContentFolderListBox.AddHandler(WpfUIElement.PreviewMouseLeftButtonDownEvent, new WpfMouseButtonEventHandler(ContentFolderTree_PreviewMouseLeftButtonDownFix), true);
+        InstallContentBrowserEnhancedInteractions();
         Dispatcher.BeginInvoke(new Action(ApplyUnifiedDarkTheme), DispatcherPriority.ContextIdle);
     }
 
