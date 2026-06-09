@@ -2,9 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
-using System.Windows.Data;
 using System.Windows.Media;
 using AutomationStudioWpf.Services;
+using WpfBinding = System.Windows.Data.Binding;
+using WpfBindingMode = System.Windows.Data.BindingMode;
+using WpfBindingOperations = System.Windows.Data.BindingOperations;
 using WpfBorder = System.Windows.Controls.Border;
 using WpfBrush = System.Windows.Media.Brush;
 using WpfColor = System.Windows.Media.Color;
@@ -24,6 +26,7 @@ using WpfTextBox = System.Windows.Controls.TextBox;
 using WpfTextBoxBase = System.Windows.Controls.Primitives.TextBoxBase;
 using WpfTextChangedEventArgs = System.Windows.Controls.TextChangedEventArgs;
 using WpfTextChangedEventHandler = System.Windows.Controls.TextChangedEventHandler;
+using WpfUpdateSourceTrigger = System.Windows.Data.UpdateSourceTrigger;
 
 namespace AutomationStudioWpf;
 
@@ -61,13 +64,13 @@ public partial class MainWindow
         if (textBox.DataContext is not ContentAssetViewModel)
             return;
 
-        var binding = BindingOperations.GetBinding(textBox, WpfTextBox.TextProperty);
+        var binding = WpfBindingOperations.GetBinding(textBox, WpfTextBox.TextProperty);
         if (binding?.Path.Path != nameof(ContentAssetViewModel.RenameText))
         {
-            textBox.SetBinding(WpfTextBox.TextProperty, new Binding(nameof(ContentAssetViewModel.RenameText))
+            textBox.SetBinding(WpfTextBox.TextProperty, new WpfBinding(nameof(ContentAssetViewModel.RenameText))
             {
-                Mode = BindingMode.TwoWay,
-                UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged,
+                Mode = WpfBindingMode.TwoWay,
+                UpdateSourceTrigger = WpfUpdateSourceTrigger.PropertyChanged,
             });
         }
 
