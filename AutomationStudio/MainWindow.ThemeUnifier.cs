@@ -1,3 +1,6 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Threading;
@@ -22,7 +25,6 @@ using WpfRichTextBox = System.Windows.Controls.RichTextBox;
 using WpfTextBox = System.Windows.Controls.TextBox;
 using WpfUIElement = System.Windows.UIElement;
 using WpfVisualTreeHelper = System.Windows.Media.VisualTreeHelper;
-using WinFormsSystemInformation = System.Windows.Forms.SystemInformation;
 
 namespace AutomationStudioWpf;
 
@@ -40,8 +42,6 @@ public partial class MainWindow
     private static readonly SolidColorBrush UnifiedErrorBrush = FrozenBrush(0xFF, 0x6B, 0x6B);
 
     private bool _unifiedThemeInstalled;
-    private DispatcherTimer? _contentFolderSingleClickTimer;
-    private ContentAssetViewModel? _pendingContentFolderClick;
 
     protected override void OnContentRendered(EventArgs e)
     {
@@ -73,10 +73,10 @@ public partial class MainWindow
         var toggleButton = FindVisualAncestor<WpfButton>(source);
         if (toggleButton?.DataContext is ContentAssetViewModel { IsFolder: true } buttonFolder)
         {
-            CancelPendingContentFolderSingleClick();
             SelectContentFolderFromTree(buttonFolder);
             buttonFolder.IsTreeExpanded = !buttonFolder.IsTreeExpanded;
-            RefreshContentBrowserViews();
+            RefreshContentBrowserTreeKeepingExpansion();
+            RefreshContentVisibleItemsForCurrentFolder();
             e.Handled = true;
             return;
         }
@@ -88,66 +88,57 @@ public partial class MainWindow
         if (item?.DataContext is not ContentAssetViewModel { IsFolder: true } folder)
             return;
 
-        _contentFolderSelectionActive = true;
-        ContentFolderListBox.SelectedItem = folder;
-        ContentBrowserListBox.SelectedItem = null;
-        ContentFolderListBox.Focus();
+        SelectContentFolderFromTree(folder);
 
         if (e.ClickCount >= 2)
         {
-            CancelPendingContentFolderSingleClick();
-            SelectContentFolderFromTree(folder);
             folder.IsTreeExpanded = !folder.IsTreeExpanded;
-            RefreshContentBrowserViews();
-            e.Handled = true;
-            return;
+            RefreshContentBrowserTreeKeepingExpansion();
         }
 
-        QueueContentFolderSingleClick(folder);
+        RefreshContentVisibleItemsForCurrentFolder();
         e.Handled = true;
-    }
-
-    private void QueueContentFolderSingleClick(ContentAssetViewModel folder)
-    {
-        _pendingContentFolderClick = folder;
-        _contentFolderSingleClickTimer ??= CreateContentFolderSingleClickTimer();
-        _contentFolderSingleClickTimer.Stop();
-        _contentFolderSingleClickTimer.Start();
-    }
-
-    private DispatcherTimer CreateContentFolderSingleClickTimer()
-    {
-        var timer = new DispatcherTimer(DispatcherPriority.Background, Dispatcher)
-        {
-            Interval = TimeSpan.FromMilliseconds(WinFormsSystemInformation.DoubleClickTime + 20),
-        };
-        timer.Tick += ContentFolderSingleClickTimer_Tick;
-        return timer;
-    }
-
-    private void ContentFolderSingleClickTimer_Tick(object? sender, EventArgs e)
-    {
-        _contentFolderSingleClickTimer?.Stop();
-        if (_pendingContentFolderClick is not { IsFolder: true } folder)
-            return;
-
-        _pendingContentFolderClick = null;
-        SelectContentFolderFromTree(folder);
-        RefreshContentBrowserViews();
-    }
-
-    private void CancelPendingContentFolderSingleClick()
-    {
-        _contentFolderSingleClickTimer?.Stop();
-        _pendingContentFolderClick = null;
     }
 
     private void SelectContentFolderFromTree(ContentAssetViewModel folder)
     {
         _contentFolderSelectionActive = true;
         _currentContentFolderId = ReferenceEquals(folder, _rootContentFolder) ? null : folder.Id;
+        ContentFolderListBox.SelectedItem = folder;
         ContentBrowserListBox.SelectedItem = null;
+        ContentFolderListBox.Focus();
         SetStatus(ReferenceEquals(folder, _rootContentFolder) ? "已进入内容根目录。" : $"已进入文件夹：{folder.Name}");
+    }
+
+    private void RefreshContentVisibleItemsForCurrentFolder()
+    {
+        if (_currentContentFolderId is not null && ContentBrowserItems.All(item => item.Id != _currentContentFolderId))
+            _currentContentFolderId = null;
+
+        ContentVisibleItems.Clear();
+        foreach (var item in ContentBrowserItems
+                     .Where(item => item.ParentFolderId == _currentContentFolderId)
+                     .OrderByDescending(item => item.IsFolder)
+                     .ThenBy(item => item.Name))
+        {
+            ContentVisibleItems.Add(item);
+        }
+    }
+
+    private void RefreshContentBrowserTreeKeepingExpansion()
+    {
+        ContentFolderItems.Clear();
+        _rootContentFolder.ViewDepth = 0;
+        _rootContentFolder.IsTreeExpanded = true;
+        _rootContentFolder.HasFolderChildren = ContentBrowserItems.Any(item => item.IsFolder && item.ParentFolderId is null);
+        ContentFolderItems.Add(_rootContentFolder);
+
+        foreach (var folder in BuildFolderTree(null, 1, new HashSet<string>()))
+            ContentFolderItems.Add(folder);
+
+        ContentFolderListBox.SelectedItem = _currentContentFolderId is null
+            ? _rootContentFolder
+            : ContentFolderItems.FirstOrDefault(item => item.Id == _currentContentFolderId);
     }
 
     private void ApplyUnifiedDarkTheme()
