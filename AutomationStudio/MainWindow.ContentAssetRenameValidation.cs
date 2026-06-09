@@ -2,19 +2,28 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Controls.Primitives;
 using System.Windows.Data;
-using System.Windows.Input;
 using System.Windows.Media;
 using AutomationStudioWpf.Services;
 using WpfBorder = System.Windows.Controls.Border;
 using WpfBrush = System.Windows.Media.Brush;
 using WpfColor = System.Windows.Media.Color;
+using WpfKeyboard = System.Windows.Input.Keyboard;
+using WpfKeyboardFocusChangedEventArgs = System.Windows.Input.KeyboardFocusChangedEventArgs;
+using WpfKeyboardFocusChangedEventHandler = System.Windows.Input.KeyboardFocusChangedEventHandler;
+using WpfKey = System.Windows.Input.Key;
+using WpfKeyEventArgs = System.Windows.Input.KeyEventArgs;
+using WpfKeyEventHandler = System.Windows.Input.KeyEventHandler;
+using WpfMouseButtonEventArgs = System.Windows.Input.MouseButtonEventArgs;
+using WpfMouseButtonEventHandler = System.Windows.Input.MouseButtonEventHandler;
 using WpfPopup = System.Windows.Controls.Primitives.Popup;
+using WpfPlacementMode = System.Windows.Controls.Primitives.PlacementMode;
 using WpfSolidColorBrush = System.Windows.Media.SolidColorBrush;
 using WpfTextBlock = System.Windows.Controls.TextBlock;
 using WpfTextBox = System.Windows.Controls.TextBox;
+using WpfTextBoxBase = System.Windows.Controls.Primitives.TextBoxBase;
+using WpfTextChangedEventArgs = System.Windows.Controls.TextChangedEventArgs;
+using WpfTextChangedEventHandler = System.Windows.Controls.TextChangedEventHandler;
 
 namespace AutomationStudioWpf;
 
@@ -32,9 +41,9 @@ public partial class MainWindow
         _contentAssetRenameValidationInstalled = true;
 
         AddHandler(FrameworkElement.LoadedEvent, new RoutedEventHandler(ContentAssetRenameTextBox_Loaded), true);
-        AddHandler(TextBoxBase.TextChangedEvent, new TextChangedEventHandler(ContentAssetRenameTextBox_TextChangedValidated), true);
-        AddHandler(UIElement.PreviewKeyDownEvent, new KeyEventHandler(ContentAssetRenameTextBox_PreviewKeyDownValidated), true);
-        AddHandler(Keyboard.PreviewLostKeyboardFocusEvent, new KeyboardFocusChangedEventHandler(ContentAssetRenameTextBox_PreviewLostKeyboardFocusValidated), true);
+        AddHandler(WpfTextBoxBase.TextChangedEvent, new WpfTextChangedEventHandler(ContentAssetRenameTextBox_TextChangedValidated), true);
+        AddHandler(UIElement.PreviewKeyDownEvent, new WpfKeyEventHandler(ContentAssetRenameTextBox_PreviewKeyDownValidated), true);
+        AddHandler(WpfKeyboard.PreviewLostKeyboardFocusEvent, new WpfKeyboardFocusChangedEventHandler(ContentAssetRenameTextBox_PreviewLostKeyboardFocusValidated), true);
         PreviewMouseDown += ContentAssetRenameValidation_WindowPreviewMouseDown;
 
         foreach (var textBox in EnumerateVisualDescendants<WpfTextBox>(this))
@@ -80,7 +89,7 @@ public partial class MainWindow
         _contentRenameOriginalBorderBrushes.Remove(textBox);
     }
 
-    private void ContentAssetRenameTextBox_TextChangedValidated(object sender, TextChangedEventArgs e)
+    private void ContentAssetRenameTextBox_TextChangedValidated(object sender, WpfTextChangedEventArgs e)
     {
         if (e.OriginalSource is not WpfTextBox { DataContext: ContentAssetViewModel item } textBox || !item.IsEditing)
             return;
@@ -90,24 +99,24 @@ public partial class MainWindow
         UpdateContentAssetRenameErrorVisual(textBox);
     }
 
-    private void ContentAssetRenameTextBox_PreviewKeyDownValidated(object sender, KeyEventArgs e)
+    private void ContentAssetRenameTextBox_PreviewKeyDownValidated(object sender, WpfKeyEventArgs e)
     {
         if (e.OriginalSource is not WpfTextBox { DataContext: ContentAssetViewModel item } textBox || !item.IsEditing)
             return;
 
-        if (e.Key == Key.Enter)
+        if (e.Key == WpfKey.Enter)
         {
             TryCommitContentAssetRenameValidated(item, textBox, keepFocusOnError: true);
             e.Handled = true;
         }
-        else if (e.Key == Key.Escape)
+        else if (e.Key == WpfKey.Escape)
         {
             CancelContentAssetRenameValidated(item, textBox);
             e.Handled = true;
         }
     }
 
-    private void ContentAssetRenameTextBox_PreviewLostKeyboardFocusValidated(object sender, KeyboardFocusChangedEventArgs e)
+    private void ContentAssetRenameTextBox_PreviewLostKeyboardFocusValidated(object sender, WpfKeyboardFocusChangedEventArgs e)
     {
         if (e.OriginalSource is not WpfTextBox { DataContext: ContentAssetViewModel item } textBox || !item.IsEditing)
             return;
@@ -118,9 +127,9 @@ public partial class MainWindow
         e.Handled = true;
     }
 
-    private void ContentAssetRenameValidation_WindowPreviewMouseDown(object sender, MouseButtonEventArgs e)
+    private void ContentAssetRenameValidation_WindowPreviewMouseDown(object sender, WpfMouseButtonEventArgs e)
     {
-        if (Keyboard.FocusedElement is not WpfTextBox { DataContext: ContentAssetViewModel item } textBox || !item.IsEditing)
+        if (WpfKeyboard.FocusedElement is not WpfTextBox { DataContext: ContentAssetViewModel item } textBox || !item.IsEditing)
             return;
 
         if (e.OriginalSource is DependencyObject source && IsVisualAncestor(textBox, source))
@@ -249,7 +258,7 @@ public partial class MainWindow
             popup = new WpfPopup
             {
                 PlacementTarget = textBox,
-                Placement = PlacementMode.Bottom,
+                Placement = WpfPlacementMode.Bottom,
                 AllowsTransparency = true,
                 StaysOpen = true,
                 IsHitTestVisible = false,
