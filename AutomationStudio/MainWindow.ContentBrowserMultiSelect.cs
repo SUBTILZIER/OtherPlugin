@@ -1,14 +1,51 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Controls.Primitives;
-using System.Windows.Documents;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Effects;
 using AutomationStudioWpf.Services;
+using WpfAdorner = System.Windows.Documents.Adorner;
+using WpfAdornerLayer = System.Windows.Documents.AdornerLayer;
+using WpfBorder = System.Windows.Controls.Border;
+using WpfBrush = System.Windows.Media.Brush;
+using WpfCanvas = System.Windows.Controls.Canvas;
+using WpfColor = System.Windows.Media.Color;
+using WpfDataObject = System.Windows.DataObject;
+using WpfDependencyObject = System.Windows.DependencyObject;
+using WpfDragDrop = System.Windows.DragDrop;
+using WpfDragDropEffects = System.Windows.DragDropEffects;
+using WpfDragDropKeyStates = System.Windows.DragDropKeyStates;
+using WpfDragEventArgs = System.Windows.DragEventArgs;
+using WpfDragEventHandler = System.Windows.DragEventHandler;
+using WpfDrawingContext = System.Windows.Media.DrawingContext;
+using WpfDropShadowEffect = System.Windows.Media.Effects.DropShadowEffect;
+using WpfFontWeights = System.Windows.FontWeights;
+using WpfGiveFeedbackEventArgs = System.Windows.GiveFeedbackEventArgs;
+using WpfKey = System.Windows.Input.Key;
+using WpfKeyboard = System.Windows.Input.Keyboard;
+using WpfKeyEventArgs = System.Windows.Input.KeyEventArgs;
+using WpfKeyEventHandler = System.Windows.Input.KeyEventHandler;
+using WpfListBoxItem = System.Windows.Controls.ListBoxItem;
+using WpfMouseButtonEventArgs = System.Windows.Input.MouseButtonEventArgs;
+using WpfMouseButtonEventHandler = System.Windows.Input.MouseButtonEventHandler;
+using WpfMouseButtonState = System.Windows.Input.MouseButtonState;
+using WpfMouseEventArgs = System.Windows.Input.MouseEventArgs;
+using WpfMouseEventHandler = System.Windows.Input.MouseEventHandler;
+using WpfOrientation = System.Windows.Controls.Orientation;
+using WpfPen = System.Windows.Media.Pen;
+using WpfPlacementMode = System.Windows.Controls.Primitives.PlacementMode;
+using WpfPoint = System.Windows.Point;
+using WpfPopup = System.Windows.Controls.Primitives.Popup;
+using WpfRect = System.Windows.Rect;
+using WpfSelectionMode = System.Windows.Controls.SelectionMode;
+using WpfSolidColorBrush = System.Windows.Media.SolidColorBrush;
+using WpfStackPanel = System.Windows.Controls.StackPanel;
+using WpfSystemParameters = System.Windows.SystemParameters;
+using WpfTextBlock = System.Windows.Controls.TextBlock;
+using WpfTextBox = System.Windows.Controls.TextBox;
+using WpfTextTrimming = System.Windows.TextTrimming;
+using WpfThickness = System.Windows.Thickness;
+using WpfUIElement = System.Windows.UIElement;
+using WpfVerticalAlignment = System.Windows.VerticalAlignment;
+using WpfVisualTreeHelper = System.Windows.Media.VisualTreeHelper;
 using WinFormsControl = System.Windows.Forms.Control;
 
 namespace AutomationStudioWpf;
@@ -20,15 +57,15 @@ public partial class MainWindow
     private bool _contentBrowserEnhancedInteractionsInstalled;
     private bool _isContentBoxSelecting;
     private bool _isContentDragActive;
-    private Point _contentBoxSelectionOrigin;
-    private Point _contentAssetDragStartPoint;
+    private WpfPoint _contentBoxSelectionOrigin;
+    private WpfPoint _contentAssetDragStartPoint;
     private ContentAssetViewModel? _contentRangeAnchor;
     private ContentAssetViewModel? _contentDragCandidate;
     private ContentSelectionAdorner? _contentSelectionAdorner;
-    private AdornerLayer? _contentSelectionAdornerLayer;
+    private WpfAdornerLayer? _contentSelectionAdornerLayer;
     private HashSet<string> _contentBoxSelectionBaseIds = [];
     private List<ContentAssetViewModel> _contentClipboardAssets = [];
-    private Popup? _contentDragPreviewPopup;
+    private WpfPopup? _contentDragPreviewPopup;
 
     private void InstallContentBrowserEnhancedInteractions()
     {
@@ -36,24 +73,24 @@ public partial class MainWindow
             return;
 
         _contentBrowserEnhancedInteractionsInstalled = true;
-        ContentBrowserListBox.SelectionMode = SelectionMode.Extended;
+        ContentBrowserListBox.SelectionMode = WpfSelectionMode.Extended;
         ContentBrowserListBox.AllowDrop = true;
         ContentFolderListBox.AllowDrop = true;
 
-        ContentBrowserBodyGrid.AddHandler(UIElement.PreviewMouseLeftButtonDownEvent, new MouseButtonEventHandler(ContentBrowserEnhanced_PreviewMouseLeftButtonDown), true);
-        ContentBrowserBodyGrid.AddHandler(UIElement.PreviewMouseMoveEvent, new MouseEventHandler(ContentBrowserEnhanced_PreviewMouseMove), true);
-        ContentBrowserBodyGrid.AddHandler(UIElement.PreviewMouseLeftButtonUpEvent, new MouseButtonEventHandler(ContentBrowserEnhanced_PreviewMouseLeftButtonUp), true);
-        ContentBrowserBodyGrid.AddHandler(DragDrop.PreviewDragOverEvent, new DragEventHandler(ContentBrowserEnhanced_PreviewDragOver), true);
-        ContentBrowserBodyGrid.AddHandler(DragDrop.PreviewDropEvent, new DragEventHandler(ContentBrowserEnhanced_PreviewDrop), true);
-        ContentBrowserListBox.AddHandler(Keyboard.PreviewKeyDownEvent, new KeyEventHandler(ContentBrowserEnhanced_PreviewKeyDown), true);
+        ContentBrowserBodyGrid.AddHandler(WpfUIElement.PreviewMouseLeftButtonDownEvent, new WpfMouseButtonEventHandler(ContentBrowserEnhanced_PreviewMouseLeftButtonDown), true);
+        ContentBrowserBodyGrid.AddHandler(WpfUIElement.PreviewMouseMoveEvent, new WpfMouseEventHandler(ContentBrowserEnhanced_PreviewMouseMove), true);
+        ContentBrowserBodyGrid.AddHandler(WpfUIElement.PreviewMouseLeftButtonUpEvent, new WpfMouseButtonEventHandler(ContentBrowserEnhanced_PreviewMouseLeftButtonUp), true);
+        ContentBrowserBodyGrid.AddHandler(WpfDragDrop.PreviewDragOverEvent, new WpfDragEventHandler(ContentBrowserEnhanced_PreviewDragOver), true);
+        ContentBrowserBodyGrid.AddHandler(WpfDragDrop.PreviewDropEvent, new WpfDragEventHandler(ContentBrowserEnhanced_PreviewDrop), true);
+        ContentBrowserListBox.AddHandler(WpfKeyboard.PreviewKeyDownEvent, new WpfKeyEventHandler(ContentBrowserEnhanced_PreviewKeyDown), true);
         ContentBrowserListBox.GiveFeedback += ContentBrowserEnhanced_GiveFeedback;
     }
 
-    private void ContentBrowserEnhanced_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    private void ContentBrowserEnhanced_PreviewMouseLeftButtonDown(object sender, WpfMouseButtonEventArgs e)
     {
-        if (e.OriginalSource is not DependencyObject source || !IsVisualInside(ContentBrowserListBox, source))
+        if (e.OriginalSource is not WpfDependencyObject source || !IsVisualInside(ContentBrowserListBox, source))
             return;
-        if (HasVisualAncestor<TextBox>(source))
+        if (HasVisualAncestor<WpfTextBox>(source))
             return;
 
         _contentFolderSelectionActive = false;
@@ -69,7 +106,7 @@ public partial class MainWindow
 
             if (e.ClickCount >= 2)
             {
-                SelectContentAssetForClick(asset, Keyboard.Modifiers, forceSingle: true);
+                SelectContentAssetForClick(asset, WpfKeyboard.Modifiers, forceSingle: true);
                 if (asset.Kind == ContentAssetKind.Folder)
                     EnterContentFolder(asset);
                 else
@@ -79,38 +116,38 @@ public partial class MainWindow
                 return;
             }
 
-            SelectContentAssetForClick(asset, Keyboard.Modifiers, forceSingle: false);
+            SelectContentAssetForClick(asset, WpfKeyboard.Modifiers, forceSingle: false);
             e.Handled = true;
             return;
         }
 
         _contentDragCandidate = null;
-        BeginContentBoxSelection(e.GetPosition(ContentBrowserListBox), Keyboard.Modifiers);
+        BeginContentBoxSelection(e.GetPosition(ContentBrowserListBox), WpfKeyboard.Modifiers);
         e.Handled = true;
     }
 
-    private void ContentBrowserEnhanced_PreviewMouseMove(object sender, MouseEventArgs e)
+    private void ContentBrowserEnhanced_PreviewMouseMove(object sender, WpfMouseEventArgs e)
     {
         if (_isContentBoxSelecting)
         {
-            if (e.LeftButton != MouseButtonState.Pressed)
+            if (e.LeftButton != WpfMouseButtonState.Pressed)
             {
                 EndContentBoxSelection();
                 e.Handled = true;
                 return;
             }
 
-            UpdateContentBoxSelection(e.GetPosition(ContentBrowserListBox), Keyboard.Modifiers);
+            UpdateContentBoxSelection(e.GetPosition(ContentBrowserListBox), WpfKeyboard.Modifiers);
             e.Handled = true;
             return;
         }
 
-        if (_contentDragCandidate is null || _isContentDragActive || e.LeftButton != MouseButtonState.Pressed)
+        if (_contentDragCandidate is null || _isContentDragActive || e.LeftButton != WpfMouseButtonState.Pressed)
             return;
 
         var current = e.GetPosition(ContentBrowserListBox);
-        if (Math.Abs(current.X - _contentAssetDragStartPoint.X) < SystemParameters.MinimumHorizontalDragDistance &&
-            Math.Abs(current.Y - _contentAssetDragStartPoint.Y) < SystemParameters.MinimumVerticalDragDistance)
+        if (Math.Abs(current.X - _contentAssetDragStartPoint.X) < WpfSystemParameters.MinimumHorizontalDragDistance &&
+            Math.Abs(current.Y - _contentAssetDragStartPoint.Y) < WpfSystemParameters.MinimumVerticalDragDistance)
         {
             return;
         }
@@ -119,7 +156,7 @@ public partial class MainWindow
         e.Handled = true;
     }
 
-    private void ContentBrowserEnhanced_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    private void ContentBrowserEnhanced_PreviewMouseLeftButtonUp(object sender, WpfMouseButtonEventArgs e)
     {
         if (_isContentBoxSelecting)
         {
@@ -130,27 +167,27 @@ public partial class MainWindow
         _contentDragCandidate = null;
     }
 
-    private void ContentBrowserEnhanced_PreviewKeyDown(object sender, KeyEventArgs e)
+    private void ContentBrowserEnhanced_PreviewKeyDown(object sender, WpfKeyEventArgs e)
     {
-        if ((Keyboard.Modifiers & ModifierKeys.Control) == 0)
+        if ((WpfKeyboard.Modifiers & System.Windows.Input.ModifierKeys.Control) == 0)
             return;
 
-        if (e.Key == Key.C)
+        if (e.Key == WpfKey.C)
         {
             CopySelectedContentAssets();
             e.Handled = true;
         }
-        else if (e.Key == Key.V)
+        else if (e.Key == WpfKey.V)
         {
             PasteContentAssetsToCurrentFolder();
             e.Handled = true;
         }
     }
 
-    private void SelectContentAssetForClick(ContentAssetViewModel asset, ModifierKeys modifiers, bool forceSingle)
+    private void SelectContentAssetForClick(ContentAssetViewModel asset, System.Windows.Input.ModifierKeys modifiers, bool forceSingle)
     {
-        bool ctrl = (modifiers & ModifierKeys.Control) != 0;
-        bool shift = (modifiers & ModifierKeys.Shift) != 0;
+        bool ctrl = (modifiers & System.Windows.Input.ModifierKeys.Control) != 0;
+        bool shift = (modifiers & System.Windows.Input.ModifierKeys.Shift) != 0;
 
         if (shift && _contentRangeAnchor is not null)
         {
@@ -203,11 +240,11 @@ public partial class MainWindow
         }
     }
 
-    private void BeginContentBoxSelection(Point origin, ModifierKeys modifiers)
+    private void BeginContentBoxSelection(WpfPoint origin, System.Windows.Input.ModifierKeys modifiers)
     {
         _isContentBoxSelecting = true;
         _contentBoxSelectionOrigin = origin;
-        _contentBoxSelectionBaseIds = (modifiers & (ModifierKeys.Control | ModifierKeys.Shift)) != 0
+        _contentBoxSelectionBaseIds = (modifiers & (System.Windows.Input.ModifierKeys.Control | System.Windows.Input.ModifierKeys.Shift)) != 0
             ? GetSelectedContentAssets().Select(item => item.Id).ToHashSet()
             : [];
 
@@ -216,22 +253,22 @@ public partial class MainWindow
 
         ContentBrowserListBox.CaptureMouse();
         EnsureContentSelectionAdorner();
-        _contentSelectionAdorner?.Update(new Rect(origin, origin));
+        _contentSelectionAdorner?.Update(new WpfRect(origin, origin));
     }
 
-    private void UpdateContentBoxSelection(Point current, ModifierKeys modifiers)
+    private void UpdateContentBoxSelection(WpfPoint current, System.Windows.Input.ModifierKeys modifiers)
     {
-        var selectionRect = NormalizeRect(new Rect(_contentBoxSelectionOrigin, current));
+        var selectionRect = NormalizeRect(new WpfRect(_contentBoxSelectionOrigin, current));
         _contentSelectionAdorner?.Update(selectionRect);
 
         var selectedByBox = new HashSet<string>();
         foreach (var asset in ContentVisibleItems)
         {
-            if (ContentBrowserListBox.ItemContainerGenerator.ContainerFromItem(asset) is not ListBoxItem container)
+            if (ContentBrowserListBox.ItemContainerGenerator.ContainerFromItem(asset) is not WpfListBoxItem container)
                 continue;
 
             var itemRect = container.TransformToAncestor(ContentBrowserListBox)
-                .TransformBounds(new Rect(new Point(0, 0), container.RenderSize));
+                .TransformBounds(new WpfRect(new WpfPoint(0, 0), container.RenderSize));
 
             if (selectionRect.IntersectsWith(itemRect))
                 selectedByBox.Add(asset.Id);
@@ -262,7 +299,7 @@ public partial class MainWindow
         if (_contentSelectionAdorner is not null)
             return;
 
-        _contentSelectionAdornerLayer = AdornerLayer.GetAdornerLayer(ContentBrowserListBox);
+        _contentSelectionAdornerLayer = WpfAdornerLayer.GetAdornerLayer(ContentBrowserListBox);
         if (_contentSelectionAdornerLayer is null)
             return;
 
@@ -286,14 +323,14 @@ public partial class MainWindow
             return;
 
         _isContentDragActive = true;
-        var data = new DataObject();
+        var data = new WpfDataObject();
         data.SetData(ContentAssetDragDataFormat, selectedAssets);
 
         SetContentAssetDragOpacity(selectedAssets, 0.45);
         StartContentDragPreview(selectedAssets);
         try
         {
-            DragDrop.DoDragDrop(ContentBrowserListBox, data, DragDropEffects.Move | DragDropEffects.Copy);
+            WpfDragDrop.DoDragDrop(ContentBrowserListBox, data, WpfDragDropEffects.Move | WpfDragDropEffects.Copy);
         }
         finally
         {
@@ -304,35 +341,35 @@ public partial class MainWindow
         }
     }
 
-    private void ContentBrowserEnhanced_PreviewDragOver(object sender, DragEventArgs e)
+    private void ContentBrowserEnhanced_PreviewDragOver(object sender, WpfDragEventArgs e)
     {
         if (!TryGetDraggedContentAssets(e, out var sources))
             return;
 
-        var target = GetContentDropTargetFolder(e.OriginalSource as DependencyObject);
-        bool copy = (e.KeyStates & DragDropKeyStates.ControlKey) != 0;
+        var target = GetContentDropTargetFolder(e.OriginalSource as WpfDependencyObject);
+        bool copy = (e.KeyStates & WpfDragDropKeyStates.ControlKey) != 0;
         e.Effects = target is not null && sources.Any(source => CanDropContentAsset(source, target, copy))
-            ? (copy ? DragDropEffects.Copy : DragDropEffects.Move)
-            : DragDropEffects.None;
+            ? (copy ? WpfDragDropEffects.Copy : WpfDragDropEffects.Move)
+            : WpfDragDropEffects.None;
         e.Handled = true;
     }
 
-    private void ContentBrowserEnhanced_PreviewDrop(object sender, DragEventArgs e)
+    private void ContentBrowserEnhanced_PreviewDrop(object sender, WpfDragEventArgs e)
     {
         if (!TryGetDraggedContentAssets(e, out var sources))
             return;
 
-        var target = GetContentDropTargetFolder(e.OriginalSource as DependencyObject);
+        var target = GetContentDropTargetFolder(e.OriginalSource as WpfDependencyObject);
         if (target is null)
         {
-            e.Effects = DragDropEffects.None;
+            e.Effects = WpfDragDropEffects.None;
             e.Handled = true;
             return;
         }
 
-        bool copy = (e.KeyStates & DragDropKeyStates.ControlKey) != 0;
+        bool copy = (e.KeyStates & WpfDragDropKeyStates.ControlKey) != 0;
         ApplyContentAssetDrop(sources, target, copy);
-        e.Effects = copy ? DragDropEffects.Copy : DragDropEffects.Move;
+        e.Effects = copy ? WpfDragDropEffects.Copy : WpfDragDropEffects.Move;
         e.Handled = true;
     }
 
@@ -435,7 +472,7 @@ public partial class MainWindow
         SetStatus($"已粘贴 {_contentClipboardAssets.Count} 个资产。");
     }
 
-    private bool TryGetDraggedContentAssets(DragEventArgs e, out List<ContentAssetViewModel> assets)
+    private bool TryGetDraggedContentAssets(WpfDragEventArgs e, out List<ContentAssetViewModel> assets)
     {
         assets = [];
         if (!e.Data.GetDataPresent(ContentAssetDragDataFormat))
@@ -450,12 +487,12 @@ public partial class MainWindow
         return false;
     }
 
-    private ContentAssetViewModel? GetContentDropTargetFolder(DependencyObject? source)
+    private ContentAssetViewModel? GetContentDropTargetFolder(WpfDependencyObject? source)
     {
         if (source is null)
             return null;
 
-        var item = FindVisualAncestor<ListBoxItem>(source);
+        var item = FindVisualAncestor<WpfListBoxItem>(source);
         if (item?.DataContext is ContentAssetViewModel { IsFolder: true } folder)
             return folder;
 
@@ -469,25 +506,25 @@ public partial class MainWindow
         return null;
     }
 
-    private ContentAssetViewModel? GetContentVisibleAssetFromSource(DependencyObject source)
+    private ContentAssetViewModel? GetContentVisibleAssetFromSource(WpfDependencyObject source)
     {
-        var item = FindVisualAncestor<ListBoxItem>(source);
+        var item = FindVisualAncestor<WpfListBoxItem>(source);
         return item?.DataContext as ContentAssetViewModel;
     }
 
     private List<ContentAssetViewModel> GetSelectedContentAssets() =>
         ContentBrowserListBox.SelectedItems.Cast<ContentAssetViewModel>().ToList();
 
-    private static Rect NormalizeRect(Rect rect)
+    private static WpfRect NormalizeRect(WpfRect rect)
     {
         double x = Math.Min(rect.Left, rect.Right);
         double y = Math.Min(rect.Top, rect.Bottom);
         double width = Math.Abs(rect.Width);
         double height = Math.Abs(rect.Height);
-        return new Rect(x, y, width, height);
+        return new WpfRect(x, y, width, height);
     }
 
-    private static bool IsVisualInside(DependencyObject root, DependencyObject source)
+    private static bool IsVisualInside(WpfDependencyObject root, WpfDependencyObject source)
     {
         var current = source;
         while (current is not null)
@@ -495,7 +532,7 @@ public partial class MainWindow
             if (ReferenceEquals(current, root))
                 return true;
 
-            current = VisualTreeHelper.GetParent(current);
+            current = WpfVisualTreeHelper.GetParent(current);
         }
 
         return false;
@@ -505,7 +542,7 @@ public partial class MainWindow
     {
         foreach (var asset in assets)
         {
-            if (ContentBrowserListBox.ItemContainerGenerator.ContainerFromItem(asset) is UIElement element)
+            if (ContentBrowserListBox.ItemContainerGenerator.ContainerFromItem(asset) is WpfUIElement element)
                 element.Opacity = opacity;
         }
     }
@@ -515,47 +552,47 @@ public partial class MainWindow
         var title = assets.Count == 1 ? assets[0].Name : $"{assets.Count} 个资产";
         var glyph = assets.Count == 1 ? assets[0].TileGlyph : "MULTI";
 
-        var panel = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(8, 6, 10, 6) };
-        panel.Children.Add(new Border
+        var panel = new WpfStackPanel { Orientation = WpfOrientation.Horizontal, Margin = new WpfThickness(8, 6, 10, 6) };
+        panel.Children.Add(new WpfBorder
         {
             Width = 40,
             Height = 32,
-            CornerRadius = new CornerRadius(5),
-            Background = new SolidColorBrush(Color.FromRgb(79, 163, 255)),
-            Child = new TextBlock
+            CornerRadius = new System.Windows.CornerRadius(5),
+            Background = new WpfSolidColorBrush(WpfColor.FromRgb(79, 163, 255)),
+            Child = new WpfTextBlock
             {
                 Text = glyph,
-                Foreground = new SolidColorBrush(Color.FromRgb(17, 21, 26)),
-                FontWeight = FontWeights.Bold,
+                Foreground = new WpfSolidColorBrush(WpfColor.FromRgb(17, 21, 26)),
+                FontWeight = WpfFontWeights.Bold,
                 FontSize = 10,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center,
+                HorizontalAlignment = System.Windows.HorizontalAlignment.Center,
+                VerticalAlignment = WpfVerticalAlignment.Center,
             },
         });
-        panel.Children.Add(new TextBlock
+        panel.Children.Add(new WpfTextBlock
         {
             Text = title,
-            Foreground = Brushes.White,
-            FontWeight = FontWeights.SemiBold,
-            Margin = new Thickness(8, 0, 0, 0),
-            VerticalAlignment = VerticalAlignment.Center,
+            Foreground = System.Windows.Media.Brushes.White,
+            FontWeight = WpfFontWeights.SemiBold,
+            Margin = new WpfThickness(8, 0, 0, 0),
+            VerticalAlignment = WpfVerticalAlignment.Center,
             MaxWidth = 180,
-            TextTrimming = TextTrimming.CharacterEllipsis,
+            TextTrimming = WpfTextTrimming.CharacterEllipsis,
         });
 
-        _contentDragPreviewPopup = new Popup
+        _contentDragPreviewPopup = new WpfPopup
         {
             AllowsTransparency = true,
             IsHitTestVisible = false,
-            Placement = PlacementMode.Absolute,
-            Child = new Border
+            Placement = WpfPlacementMode.Absolute,
+            Child = new WpfBorder
             {
-                Background = new SolidColorBrush(Color.FromArgb(170, 32, 36, 43)),
-                BorderBrush = new SolidColorBrush(Color.FromArgb(210, 79, 163, 255)),
-                BorderThickness = new Thickness(1),
-                CornerRadius = new CornerRadius(8),
+                Background = new WpfSolidColorBrush(WpfColor.FromArgb(170, 32, 36, 43)),
+                BorderBrush = new WpfSolidColorBrush(WpfColor.FromArgb(210, 79, 163, 255)),
+                BorderThickness = new WpfThickness(1),
+                CornerRadius = new System.Windows.CornerRadius(8),
                 Opacity = 0.72,
-                Effect = new DropShadowEffect
+                Effect = new WpfDropShadowEffect
                 {
                     BlurRadius = 12,
                     ShadowDepth = 2,
@@ -578,7 +615,7 @@ public partial class MainWindow
         _contentDragPreviewPopup = null;
     }
 
-    private void ContentBrowserEnhanced_GiveFeedback(object sender, GiveFeedbackEventArgs e)
+    private void ContentBrowserEnhanced_GiveFeedback(object sender, WpfGiveFeedbackEventArgs e)
     {
         UpdateContentDragPreviewPosition();
         e.UseDefaultCursors = true;
@@ -595,19 +632,19 @@ public partial class MainWindow
         _contentDragPreviewPopup.VerticalOffset = mouse.Y + 14;
     }
 
-    private sealed class ContentSelectionAdorner(UIElement adornedElement) : Adorner(adornedElement)
+    private sealed class ContentSelectionAdorner(WpfUIElement adornedElement) : WpfAdorner(adornedElement)
     {
-        private Rect _selectionRect = Rect.Empty;
-        private readonly Brush _fill = new SolidColorBrush(Color.FromArgb(48, 79, 163, 255));
-        private readonly Pen _stroke = new(new SolidColorBrush(Color.FromArgb(210, 139, 199, 255)), 1.0);
+        private WpfRect _selectionRect = WpfRect.Empty;
+        private readonly WpfBrush _fill = new WpfSolidColorBrush(WpfColor.FromArgb(48, 79, 163, 255));
+        private readonly WpfPen _stroke = new(new WpfSolidColorBrush(WpfColor.FromArgb(210, 139, 199, 255)), 1.0);
 
-        public void Update(Rect selectionRect)
+        public void Update(WpfRect selectionRect)
         {
             _selectionRect = selectionRect;
             InvalidateVisual();
         }
 
-        protected override void OnRender(DrawingContext drawingContext)
+        protected override void OnRender(WpfDrawingContext drawingContext)
         {
             base.OnRender(drawingContext);
             if (_selectionRect.IsEmpty || _selectionRect.Width <= 1 || _selectionRect.Height <= 1)
