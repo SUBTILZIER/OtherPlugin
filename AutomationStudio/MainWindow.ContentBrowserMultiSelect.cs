@@ -23,6 +23,10 @@ using WpfKeyboard = System.Windows.Input.Keyboard;
 using WpfKeyEventArgs = System.Windows.Input.KeyEventArgs;
 using WpfKeyEventHandler = System.Windows.Input.KeyEventHandler;
 using WpfListBoxItem = System.Windows.Controls.ListBoxItem;
+using WpfMessageBox = System.Windows.MessageBox;
+using WpfMessageBoxButton = System.Windows.MessageBoxButton;
+using WpfMessageBoxImage = System.Windows.MessageBoxImage;
+using WpfMessageBoxResult = System.Windows.MessageBoxResult;
 using WpfMouseButtonEventArgs = System.Windows.Input.MouseButtonEventArgs;
 using WpfMouseButtonEventHandler = System.Windows.Input.MouseButtonEventHandler;
 using WpfMouseButtonState = System.Windows.Input.MouseButtonState;
@@ -34,6 +38,7 @@ using WpfPlacementMode = System.Windows.Controls.Primitives.PlacementMode;
 using WpfPoint = System.Windows.Point;
 using WpfPopup = System.Windows.Controls.Primitives.Popup;
 using WpfRect = System.Windows.Rect;
+using WpfRoutedEventArgs = System.Windows.RoutedEventArgs;
 using WpfSelectionMode = System.Windows.Controls.SelectionMode;
 using WpfSolidColorBrush = System.Windows.Media.SolidColorBrush;
 using WpfStackPanel = System.Windows.Controls.StackPanel;
@@ -44,6 +49,7 @@ using WpfTextTrimming = System.Windows.TextTrimming;
 using WpfThickness = System.Windows.Thickness;
 using WpfUIElement = System.Windows.UIElement;
 using WpfVerticalAlignment = System.Windows.VerticalAlignment;
+using WpfVisibility = System.Windows.Visibility;
 using WpfVisualTreeHelper = System.Windows.Media.VisualTreeHelper;
 using WinFormsControl = System.Windows.Forms.Control;
 
@@ -76,7 +82,17 @@ public partial class MainWindow
         ContentBrowserListBox.AllowDrop = true;
         ContentFolderListBox.AllowDrop = true;
 
+        ContentBrowserListBox.PreviewMouseMove -= ContentBrowserListBox_PreviewMouseMove;
+        ContentBrowserListBox.PreviewMouseRightButtonDown -= ContentBrowserListBox_PreviewMouseRightButtonDown;
+        ContentBrowserDeleteMenuItem.Click -= DeleteContentAssetMenuItem_Click;
+        ContentBrowserDeleteMenuItem.Click += DeleteSelectedContentAssetsMenuItem_Click;
+        ContentBrowserRenameMenuItem.Click -= RenameContentAssetMenuItem_Click;
+        ContentBrowserRenameMenuItem.Click += RenameSelectedContentAssetMenuItem_Click;
+        if (ContentBrowserListBox.ContextMenu is not null)
+            ContentBrowserListBox.ContextMenu.Opened += ContentBrowserContextMenu_EnhancedOpened;
+
         ContentBrowserBodyGrid.AddHandler(WpfUIElement.PreviewMouseLeftButtonDownEvent, new WpfMouseButtonEventHandler(ContentBrowserEnhanced_PreviewMouseLeftButtonDown), true);
+        ContentBrowserBodyGrid.AddHandler(WpfUIElement.PreviewMouseRightButtonDownEvent, new WpfMouseButtonEventHandler(ContentBrowserEnhanced_PreviewMouseRightButtonDown), true);
         ContentBrowserBodyGrid.AddHandler(WpfUIElement.PreviewMouseMoveEvent, new WpfMouseEventHandler(ContentBrowserEnhanced_PreviewMouseMove), true);
         ContentBrowserBodyGrid.AddHandler(WpfUIElement.PreviewMouseLeftButtonUpEvent, new WpfMouseButtonEventHandler(ContentBrowserEnhanced_PreviewMouseLeftButtonUp), true);
         ContentBrowserBodyGrid.AddHandler(WpfDragDrop.PreviewDragOverEvent, new WpfDragEventHandler(ContentBrowserEnhanced_PreviewDragOver), true);
@@ -125,6 +141,39 @@ public partial class MainWindow
         e.Handled = true;
     }
 
+    private void ContentBrowserEnhanced_PreviewMouseRightButtonDown(object sender, WpfMouseButtonEventArgs e)
+    {
+        if (e.OriginalSource is not WpfDependencyObject source || !IsVisualInside(ContentBrowserListBox, source))
+            return;
+        if (HasVisualAncestor<WpfTextBox>(source))
+            return;
+
+        _contentFolderSelectionActive = false;
+        ContentFolderListBox.SelectedItem = null;
+        ContentBrowserListBox.Focus();
+
+        var asset = GetContentVisibleAssetFromSource(source);
+        if (asset is not null)
+        {
+            if (!ContentBrowserListBox.SelectedItems.Contains(asset))
+            {
+                ContentBrowserListBox.SelectedItems.Clear();
+                ContentBrowserListBox.SelectedItems.Add(asset);
+                _contentRangeAnchor = asset;
+            }
+
+            _contentBrowserContextTargetsAsset = true;
+            e.Handled = true;
+            return;
+        }
+
+        ContentBrowserListBox.SelectedItems.Clear();
+        ContentBrowserListBox.SelectedItem = null;
+        _contentRangeAnchor = null;
+        _contentBrowserContextTargetsAsset = false;
+        e.Handled = true;
+    }
+
     private void ContentBrowserEnhanced_PreviewMouseMove(object sender, WpfMouseEventArgs e)
     {
         if (_isContentBoxSelecting)
@@ -168,19 +217,66 @@ public partial class MainWindow
 
     private void ContentBrowserEnhanced_PreviewKeyDown(object sender, WpfKeyEventArgs e)
     {
-        if ((WpfKeyboard.Modifiers & System.Windows.Input.ModifierKeys.Control) == 0)
+        if (WpfKeyboard.FocusedElement is WpfTextBox)
             return;
 
-        if (e.Key == WpfKey.C)
+        bool ctrl = (WpfKeyboard.Modifiers & System.Windows.Input.ModifierKeys.Control) != 0;
+        if (ctrl && e.Key == WpfKey.C)
         {
             CopySelectedContentAssets();
             e.Handled = true;
+            return;
         }
-        else if (e.Key == WpfKey.V)
+
+        if (ctrl && e.Key == WpfKey.V)
         {
             PasteContentAssetsToCurrentFolder();
             e.Handled = true;
+            return;
         }
+
+        if (e.Key == WpfKey.Delete)
+        {
+            DeleteSelectedContentAssets();
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key == WpfKey.F2)
+        {
+            StartRenameSelectedContentAssetEnhanced();
+            e.Handled = true;
+        }
+    }
+
+    private void ContentBrowserContextMenu_EnhancedOpened(object sender, WpfRoutedEventArgs e)
+    {
+        int selectedCount = GetSelectedContentAssetList().Count;
+        bool hasSelection = selectedCount > 0;
+        bool canRename = selectedCount == 1;
+
+        ContentBrowserRenameMenuItem.Visibility = canRename ? WpfVisibility.Visible : WpfVisibility.Collapsed;
+        ContentBrowserDeleteMenuItem.Visibility = hasSelection ? WpfVisibility.Visible : WpfVisibility.Collapsed;
+        ContentBrowserAssetMenuSeparator.Visibility = hasSelection ? WpfVisibility.Visible : WpfVisibility.Collapsed;
+
+        var newVisibility = hasSelection ? WpfVisibility.Collapsed : WpfVisibility.Visible;
+        ContentBrowserNewScriptMenuItem.Visibility = newVisibility;
+        ContentBrowserNewFolderMenuItem.Visibility = newVisibility;
+        ContentBrowserNewLibraryMenuSeparator.Visibility = newVisibility;
+        ContentBrowserNewFunctionLibraryMenuItem.Visibility = newVisibility;
+        ContentBrowserNewMacroLibraryMenuItem.Visibility = newVisibility;
+    }
+
+    private void DeleteSelectedContentAssetsMenuItem_Click(object sender, WpfRoutedEventArgs e)
+    {
+        DeleteSelectedContentAssets();
+        e.Handled = true;
+    }
+
+    private void RenameSelectedContentAssetMenuItem_Click(object sender, WpfRoutedEventArgs e)
+    {
+        StartRenameSelectedContentAssetEnhanced();
+        e.Handled = true;
     }
 
     private void SelectContentAssetForClick(ContentAssetViewModel asset, System.Windows.Input.ModifierKeys modifiers, bool forceSingle)
@@ -244,7 +340,7 @@ public partial class MainWindow
         _isContentBoxSelecting = true;
         _contentBoxSelectionOrigin = origin;
         _contentBoxSelectionBaseIds = (modifiers & (System.Windows.Input.ModifierKeys.Control | System.Windows.Input.ModifierKeys.Shift)) != 0
-            ? GetSelectedContentAssets().Select(item => item.Id).ToHashSet()
+            ? GetSelectedContentAssetList().Select(item => item.Id).ToHashSet()
             : [];
 
         if (_contentBoxSelectionBaseIds.Count == 0)
@@ -308,7 +404,7 @@ public partial class MainWindow
 
     private void StartContentAssetDrag()
     {
-        var selectedAssets = GetSelectedContentAssets()
+        var selectedAssets = GetSelectedContentAssetList()
             .Where(item => !ReferenceEquals(item, _rootContentFolder))
             .ToList();
 
@@ -346,10 +442,14 @@ public partial class MainWindow
             return;
 
         var target = GetContentDropTargetFolder(e.OriginalSource as WpfDependencyObject);
-        bool copy = (e.KeyStates & WpfDragDropKeyStates.ControlKey) != 0;
-        e.Effects = target is not null && sources.Any(source => CanDropContentAsset(source, target, copy))
-            ? (copy ? WpfDragDropEffects.Copy : WpfDragDropEffects.Move)
-            : WpfDragDropEffects.None;
+        bool canMove = target is not null && GetDroppableTopLevelContentAssets(sources, target, copy: false).Count > 0;
+        bool canCopy = target is not null && GetDroppableTopLevelContentAssets(sources, target, copy: true).Count > 0;
+
+        e.Effects = canMove
+            ? WpfDragDropEffects.Move
+            : canCopy
+                ? WpfDragDropEffects.Copy
+                : WpfDragDropEffects.None;
         e.Handled = true;
     }
 
@@ -366,6 +466,15 @@ public partial class MainWindow
             return;
         }
 
+        var movableSources = GetDroppableTopLevelContentAssets(sources, target, copy: false);
+        var copyableSources = GetDroppableTopLevelContentAssets(sources, target, copy: true);
+        if (movableSources.Count == 0 && copyableSources.Count == 0)
+        {
+            e.Effects = WpfDragDropEffects.None;
+            e.Handled = true;
+            return;
+        }
+
         var choice = ShowContentDropActionDialog(sources.Count == 1 ? sources[0].Name : $"{sources.Count} 个资产");
         if (choice == ContentDropAction.Cancel)
         {
@@ -375,33 +484,60 @@ public partial class MainWindow
         }
 
         bool copy = choice == ContentDropAction.Copy;
-        ApplyContentAssetDrop(sources, target, copy);
+        var acceptedSources = copy ? copyableSources : movableSources;
+        if (acceptedSources.Count == 0)
+        {
+            SetStatus(copy ? "没有可复制到此处的资产。" : "没有可移动到此处的资产。");
+            e.Effects = WpfDragDropEffects.None;
+            e.Handled = true;
+            return;
+        }
+
+        ApplyContentAssetDrop(acceptedSources, target, copy, alreadyFiltered: true);
         e.Effects = copy ? WpfDragDropEffects.Copy : WpfDragDropEffects.Move;
         e.Handled = true;
     }
 
-    private void ApplyContentAssetDrop(IReadOnlyList<ContentAssetViewModel> sources, ContentAssetViewModel targetFolder, bool copy)
+    private void ApplyContentAssetDrop(
+        IReadOnlyList<ContentAssetViewModel> sources,
+        ContentAssetViewModel targetFolder,
+        bool copy,
+        bool alreadyFiltered = false)
     {
         string? targetFolderId = ReferenceEquals(targetFolder, _rootContentFolder) ? null : targetFolder.Id;
-        var topLevelSources = GetTopLevelContentAssets(sources)
-            .Where(source => CanDropContentAsset(source, targetFolder, copy))
-            .ToList();
+        var topLevelSources = alreadyFiltered
+            ? sources.ToList()
+            : GetDroppableTopLevelContentAssets(sources, targetFolder, copy);
 
         if (topLevelSources.Count == 0)
             return;
 
+        var affectedAssets = new List<ContentAssetViewModel>();
         foreach (var source in topLevelSources)
         {
             if (copy)
-                CloneContentAssetDeep(source, targetFolderId);
+                affectedAssets.Add(CloneContentAssetDeep(source, targetFolderId));
             else
+            {
                 MoveContentAsset(source, targetFolderId);
+                affectedAssets.Add(source);
+            }
         }
 
         RefreshContentBrowserTreeKeepingExpansion();
         RefreshContentVisibleItemsForCurrentFolder();
+        SelectVisibleContentAssets(affectedAssets);
         PersistAssetLibrary();
+        SetStatus(copy ? $"已复制 {affectedAssets.Count} 个资产。" : $"已移动 {affectedAssets.Count} 个资产。");
     }
+
+    private List<ContentAssetViewModel> GetDroppableTopLevelContentAssets(
+        IEnumerable<ContentAssetViewModel> sources,
+        ContentAssetViewModel targetFolder,
+        bool copy) =>
+        GetTopLevelContentAssets(sources)
+            .Where(source => CanDropContentAsset(source, targetFolder, copy))
+            .ToList();
 
     private bool CanDropContentAsset(ContentAssetViewModel source, ContentAssetViewModel targetFolder, bool copy)
     {
@@ -415,10 +551,34 @@ public partial class MainWindow
         return !source.IsFolder || !IsDescendantFolder(targetFolderId, source.Id);
     }
 
+    private List<ContentAssetViewModel> GetSelectedContentAssetList()
+    {
+        var selected = ContentBrowserListBox.SelectedItems
+            .Cast<ContentAssetViewModel>()
+            .Where(item => !ReferenceEquals(item, _rootContentFolder))
+            .DistinctBy(item => item.Id)
+            .ToList();
+
+        if (selected.Count > 0)
+            return selected;
+
+        if ((_contentFolderSelectionActive || IsFocusInside(ContentFolderListBox)) &&
+            ContentFolderListBox.SelectedItem is ContentAssetViewModel folder &&
+            !ReferenceEquals(folder, _rootContentFolder))
+        {
+            return [folder];
+        }
+
+        if (ContentBrowserListBox.SelectedItem is ContentAssetViewModel asset && !ReferenceEquals(asset, _rootContentFolder))
+            return [asset];
+
+        return [];
+    }
+
     private List<ContentAssetViewModel> GetTopLevelContentAssets(IEnumerable<ContentAssetViewModel> sources)
     {
         var unique = sources
-            .Where(source => source is not null)
+            .Where(source => source is not null && !ReferenceEquals(source, _rootContentFolder))
             .GroupBy(source => source.Id)
             .Select(group => group.First())
             .ToList();
@@ -440,6 +600,66 @@ public partial class MainWindow
         return false;
     }
 
+    private bool DeleteSelectedContentAssets()
+    {
+        var targets = GetTopLevelContentAssets(GetSelectedContentAssetList());
+        if (targets.Count == 0)
+            return false;
+
+        string message = targets.Count == 1
+            ? $"是否删除：{targets[0].Name}？"
+            : $"是否删除 {targets.Count} 个资产？\n\n{string.Join("\n", targets.Take(8).Select(item => "- " + item.Name))}{(targets.Count > 8 ? "\n..." : string.Empty)}";
+
+        var result = WpfMessageBox.Show(this, message, "删除资产", WpfMessageBoxButton.YesNo, WpfMessageBoxImage.Question);
+        if (result != WpfMessageBoxResult.Yes)
+            return true;
+
+        var deletingIds = targets.Select(item => item.Id).ToHashSet();
+        bool deletingActive = _activeContentAsset is not null && deletingIds.Contains(_activeContentAsset.Id);
+
+        foreach (var item in targets)
+        {
+            foreach (var child in ContentBrowserItems
+                         .Where(child => child.ParentFolderId == item.Id && !deletingIds.Contains(child.Id))
+                         .ToList())
+            {
+                child.ParentFolderId = item.ParentFolderId;
+                child.IsDirty = true;
+            }
+        }
+
+        foreach (var item in targets)
+            ContentBrowserItems.Remove(item);
+
+        if (deletingActive)
+            CloseActiveEditor();
+
+        ContentBrowserListBox.SelectedItems.Clear();
+        _contentRangeAnchor = null;
+        RefreshContentBrowserViews();
+        PersistAssetLibrary();
+        SetStatus($"已删除 {targets.Count} 个资产。");
+        return true;
+    }
+
+    private void StartRenameSelectedContentAssetEnhanced()
+    {
+        var selected = GetSelectedContentAssetList();
+        if (selected.Count == 0)
+            return;
+
+        if (selected.Count > 1)
+        {
+            SetStatus("多选时不能重命名，请只选中一个资产。");
+            return;
+        }
+
+        var item = selected[0];
+        _contentFolderSelectionActive = false;
+        item.IsEditing = true;
+        FocusContentRenameTextBox(item);
+    }
+
     private ContentAssetViewModel CloneContentAssetDeep(ContentAssetViewModel source, string? targetFolderId)
     {
         var clone = CreateContentAsset(source.Kind, CreateUniqueContentName($"{source.Name}_Copy", targetFolderId));
@@ -458,9 +678,7 @@ public partial class MainWindow
 
     private void CopySelectedContentAssets()
     {
-        _contentClipboardAssets = GetSelectedContentAssets()
-            .Where(item => !ReferenceEquals(item, _rootContentFolder))
-            .ToList();
+        _contentClipboardAssets = GetTopLevelContentAssets(GetSelectedContentAssetList());
 
         if (_contentClipboardAssets.Count > 0)
             SetStatus($"已复制 {_contentClipboardAssets.Count} 个资产。");
@@ -471,12 +689,31 @@ public partial class MainWindow
         if (_contentClipboardAssets.Count == 0)
             return;
 
+        var pastedAssets = new List<ContentAssetViewModel>();
         foreach (var asset in GetTopLevelContentAssets(_contentClipboardAssets))
-            CloneContentAssetDeep(asset, _currentContentFolderId);
+            pastedAssets.Add(CloneContentAssetDeep(asset, _currentContentFolderId));
 
         RefreshContentBrowserViews();
+        SelectVisibleContentAssets(pastedAssets);
         PersistAssetLibrary();
-        SetStatus($"已粘贴 {_contentClipboardAssets.Count} 个资产。");
+        SetStatus($"已粘贴 {pastedAssets.Count} 个资产。");
+    }
+
+    private void SelectVisibleContentAssets(IEnumerable<ContentAssetViewModel> assets)
+    {
+        var visibleIds = ContentVisibleItems.Select(item => item.Id).ToHashSet();
+        var targets = assets.Where(item => visibleIds.Contains(item.Id)).ToList();
+        if (targets.Count == 0)
+            return;
+
+        ContentBrowserListBox.SelectedItems.Clear();
+        foreach (var target in targets)
+            ContentBrowserListBox.SelectedItems.Add(target);
+
+        ContentBrowserListBox.ScrollIntoView(targets[0]);
+        ContentBrowserListBox.Focus();
+        _contentFolderSelectionActive = false;
+        _contentRangeAnchor = targets[0];
     }
 
     private bool TryGetDraggedContentAssets(WpfDragEventArgs e, out List<ContentAssetViewModel> assets)
@@ -518,9 +755,6 @@ public partial class MainWindow
         var item = FindVisualAncestor<WpfListBoxItem>(source);
         return item?.DataContext as ContentAssetViewModel;
     }
-
-    private List<ContentAssetViewModel> GetSelectedContentAssets() =>
-        ContentBrowserListBox.SelectedItems.Cast<ContentAssetViewModel>().ToList();
 
     private static WpfRect NormalizeRect(WpfRect rect)
     {
