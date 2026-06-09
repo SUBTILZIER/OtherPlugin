@@ -48,7 +48,7 @@ public partial class MainWindow
 
         if (e.Key == WpfKey.Delete)
         {
-            DeleteSelectedContentAssets();
+            DeleteSelectedContentAssetsThemed();
             e.Handled = true;
             return true;
         }
@@ -68,8 +68,6 @@ public partial class MainWindow
         if (IsFocusInside(ContentBrowserListBox) || IsFocusInside(ContentFolderListBox))
             return true;
 
-        // 框选/Shift/Ctrl 多选后，焦点可能被菜单、画布或其它控件拿走。
-        // 只要右侧资产浏览器仍有多个选中项，Delete/Ctrl+C 仍按资产集合处理。
         return ContentBrowserListBox.SelectedItems
             .Cast<ContentAssetViewModel>()
             .Count(item => !ReferenceEquals(item, _rootContentFolder)) > 1;
