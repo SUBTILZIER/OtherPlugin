@@ -4,17 +4,22 @@ using System.Windows.Threading;
 using WpfBorder = System.Windows.Controls.Border;
 using WpfBrush = System.Windows.Media.Brush;
 using WpfBrushes = System.Windows.Media.Brushes;
+using WpfButton = System.Windows.Controls.Button;
 using WpfColor = System.Windows.Media.Color;
 using WpfContextMenu = System.Windows.Controls.ContextMenu;
 using WpfContextMenuEventArgs = System.Windows.Controls.ContextMenuEventArgs;
 using WpfFrameworkElement = System.Windows.FrameworkElement;
 using WpfItemsControl = System.Windows.Controls.ItemsControl;
 using WpfListBox = System.Windows.Controls.ListBox;
+using WpfListBoxItem = System.Windows.Controls.ListBoxItem;
 using WpfMenuItem = System.Windows.Controls.MenuItem;
+using WpfMouseButtonEventArgs = System.Windows.Input.MouseButtonEventArgs;
+using WpfMouseButtonEventHandler = System.Windows.Input.MouseButtonEventHandler;
 using WpfPanel = System.Windows.Controls.Panel;
 using WpfRadioButton = System.Windows.Controls.RadioButton;
 using WpfRichTextBox = System.Windows.Controls.RichTextBox;
 using WpfTextBox = System.Windows.Controls.TextBox;
+using WpfUIElement = System.Windows.UIElement;
 using WpfVisualTreeHelper = System.Windows.Media.VisualTreeHelper;
 
 namespace AutomationStudioWpf;
@@ -47,12 +52,41 @@ public partial class MainWindow
 
         _unifiedThemeInstalled = true;
         ContextMenuOpening += MainWindow_ContextMenuOpeningTheme;
+        ContentFolderListBox.AddHandler(WpfUIElement.PreviewMouseLeftButtonDownEvent, new WpfMouseButtonEventHandler(ContentFolderTree_PreviewMouseLeftButtonDownFix), true);
         Dispatcher.BeginInvoke(new Action(ApplyUnifiedDarkTheme), DispatcherPriority.ContextIdle);
     }
 
     private void MainWindow_ContextMenuOpeningTheme(object sender, WpfContextMenuEventArgs e)
     {
         Dispatcher.BeginInvoke(new Action(ApplyUnifiedContextMenuTheme), DispatcherPriority.ContextIdle);
+    }
+
+    private void ContentFolderTree_PreviewMouseLeftButtonDownFix(object sender, WpfMouseButtonEventArgs e)
+    {
+        if (e.OriginalSource is not DependencyObject source)
+            return;
+        if (HasVisualAncestor<WpfButton>(source) || HasVisualAncestor<WpfTextBox>(source))
+            return;
+
+        var item = FindVisualAncestor<WpfListBoxItem>(source);
+        if (item?.DataContext is not ContentAssetViewModel { IsFolder: true } folder)
+            return;
+
+        _contentFolderSelectionActive = true;
+        ContentFolderListBox.SelectedItem = folder;
+        ContentBrowserListBox.SelectedItem = null;
+        ContentFolderListBox.Focus();
+
+        if (e.ClickCount >= 2)
+        {
+            folder.IsTreeExpanded = !folder.IsTreeExpanded;
+            RefreshContentBrowserViews();
+            e.Handled = true;
+            return;
+        }
+
+        EnterContentFolder(ReferenceEquals(folder, _rootContentFolder) ? null : folder);
+        e.Handled = true;
     }
 
     private void ApplyUnifiedDarkTheme()
@@ -193,6 +227,21 @@ public partial class MainWindow
             foreach (var descendant in EnumerateVisualDescendants<T>(child))
                 yield return descendant;
         }
+    }
+
+    private static T? FindVisualAncestor<T>(DependencyObject? source)
+        where T : DependencyObject
+    {
+        var current = source;
+        while (current is not null)
+        {
+            if (current is T typed)
+                return typed;
+
+            current = WpfVisualTreeHelper.GetParent(current);
+        }
+
+        return null;
     }
 
     private static WpfBorder? FindParentBorder(DependencyObject? source)
