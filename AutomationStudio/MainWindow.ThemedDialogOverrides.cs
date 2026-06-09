@@ -21,6 +21,7 @@ using WpfMessageBoxImage = System.Windows.MessageBoxImage;
 using WpfMessageBoxResult = System.Windows.MessageBoxResult;
 using WpfModifierKeys = System.Windows.Input.ModifierKeys;
 using WpfRoutedEventArgs = System.Windows.RoutedEventArgs;
+using WpfRoutedEventHandler = System.Windows.RoutedEventHandler;
 using WpfTextBox = System.Windows.Controls.TextBox;
 
 namespace AutomationStudioWpf;
