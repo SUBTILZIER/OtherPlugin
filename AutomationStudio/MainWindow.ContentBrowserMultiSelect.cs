@@ -6,7 +6,6 @@ using WpfAdorner = System.Windows.Documents.Adorner;
 using WpfAdornerLayer = System.Windows.Documents.AdornerLayer;
 using WpfBorder = System.Windows.Controls.Border;
 using WpfBrush = System.Windows.Media.Brush;
-using WpfCanvas = System.Windows.Controls.Canvas;
 using WpfColor = System.Windows.Media.Color;
 using WpfDataObject = System.Windows.DataObject;
 using WpfDependencyObject = System.Windows.DependencyObject;
@@ -367,7 +366,15 @@ public partial class MainWindow
             return;
         }
 
-        bool copy = (e.KeyStates & WpfDragDropKeyStates.ControlKey) != 0;
+        var choice = ShowContentDropActionDialog(sources.Count == 1 ? sources[0].Name : $"{sources.Count} 个资产");
+        if (choice == ContentDropAction.Cancel)
+        {
+            e.Effects = WpfDragDropEffects.None;
+            e.Handled = true;
+            return;
+        }
+
+        bool copy = choice == ContentDropAction.Copy;
         ApplyContentAssetDrop(sources, target, copy);
         e.Effects = copy ? WpfDragDropEffects.Copy : WpfDragDropEffects.Move;
         e.Handled = true;

@@ -58,6 +58,7 @@ public partial class MainWindow
         MacroListItems.CollectionChanged += GraphCollections_AssetCompileStateChanged;
         ContentBrowserItems.CollectionChanged += GraphCollections_AssetCompileStateChanged;
         AddHandler(WpfUIElement.PreviewMouseLeftButtonDownEvent, new WpfMouseButtonEventHandler(GraphCallableNode_PreviewMouseLeftButtonDown), true);
+        AddHandler(WpfKeyboard.PreviewKeyDownEvent, new System.Windows.Input.KeyEventHandler(MainWindow_NavigationPreviewKeyDown), true);
         ContentBrowserListBox.PreviewKeyDown += ContentBrowserListBox_NavigationPreviewKeyDown;
         ContentVisibleItems.CollectionChanged += ContentVisibleItems_SearchRefreshRequested;
         ScheduleFitActiveGraphToView();
@@ -357,6 +358,27 @@ public partial class MainWindow
         }
 
         return names.Count == 0 ? item.Name : string.Join("/", names);
+    }
+
+    private void MainWindow_NavigationPreviewKeyDown(object sender, WpfKeyEventArgs e)
+    {
+        if (e.Handled || (WpfKeyboard.Modifiers & WpfModifierKeys.Control) == 0 || e.Key != WpfKey.B)
+            return;
+        if (WpfKeyboard.FocusedElement is WpfTextBox)
+            return;
+
+        if (IsFocusInside(ContentBrowserListBox) && ContentBrowserListBox.SelectedItem is ContentAssetViewModel selectedAsset)
+        {
+            LocateContentAsset(selectedAsset);
+            e.Handled = true;
+            return;
+        }
+
+        if (_activeContentAsset is not null)
+        {
+            LocateContentAsset(_activeContentAsset);
+            e.Handled = true;
+        }
     }
 
     private void ContentBrowserListBox_NavigationPreviewKeyDown(object sender, WpfKeyEventArgs e)
