@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using WpfColor = System.Windows.Media.Color;
 
 namespace AutomationStudioWpf.Interaction;
 
@@ -35,13 +36,13 @@ public static class ThemedDialog
             WindowStyle = WindowStyle.None,
             AllowsTransparency = true,
             Background = Brushes.Transparent,
-            Foreground = new SolidColorBrush(Color.FromRgb(232, 237, 245)),
+            Foreground = new SolidColorBrush(WpfColor.FromRgb(232, 237, 245)),
         };
 
         var root = new Border
         {
-            Background = new SolidColorBrush(Color.FromRgb(27, 32, 40)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(64, 76, 94)),
+            Background = new SolidColorBrush(WpfColor.FromRgb(27, 32, 40)),
+            BorderBrush = new SolidColorBrush(WpfColor.FromRgb(64, 76, 94)),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(8),
             Padding = new Thickness(18),
@@ -66,7 +67,7 @@ public static class ThemedDialog
         panel.Children.Add(new TextBlock
         {
             Text = message,
-            Foreground = new SolidColorBrush(Color.FromRgb(232, 237, 245)),
+            Foreground = new SolidColorBrush(WpfColor.FromRgb(232, 237, 245)),
             TextWrapping = TextWrapping.Wrap,
             LineHeight = 20,
             Margin = new Thickness(0, 0, 0, 18),
@@ -89,9 +90,9 @@ public static class ThemedDialog
                 Margin = new Thickness(8, 0, 0, 0),
                 IsDefault = item.IsPrimary,
                 IsCancel = item.Result == MessageBoxResult.Cancel,
-                Foreground = item.IsPrimary ? new SolidColorBrush(Color.FromRgb(12, 16, 22)) : new SolidColorBrush(Color.FromRgb(232, 237, 245)),
-                Background = item.IsPrimary ? new SolidColorBrush(accent) : new SolidColorBrush(Color.FromRgb(36, 43, 53)),
-                BorderBrush = new SolidColorBrush(Color.FromRgb(79, 94, 116)),
+                Foreground = item.IsPrimary ? new SolidColorBrush(WpfColor.FromRgb(12, 16, 22)) : new SolidColorBrush(WpfColor.FromRgb(232, 237, 245)),
+                Background = item.IsPrimary ? new SolidColorBrush(accent) : new SolidColorBrush(WpfColor.FromRgb(36, 43, 53)),
+                BorderBrush = new SolidColorBrush(WpfColor.FromRgb(79, 94, 116)),
                 BorderThickness = new Thickness(1),
                 Cursor = Cursors.Hand,
             };
@@ -124,12 +125,12 @@ public static class ThemedDialog
         ?? buttons.FirstOrDefault(button => button.Result == MessageBoxResult.No)?.Result
         ?? buttons[0].Result;
 
-    private static Color GetAccentColor(MessageBoxImage image) => image switch
+    private static WpfColor GetAccentColor(MessageBoxImage image) => image switch
     {
-        MessageBoxImage.Error => Color.FromRgb(255, 107, 107),
-        MessageBoxImage.Warning => Color.FromRgb(214, 138, 34),
-        MessageBoxImage.Question => Color.FromRgb(79, 163, 255),
-        MessageBoxImage.Information => Color.FromRgb(79, 163, 255),
-        _ => Color.FromRgb(167, 177, 191),
+        MessageBoxImage.Error => WpfColor.FromRgb(255, 107, 107),
+        MessageBoxImage.Warning => WpfColor.FromRgb(214, 138, 34),
+        MessageBoxImage.Question => WpfColor.FromRgb(79, 163, 255),
+        MessageBoxImage.Information => WpfColor.FromRgb(79, 163, 255),
+        _ => WpfColor.FromRgb(167, 177, 191),
     };
 }

@@ -30,9 +30,9 @@ public partial class MainWindow
 {
     private bool _themedDialogOverridesInstalled;
 
-    protected override void OnContentRendered(EventArgs e)
+    protected override void OnSourceInitialized(EventArgs e)
     {
-        base.OnContentRendered(e);
+        base.OnSourceInitialized(e);
         InstallThemedDialogOverrides();
     }
 
