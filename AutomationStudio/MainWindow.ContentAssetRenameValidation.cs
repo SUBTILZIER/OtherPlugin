@@ -32,6 +32,13 @@ namespace AutomationStudioWpf;
 
 public partial class MainWindow
 {
+    private static readonly WpfSolidColorBrush ContentRenameBackgroundBrush = FrozenRenameBrush(0xF6, 0xFA, 0xFF);
+    private static readonly WpfSolidColorBrush ContentRenameTextBrush = FrozenRenameBrush(0x05, 0x0A, 0x12);
+    private static readonly WpfSolidColorBrush ContentRenameCaretBrush = FrozenRenameBrush(0x00, 0x00, 0x00);
+    private static readonly WpfSolidColorBrush ContentRenameBorderBrush = FrozenRenameBrush(0x1F, 0x6F, 0xEB);
+    private static readonly WpfSolidColorBrush ContentRenameSelectionBrush = FrozenRenameBrush(0x2D, 0x6C, 0xDF);
+    private static readonly WpfSolidColorBrush ContentRenameErrorBorderBrush = FrozenRenameBrush(0xFF, 0x2F, 0x2F);
+
     private bool _contentAssetRenameValidationInstalled;
     private readonly Dictionary<WpfTextBox, WpfPopup> _contentRenameErrorPopups = [];
     private readonly Dictionary<WpfTextBox, WpfBrush?> _contentRenameOriginalBorderBrushes = [];
@@ -77,6 +84,7 @@ public partial class MainWindow
         if (!_contentRenameOriginalBorderBrushes.ContainsKey(textBox))
             _contentRenameOriginalBorderBrushes[textBox] = textBox.BorderBrush;
 
+        ApplyContentAssetRenameTextBoxVisual(textBox);
         textBox.Unloaded -= ContentAssetRenameTextBox_Unloaded;
         textBox.Unloaded += ContentAssetRenameTextBox_Unloaded;
         UpdateContentAssetRenameErrorVisual(textBox);
@@ -227,23 +235,33 @@ public partial class MainWindow
         if (textBox.DataContext is not ContentAssetViewModel item)
             return;
 
+        ApplyContentAssetRenameTextBoxVisual(textBox);
         bool hasError = item.IsEditing && item.HasRenameError;
         if (hasError)
         {
-            textBox.BorderBrush = new WpfSolidColorBrush(WpfColor.FromRgb(255, 107, 107));
+            textBox.BorderBrush = ContentRenameErrorBorderBrush;
             textBox.BorderThickness = new Thickness(2);
             textBox.ToolTip = item.RenameError;
             ShowContentAssetRenameErrorPopup(textBox, item.RenameError);
             return;
         }
 
-        if (_contentRenameOriginalBorderBrushes.TryGetValue(textBox, out var originalBrush) && originalBrush is not null)
-            textBox.BorderBrush = originalBrush;
-        else
-            textBox.BorderBrush = UnifiedStrongBorderBrush;
-        textBox.BorderThickness = new Thickness(1);
+        textBox.BorderBrush = ContentRenameBorderBrush;
+        textBox.BorderThickness = new Thickness(2);
         textBox.ToolTip = null;
         HideContentAssetRenameErrorPopup(textBox);
+    }
+
+    private static void ApplyContentAssetRenameTextBoxVisual(WpfTextBox textBox)
+    {
+        textBox.Background = ContentRenameBackgroundBrush;
+        textBox.Foreground = ContentRenameTextBrush;
+        textBox.CaretBrush = ContentRenameCaretBrush;
+        textBox.SelectionBrush = ContentRenameSelectionBrush;
+        textBox.SelectionOpacity = 0.45;
+        textBox.FontWeight = FontWeights.SemiBold;
+        textBox.BorderBrush = ContentRenameBorderBrush;
+        textBox.BorderThickness = new Thickness(2);
     }
 
     private void ShowContentAssetRenameErrorPopup(WpfTextBox textBox, string message)
@@ -268,7 +286,7 @@ public partial class MainWindow
                 Child = new WpfBorder
                 {
                     Background = new WpfSolidColorBrush(WpfColor.FromRgb(39, 24, 26)),
-                    BorderBrush = new WpfSolidColorBrush(WpfColor.FromRgb(255, 107, 107)),
+                    BorderBrush = ContentRenameErrorBorderBrush,
                     BorderThickness = new Thickness(1),
                     CornerRadius = new CornerRadius(4),
                     Padding = new Thickness(6, 3, 6, 3),
@@ -288,5 +306,12 @@ public partial class MainWindow
     {
         if (_contentRenameErrorPopups.TryGetValue(textBox, out var popup))
             popup.IsOpen = false;
+    }
+
+    private static WpfSolidColorBrush FrozenRenameBrush(byte r, byte g, byte b)
+    {
+        var brush = new WpfSolidColorBrush(WpfColor.FromRgb(r, g, b));
+        brush.Freeze();
+        return brush;
     }
 }
