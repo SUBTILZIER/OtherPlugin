@@ -22,6 +22,7 @@ using WpfRichTextBox = System.Windows.Controls.RichTextBox;
 using WpfTextBox = System.Windows.Controls.TextBox;
 using WpfUIElement = System.Windows.UIElement;
 using WpfVisualTreeHelper = System.Windows.Media.VisualTreeHelper;
+using WinFormsSystemInformation = System.Windows.Forms.SystemInformation;
 
 namespace AutomationStudioWpf;
 
@@ -118,7 +119,7 @@ public partial class MainWindow
     {
         var timer = new DispatcherTimer(DispatcherPriority.Background, Dispatcher)
         {
-            Interval = TimeSpan.FromMilliseconds(SystemParameters.DoubleClickTime + 20),
+            Interval = TimeSpan.FromMilliseconds(WinFormsSystemInformation.DoubleClickTime + 20),
         };
         timer.Tick += ContentFolderSingleClickTimer_Tick;
         return timer;
