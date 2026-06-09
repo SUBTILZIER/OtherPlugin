@@ -4,7 +4,6 @@ using System.Linq;
 using System.Windows.Controls;
 using AutomationStudioWpf.Interaction;
 using AutomationStudioWpf.Services;
-using Microsoft.Win32;
 using WpfButton = System.Windows.Controls.Button;
 using WpfDragDrop = System.Windows.DragDrop;
 using WpfDragDropEffects = System.Windows.DragDropEffects;
@@ -113,7 +112,7 @@ public partial class MainWindow
 
     private void OpenGraph_ClickThemed(object sender, WpfRoutedEventArgs e)
     {
-        var dialog = new OpenFileDialog
+        var dialog = new Microsoft.Win32.OpenFileDialog
         {
             Title = "打开图谱",
             Filter = "图谱文件 (*.json)|*.json|所有文件(*.*)|*.*",

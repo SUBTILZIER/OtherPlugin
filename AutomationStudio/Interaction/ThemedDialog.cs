@@ -35,7 +35,7 @@ public static class ThemedDialog
             ShowInTaskbar = false,
             WindowStyle = WindowStyle.None,
             AllowsTransparency = true,
-            Background = Brushes.Transparent,
+            Background = System.Windows.Media.Brushes.Transparent,
             Foreground = new SolidColorBrush(WpfColor.FromRgb(232, 237, 245)),
         };
 
@@ -75,13 +75,13 @@ public static class ThemedDialog
 
         var buttonPanel = new StackPanel
         {
-            Orientation = Orientation.Horizontal,
-            HorizontalAlignment = HorizontalAlignment.Right,
+            Orientation = System.Windows.Controls.Orientation.Horizontal,
+            HorizontalAlignment = System.Windows.HorizontalAlignment.Right,
         };
 
         foreach (var item in buttons)
         {
-            var button = new Button
+            var button = new System.Windows.Controls.Button
             {
                 Content = item.Text,
                 MinWidth = 82,
@@ -94,7 +94,7 @@ public static class ThemedDialog
                 Background = item.IsPrimary ? new SolidColorBrush(accent) : new SolidColorBrush(WpfColor.FromRgb(36, 43, 53)),
                 BorderBrush = new SolidColorBrush(WpfColor.FromRgb(79, 94, 116)),
                 BorderThickness = new Thickness(1),
-                Cursor = Cursors.Hand,
+                Cursor = System.Windows.Input.Cursors.Hand,
             };
             button.Click += (_, _) =>
             {
