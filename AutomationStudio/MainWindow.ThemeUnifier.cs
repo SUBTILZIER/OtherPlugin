@@ -66,7 +66,17 @@ public partial class MainWindow
     {
         if (e.OriginalSource is not DependencyObject source)
             return;
-        if (HasVisualAncestor<WpfButton>(source) || HasVisualAncestor<WpfTextBox>(source))
+
+        var toggleButton = FindVisualAncestor<WpfButton>(source);
+        if (toggleButton?.DataContext is ContentAssetViewModel { IsFolder: true } buttonFolder)
+        {
+            buttonFolder.IsTreeExpanded = !buttonFolder.IsTreeExpanded;
+            RefreshContentBrowserViews();
+            e.Handled = true;
+            return;
+        }
+
+        if (HasVisualAncestor<WpfTextBox>(source))
             return;
 
         var item = FindVisualAncestor<WpfListBoxItem>(source);
@@ -82,11 +92,8 @@ public partial class MainWindow
         {
             folder.IsTreeExpanded = !folder.IsTreeExpanded;
             RefreshContentBrowserViews();
-            e.Handled = true;
-            return;
         }
 
-        EnterContentFolder(ReferenceEquals(folder, _rootContentFolder) ? null : folder);
         e.Handled = true;
     }
 
