@@ -13,6 +13,9 @@ namespace AutomationStudioWpf;
 
 public partial class MainWindow
 {
+    private UIElement? _emptyEditorPanelDefaultChild;
+    private EditorSessionViewModel? _lastMainEditorSession;
+
     private void EditorSessionTab_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         if (FindAncestor<WpfButton>(e.OriginalSource as DependencyObject) is not null)
@@ -37,20 +40,11 @@ public partial class MainWindow
             Math.Abs(pos.Y - _editorSessionDragStart.Y) > SystemParameters.MinimumVerticalDragDistance)
         {
             var screenPos = PointToScreen(pos);
+            bool willDetach = !IsScreenPointInsideEditorWindowBar(screenPos);
             _isEditorSessionDrag = true;
             StartEditorSessionDragPreview(_draggedEditorSession);
-            UpdateEditorSessionDragPreview(pos, !GetMainWindowScreenRect().Contains(screenPos));
-            if (!GetMainWindowScreenRect().Contains(screenPos))
-            {
-                var session = _draggedEditorSession;
-                _draggedEditorSession = null;
-                _isEditorSessionDrag = false;
-                if (sender is UIElement element && element.IsMouseCaptured)
-                    element.ReleaseMouseCapture();
-                StopEditorSessionDragPreview();
-                DetachEditorSession(session, screenPos);
-                e.Handled = true;
-            }
+            UpdateEditorSessionDragPreview(pos, willDetach);
+            e.Handled = true;
         }
     }
 
@@ -69,14 +63,14 @@ public partial class MainWindow
         if (_isEditorSessionDrag)
         {
             var screenPos = PointToScreen(e.GetPosition(this));
-            if (!GetMainWindowScreenRect().Contains(screenPos))
+            if (!IsScreenPointInsideEditorWindowBar(screenPos))
                 DetachEditorSession(session, screenPos);
             else
-                ActivateEditorSession(session);
+                ActivateEditorSessionFromMainTab(session);
         }
         else
         {
-            ActivateEditorSession(session);
+            ActivateEditorSessionFromMainTab(session);
         }
 
         _isEditorSessionDrag = false;
@@ -120,11 +114,14 @@ public partial class MainWindow
             session.DetachedWindow = new DetachedEditorWindow(
                 session,
                 this,
-                targetSession => ActivateEditorSession(targetSession),
+                ActivateEditorSessionFromDetachedWindow,
                 DockEditorSessionToTab,
                 CloseEditorSession,
                 CreateDetachedEditorPreview);
         }
+
+        if (session.DockMode != EditorDockMode.Detached && ReferenceEquals(session, _activeEditorSession))
+            _lastMainEditorSession = _mainEditorSessions.LastOrDefault(item => !ReferenceEquals(item, session));
 
         session.DockMode = EditorDockMode.Detached;
         if (screenPos is { } pos)
@@ -134,7 +131,7 @@ public partial class MainWindow
         }
         if (!session.DetachedWindow.IsVisible)
             session.DetachedWindow.Show();
-        ActivateEditorSession(session);
+        ActivateEditorSessionFromDetachedWindow(session);
         session.DetachedWindow.Activate();
         SetStatus($"已独立窗口：{session.ContentAsset.Name}");
     }
@@ -146,8 +143,21 @@ public partial class MainWindow
             MoveEditorGridHome();
         session.DetachedWindow?.CloseFromOwner();
         session.DetachedWindow = null;
-        ActivateEditorSession(session);
+        ActivateEditorSessionFromMainTab(session);
         SetStatus($"已停靠窗口：{session.ContentAsset.Name}");
+    }
+
+    private void ActivateEditorSessionFromMainTab(EditorSessionViewModel session)
+    {
+        _lastMainEditorSession = session;
+        RestoreMainEditorDefaultPanel();
+        ActivateEditorSession(session);
+    }
+
+    private void ActivateEditorSessionFromDetachedWindow(EditorSessionViewModel session)
+    {
+        ActivateEditorSession(session);
+        ShowMainEditorPreviewWhileDetachedSessionIsEditing(session);
     }
 
     private Rect GetMainWindowScreenRect()
@@ -155,6 +165,16 @@ public partial class MainWindow
         var topLeft = PointToScreen(new WpfPoint(0, 0));
         var bottomRight = PointToScreen(new WpfPoint(Math.Max(0, ActualWidth), Math.Max(0, ActualHeight)));
         return new Rect(topLeft, bottomRight);
+    }
+
+    private bool IsScreenPointInsideEditorWindowBar(WpfPoint screenPos)
+    {
+        if (EditorWindowBar.ActualWidth <= 0 || EditorWindowBar.ActualHeight <= 0)
+            return false;
+
+        var topLeft = EditorWindowBar.PointToScreen(new WpfPoint(0, 0));
+        var bottomRight = EditorWindowBar.PointToScreen(new WpfPoint(EditorWindowBar.ActualWidth, EditorWindowBar.ActualHeight));
+        return new Rect(topLeft, bottomRight).Contains(screenPos);
     }
 
     private void StartEditorSessionDragPreview(EditorSessionViewModel session)
@@ -171,7 +191,7 @@ public partial class MainWindow
         };
         var hint = new TextBlock
         {
-            Text = "拖出主窗口创建独立窗口",
+            Text = "拖离标签栏创建独立窗口",
             Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(157, 172, 192)),
             FontSize = 11,
             Margin = new Thickness(0, 3, 0, 0),
@@ -212,7 +232,7 @@ public partial class MainWindow
             stack.Children.Count > 1 &&
             stack.Children[1] is TextBlock hint)
         {
-            hint.Text = willDetach ? "释放后成为独立窗口" : "拖出主窗口创建独立窗口";
+            hint.Text = willDetach ? "释放后成为独立窗口" : "留在标签栏内切换窗口";
             hint.Foreground = willDetach
                 ? new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(111, 221, 140))
                 : new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(157, 172, 192));
@@ -226,6 +246,52 @@ public partial class MainWindow
 
         _editorSessionDragPreviewPopup.IsOpen = false;
         _editorSessionDragPreviewPopup = null;
+    }
+
+    private void ShowMainEditorPreviewWhileDetachedSessionIsEditing(EditorSessionViewModel detachedSession)
+    {
+        EnsureEmptyEditorPanelDefaultChild();
+
+        var previewSession = _lastMainEditorSession;
+        if (previewSession is null ||
+            previewSession.DockMode == EditorDockMode.Detached ||
+            ReferenceEquals(previewSession, detachedSession) ||
+            !_editorSessions.Contains(previewSession))
+        {
+            previewSession = _mainEditorSessions.LastOrDefault(item => !ReferenceEquals(item, detachedSession));
+        }
+
+        EmptyEditorPanel.Child = previewSession is null
+            ? CreateDetachedMainPreviewPlaceholder(detachedSession)
+            : CreateDetachedEditorPreview(previewSession);
+        EmptyEditorPanel.Visibility = Visibility.Visible;
+    }
+
+    private UIElement CreateDetachedMainPreviewPlaceholder(EditorSessionViewModel detachedSession) => new Border
+    {
+        Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(17, 21, 26)),
+        Child = new TextBlock
+        {
+            Text = $"{detachedSession.DisplayTitle} 正在独立窗口编辑。\n主窗口没有其它停靠编辑标签。",
+            Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(160, 170, 184)),
+            TextAlignment = TextAlignment.Center,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+        },
+    };
+
+    private void RestoreMainEditorDefaultPanel()
+    {
+        EnsureEmptyEditorPanelDefaultChild();
+        if (!ReferenceEquals(EmptyEditorPanel.Child, _emptyEditorPanelDefaultChild))
+            EmptyEditorPanel.Child = _emptyEditorPanelDefaultChild;
+        if (_activeEditorSession is not null)
+            EmptyEditorPanel.Visibility = Visibility.Collapsed;
+    }
+
+    private void EnsureEmptyEditorPanelDefaultChild()
+    {
+        _emptyEditorPanelDefaultChild ??= EmptyEditorPanel.Child;
     }
 
     private static EditorSessionViewModel? GetMenuSession(object sender) =>
