@@ -119,25 +119,211 @@ public partial class MainWindow
             _currentContentFolderId = null;
 
         ContentVisibleItems.Clear();
-        var items = ContentBrowserItems
-            .Where(item => string.Equals(item.ParentFolderId, _currentContentFolderId, StringComparison.Ordinal))
-            .OrderByDescending(item => item.IsFolder)
-            .ThenBy(item => item.Name, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        foreach (var item in items)
+        foreach (var item in ContentBrowserItems
+                     .Where(item => item.ParentFolderId == _currentContentFolderId)
+                     .OrderByDescending(item => item.IsFolder)
+                     .ThenBy(item => item.Name))
+        {
             ContentVisibleItems.Add(item);
+        }
     }
 
-    private static T? FindVisualAncestor<T>(DependencyObject source) where T : DependencyObject
+    private void RefreshContentBrowserTreeKeepingExpansion()
+    {
+        ContentFolderItems.Clear();
+        _rootContentFolder.ViewDepth = 0;
+        _rootContentFolder.IsTreeExpanded = true;
+        _rootContentFolder.HasFolderChildren = ContentBrowserItems.Any(item => item.IsFolder && item.ParentFolderId is null);
+        ContentFolderItems.Add(_rootContentFolder);
+
+        foreach (var folder in BuildFolderTree(null, 1, new HashSet<string>()))
+            ContentFolderItems.Add(folder);
+
+        ContentFolderListBox.SelectedItem = _currentContentFolderId is null
+            ? _rootContentFolder
+            : ContentFolderItems.FirstOrDefault(item => item.Id == _currentContentFolderId);
+    }
+
+    private void ApplyUnifiedDarkTheme()
+    {
+        ApplyContentBrowserTheme();
+        ApplyLogTheme();
+        ApplyUnifiedContextMenuTheme();
+    }
+
+    private void ApplyContentBrowserTheme()
+    {
+        StyleListBoxSurface(ContentFolderListBox, UnifiedSurfaceBrush);
+        StyleListBoxSurface(ContentBrowserListBox, UnifiedSurfaceBrush);
+
+        ContentBrowserTreeSplitter.Background = UnifiedBorderBrush;
+
+        foreach (var textBox in EnumerateVisualDescendants<WpfTextBox>(ContentBrowserListBox)
+                     .Concat(EnumerateVisualDescendants<WpfTextBox>(ContentFolderListBox))
+                     .Concat(EnumerateVisualDescendants<WpfTextBox>(ContentBrowserHeaderBar)))
+        {
+            StyleTextBox(textBox);
+        }
+
+        foreach (var border in EnumerateVisualDescendants<WpfBorder>(ContentBrowserListBox)
+                     .Concat(EnumerateVisualDescendants<WpfBorder>(ContentFolderListBox)))
+        {
+            if (border.BorderThickness.Left > 0 || border.BorderThickness.Top > 0 || border.BorderThickness.Right > 0 || border.BorderThickness.Bottom > 0)
+                border.BorderBrush = UnifiedStrongBorderBrush;
+        }
+    }
+
+    private void ApplyLogTheme()
+    {
+        if (LogRichTextBox is WpfRichTextBox log)
+        {
+            log.Background = UnifiedSurfaceBrush;
+            log.Foreground = UnifiedTextBrush;
+            log.BorderBrush = UnifiedBorderBrush;
+            log.SelectionBrush = UnifiedSelectionBrush;
+        }
+
+        if (FindParentBorder(LogRichTextBox) is { } logBorder)
+        {
+            logBorder.Background = UnifiedPanelBrush;
+            logBorder.BorderBrush = UnifiedBorderBrush;
+        }
+
+        if (FindParentPanel(FilterAllRadio) is { } filterPanel)
+            filterPanel.Background = UnifiedBorderBrush;
+
+        StyleRadioButton(FilterAllRadio, UnifiedTextBrush);
+        StyleRadioButton(FilterInfoRadio, UnifiedTextBrush);
+        StyleRadioButton(FilterWarnRadio, UnifiedAccentBrush);
+        StyleRadioButton(FilterErrorRadio, UnifiedErrorBrush);
+    }
+
+    private void ApplyUnifiedContextMenuTheme()
+    {
+        foreach (var menu in EnumerateContextMenus(this))
+            StyleContextMenu(menu);
+    }
+
+    private static void StyleListBoxSurface(WpfListBox listBox, WpfBrush background)
+    {
+        listBox.Background = background;
+        listBox.Foreground = UnifiedTextBrush;
+        listBox.BorderBrush = UnifiedBorderBrush;
+    }
+
+    private static void StyleTextBox(WpfTextBox textBox)
+    {
+        textBox.Background = UnifiedSurfaceAltBrush;
+        textBox.Foreground = UnifiedTextBrush;
+        textBox.BorderBrush = UnifiedStrongBorderBrush;
+        textBox.CaretBrush = UnifiedTextBrush;
+        textBox.SelectionBrush = UnifiedSelectionBrush;
+    }
+
+    private static void StyleRadioButton(WpfRadioButton radioButton, WpfBrush foreground)
+    {
+        radioButton.Foreground = foreground;
+        radioButton.Background = UnifiedSurfaceBrush;
+        radioButton.BorderBrush = UnifiedStrongBorderBrush;
+    }
+
+    private static void StyleContextMenu(WpfContextMenu menu)
+    {
+        menu.Background = UnifiedPanelBrush;
+        menu.BorderBrush = UnifiedBorderBrush;
+        menu.Foreground = UnifiedTextBrush;
+        menu.Padding = new Thickness(5);
+
+        foreach (var item in EnumerateMenuItems(menu))
+            StyleMenuItem(item);
+    }
+
+    private static void StyleMenuItem(WpfMenuItem item)
+    {
+        item.Background = WpfBrushes.Transparent;
+        item.Foreground = item.IsEnabled ? UnifiedTextBrush : UnifiedMutedTextBrush;
+        item.Padding = new Thickness(10, 6, 10, 6);
+        item.MinWidth = Math.Max(item.MinWidth, 130);
+        item.BorderBrush = WpfBrushes.Transparent;
+    }
+
+    private static IEnumerable<WpfMenuItem> EnumerateMenuItems(WpfItemsControl root)
+    {
+        foreach (var rawItem in root.Items)
+        {
+            if (rawItem is not WpfMenuItem menuItem)
+                continue;
+
+            yield return menuItem;
+            foreach (var child in EnumerateMenuItems(menuItem))
+                yield return child;
+        }
+    }
+
+    private static IEnumerable<WpfContextMenu> EnumerateContextMenus(DependencyObject root)
+    {
+        foreach (var element in EnumerateVisualDescendants<WpfFrameworkElement>(root))
+        {
+            if (element.ContextMenu is { } menu)
+                yield return menu;
+        }
+    }
+
+    private static IEnumerable<T> EnumerateVisualDescendants<T>(DependencyObject root)
+        where T : DependencyObject
+    {
+        int childCount = WpfVisualTreeHelper.GetChildrenCount(root);
+        for (int index = 0; index < childCount; index++)
+        {
+            var child = WpfVisualTreeHelper.GetChild(root, index);
+            if (child is T typedChild)
+                yield return typedChild;
+
+            foreach (var descendant in EnumerateVisualDescendants<T>(child))
+                yield return descendant;
+        }
+    }
+
+    private static T? FindVisualAncestor<T>(DependencyObject? source)
+        where T : DependencyObject
     {
         var current = source;
         while (current is not null)
         {
-            if (current is T match)
-                return match;
+            if (current is T typed)
+                return typed;
+
             current = WpfVisualTreeHelper.GetParent(current);
         }
+
+        return null;
+    }
+
+    private static WpfBorder? FindParentBorder(DependencyObject? source)
+    {
+        var current = source;
+        while (current is not null)
+        {
+            if (current is WpfBorder border)
+                return border;
+
+            current = WpfVisualTreeHelper.GetParent(current);
+        }
+
+        return null;
+    }
+
+    private static WpfPanel? FindParentPanel(DependencyObject? source)
+    {
+        var current = source;
+        while (current is not null)
+        {
+            if (current is WpfPanel panel)
+                return panel;
+
+            current = WpfVisualTreeHelper.GetParent(current);
+        }
+
         return null;
     }
 
@@ -146,135 +332,5 @@ public partial class MainWindow
         var brush = new SolidColorBrush(WpfColor.FromRgb(r, g, b));
         brush.Freeze();
         return brush;
-    }
-
-    private void ApplyUnifiedDarkTheme()
-    {
-        ApplyThemeToVisualTree(this);
-        ApplyUnifiedContextMenuTheme();
-    }
-
-    private void ApplyUnifiedContextMenuTheme()
-    {
-        var contextMenus = FindVisualChildren<WpfContextMenu>(this).ToList();
-        foreach (var menu in contextMenus)
-            StyleContextMenu(menu);
-    }
-
-    private void ApplyThemeToVisualTree(DependencyObject root)
-    {
-        foreach (var element in EnumerateVisualTree(root))
-        {
-            if (element is WpfBorder border)
-                StyleBorder(border);
-            else if (element is WpfButton button)
-                StyleButton(button);
-            else if (element is WpfTextBox textBox)
-                StyleTextBox(textBox);
-            else if (element is WpfListBox listBox)
-                StyleListBox(listBox);
-            else if (element is WpfListBoxItem listBoxItem)
-                StyleListBoxItem(listBoxItem);
-            else if (element is WpfRichTextBox richTextBox)
-                StyleRichTextBox(richTextBox);
-            else if (element is WpfRadioButton radioButton)
-                StyleRadioButton(radioButton);
-            else if (element is WpfMenuItem menuItem)
-                StyleMenuItem(menuItem);
-        }
-    }
-
-    private IEnumerable<DependencyObject> EnumerateVisualTree(DependencyObject root)
-    {
-        var stack = new Stack<DependencyObject>();
-        stack.Push(root);
-
-        while (stack.Count > 0)
-        {
-            var current = stack.Pop();
-            yield return current;
-
-            int count = WpfVisualTreeHelper.GetChildrenCount(current);
-            for (int i = count - 1; i >= 0; i--)
-                stack.Push(WpfVisualTreeHelper.GetChild(current, i));
-        }
-    }
-
-    private static IEnumerable<T> FindVisualChildren<T>(DependencyObject root) where T : DependencyObject
-    {
-        if (root is null)
-            yield break;
-
-        int count = WpfVisualTreeHelper.GetChildrenCount(root);
-        for (int i = 0; i < count; i++)
-        {
-            var child = WpfVisualTreeHelper.GetChild(root, i);
-            if (child is T typed)
-                yield return typed;
-
-            foreach (var descendant in FindVisualChildren<T>(child))
-                yield return descendant;
-        }
-    }
-
-    private static void StyleBorder(WpfBorder border)
-    {
-        if (border.Background is null or WpfBrushes.Transparent)
-            return;
-
-        border.BorderBrush ??= UnifiedBorderBrush;
-    }
-
-    private static void StyleButton(WpfButton button)
-    {
-        button.Foreground = UnifiedTextBrush;
-        button.Background = UnifiedSurfaceBrush;
-        button.BorderBrush = UnifiedBorderBrush;
-    }
-
-    private static void StyleTextBox(WpfTextBox textBox)
-    {
-        textBox.Foreground = UnifiedTextBrush;
-        textBox.Background = UnifiedSurfaceAltBrush;
-        textBox.BorderBrush = UnifiedStrongBorderBrush;
-    }
-
-    private static void StyleListBox(WpfListBox listBox)
-    {
-        listBox.Foreground = UnifiedTextBrush;
-        listBox.Background = UnifiedSurfaceAltBrush;
-        listBox.BorderBrush = UnifiedBorderBrush;
-    }
-
-    private static void StyleListBoxItem(WpfListBoxItem item)
-    {
-        item.Foreground = UnifiedTextBrush;
-        item.Background = WpfBrushes.Transparent;
-    }
-
-    private static void StyleRichTextBox(WpfRichTextBox richTextBox)
-    {
-        richTextBox.Foreground = UnifiedTextBrush;
-        richTextBox.Background = UnifiedSurfaceAltBrush;
-        richTextBox.BorderBrush = UnifiedBorderBrush;
-    }
-
-    private static void StyleRadioButton(WpfRadioButton radioButton)
-    {
-        radioButton.Foreground = UnifiedTextBrush;
-    }
-
-    private static void StyleMenuItem(WpfMenuItem menuItem)
-    {
-        menuItem.Foreground = UnifiedTextBrush;
-        menuItem.Background = UnifiedSurfaceBrush;
-    }
-
-    private static void StyleContextMenu(WpfContextMenu menu)
-    {
-        menu.Foreground = UnifiedTextBrush;
-        menu.Background = UnifiedSurfaceBrush;
-        foreach (var item in menu.Items.OfType<WpfMenuItem>())
-            StyleMenuItem(item);
     }
 }
