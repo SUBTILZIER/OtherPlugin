@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using AutomationStudioWpf.Controls;
 using AutomationStudioWpf.Graph;
 using AutomationStudioWpf.Services;
 
@@ -39,6 +40,10 @@ public sealed class EditorSessionViewModel : ObservableObject
     public NodeFactory NodeFactory { get; } = new();
 
     public GraphCommandService? CommandService { get; set; }
+
+    public EditorSurfaceControl? Surface { get; private set; }
+
+    public EditorSurfaceContext? SurfaceContext { get; private set; }
 
     public ObservableCollection<GraphListItemViewModel> GraphListItems { get; }
 
@@ -107,6 +112,16 @@ public sealed class EditorSessionViewModel : ObservableObject
     }
 
     public DetachedEditorWindow? DetachedWindow { get; set; }
+
+    public EditorSurfaceContext EnsureSurfaceContext()
+    {
+        if (SurfaceContext is not null)
+            return SurfaceContext;
+
+        Surface = new EditorSurfaceControl();
+        SurfaceContext = new EditorSurfaceContext(this, Surface);
+        return SurfaceContext;
+    }
 
     public void SaveToAsset()
     {
