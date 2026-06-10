@@ -129,16 +129,32 @@ public class GraphEditorService
 - `GraphEditorService.AddNode(...)` 和 `LoadFromModel(...)` 会给缺失、前缀错误、重复的编号重新分配当前图最小空闲值。
 - `ToDoNodeViewModel` 保存 `TargetNodeTitle`、`TargetNodeNumber`、`TargetNodeId`、`ReturnAfterTarget`。运行时优先用连入 `target_title` / `target_number` pin 的动态值；无连线时用静态 `TargetNodeTitle + TargetNodeNumber` 解析。
 - `InspectorController` 的 ToDo 面板提供搜索框和结果列表，可按节点名或编号过滤并填入双键目标。
-- `MainWindow.CommitInspectorAndSnapshotActive()` 在编译、保存、运行前统一 `ApplyInspectorChanges()` + `SnapshotActiveAsset()`，避免属性面板文字或 ToDo 下拉选择未进入 `GraphFileModel`。
+- `MainWindow.CommitInspectorAndSnapshotAllSessions()` 在编译、保存、运行前统一应用属性面板并 snapshot 所有打开 session，避免多窗口里非 active 资产的修改未进入 `ContentAssetViewModel`。
 - `InspectorController.ToDoTargetSelected()` 选择结果后立即写入 VM 的 `TargetNodeTitle`、`TargetNodeNumber`、`TargetNodeId`，刷新描述，标脏，并触发 active graph snapshot。
 - `GraphCompileService.EnsureGraphToDoTargets()` 会在 `TargetNodeId` 有效但 title/number 缺失或变旧时，从同图目标节点回填 `TargetNodeTitle` / `TargetNodeNumber`。
 - `GraphCompileService.ValidateToDoTargets()` 只有在两个目标输入 pin 都未连接，且静态 title/number 也为空或无效时才报错。
 
-#### Current content-browser navigation gaps
-- 当前内容浏览器数据源是 `ContentBrowserItems`；左树投影 `ContentFolderItems`，右侧瓦片投影 `ContentVisibleItems`，只显示 `_currentContentFolderId` 当前目录。
-- 当前右侧瓦片双击只调用 `OpenContentAsset(asset)` 或 `EnterContentFolder(asset)`；没有递归搜索模式、模糊搜索结果列表、`Ctrl+B` 定位真实目录逻辑。
-- 当前画布节点双击事件只处理连线/列表项；`FunctionCallNodeViewModel` / `MacroCallNodeViewModel` 没有双击跳转到被调用函数/宏图的实现。
-- 后续实现 UE 风格跳转时，应先 `CommitInspectorAndSnapshotActive()` / `SaveVisibleGraphsToActiveContent()`，再通过 `CallableGraphResolver` 找 stable id 对应的私有或公开库图，打开所在资产并加载对应 `GraphListItemViewModel`。
+#### Content browser search and callable navigation
+- 内容浏览器源数据是 `ContentBrowserItems`；左树投影 `ContentFolderItems`，右侧瓦片投影 `ContentVisibleItems`。
+- `MainWindow.NavigationFeatures.cs` 在窗口 `Loaded` 后动态给 `ContentBrowserHeaderBar` 安装搜索框。搜索范围是当前 `_currentContentFolderId` 及全部子文件夹；根目录时搜索全部内容资产。
+- 搜索支持空格关键字、路径片段、`DisplayName` / `Kind`、不区分大小写和 subsequence 模糊匹配。搜索结果直接替换 `ContentVisibleItems`，文件夹和资产都会进入结果。
+- 搜索结果双击仍走内容浏览器现有打开逻辑：文件夹进入目录，脚本/函数库/宏库调用 `OpenContentAsset(asset)`。
+- `Ctrl+B` 由 `MainWindow_NavigationPreviewKeyDown` / `ContentBrowserListBox_NavigationPreviewKeyDown` 处理：有选中资产时清空搜索、进入真实父目录、选中并滚动到资产；没有内容浏览器选中项时定位当前打开资产。
+- 画布中双击 `FunctionCallNodeViewModel` / `MacroCallNodeViewModel` 会按 stable `FunctionId` / `MacroId` 查找目标图，打开目标所在脚本/函数库/宏库资产，然后通过对应 `GraphListController` 加载目标 `GraphListItemViewModel`。
+- 双击跳转先 `SaveVisibleGraphsToActiveContent()`；随后走 `OpenOrActivateAsset(target.Asset, target.Graph, kind)` 聚焦已有 session 或创建新 session。不要靠显示名解析调用目标。
+- `MainWindow.ContentBrowserMultiSelect.cs` 扩展内容浏览器为 UE 风格多选：Ctrl 多选、Shift 区间、框选、Ctrl+C/Ctrl+V 复制粘贴资产、多删除、拖拽预览和移动/复制到文件夹。
+
+#### Editor sessions and window bar
+- 多编辑窗口由 `EditorSessionViewModel` 表示：每个打开资产一个 session，持有自己的 `GraphEditorService`、`NodeFactory`、`GraphCommandService`、事件图/函数/宏集合和当前图记忆。
+- `MainWindow` 仍复用一套 XAML 编辑视图；激活 session 时切换 `_editorService` / `_nodeFactory`，重建 Interaction controllers，并通过 `INotifyPropertyChanged` 让 `Nodes`、`ConnectionPaths` 和图列表重新绑定到 active session。
+- `OpenContentAsset(...)` 现在是 `OpenOrActivateAsset(...)` wrapper。重复打开同一资产只聚焦已有 session，不重置到第一个事件图；函数/宏调用节点双击会打开或聚焦目标资产 session，再加载目标 graph id。
+- 工具栏下方 `EditorWindowBar` 绑定主窗口内的 `MainEditorSessions`，不显示 `DockMode.Detached` 的独立窗口；窗口栏右键的关闭全部/关闭右侧只作用于主窗口标签页。全量 `EditorSessions` 仍包含 detached，供保存、退出、compile-all 使用。拖出主窗口会创建 `DetachedEditorWindow`；拖到主窗口内部只激活标签，不创建画布子窗口。
+- 拖动窗口标签时会显示跟随预览卡片，越过主窗口边界后提示释放/继续拖出为独立窗口。
+- 共享 `EditorGrid` reparent 到 `DetachedEditorWindow` 或搬回主窗口后，必须显式保持 `EditorGrid.DataContext = MainWindow`；否则 `Nodes`、`ConnectionPaths` 和图列表绑定会变空。
+- inactive detached 窗口不再显示占位文案，而是显示该 session remembered graph 的只读节点/连线预览；当前 active detached 窗口仍承载真实可编辑 `EditorGrid`。
+- session 关闭只 snapshot 回 `ContentAssetViewModel` 并移除编辑窗口，不删除资产。删除内容浏览器资产时会关闭所有指向该资产的 session，避免悬空编辑窗口。
+- 保存、退出、编译前使用 `CommitInspectorAndSnapshotAllSessions()` / `CommitAllSessionsToAssets()`，保证多窗口编辑内容参与引用同步和校验。
+- 工具栏编译是 active-asset scoped，走 `GraphCompileService.CompileAsset(...)`：脚本会编译该资产内事件图、函数、宏；函数库/宏库会编译该库内全部图。`GraphCompileService.CompileGraph(...)` 仍保留为 current-graph scoped 内部能力，但工具栏不使用它。
 
 #### NodeSerializer
 负责节点与持久化模型之间的转换：
@@ -210,9 +226,9 @@ public abstract class NodeBaseViewModel : ObservableObject
 - **PinKind**: Execution / Boolean / Vector2D / String
 - 支持动态引脚位置计算
 
-#### 当前节点定义 (38 个)
+#### 当前节点定义 (39 个)
 
-`NodeRegistry.CreateDefaultDefinitions()` 当前注册 38 个菜单/运行时定义；`NodeKind.Comment` 仍是历史残留枚举，但不在 `NodeRegistry.Definitions`，旧 `comment` 图节点由 `NodeSerializer.IsRemovedNodeType()` 丢弃。
+`NodeRegistry.CreateDefaultDefinitions()` 当前注册 39 个菜单/运行时定义；`NodeKind.Comment` 仍是历史残留枚举，但不在 `NodeRegistry.Definitions`，旧 `comment` 图节点由 `NodeSerializer.IsRemovedNodeType()` 丢弃。
 
 | 节点 | NodeKind | 分类 | 引脚 |
 |------|----------|------|------|
@@ -262,12 +278,14 @@ ExecuteChain() → ExecuteNode() → NodeRegistry → INodeExecutor → Adapter
 - `WarnButContinue`：业务未命中或参数可退化，写 Warn，继续后续节点。
 - `FatalStop`：依赖缺失、脚本崩溃、Win32 异常、超时、执行环路等，写 Error，停止执行。
 - `ToDo` 节点通过 `NodeExecutionResult.Jump(...)` 改变执行位置；`ReturnAfterJump` 为 true 时，目标链结束后继续 `ToDo.exec_out`。
+- Return-after-target 的目标链由 `ExecuteReturnJump(...)` 调用 `ExecuteFromNode(..., stopBeforeNodeId: sourceToDo.Id)` 执行。目标链如果自然走回源 ToDo，会在执行源 ToDo 前停下并返回，然后继续源 ToDo 的 `exec_out`；这不是编译错误，也不是递归。
+- 真正的 ToDo 返回递归由 `ActiveToDoReturnJumps` 和 `MaxNestedToDoReturnJumps` 防护；重复的 source-target return jump 或超过 256 层嵌套会 `FatalStop`。
 
 重要安全规则：
 - 输入 pin 未连接：可以使用节点本地属性。
 - 输入 pin 已连接但上游没有运行时输出：当前节点 Warn 并跳过，不回退本地属性。
 - 典型场景：找图未命中时，下游鼠标点击不会误用旧坐标或 `(0,0)`。
-- ToDo 跳转必须同时匹配节点名和编号。空目标、找不到、匹配多项或自跳都会 `FatalStop`。
+- ToDo 跳转必须同时匹配节点名和编号。空目标、找不到、匹配多项或直接自跳都会 `FatalStop`。
 
 #### Win32 API 调用
 
@@ -458,19 +476,21 @@ Python 参数规则：
 
 > 以下记录来自实际开发中的踩坑经验，按时间倒序排列，新记录追加到顶部。
 
-### 2026-06-05：内容浏览器交互与 UI smoke 门禁
+### 2026-06-09：内容浏览器搜索 / 定位 / 调用节点跳转
 
 #### 内容浏览器当前行为
 - 顶部 header 只显示“内容浏览器”，不再放新建按钮。
 - 新建资产只走右侧空白右键菜单，菜单项为 `脚本 / 文件夹 / 函数库 / 宏库`。没有独立“宏”资产；宏在脚本或宏库编辑面板中新增。
 - 右键资产只显示 `重命名 / 删除`。右键空白显示新建菜单。实现上复用一个 `ContextMenu`，由 `ContentBrowserContextMenu_Opened` 根据 `_contentBrowserContextTargetsAsset` 切换 `Visibility`。
 - 不要把带事件的 `ContextMenu` 放进 `ListBoxItem.Style Setter`。WPF 会在运行期把模板子元素接到 style connector，可能启动崩溃：`Unable to cast object of type 'TextBox' to type 'Style'`。
-- 当前未实现 UE 风格递归资产搜索框、搜索结果双击打开、`Ctrl+B` 从搜索结果定位到真实文件夹；不要在文档或 UX 说明里写成已完成。
-- 当前未实现双击画布中的函数/宏调用节点跳转到目标函数/宏编辑界面；只有左侧事件图/函数/宏列表项支持单击/双击切换。
+- `MainWindow.NavigationFeatures.cs` 动态安装搜索框，不在 XAML 内硬编码。搜索当前目录递归资产/文件夹，支持空格关键字、路径片段、subsequence 模糊匹配和不区分大小写。
+- `Ctrl+B` 是已实现定位：内容浏览器有选中资产时定位该资产真实父目录；无选中资产但有当前打开资产时定位当前打开资产。
+- 双击画布中的函数/宏调用节点是当前已实现跳转：按 stable `FunctionId` / `MacroId` 找目标图，打开目标所在资产，再加载目标函数/宏图。
+- `MainWindow.ContentBrowserMultiSelect.cs` 负责多选、框选、资产 Ctrl+C/Ctrl+V、拖拽预览和多删除。新增内容浏览器交互优先放在该 partial 或独立 controller，不要继续膨胀 `MainWindow.xaml.cs`。
 
 ### 2026-06-08: ToDo persistence and log copy fixes
 
-- Compile/save/run entry points must call `CommitInspectorAndSnapshotActive()` before reading active graph data. This is required for inspector-only edits, especially ToDo target dropdown selection.
+- Compile/save/run entry points must commit inspector edits and snapshot open sessions before reading graph data. This is required for inspector-only edits and multi-window assets, especially ToDo target dropdown selection.
 - ToDo static target selection must remain persisted even if `target_title` / `target_number` pins are connected; connected pins are runtime overrides, not a reason to clear static defaults.
 - `GraphCompileService.EnsureGraphToDoTargets()` is a migration/repair pass: when old data keeps only `TargetNodeId`, compile fills title/number from the referenced target node before validation.
 - Log text copy uses `RichTextBox` command bindings plus `TextBoxBase` shortcut passthrough. Do not special-case only `TextBox`, or `RichTextBox` copy will be intercepted by graph shortcuts again.
@@ -895,7 +915,7 @@ dotnet publish -c Release -r win-x64 \
 - 重构：拆分 MainWindow.xaml.cs 到 Services 层
 - 新增：Python 环境自动检测
 - 优化：日志可复制、警告黄色显示
-- 修复：属性命名、重复窗口问题
+- 修复：属性命名、旧日志窗口重复创建问题
 
 ### v1.0.0
 - 初始版本

@@ -70,10 +70,29 @@ public sealed class GraphCompileService
         ContentAssetViewModel owner,
         GraphListItemViewModel item)
     {
-        // Toolbar compile is asset-scoped: script assets compile all event graphs/functions/macros,
-        // function libraries compile all functions, and macro libraries compile all macros.
-        // Keep the historical method name so existing callers continue to work.
-        return CompileAsset(assets, owner);
+        var assetList = assets.ToList();
+        var changedAssetIds = new HashSet<string>(StringComparer.Ordinal);
+        bool changed = EnsureGraphNodeNumbers(item.Graph, item.Kind);
+        changed |= EnsureGraphToDoTargets(item.Graph);
+        if (changed)
+            changedAssetIds.Add(owner.Id);
+
+        var sync = _referenceSyncService.SyncGraph(assetList, owner, item.Graph);
+        changedAssetIds.UnionWith(sync.ChangedAssetIds);
+
+        var issues = ValidateSingleGraph(assetList, owner, item);
+        bool success = issues.All(issue => issue.Severity != GraphValidationSeverity.Error);
+        if (success)
+            item.IsCompileDirty = false;
+
+        return new GraphCompileResult
+        {
+            Success = success,
+            UpdatedCallNodes = sync.UpdatedCallNodes,
+            RemovedConnections = sync.RemovedConnections,
+            ChangedAssetIds = changedAssetIds,
+            Issues = issues,
+        };
     }
 
     public GraphCompileResult CompileAsset(
@@ -286,6 +305,17 @@ public sealed class GraphCompileService
         foreach (var item in GetCompilableGraphs(owner))
             ValidateGraph(assets, assetsById, owner, item, issues);
 
+        return issues;
+    }
+
+    private IReadOnlyList<GraphValidationIssue> ValidateSingleGraph(
+        IReadOnlyList<ContentAssetViewModel> assets,
+        ContentAssetViewModel owner,
+        GraphListItemViewModel item)
+    {
+        var issues = new List<GraphValidationIssue>();
+        var assetsById = assets.ToDictionary(asset => asset.Id, StringComparer.Ordinal);
+        ValidateGraph(assets, assetsById, owner, item, issues);
         return issues;
     }
 

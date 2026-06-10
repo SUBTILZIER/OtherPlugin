@@ -615,7 +615,6 @@ public partial class MainWindow
             return true;
 
         var deletingIds = targets.Select(item => item.Id).ToHashSet();
-        bool deletingActive = _activeContentAsset is not null && deletingIds.Contains(_activeContentAsset.Id);
 
         foreach (var item in targets)
         {
@@ -631,8 +630,7 @@ public partial class MainWindow
         foreach (var item in targets)
             ContentBrowserItems.Remove(item);
 
-        if (deletingActive)
-            CloseActiveEditor();
+        CloseEditorSessionsForAssetIds(deletingIds);
 
         ContentBrowserListBox.SelectedItems.Clear();
         _contentRangeAnchor = null;

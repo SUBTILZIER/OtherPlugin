@@ -6,27 +6,41 @@
 - 技术细节保留准确名词、文件名、命令；解释原因时用短句。
 - 不要自动 `git push`。只有用户明确要求推送时才推；推送前必须确认不包含测试功能相关文件夹。
 
+## 2026-06-09 multi editor windows
+
+- Opened assets are tracked as `EditorSessionViewModel` instances in `MainWindow.EditorSessions`; duplicate open focuses the existing session and keeps its remembered active graph.
+- Each session owns its own `GraphEditorService`, `NodeFactory`, `GraphCommandService`, and graph list collections. `MainWindow` swaps active services/controllers and raises binding changes for `Nodes`, `ConnectionPaths`, `GraphListItems`, `FunctionListItems`, and `MacroListItems`.
+- `EditorWindowBar` is under the toolbar and shows only main-window tab sessions (`DockMode != Detached`). Right-click close-all/close-right affect only visible main-window tabs; all-session save/exit still walks `EditorSessions`.
+- Dragging a tab outside the main window detaches it to `DetachedEditorWindow`; dragging inside the main window only activates the tab. Detached active sessions reparent the shared `EditorGrid` into the standalone window; switching hosts must clear the previous host first.
+- Tab dragging shows a following popup preview; inactive detached windows show a read-only remembered-graph preview instead of the old "activate this window" placeholder.
+- After reparenting the shared `EditorGrid` into or out of `DetachedEditorWindow`, explicitly keep `EditorGrid.DataContext = MainWindow`; otherwise node/path/list bindings go blank.
+- Closing a session snapshots to its `ContentAssetViewModel` but does not delete the asset. Deleting content-browser assets must close all sessions targeting deleted asset ids.
+- Save/exit/compile must snapshot all open sessions before reading graph data. Toolbar compile is active-asset scoped through `GraphCompileService.CompileAsset(...)`; scripts compile their event/function/macro graphs, libraries compile all graphs in that library.
+
 ## 2026-06-08 ToDo jump and reusable node numbers
 
 - Non-reroute nodes now have visible reusable per-graph `NodeNumber`: event `N###`, function `Fun###`, macro `Mac###`. `GraphEditorService` assigns the smallest free number, so deleting a node frees that number for future nodes.
 - `ToDoNodeViewModel` jumps inside the current graph by matching both `TargetNodeTitle` and `TargetNodeNumber`; `TargetNodeId` is only a maintenance reference for editor-side auto-sync when the target title/number changes.
 - `ToDo.ReturnAfterTarget == false` is Goto mode and skips `ToDo.exec_out`; `true` executes the target chain and then continues from `ToDo.exec_out`.
+- Return-after-target execution stops before re-entering the source ToDo (`stopBeforeNodeId = sourceToDo.Id`) and then continues from source `exec_out`. This legal return path must not be documented or validated as a recursion error.
 - The ToDo inspector has a search box plus result list. Search filters by node title or node number; selecting a result fills both target fields.
-- Runtime/validation must reject empty target, missing target, duplicate target, and self-jump. Reused number alone is not enough; title must also match.
+- Runtime/validation must reject empty target, missing target, duplicate target, and direct self-jump. Reused number alone is not enough; title must also match.
 
 ## 2026-06-08 ToDo persistence and log copy
 
-- Before compile/save/run, call `MainWindow.CommitInspectorAndSnapshotActive()` so inspector fields are applied and the active `GraphListItemViewModel.Graph` is refreshed.
+- Before compile/save/run, apply inspector fields and snapshot open sessions so active and detached assets are refreshed before graph data is read.
 - `InspectorController.ToDoTargetSelected()` must immediately write `TargetNodeTitle`, `TargetNodeNumber`, and `TargetNodeId` to the selected `ToDoNodeViewModel`, refresh description, mark dirty, then snapshot the active graph.
 - `GraphCompileService.EnsureGraphToDoTargets()` repairs old ToDo data that has only `TargetNodeId` by filling title/number from the referenced same-graph node before validation.
 - Connected ToDo `target_title` / `target_number` pins are runtime overrides. They must not clear the persisted static dropdown target.
 - Main log panel is a read-only `RichTextBox`. `Window_PreviewKeyDown` must pass through any `TextBoxBase` focus, and `LogPanelController` owns `Ctrl+A`/`Ctrl+C` command bindings for selecting/copying filtered log text.
 
-## 2026-06-08 pending UE-style browser/navigation work
+## 2026-06-09 UE-style browser/search/navigation work
 
-- Current content browser has no recursive fuzzy search box, no search-result mode, and no `Ctrl+B` locate-to-real-folder behavior. It only shows current folder tiles from `ContentVisibleItems`.
-- Current asset tile double-click opens the selected asset/folder. It does not search recursively.
-- Current function/macro call nodes do not double-click navigate to the target graph. Implement later by resolving stable `FunctionId` / `MacroId` through `CallableGraphResolver`, opening the owner asset, then loading the matching function/macro `GraphListItemViewModel`.
+- Current content browser has recursive fuzzy search installed dynamically by `MainWindow.NavigationFeatures.cs`. Search scope is the current folder plus descendants; root searches all content assets. Tokens match name/display/kind/path by contains or subsequence, case-insensitive.
+- Search results replace `ContentVisibleItems`; double-click keeps normal behavior: folders enter, scripts/function libraries/macro libraries open.
+- `Ctrl+B` locate is implemented. With a selected content asset it clears search, enters the asset's real parent folder, selects and scrolls to that asset. Without a selected browser asset, it locates the currently opened asset.
+- Function/macro call nodes double-click navigate by stable `FunctionId` / `MacroId`. `OpenCallableGraph(...)` saves the current visible graphs, finds the owning script/function-library/macro-library asset, opens it if needed, then loads the target `GraphListItemViewModel`.
+- Content browser enhanced interactions live in `MainWindow.ContentBrowserMultiSelect.cs`: multi-select, box select, Ctrl+C/Ctrl+V asset copy/paste, multi-delete, drag preview, and move/copy drop. Themed variants are installed by `MainWindow.ThemedDialogOverrides.cs`.
 
 ## 2026-06-08 connection batching and runtime lookup
 
@@ -93,7 +107,7 @@
 - Section collapsed state is runtime-only per content asset. `*SectionHasState` distinguishes explicit collapsed state from default auto-expand.
 - New graph/function/macro list items start `IsCompileDirty = true`. `MarkLogicDirty()` sets compile dirty; `MarkLayoutDirty()` only sets save dirty.
 - Compile sync updates function/macro call nodes, clears graph compile dirty, and only marks assets changed by call-reference sync as save dirty.
-- Save may prompt compile. Run is blocked while compile-dirty changes exist.
+- Save may prompt compile for any dirty graph. Run is blocked only when the current active graph is compile-dirty.
 - Shared dark context menu style is `DarkContextMenuStyle`; content browser/tree and graph lists must keep it attached.
 - Isolated tests can set `AUTOMATION_STUDIO_LIBRARY_DIR`; default library path remains `%APPDATA%/AutomationStudioWpf`.
 - Verification gates: `dotnet build .\AutomationStudioWpf.csproj -o .\bin\CodexBuildCheck`, `dotnet run --project .\Tests\CodexSmoke\AutomationStudioSmoke.csproj --no-restore`, launch crash probe `dotnet run --project .\AutomationStudioWpf.csproj` without fixed 20s wait, then `codegraph.cmd sync`.

@@ -1,5 +1,7 @@
 ﻿using System.IO;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -28,16 +30,32 @@ namespace AutomationStudioWpf;
 /// 主窗口 - 节点编辑器
 /// 重构后：职责精简为协调各服务，具体逻辑下沉到 Services 层
 /// </summary>
-public partial class MainWindow : Window
+public partial class MainWindow : Window, INotifyPropertyChanged
 {
     // 核心服务
-    private readonly GraphEditorService _editorService = new();
+    private GraphEditorService _editorService = new();
     private readonly NodeClipboardService _clipboardService = new();
-    private readonly NodeFactory _nodeFactory = new();
+    private NodeFactory _nodeFactory = new();
     private readonly GraphLibraryService _graphLibraryService = new();
     private readonly CallableGraphResolver _callableGraphResolver = new();
     private readonly GraphCompileService _graphCompileService;
     private readonly NodeRegistry _nodeRegistry = NodeRegistry.CreateDefault();
+    private readonly ObservableCollection<EditorSessionViewModel> _editorSessions = [];
+    private readonly ObservableCollection<EditorSessionViewModel> _mainEditorSessions = [];
+    private readonly ObservableCollection<GraphListItemViewModel> _emptyGraphListItems = [];
+    private readonly ObservableCollection<GraphListItemViewModel> _emptyFunctionListItems = [];
+    private readonly ObservableCollection<GraphListItemViewModel> _emptyMacroListItems = [];
+    private readonly ObservableCollection<NodeBaseViewModel> _emptyNodes = [];
+    private readonly ObservableCollection<ConnectionPathViewModel> _emptyConnectionPaths = [];
+    private EditorSessionViewModel? _activeEditorSession;
+    private GraphEditorService? _attachedEditorService;
+    private EditorSessionViewModel? _draggedEditorSession;
+    private Point _editorSessionDragStart;
+    private bool _isEditorSessionDrag;
+    private System.Windows.Controls.Primitives.Popup? _editorSessionDragPreviewPopup;
+    private System.Windows.Controls.Panel? _editorGridHomeParent;
+    private int _editorGridHomeIndex = -1;
+    private DetachedEditorWindow? _editorGridOwnerWindow;
     private GraphCommandService _graphCommandService = null!;
     private ExecutionController _executionController = null!;
     private NodePaletteController _nodePaletteController = null!;
@@ -77,6 +95,8 @@ public partial class MainWindow : Window
         Copy,
     }
 
+    public event PropertyChangedEventHandler? PropertyChanged;
+
     public MainWindow()
     {
         DataContext = this;
@@ -93,8 +113,7 @@ public partial class MainWindow : Window
     {
 
         // 绑定服务事件
-        _editorService.GraphChanged += OnGraphChanged;
-        _editorService.StatusChanged += SetStatus;
+        AttachActiveEditorService(_editorService);
 
         // 日志更新
         Logger.Entries.CollectionChanged += (_, _) => _logPanelController.Refresh();
@@ -106,13 +125,37 @@ public partial class MainWindow : Window
         PreviewMouseDown += Window_PreviewMouseDown;
     }
 
+    private void AttachActiveEditorService(GraphEditorService editorService)
+    {
+        if (_attachedEditorService is not null)
+        {
+            _attachedEditorService.GraphChanged -= OnGraphChanged;
+            _attachedEditorService.StatusChanged -= SetStatus;
+            _attachedEditorService.GraphChanged -= NavigationFeatures_GraphChanged;
+        }
+
+        _attachedEditorService = editorService;
+        _attachedEditorService.GraphChanged += OnGraphChanged;
+        _attachedEditorService.StatusChanged += SetStatus;
+        if (_navigationFeaturesInstalled)
+            _attachedEditorService.GraphChanged += NavigationFeatures_GraphChanged;
+    }
+
     private void InitializeControllers()
     {
-        _graphCommandService = new GraphCommandService(
-            _editorService,
-            () => GetActiveGraphKind() ?? GraphAssetKind.EventGraph,
-            SyncNodeFactorySequence,
-            SetStatus);
+        RebuildEditorControllers();
+
+        _logPanelController = new LogPanelController(
+            LogRichTextBox,
+            FilterAllRadio,
+            FilterInfoRadio,
+            FilterWarnRadio,
+            FilterErrorRadio);
+    }
+
+    private void RebuildEditorControllers()
+    {
+        _graphCommandService = GetOrCreateActiveCommandService();
 
         _executionController = new ExecutionController(
             this,
@@ -166,6 +209,30 @@ public partial class MainWindow : Window
             "新宏_",
             SetStatus);
 
+        RebuildInteractionControllers();
+    }
+
+    private GraphCommandService GetOrCreateActiveCommandService()
+    {
+        if (_activeEditorSession is null)
+        {
+            return new GraphCommandService(
+                _editorService,
+                () => GetActiveGraphKind() ?? GraphAssetKind.EventGraph,
+                SyncNodeFactorySequence,
+                SetStatus);
+        }
+
+        var session = _activeEditorSession;
+        return session.CommandService ??= new GraphCommandService(
+            session.EditorService,
+            () => GetActiveGraphKind() ?? session.ActiveGraphKind ?? GraphAssetKind.EventGraph,
+            SyncNodeFactorySequence,
+            SetStatus);
+    }
+
+    private void RebuildInteractionControllers()
+    {
         _nodePaletteController = new NodePaletteController(
             NodePalette,
             NodePaletteSearchBox,
@@ -320,32 +387,37 @@ public partial class MainWindow : Window
             _nodeDragSelectionController.SetCanvasFocusActive,
             SetStatus);
 
-        _logPanelController = new LogPanelController(
-            LogRichTextBox,
-            FilterAllRadio,
-            FilterInfoRadio,
-            FilterWarnRadio,
-            FilterErrorRadio);
-
         _graphImportDropController = new GraphImportDropController(this, _graphListController);
     }
 
     private void InitializeEditor()
     {
+        CaptureEditorGridHome();
         LoadGraphLibrary();
         InitializeNodePalette();
         EnsureCanvasLargeEnough();
+    }
+
+    private void CaptureEditorGridHome()
+    {
+        if (EditorGrid.Parent is System.Windows.Controls.Panel parent)
+        {
+            _editorGridHomeParent = parent;
+            _editorGridHomeIndex = parent.Children.IndexOf(EditorGrid);
+        }
     }
 
     #endregion
 
     #region 属性绑定
 
-    public System.Collections.IEnumerable Nodes => _editorService.Nodes;
-    public System.Collections.IEnumerable ConnectionPaths => _editorService.ConnectionPaths;
-    public ObservableCollection<GraphListItemViewModel> GraphListItems { get; } = [];
-    public ObservableCollection<GraphListItemViewModel> FunctionListItems { get; } = [];
-    public ObservableCollection<GraphListItemViewModel> MacroListItems { get; } = [];
+    public System.Collections.IEnumerable Nodes => _activeEditorSession?.EditorService.Nodes ?? _emptyNodes;
+    public System.Collections.IEnumerable ConnectionPaths => _activeEditorSession?.EditorService.ConnectionPaths ?? _emptyConnectionPaths;
+    public ObservableCollection<GraphListItemViewModel> GraphListItems => _activeEditorSession?.GraphListItems ?? _emptyGraphListItems;
+    public ObservableCollection<GraphListItemViewModel> FunctionListItems => _activeEditorSession?.FunctionListItems ?? _emptyFunctionListItems;
+    public ObservableCollection<GraphListItemViewModel> MacroListItems => _activeEditorSession?.MacroListItems ?? _emptyMacroListItems;
+    public ObservableCollection<EditorSessionViewModel> EditorSessions => _editorSessions;
+    public ObservableCollection<EditorSessionViewModel> MainEditorSessions => _mainEditorSessions;
     public ObservableCollection<ContentAssetViewModel> ContentBrowserItems { get; } = [];
     public ObservableCollection<ContentAssetViewModel> ContentFolderItems { get; } = [];
     public ObservableCollection<ContentAssetViewModel> ContentVisibleItems { get; } = [];
@@ -389,8 +461,7 @@ public partial class MainWindow : Window
 
     private void CompileGraph_Click(object sender, RoutedEventArgs e)
     {
-        CommitInspectorAndSnapshotActive();
-        CompileCurrentAssets(showPrompt: false);
+        CompileActiveAsset(showPrompt: false);
     }
 
     #endregion
@@ -399,13 +470,15 @@ public partial class MainWindow : Window
 
     private void LoadGraphLibrary()
     {
+        CloseAllEditorSessions();
         ContentBrowserItems.Clear();
         foreach (var item in _graphLibraryService.LoadContentLibrary())
             ContentBrowserItems.Add(item);
 
         _currentContentFolderId = null;
         RefreshContentBrowserViews();
-        CloseActiveEditor();
+        if (_editorSessions.Count == 0)
+            ClearEditorSurface();
     }
 
     private void AddGraphListItem_Click(object sender, RoutedEventArgs e)
@@ -567,6 +640,7 @@ public partial class MainWindow : Window
 
         _activeAssetController = controller;
         controller.LoadItem(item, snapshotCurrent: false);
+        _activeEditorSession?.RememberActive(controller);
         _graphCommandService.Clear();
     }
 
@@ -958,31 +1032,155 @@ public partial class MainWindow : Window
 
     private void OpenContentAsset(ContentAssetViewModel asset)
     {
-        SaveVisibleGraphsToActiveContent();
-        _activeContentAsset = asset;
-        ContentBrowserListBox.SelectedItem = asset;
+        OpenOrActivateAsset(asset);
+    }
 
-        GraphListItems.Clear();
-        FunctionListItems.Clear();
-        MacroListItems.Clear();
+    private void OpenOrActivateAsset(ContentAssetViewModel asset, GraphListItemViewModel? targetGraph = null, GraphAssetKind? targetKind = null)
+    {
+        var session = _editorSessions.FirstOrDefault(item => string.Equals(item.ContentAsset.Id, asset.Id, StringComparison.Ordinal))
+            ?? CreateEditorSession(asset);
+
+        if (!_editorSessions.Contains(session))
+            AddEditorSession(session);
+
+        ActivateEditorSession(session, targetGraph, targetKind);
+    }
+
+    private EditorSessionViewModel CreateEditorSession(ContentAssetViewModel asset)
+    {
+        var session = new EditorSessionViewModel(asset);
+        session.Left = 36 + _editorSessions.Count * 28;
+        session.Top = 28 + _editorSessions.Count * 24;
+        return session;
+    }
+
+    private void AddEditorSession(EditorSessionViewModel session)
+    {
+        _editorSessions.Add(session);
+        session.PropertyChanged += EditorSession_PropertyChanged;
+        RefreshMainEditorSessions();
+    }
+
+    private void RemoveEditorSession(EditorSessionViewModel session)
+    {
+        session.PropertyChanged -= EditorSession_PropertyChanged;
+        _editorSessions.Remove(session);
+        _mainEditorSessions.Remove(session);
+        RefreshMainEditorSessions();
+    }
+
+    private void EditorSession_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (sender is not EditorSessionViewModel session)
+            return;
+
+        if (e.PropertyName is nameof(EditorSessionViewModel.DockMode))
+            RefreshMainEditorSessions();
+
+        if (e.PropertyName is nameof(EditorSessionViewModel.DisplayTitle)
+            or nameof(EditorSessionViewModel.IsDirty)
+            or nameof(EditorSessionViewModel.IsActive))
+        {
+            session.DetachedWindow?.RefreshChrome();
+        }
+    }
+
+    private void ActivateEditorSession(EditorSessionViewModel session, GraphListItemViewModel? targetGraph = null, GraphAssetKind? targetKind = null)
+    {
+        if (_executionController?.IsRunning == true)
+        {
+            SetStatus("执行中，不能切换编辑窗口。");
+            return;
+        }
+
+        CommitCurrentSessionToAsset();
+
+        if (_activeEditorSession is not null)
+            _activeEditorSession.IsActive = false;
+
+        _activeEditorSession = session;
+        _activeEditorSession.IsActive = true;
+        _activeContentAsset = session.ContentAsset;
+        _editorService = session.EditorService;
+        _nodeFactory = session.NodeFactory;
+        MoveEditorGridForSession(session);
+        ContentBrowserListBox.SelectedItem = session.ContentAsset;
+
+        AttachActiveEditorService(_editorService);
+        RaiseEditorBindingProperties();
+        RebuildEditorControllers();
+        AttachGraphCollectionChangeHandlers();
+
         _graphListController.ClearActive();
         _functionListController.ClearActive();
         _macroListController.ClearActive();
         _activeAssetController = null;
 
-        foreach (var item in asset.EventGraphs)
-            GraphListItems.Add(item);
-        foreach (var item in asset.Functions)
-            FunctionListItems.Add(item);
-        foreach (var item in asset.Macros)
-            MacroListItems.Add(item);
+        _graphListController.LoadSectionExpansion(session.ContentAsset.EventGraphSectionExpanded, session.ContentAsset.EventGraphSectionHasState);
+        _functionListController.LoadSectionExpansion(session.ContentAsset.FunctionSectionExpanded, session.ContentAsset.FunctionSectionHasState);
+        _macroListController.LoadSectionExpansion(session.ContentAsset.MacroSectionExpanded, session.ContentAsset.MacroSectionHasState);
 
-        _graphListController.LoadSectionExpansion(asset.EventGraphSectionExpanded, asset.EventGraphSectionHasState);
-        _functionListController.LoadSectionExpansion(asset.FunctionSectionExpanded, asset.FunctionSectionHasState);
-        _macroListController.LoadSectionExpansion(asset.MacroSectionExpanded, asset.MacroSectionHasState);
-        ApplyEditorModeForContent(asset);
-        LoadFirstGraphForContent(asset);
-        SetStatus($"已打开：{asset.Name}");
+        ApplyEditorModeForContent(session.ContentAsset);
+        LoadTargetOrRememberedGraphForSession(session, targetGraph, targetKind);
+        session.RefreshDirtyState();
+        UpdateEditorSessionChrome();
+        SetStatus($"已打开：{session.ContentAsset.Name}");
+    }
+
+    private void LoadTargetOrRememberedGraphForSession(EditorSessionViewModel session, GraphListItemViewModel? targetGraph, GraphAssetKind? targetKind)
+    {
+        if (targetGraph is not null && targetKind is not null)
+        {
+            LoadGraphItem(GetControllerForKind(targetKind.Value), targetGraph, snapshotCurrent: false);
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(session.ActiveGraphItemId) && session.ActiveGraphKind is { } rememberedKind)
+        {
+            var remembered = GetCollectionForKind(session, rememberedKind)
+                .FirstOrDefault(item => string.Equals(item.Id, session.ActiveGraphItemId, StringComparison.Ordinal));
+            if (remembered is not null)
+            {
+                LoadGraphItem(GetControllerForKind(rememberedKind), remembered, snapshotCurrent: false);
+                return;
+            }
+        }
+
+        LoadFirstGraphForContent(session.ContentAsset);
+    }
+
+    private GraphListController GetControllerForKind(GraphAssetKind kind) => kind switch
+    {
+        GraphAssetKind.Function => _functionListController,
+        GraphAssetKind.Macro => _macroListController,
+        _ => _graphListController,
+    };
+
+    private static ObservableCollection<GraphListItemViewModel> GetCollectionForKind(EditorSessionViewModel session, GraphAssetKind kind) => kind switch
+    {
+        GraphAssetKind.Function => session.FunctionListItems,
+        GraphAssetKind.Macro => session.MacroListItems,
+        _ => session.GraphListItems,
+    };
+
+    private void CommitCurrentSessionToAsset()
+    {
+        if (_activeEditorSession is null)
+            return;
+
+        SnapshotActiveAsset();
+        _activeEditorSession.SaveToAsset();
+    }
+
+    private void CommitAllSessionsToAssets()
+    {
+        foreach (var session in _editorSessions)
+        {
+            if (ReferenceEquals(session, _activeEditorSession))
+                CommitCurrentSessionToAsset();
+            else
+                session.SaveToAsset();
+        }
     }
 
     private void ApplyEditorModeForContent(ContentAssetViewModel asset)
@@ -1036,32 +1234,111 @@ public partial class MainWindow : Window
 
     private void CloseActiveEditor()
     {
+        if (_activeEditorSession is not null)
+        {
+            CloseEditorSession(_activeEditorSession);
+            return;
+        }
+
+        ClearEditorSurface();
+    }
+
+    private void CloseEditorSession(EditorSessionViewModel session)
+    {
+        if (ReferenceEquals(session, _activeEditorSession))
+            CommitCurrentSessionToAsset();
+        else
+            session.SaveToAsset();
+
+        if (ReferenceEquals(session.DetachedWindow, _editorGridOwnerWindow))
+            MoveEditorGridHome();
+        session.DetachedWindow?.CloseFromOwner();
+        session.DetachedWindow = null;
+        RemoveEditorSession(session);
+
+        if (ReferenceEquals(session, _activeEditorSession))
+        {
+            _activeEditorSession = null;
+            _activeContentAsset = null;
+            _activeAssetController = null;
+
+            var next = _mainEditorSessions.LastOrDefault() ?? _editorSessions.LastOrDefault();
+            if (next is not null)
+            {
+                ActivateEditorSession(next);
+            }
+            else
+            {
+                ClearEditorSurface();
+            }
+        }
+
+        UpdateEditorSessionChrome();
+        PersistAssetLibrary();
+    }
+
+    private void CloseAllEditorSessions()
+    {
+        foreach (var session in _editorSessions.ToList())
+            CloseEditorSession(session);
+    }
+
+    private void CloseMainEditorSessions()
+    {
+        foreach (var session in _mainEditorSessions.ToList())
+            CloseEditorSession(session);
+    }
+
+    private void CloseEditorSessionsToRight(EditorSessionViewModel session)
+    {
+        int index = _mainEditorSessions.IndexOf(session);
+        if (index < 0)
+            return;
+
+        foreach (var rightSession in _mainEditorSessions.Skip(index + 1).ToList())
+            CloseEditorSession(rightSession);
+    }
+
+    private void CloseEditorSessionsForAssetIds(ISet<string> assetIds)
+    {
+        foreach (var session in _editorSessions
+                     .Where(item => assetIds.Contains(item.ContentAsset.Id))
+                     .ToList())
+        {
+            CloseEditorSession(session);
+        }
+    }
+
+    private void ClearEditorSurface()
+    {
         _activeContentAsset = null;
+        _activeEditorSession = null;
         _activeAssetController = null;
-        GraphListItems.Clear();
-        FunctionListItems.Clear();
-        MacroListItems.Clear();
         _editorService.ClearGraph();
         _graphCommandService.Clear();
+        RaiseEditorBindingProperties();
+        MoveEditorGridHome();
         EmptyEditorPanel.Visibility = Visibility.Visible;
         EditorGrid.Visibility = Visibility.Collapsed;
+        InspectorPanel.Visibility = Visibility.Collapsed;
+        UpdateEditorSessionChrome();
     }
 
     private void SaveVisibleGraphsToActiveContent()
     {
-        if (_activeContentAsset is null)
+        if (_activeEditorSession is null)
             return;
 
         SnapshotActiveAsset();
-        _activeContentAsset.EventGraphs = new ObservableCollection<GraphListItemViewModel>(GraphListItems);
-        _activeContentAsset.Functions = new ObservableCollection<GraphListItemViewModel>(FunctionListItems);
-        _activeContentAsset.Macros = new ObservableCollection<GraphListItemViewModel>(MacroListItems);
+        _activeEditorSession.SaveToAsset();
     }
 
     private void MarkCurrentContentDirty()
     {
         if (_activeContentAsset is not null)
             _activeContentAsset.IsDirty = true;
+        _activeEditorSession?.RefreshDirtyState();
+        UpdateEditorSessionChrome();
     }
 
     private IEnumerable<CallableGraphItem> GetCallableFunctions()
@@ -1240,12 +1517,11 @@ public partial class MainWindow : Window
         if (result != MessageBoxResult.Yes)
             return;
 
-        bool deletingActive = ReferenceEquals(item, _activeContentAsset);
+        var deletingIds = new HashSet<string> { item.Id };
         foreach (var child in ContentBrowserItems.Where(child => child.ParentFolderId == item.Id).ToList())
             child.ParentFolderId = item.ParentFolderId;
         ContentBrowserItems.Remove(item);
-        if (deletingActive)
-            CloseActiveEditor();
+        CloseEditorSessionsForAssetIds(deletingIds);
         RefreshContentBrowserViews();
         PersistAssetLibrary();
     }
@@ -1635,7 +1911,7 @@ public partial class MainWindow : Window
         _executionController.ReleaseAllKeys();
         if (_isClosing) return;
 
-        SaveVisibleGraphsToActiveContent();
+        CommitAllSessionsToAssets();
         if (ContentBrowserItems.Any(item => item.IsDirty) ||
             GraphListItems.Concat(FunctionListItems).Concat(MacroListItems).Any(item => item.IsDirty))
         {
@@ -1658,6 +1934,8 @@ public partial class MainWindow : Window
         if (e.Cancel)
             return;
 
+        foreach (var session in _editorSessions.ToList())
+            session.DetachedWindow?.CloseFromOwner();
         _isClosing = true;
     }
 
@@ -1997,6 +2275,12 @@ public partial class MainWindow : Window
         SnapshotActiveAsset();
     }
 
+    private void CommitInspectorAndSnapshotAllSessions()
+    {
+        ApplyInspectorChanges();
+        CommitAllSessionsToAssets();
+    }
+
     private void InspectorField_TextChanged(object sender, TextChangedEventArgs e) => ApplyInspectorChanges();
     private void InspectorField_SelectionChanged(object sender, SelectionChangedEventArgs e) => ApplyInspectorChanges();
     private void InspectorField_CheckedChanged(object sender, RoutedEventArgs e) => ApplyInspectorChanges();
@@ -2161,6 +2445,8 @@ public partial class MainWindow : Window
     private void SnapshotActiveAsset()
     {
         _activeAssetController?.SnapshotActive();
+        _activeEditorSession?.RememberActive(_activeAssetController);
+        _activeEditorSession?.RefreshDirtyState();
     }
 
     private void PersistAssetLibrary()
@@ -2171,7 +2457,7 @@ public partial class MainWindow : Window
 
     private void SaveAllAssets()
     {
-        SaveVisibleGraphsToActiveContent();
+        CommitAllSessionsToAssets();
         foreach (var item in ContentBrowserItems
                      .Where(asset => asset.Kind != ContentAssetKind.Folder)
                      .SelectMany(asset => asset.EventGraphs.Concat(asset.Functions).Concat(asset.Macros))
@@ -2191,8 +2477,7 @@ public partial class MainWindow : Window
 
     private bool EnsureCompiledBeforeSave()
     {
-        CommitInspectorAndSnapshotActive();
-        SaveVisibleGraphsToActiveContent();
+        CommitInspectorAndSnapshotAllSessions();
         if (!HasCompileDirtyAssets())
             return true;
 
@@ -2206,46 +2491,46 @@ public partial class MainWindow : Window
 
     private bool EnsureCompiledBeforeRun()
     {
-        CommitInspectorAndSnapshotActive();
-        SaveVisibleGraphsToActiveContent();
-        if (!HasCompileDirtyAssets())
+        CommitInspectorAndSnapshotAllSessions();
+        if (_activeAssetController?.ActiveItem?.IsCompileDirty != true)
             return true;
 
-        WpfMessageBox.Show(this, "存在未编译修改，请先点击编译。", "需要编译", MessageBoxButton.OK, MessageBoxImage.Warning);
+        WpfMessageBox.Show(this, "当前图表存在未编译修改，请先点击编译。", "需要编译", MessageBoxButton.OK, MessageBoxImage.Warning);
         return false;
     }
 
-    private bool CompileCurrentAssets(bool showPrompt)
+    private bool CompileActiveAsset(bool showPrompt)
     {
-        CommitInspectorAndSnapshotActive();
-        SaveVisibleGraphsToActiveContent();
-        if (_activeContentAsset is null || _activeAssetController?.ActiveItem is not { } active)
+        CommitInspectorAndSnapshotAllSessions();
+        if (_activeContentAsset is null || _activeContentAsset.Kind == ContentAssetKind.Folder)
         {
             if (showPrompt)
-                WpfMessageBox.Show(this, "没有打开的图表。", "无法编译", MessageBoxButton.OK, MessageBoxImage.Warning);
-            SetStatus("编译失败：没有打开的图表。");
+                WpfMessageBox.Show(this, "没有打开可编译的资产。", "无法编译", MessageBoxButton.OK, MessageBoxImage.Warning);
+            SetStatus("编译失败：没有打开可编译的资产。");
             return false;
         }
 
-        var result = _graphCompileService.CompileGraph(ContentBrowserItems, _activeContentAsset, active);
+        var result = _graphCompileService.CompileAsset(ContentBrowserItems, _activeContentAsset);
         foreach (var item in ContentBrowserItems.Where(item => result.ChangedAssetIds.Contains(item.Id)))
             item.IsDirty = true;
 
         if (!HandleCompileResult(result, showPrompt))
             return false;
 
-        _activeAssetController.ReloadItemWithoutPersist(active);
-        _graphCommandService.Clear();
+        if (_activeAssetController?.ActiveItem is { } active)
+        {
+            _activeAssetController.ReloadItemWithoutPersist(active);
+            _graphCommandService.Clear();
+        }
         PersistAssetLibrary();
         UpdateGraphSectionVisibility();
-        SetStatus($"编译完成：{active.Name}，同步 {result.UpdatedCallNodes} 个调用节点，移除 {result.RemovedConnections} 条无效连线。");
+        SetStatus($"编译完成：{_activeContentAsset.Name}，同步 {result.UpdatedCallNodes} 个调用节点，移除 {result.RemovedConnections} 条无效连线。");
         return true;
     }
 
     private bool CompileAllAssets(bool showPrompt)
     {
-        CommitInspectorAndSnapshotActive();
-        SaveVisibleGraphsToActiveContent();
+        CommitInspectorAndSnapshotAllSessions();
         var result = _graphCompileService.Compile(ContentBrowserItems);
         foreach (var item in ContentBrowserItems.Where(item => result.ChangedAssetIds.Contains(item.Id)))
             item.IsDirty = true;
@@ -2304,7 +2589,7 @@ public partial class MainWindow : Window
         if (CompileGraphButton is null)
             return;
 
-        bool dirty = _activeAssetController?.ActiveItem?.IsCompileDirty == true;
+        bool dirty = ActiveContentAssetHasCompileDirtyGraphs();
         CompileButtonText.Text = dirty ? "编译*" : "编译";
         CompileDirtyIcon.Visibility = dirty ? Visibility.Visible : Visibility.Collapsed;
         CompileGraphButton.Background = dirty
@@ -2413,6 +2698,262 @@ public partial class MainWindow : Window
     private void SetStatus(string message)
     {
         StatusTextBlock.Text = message;
+    }
+
+    private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+    {
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+    }
+
+    private void RaiseEditorBindingProperties()
+    {
+        OnPropertyChanged(nameof(Nodes));
+        OnPropertyChanged(nameof(ConnectionPaths));
+        OnPropertyChanged(nameof(GraphListItems));
+        OnPropertyChanged(nameof(FunctionListItems));
+        OnPropertyChanged(nameof(MacroListItems));
+        OnPropertyChanged(nameof(EditorSessions));
+        OnPropertyChanged(nameof(MainEditorSessions));
+    }
+
+    private void UpdateEditorSessionChrome()
+    {
+        foreach (var session in _editorSessions)
+        {
+            session.RefreshDirtyState();
+            session.DetachedWindow?.RefreshChrome();
+        }
+
+        RefreshMainEditorSessions();
+        EditorWindowBar.Visibility = _mainEditorSessions.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void RefreshMainEditorSessions()
+    {
+        var visibleSessions = _editorSessions
+            .Where(session => session.DockMode != EditorDockMode.Detached)
+            .ToList();
+        if (_mainEditorSessions.SequenceEqual(visibleSessions))
+            return;
+
+        _mainEditorSessions.Clear();
+        foreach (var session in visibleSessions)
+            _mainEditorSessions.Add(session);
+        OnPropertyChanged(nameof(MainEditorSessions));
+    }
+
+    private void MoveEditorGridForSession(EditorSessionViewModel? session)
+    {
+        if (session?.DockMode == EditorDockMode.Detached && session.DetachedWindow is { } detachedWindow)
+        {
+            if (!detachedWindow.IsVisible)
+                detachedWindow.Show();
+            MoveEditorGridToDetachedWindow(detachedWindow);
+            if (!detachedWindow.IsActive)
+                detachedWindow.Activate();
+            return;
+        }
+
+        MoveEditorGridHome();
+    }
+
+    private void MoveEditorGridHome()
+    {
+        if (_editorGridHomeParent is null)
+            return;
+
+        ClearEditorGridOwnerHosts();
+
+        if (!ReferenceEquals(EditorGrid.Parent, _editorGridHomeParent))
+        {
+            RemoveElementFromParent(EditorGrid);
+            int index = _editorGridHomeIndex < 0 ? _editorGridHomeParent.Children.Count : Math.Min(_editorGridHomeIndex, _editorGridHomeParent.Children.Count);
+            _editorGridHomeParent.Children.Insert(index, EditorGrid);
+            Grid.SetRow(EditorGrid, 0);
+        }
+        EditorGrid.DataContext = this;
+    }
+
+    private void MoveEditorGridToDetachedWindow(DetachedEditorWindow detachedWindow)
+    {
+        if (ReferenceEquals(_editorGridOwnerWindow, detachedWindow))
+            return;
+
+        ClearEditorGridOwnerHosts();
+
+        RemoveElementFromParent(EditorGrid);
+        detachedWindow.SetEditorContent(EditorGrid);
+        EditorGrid.DataContext = this;
+        _editorGridOwnerWindow = detachedWindow;
+    }
+
+    private UIElement CreateDetachedEditorPreview(EditorSessionViewModel session)
+    {
+        SnapshotSessionIfActive(session);
+        var graph = GetRememberedGraphForSession(session);
+        if (graph is null || graph.Nodes.Count == 0)
+            return CreateDetachedPreviewEmptyState(session);
+
+        const double padding = 48;
+        const double nodeWidth = 172;
+        const double nodeHeight = 64;
+        double minX = graph.Nodes.Min(node => node.X);
+        double minY = graph.Nodes.Min(node => node.Y);
+        double maxX = graph.Nodes.Max(node => node.X) + nodeWidth;
+        double maxY = graph.Nodes.Max(node => node.Y) + nodeHeight;
+
+        var canvas = new Canvas
+        {
+            Width = Math.Max(900, maxX - minX + padding * 2),
+            Height = Math.Max(620, maxY - minY + padding * 2),
+            Background = new SolidColorBrush(System.Windows.Media.Color.FromRgb(17, 21, 26)),
+            IsHitTestVisible = false,
+        };
+
+        var nodeLookup = graph.Nodes.ToDictionary(node => node.Id, StringComparer.Ordinal);
+        foreach (var connection in graph.Connections)
+        {
+            if (!nodeLookup.TryGetValue(connection.SourceNodeId, out var source) ||
+                !nodeLookup.TryGetValue(connection.TargetNodeId, out var target))
+            {
+                continue;
+            }
+
+            var line = new System.Windows.Shapes.Line
+            {
+                X1 = source.X - minX + padding + nodeWidth,
+                Y1 = source.Y - minY + padding + nodeHeight / 2,
+                X2 = target.X - minX + padding,
+                Y2 = target.Y - minY + padding + nodeHeight / 2,
+                Stroke = new SolidColorBrush(System.Windows.Media.Color.FromRgb(222, 226, 232)),
+                StrokeThickness = 2,
+                Opacity = 0.7,
+            };
+            canvas.Children.Add(line);
+        }
+
+        foreach (var node in graph.Nodes)
+        {
+            var card = CreateDetachedPreviewNodeCard(node, nodeWidth, nodeHeight);
+            Canvas.SetLeft(card, node.X - minX + padding);
+            Canvas.SetTop(card, node.Y - minY + padding);
+            canvas.Children.Add(card);
+        }
+
+        var scrollViewer = new ScrollViewer
+        {
+            Content = canvas,
+            Background = new SolidColorBrush(System.Windows.Media.Color.FromRgb(17, 21, 26)),
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+        };
+        scrollViewer.ScrollToHorizontalOffset(Math.Max(0, padding - 24));
+        scrollViewer.ScrollToVerticalOffset(Math.Max(0, padding - 24));
+        return scrollViewer;
+    }
+
+    private void SnapshotSessionIfActive(EditorSessionViewModel session)
+    {
+        if (ReferenceEquals(session, _activeEditorSession))
+            SnapshotActiveAsset();
+    }
+
+    private GraphFileModel? GetRememberedGraphForSession(EditorSessionViewModel session)
+    {
+        if (session.ActiveGraphKind is { } kind && !string.IsNullOrWhiteSpace(session.ActiveGraphItemId))
+        {
+            var remembered = GetCollectionForKind(session, kind)
+                .FirstOrDefault(item => string.Equals(item.Id, session.ActiveGraphItemId, StringComparison.Ordinal));
+            if (remembered is not null)
+                return remembered.Graph;
+        }
+
+        return session.ContentAsset.Kind switch
+        {
+            ContentAssetKind.Script => session.GraphListItems.Concat(session.FunctionListItems).Concat(session.MacroListItems).FirstOrDefault()?.Graph,
+            ContentAssetKind.FunctionLibrary => session.FunctionListItems.FirstOrDefault()?.Graph,
+            ContentAssetKind.MacroLibrary => session.MacroListItems.FirstOrDefault()?.Graph,
+            _ => null,
+        };
+    }
+
+    private static Border CreateDetachedPreviewNodeCard(NodeFileModel node, double width, double height)
+    {
+        var title = string.IsNullOrWhiteSpace(node.NodeNumber)
+            ? node.Title
+            : $"{node.NodeNumber}  {node.Title}";
+        var stack = new StackPanel();
+        stack.Children.Add(new TextBlock
+        {
+            Text = string.IsNullOrWhiteSpace(title) ? node.NodeTypeKey : title,
+            Foreground = System.Windows.Media.Brushes.White,
+            FontWeight = FontWeights.SemiBold,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+        });
+        stack.Children.Add(new TextBlock
+        {
+            Text = node.NodeTypeKey,
+            Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(164, 176, 194)),
+            FontSize = 11,
+            Margin = new Thickness(0, 5, 0, 0),
+            TextTrimming = TextTrimming.CharacterEllipsis,
+        });
+
+        return new Border
+        {
+            Width = width,
+            Height = height,
+            Padding = new Thickness(10, 8, 10, 8),
+            CornerRadius = new CornerRadius(6),
+            BorderThickness = new Thickness(1),
+            BorderBrush = new SolidColorBrush(System.Windows.Media.Color.FromRgb(69, 80, 96)),
+            Background = new SolidColorBrush(GetPreviewNodeColor(node.NodeTypeKey)),
+            Child = stack,
+        };
+    }
+
+    private static System.Windows.Media.Color GetPreviewNodeColor(string typeKey) => typeKey switch
+    {
+        "start" or "print_log" => System.Windows.Media.Color.FromRgb(35, 112, 74),
+        "function_entry" or "function_return" or "function_call" => System.Windows.Media.Color.FromRgb(64, 67, 168),
+        "macro_entry" or "macro_output" or "macro_call" => System.Windows.Media.Color.FromRgb(128, 82, 30),
+        "todo" => System.Windows.Media.Color.FromRgb(157, 93, 30),
+        "reroute" => System.Windows.Media.Color.FromRgb(48, 54, 64),
+        _ => System.Windows.Media.Color.FromRgb(32, 38, 48),
+    };
+
+    private static UIElement CreateDetachedPreviewEmptyState(EditorSessionViewModel session) => new Border
+    {
+        Background = new SolidColorBrush(System.Windows.Media.Color.FromRgb(17, 21, 26)),
+        Child = new TextBlock
+        {
+            Text = $"{session.DisplayTitle}\n当前图表没有可预览节点。",
+            Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(160, 170, 184)),
+            TextAlignment = TextAlignment.Center,
+            HorizontalAlignment = System.Windows.HorizontalAlignment.Center,
+            VerticalAlignment = System.Windows.VerticalAlignment.Center,
+        },
+    };
+
+    private void ClearEditorGridOwnerHosts()
+    {
+        if (_editorGridOwnerWindow is not null)
+        {
+            _editorGridOwnerWindow.ClearEditorContent(EditorGrid);
+            _editorGridOwnerWindow = null;
+        }
+    }
+
+    private static void RemoveElementFromParent(UIElement element)
+    {
+        if (element is null)
+            return;
+
+        if (element is FrameworkElement { Parent: System.Windows.Controls.Panel parent })
+            parent.Children.Remove(element);
+        else if (element is FrameworkElement { Parent: ContentControl contentControl } &&
+                 ReferenceEquals(contentControl.Content, element))
+            contentControl.Content = null;
     }
 
     #endregion

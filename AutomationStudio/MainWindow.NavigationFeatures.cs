@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.Windows;
 using System.Windows.Media;
@@ -34,6 +35,9 @@ public partial class MainWindow
     private bool _autoFitGraphQueued;
     private bool _autoFitRenderingAttached;
     private bool _assetCompileButtonStateQueued;
+    private ObservableCollection<GraphListItemViewModel>? _attachedGraphListItems;
+    private ObservableCollection<GraphListItemViewModel>? _attachedFunctionListItems;
+    private ObservableCollection<GraphListItemViewModel>? _attachedMacroListItems;
     private int _autoFitStableFrames;
     private int _autoFitFramesRemaining;
 
@@ -52,10 +56,8 @@ public partial class MainWindow
         Loaded -= MainWindow_NavigationFeaturesLoaded;
 
         InstallContentBrowserSearchBox();
-        _editorService.GraphChanged += NavigationFeatures_GraphChanged;
-        GraphListItems.CollectionChanged += GraphCollections_AssetCompileStateChanged;
-        FunctionListItems.CollectionChanged += GraphCollections_AssetCompileStateChanged;
-        MacroListItems.CollectionChanged += GraphCollections_AssetCompileStateChanged;
+        AttachActiveEditorService(_editorService);
+        AttachGraphCollectionChangeHandlers();
         ContentBrowserItems.CollectionChanged += GraphCollections_AssetCompileStateChanged;
         AddHandler(WpfUIElement.PreviewMouseLeftButtonDownEvent, new WpfMouseButtonEventHandler(GraphCallableNode_PreviewMouseLeftButtonDown), true);
         AddHandler(WpfKeyboard.PreviewKeyDownEvent, new System.Windows.Input.KeyEventHandler(MainWindow_NavigationPreviewKeyDown), true);
@@ -75,6 +77,25 @@ public partial class MainWindow
 
     private void GraphCollections_AssetCompileStateChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
+        QueueAssetCompileButtonStateUpdate();
+    }
+
+    private void AttachGraphCollectionChangeHandlers()
+    {
+        if (_attachedGraphListItems is not null)
+            _attachedGraphListItems.CollectionChanged -= GraphCollections_AssetCompileStateChanged;
+        if (_attachedFunctionListItems is not null)
+            _attachedFunctionListItems.CollectionChanged -= GraphCollections_AssetCompileStateChanged;
+        if (_attachedMacroListItems is not null)
+            _attachedMacroListItems.CollectionChanged -= GraphCollections_AssetCompileStateChanged;
+
+        _attachedGraphListItems = GraphListItems;
+        _attachedFunctionListItems = FunctionListItems;
+        _attachedMacroListItems = MacroListItems;
+
+        _attachedGraphListItems.CollectionChanged += GraphCollections_AssetCompileStateChanged;
+        _attachedFunctionListItems.CollectionChanged += GraphCollections_AssetCompileStateChanged;
+        _attachedMacroListItems.CollectionChanged += GraphCollections_AssetCompileStateChanged;
         QueueAssetCompileButtonStateUpdate();
     }
 
@@ -448,22 +469,12 @@ public partial class MainWindow
             return false;
         }
 
-        bool sameAsset = _activeContentAsset is not null &&
-                         string.Equals(_activeContentAsset.Id, target.Asset.Id, StringComparison.Ordinal);
-        if (!sameAsset)
-        {
-            OpenContentAsset(target.Asset);
-        }
-        else
-        {
-            SnapshotActiveAsset();
-        }
+        OpenOrActivateAsset(target.Asset, target.Graph, kind);
 
-        var controller = kind == GraphAssetKind.Function ? _functionListController : _macroListController;
         var listBox = kind == GraphAssetKind.Function ? FunctionListBox : MacroListBox;
+        var controller = kind == GraphAssetKind.Function ? _functionListController : _macroListController;
         controller.SetSectionExpanded(true);
         SaveSectionExpansionForActiveAsset(controller);
-        LoadGraphItem(controller, target.Graph, snapshotCurrent: false);
         listBox.SelectedItem = target.Graph;
         listBox.ScrollIntoView(target.Graph);
         listBox.Focus();

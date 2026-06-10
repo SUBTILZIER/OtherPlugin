@@ -36,6 +36,7 @@ internal static class Program
             CheckFreshContentLibrary(window);
             ResetContent(window);
             CheckContentBrowser(window);
+            CheckEditorSessions(window);
             CheckPinConnectionPaletteAutoConnect(window);
             CheckConnectionPathHitIsNotBlank(window);
             CheckGraphCommandUndoRedo();
@@ -48,7 +49,7 @@ internal static class Program
             CheckToDoCompileFallbacks();
             CheckNodeDefinitionMetadata();
             CheckGraphSectionsAndDirty(window);
-            CheckCompileCurrentGraphOnly(window);
+            CheckCompileActiveAsset(window);
             CheckCompileSync();
             CheckCompileAssignsMissingNodeNumbers();
             CheckCompileRejectsPrivateLibraryCalls();
@@ -129,6 +130,49 @@ internal static class Program
         CheckContextMenus(window);
     }
 
+    private static void CheckEditorSessions(MainWindow window)
+    {
+        ResetContent(window);
+        var script = window.ContentBrowserItems.First(item => item.Kind == ContentAssetKind.Script);
+        var library = new ContentAssetViewModel { Kind = ContentAssetKind.FunctionLibrary, Name = "FnLib" };
+        window.ContentBrowserItems.Add(library);
+        Invoke(window, "RefreshContentBrowserViews");
+
+        Invoke(window, "OpenContentAsset", script);
+        Assert(window.EditorSessions.Count == 1, "opening script creates one editor session");
+        Invoke(window, "AddGraphListItem_Click", window, new RoutedEventArgs());
+        Assert(window.Nodes.Cast<NodeBaseViewModel>().Any(node => node.NodeKind == NodeKind.Start), "script session shows event graph");
+
+        Invoke(window, "OpenContentAsset", library);
+        Assert(window.EditorSessions.Count == 2, "opening another asset keeps first editor session");
+        Invoke(window, "AddFunctionListItem_Click", window, new RoutedEventArgs());
+        Assert(window.Nodes.Cast<NodeBaseViewModel>().Any(node => node.NodeKind == NodeKind.FunctionEntry), "function library session edits function graph");
+
+        Invoke(window, "OpenContentAsset", script);
+        Assert(window.EditorSessions.Count == 2, "reopening script focuses existing session");
+        Assert(window.Nodes.Cast<NodeBaseViewModel>().Any(node => node.NodeKind == NodeKind.Start), "switching back restores script graph state");
+
+        var scriptSession = window.EditorSessions.First(session => ReferenceEquals(session.ContentAsset, script));
+        var librarySession = window.EditorSessions.First(session => ReferenceEquals(session.ContentAsset, library));
+        Invoke(window, "CloseEditorSessionsToRight", scriptSession);
+        Assert(window.EditorSessions.Count == 1 && !window.EditorSessions.Contains(librarySession), "close right removes right-side editor sessions");
+        Assert(window.ContentBrowserItems.Contains(library), "closing editor session does not delete asset");
+
+        Invoke(window, "DetachEditorSession", scriptSession, null);
+        Assert(scriptSession.DockMode == EditorDockMode.Detached && scriptSession.DetachedWindow is not null, "detaching creates standalone editor window");
+        Assert(window.EditorSessions.Contains(scriptSession), "detached editor remains in all editor sessions");
+        Assert(!window.MainEditorSessions.Contains(scriptSession), "detached editor is hidden from main window bar");
+        Invoke(window, "CloseMainEditorSessions");
+        Assert(window.EditorSessions.Contains(scriptSession), "main close all does not close detached editor sessions");
+
+        Invoke(window, "DockEditorSessionToTab", scriptSession);
+        Assert(scriptSession.DockMode == EditorDockMode.Tab && window.MainEditorSessions.Contains(scriptSession), "docking detached editor restores main window tab");
+
+        Invoke(window, "CloseEditorSession", scriptSession);
+        Assert(window.EditorSessions.Count == 0, "closing detached editor removes session");
+        Assert(window.ContentBrowserItems.Contains(script), "closing detached editor does not delete asset");
+    }
+
     private static void CheckContentBrowserHeader(MainWindow window)
     {
         var header = Get<StackPanel>(window, "ContentBrowserHeaderBar");
@@ -184,6 +228,7 @@ internal static class Program
 
     private static void ResetContent(MainWindow window)
     {
+        Invoke(window, "CloseAllEditorSessions");
         window.ContentBrowserItems.Clear();
         window.ContentBrowserItems.Add(new ContentAssetViewModel
         {
@@ -338,7 +383,7 @@ internal static class Program
         Assert(Get<ListBox>(window, "GraphListBox").Visibility == Visibility.Visible, "plus expands event graph list");
         Assert(window.GraphListItems[0].IsCompileDirty, "new graph is compile dirty");
 
-        Invoke(window, "CompileCurrentAssets", false);
+        Invoke(window, "CompileActiveAsset", false);
         Assert(!window.GraphListItems[0].IsCompileDirty, "compile clears compile dirty");
 
         Invoke(window, "MarkActiveAssetLayoutDirty");
@@ -391,12 +436,14 @@ internal static class Program
         Assert(macro.Graph.Nodes.Any(node => node.NodeTypeKey == "macro_entry"), "macro graph model remains macro-only");
 
         ActivateGraphItem(window, "_functionListController", fn);
+        int sessionCountBeforeReopen = window.EditorSessions.Count;
         Invoke(window, "OpenContentAsset", script);
-        Assert(window.Nodes.Cast<NodeBaseViewModel>().Any(node => node.NodeKind == NodeKind.Start), "reopening script loads event graph by default");
-        Assert(!window.Nodes.Cast<NodeBaseViewModel>().Any(node => node.NodeKind is NodeKind.FunctionEntry or NodeKind.FunctionReturn or NodeKind.MacroEntry), "reopening script event canvas does not mix function or macro nodes");
+        Assert(window.EditorSessions.Count == sessionCountBeforeReopen, "reopening same asset focuses existing editor session");
+        Assert(window.Nodes.Cast<NodeBaseViewModel>().Any(node => node.NodeKind == NodeKind.FunctionEntry), "reopening same asset keeps remembered active graph");
+        Assert(!window.Nodes.Cast<NodeBaseViewModel>().Any(node => node.NodeKind == NodeKind.Start), "reopening same asset does not reset to event graph");
     }
 
-    private static void CheckCompileCurrentGraphOnly(MainWindow window)
+    private static void CheckCompileActiveAsset(MainWindow window)
     {
         ResetContent(window);
         var script = window.ContentBrowserItems.First(item => item.Kind == ContentAssetKind.Script);
@@ -411,10 +458,10 @@ internal static class Program
         Assert(first.IsCompileDirty && second.IsCompileDirty, "two new graphs start compile dirty");
         Assert(ReferenceEquals(controller.ActiveItem, second), "second graph is active before compile");
 
-        Invoke(window, "CompileCurrentAssets", false);
+        Invoke(window, "CompileActiveAsset", false);
 
-        Assert(first.IsCompileDirty, "compile button keeps non-active dirty graph dirty");
-        Assert(!second.IsCompileDirty, "compile button clears only active graph dirty");
+        Assert(!first.IsCompileDirty, "compile button clears first graph dirty in active asset");
+        Assert(!second.IsCompileDirty, "compile button clears active graph dirty in active asset");
     }
 
     private static void CheckCompileAssignsMissingNodeNumbers()

@@ -193,6 +193,92 @@
             <Button x:Name="RunGraphButton" Content="执行图谱" Margin="2" Padding="10,4" Click="RunGraph_Click" />
         </ToolBar>
 
+        <Border x:Name="EditorWindowBar"
+                DockPanel.Dock="Top"
+                MinHeight="34"
+                Background="#171B21"
+                BorderBrush="#2E3440"
+                BorderThickness="0,0,0,1"
+                Visibility="Collapsed">
+            <ScrollViewer HorizontalScrollBarVisibility="Auto"
+                          VerticalScrollBarVisibility="Disabled">
+                <ItemsControl ItemsSource="{Binding MainEditorSessions}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Margin="4,4,0,4"
+                                    Padding="10,4"
+                                    MinWidth="136"
+                                    BorderThickness="1"
+                                    CornerRadius="4"
+                                    Cursor="Hand"
+                                    PreviewMouseLeftButtonDown="EditorSessionTab_PreviewMouseLeftButtonDown"
+                                    PreviewMouseMove="EditorSessionTab_PreviewMouseMove"
+                                    PreviewMouseLeftButtonUp="EditorSessionTab_PreviewMouseLeftButtonUp">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Background" Value="#20242B" />
+                                        <Setter Property="BorderBrush" Value="#303744" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsActive}" Value="True">
+                                                <Setter Property="Background" Value="#30445C" />
+                                                <Setter Property="BorderBrush" Value="#5EA2E8" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <Border.ContextMenu>
+                                    <ContextMenu Style="{StaticResource DarkContextMenuStyle}"
+                                                 DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
+                                        <MenuItem Header="关闭窗口" Click="EditorSessionCloseMenuItem_Click" />
+                                        <MenuItem Header="独立窗口" Click="EditorSessionDetachMenuItem_Click" />
+                                        <Separator />
+                                        <MenuItem Header="关闭所有窗口" Click="EditorSessionCloseAllMenuItem_Click" />
+                                        <MenuItem Header="关闭右侧窗口" Click="EditorSessionCloseRightMenuItem_Click" />
+                                    </ContextMenu>
+                                </Border.ContextMenu>
+                                <DockPanel LastChildFill="True">
+                                    <Button DockPanel.Dock="Right"
+                                            Content="x"
+                                            Width="20"
+                                            Height="20"
+                                            Padding="0"
+                                            Margin="8,0,0,0"
+                                            Click="EditorSessionCloseButton_Click" />
+                                    <Border DockPanel.Dock="Left"
+                                            Width="8"
+                                            Height="8"
+                                            Margin="0,0,7,0"
+                                            CornerRadius="4"
+                                            Background="#D68A22">
+                                        <Border.Style>
+                                            <Style TargetType="Border">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsDirty}" Value="True">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
+                                    </Border>
+                                    <TextBlock Text="{Binding DisplayTitle}"
+                                               Foreground="#E8EDF5"
+                                               FontWeight="SemiBold"
+                                               TextTrimming="CharacterEllipsis"
+                                               VerticalAlignment="Center" />
+                                </DockPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+        </Border>
+
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="*" />

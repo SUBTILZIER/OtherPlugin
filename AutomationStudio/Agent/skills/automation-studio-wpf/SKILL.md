@@ -11,22 +11,38 @@ WPF 可视化节点自动化编辑器，类似 UE4 蓝图。技术栈 C# 12 / .N
 
 ## 踩坑记录（按时间倒序，新记录追加到顶部）
 
-### 2026-06-08: ToDo 持久化 / Log 复制 / 待实现导航
+### 2026-06-09: 多编辑窗口 / session swap
 
-- 编译、保存、运行前必须先走 `MainWindow.CommitInspectorAndSnapshotActive()`，保证属性面板内容写入 VM 和当前 `GraphFileModel`。
+- 多窗口不是 graph JSON 功能；不要改保存 schema。运行期用 `EditorSessionViewModel` 管打开资产窗口。
+- 每个打开资产一个 session，持有独立 `GraphEditorService`、`NodeFactory`、`GraphCommandService`、事件图/函数/宏集合和 remembered active graph。重复打开同资产只聚焦已有 session。
+- `MainWindow` 仍复用一套 `EditorGrid` XAML。激活 session 时切换 `_editorService` / `_nodeFactory`，重建 Interaction controllers，并触发 `Nodes` / `ConnectionPaths` / graph list bindings 刷新。
+- `EditorWindowBar` 在工具栏下方，只显示主窗口标签页 session（非 detached）；右键关闭全部/关闭右侧只作用于可见标签页。拖出主窗口会创建 `DetachedEditorWindow`；拖到主窗口内部只激活标签，不创建画布子窗口。
+- 拖动窗口标签时有 `Popup` 跟随预览卡片；越过主窗口边界时提示会变为“释放后成为独立窗口”。
+- detached active session 会把共享 `EditorGrid` reparent 到独立窗口；切换宿主前必须先清空旧 host，避免 WPF parent 死引用。
+- `EditorGrid` reparent 到独立窗口或搬回主窗口后必须显式 `EditorGrid.DataContext = this`，否则 `Nodes` / `ConnectionPaths` / 图列表绑定会变空。
+- inactive detached 窗口显示 remembered graph 的只读预览，不能退回只显示“激活此窗口后在这里编辑”。
+- 关闭 editor session 只 snapshot 回 `ContentAssetViewModel`，不删除内容浏览器资产。删除资产时要关闭所有指向被删 asset id 的 sessions。
+- 保存、退出、编译前用 `CommitInspectorAndSnapshotAllSessions()` / `CommitAllSessionsToAssets()`；工具栏编译用 `GraphCompileService.CompileAsset(...)` 编译当前激活资产内全部图，编译前必须先 snapshot 所有打开 session。
+
+### 2026-06-09: ToDo 持久化 / Log 复制 / 内容浏览器导航
+
+- 编译、保存、运行前必须先应用属性面板并 snapshot 打开的 sessions，保证多窗口里的 VM 内容写入对应 `GraphFileModel` / `ContentAssetViewModel`。
 - `InspectorController.ToDoTargetSelected()` 选择目标后要立即写 `TargetNodeTitle`、`TargetNodeNumber`、`TargetNodeId`，刷新描述、标脏并快照 active graph。不要等保存/编译时才读 UI。
 - `GraphCompileService.EnsureGraphToDoTargets()` 会用有效 `TargetNodeId` 回填旧数据缺失的 title/number；`target_title` / `target_number` 有输入连线时跳过静态目标必填，但静态下拉值仍要保留。
 - 日志面板是只读 `RichTextBox`。全局快捷键必须对 `TextBoxBase` 放行；`LogPanelController` 显式绑定 `ApplicationCommands.Copy` / `SelectAll`，避免 `Ctrl+C` 被节点复制截获。
-- 当前内容浏览器还没有递归模糊搜索、搜索结果双击打开、`Ctrl+B` 定位真实文件夹。右侧瓦片仍只显示当前目录 `ContentVisibleItems`。
-- 当前 `FunctionCallNodeViewModel` / `MacroCallNodeViewModel` 没有双击跳转到目标函数/宏编辑器；后续实现应通过 `CallableGraphResolver` 和 stable id 打开对应资产与图。
+- 内容浏览器递归模糊搜索已实现，入口在 `MainWindow.NavigationFeatures.cs` 动态安装到 `ContentBrowserHeaderBar`。搜索范围是当前目录及子目录，支持空格关键字、路径片段、不区分大小写和 subsequence 模糊匹配。
+- `Ctrl+B` 定位已实现：选中搜索结果/资产时清空搜索并进入真实父目录；无浏览器选中项时定位当前打开资产。
+- `FunctionCallNodeViewModel` / `MacroCallNodeViewModel` 双击跳转已实现：按 stable `FunctionId` / `MacroId` 找到目标资产和图，打开资产后加载对应函数/宏编辑面板。
+- 内容浏览器多选、框选、资产 Ctrl+C/Ctrl+V、拖拽预览、多删除在 `MainWindow.ContentBrowserMultiSelect.cs`；主题弹窗替换在 `MainWindow.ThemedDialogOverrides.cs`。
 
 ### 2026-06-08: ToDo 跳转与可复用节点编号
 
 - 非 `Reroute` 节点有可见 `NodeNumber`：事件图 `N###`、函数图 `Fun###`、宏图 `Mac###`。`GraphEditorService` 分配当前图最小空闲编号，删除节点会释放编号。
 - `ToDoNodeViewModel` 用 `TargetNodeTitle + TargetNodeNumber` 双键在当前图内跳转；`TargetNodeId` 只用于编辑器维护引用，目标改名/改号时自动同步字段。
 - `ReturnAfterTarget=false` 是 Goto，不走 `ToDo.exec_out`；`true` 会先执行目标链，结束后再走 `ToDo.exec_out`。
+- Return 模式目标链如果自然回到源 ToDo，运行时在执行源 ToDo 前停止子链并返回源 `exec_out`；这不是递归错误。直接跳转自身仍然非法。
 - ToDo 详情面板有搜索框和结果列表，按节点名或编号过滤；选择项会填入节点名与编号。
-- Runtime/validation 必须拒绝空目标、不存在目标、重复目标和自跳。编号被删除后可复用，但 ToDo 仍要求节点名也匹配，不能只按编号跳。
+- Runtime/validation 必须拒绝空目标、不存在目标、重复目标和直接自跳。编号被删除后可复用，但 ToDo 仍要求节点名也匹配，不能只按编号跳。
 
 ### 2026-06-08: 本地文档 / CodeGraph / 连线渲染现状
 
@@ -40,7 +56,7 @@ WPF 可视化节点自动化编辑器，类似 UE4 蓝图。技术栈 C# 12 / .N
 - `GraphEditorService.RunBatchedEdit(...)` 批量连接变更；批量内只标记 `ConnectionPaths` 脏和 `GraphChanged` pending，最外层退出时统一 flush。
 - 运行时查找走 `GraphExecutionPlan` 的 internal lazy `GraphExecutionIndex`；不要改 graph JSON 或 `GraphExecutionPlan(nodes, connections)` 构造形状。
 - `ConnectionSettings` / `SplineTangentCalculator` 当前存在但不被 XAML 绑定的可见连线路径调用，除非接线到 `ConnectionSplinePlanner`，否则改它们不会改变画布线形。
-- `NodeRegistry.CreateDefaultDefinitions()` 当前有 38 个定义；`NodeKind.Comment` 是历史残留枚举，旧 `comment` 文件节点由 `NodeSerializer` 跳过。
+- `NodeRegistry.CreateDefaultDefinitions()` 当前有 39 个定义；`NodeKind.Comment` 是历史残留枚举，旧 `comment` 文件节点由 `NodeSerializer` 跳过。
 
 ### 2026-06-05: 内容浏览器 UE 风格交互与验证门禁
 
