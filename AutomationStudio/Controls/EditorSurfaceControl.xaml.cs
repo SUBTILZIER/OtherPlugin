@@ -1,5 +1,3 @@
-using System.Windows.Controls;
-
 namespace AutomationStudioWpf.Controls;
 
 /// <summary>
@@ -9,7 +7,7 @@ namespace AutomationStudioWpf.Controls;
 /// step toward replacing the current shared EditorGrid re-parenting model with
 /// one independent editor surface per editor session/window.
 /// </summary>
-public partial class EditorSurfaceControl : UserControl
+public partial class EditorSurfaceControl : System.Windows.Controls.UserControl
 {
     public EditorSurfaceControl()
     {
