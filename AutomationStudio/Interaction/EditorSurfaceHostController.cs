@@ -41,7 +41,7 @@ public sealed class EditorSurfaceHostController
             case ContentControl contentControl when ReferenceEquals(contentControl.Content, element):
                 contentControl.Content = null;
                 break;
-            case Panel panel:
+            case System.Windows.Controls.Panel panel:
                 panel.Children.Remove(element);
                 break;
             case Decorator decorator when ReferenceEquals(decorator.Child, element):
