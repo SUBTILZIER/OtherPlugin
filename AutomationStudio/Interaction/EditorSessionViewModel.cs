@@ -29,6 +29,7 @@ public sealed class EditorSessionViewModel : ObservableObject
         FunctionListItems = new ObservableCollection<GraphListItemViewModel>(contentAsset.Functions);
         MacroListItems = new ObservableCollection<GraphListItemViewModel>(contentAsset.Macros);
         RefreshDirtyState();
+        EnsureSurfaceContext();
     }
 
     public string Id { get; } = Guid.NewGuid().ToString("N");
