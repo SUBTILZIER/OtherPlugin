@@ -275,8 +275,8 @@ public partial class MainWindow
             Text = $"{detachedSession.DisplayTitle} 正在独立窗口编辑。\n主窗口没有其它停靠编辑标签。",
             Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(160, 170, 184)),
             TextAlignment = TextAlignment.Center,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center,
+            HorizontalAlignment = System.Windows.HorizontalAlignment.Center,
+            VerticalAlignment = System.Windows.VerticalAlignment.Center,
         },
     };
 
