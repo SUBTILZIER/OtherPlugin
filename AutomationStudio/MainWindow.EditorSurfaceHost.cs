@@ -7,12 +7,6 @@ public partial class MainWindow
     private readonly Interaction.EditorSurfaceHostController _editorSurfaceHostController = new();
     private System.Windows.Controls.ContentControl? _editorSurfaceHost;
 
-    protected override void OnContentRendered(System.EventArgs e)
-    {
-        base.OnContentRendered(e);
-        EnsureEditorSurfaceHost();
-    }
-
     private System.Windows.Controls.ContentControl EnsureEditorSurfaceHost()
     {
         if (_editorSurfaceHost is not null)
