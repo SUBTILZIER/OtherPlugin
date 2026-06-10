@@ -44,7 +44,6 @@ public sealed class DetachedEditorWindow : Window
         Background = new SolidColorBrush(WpfColor.FromRgb(17, 21, 26));
 
         Content = CreateContent();
-        Activated += (_, _) => _activateRequested(_session);
         Closing += DetachedEditorWindow_Closing;
     }
 
@@ -100,6 +99,11 @@ public sealed class DetachedEditorWindow : Window
         dockButton.Click += (_, _) => _dockRequested(_session);
         DockPanel.SetDock(dockButton, Dock.Right);
         bar.Children.Add(dockButton);
+
+        var activateButton = CreateButton("编辑此窗口");
+        activateButton.Click += (_, _) => _activateRequested(_session);
+        DockPanel.SetDock(activateButton, Dock.Right);
+        bar.Children.Add(activateButton);
 
         _titleText.Foreground = WpfBrushes.White;
         _titleText.FontWeight = FontWeights.SemiBold;
