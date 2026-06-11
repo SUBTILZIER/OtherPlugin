@@ -114,6 +114,7 @@ public partial class MainWindow
         if (!UseEditorSurfaceHostForMainWindow)
             return false;
 
+        AttachLegacyEditorRegionsToSessionSurface(session);
         AttachSessionSurfaceToMainHost(session);
         EditorGrid.Visibility = Visibility.Collapsed;
         return true;
