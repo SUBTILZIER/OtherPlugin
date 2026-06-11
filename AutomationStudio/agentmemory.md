@@ -10,16 +10,18 @@
 
 - Current project skill source is `AutomationStudio/Agent/skills/automation-studio-wpf/SKILL.md`. The old `.kimi/skills/automation-studio-wpf/SKILL.md` path was removed/moved; do not resurrect it.
 - CodeGraph sync remains a local maintenance gate. Track only ignore/config policy, not db/wal/shm/cache/log generated files.
-- `EditorSurfaceControl`, `EditorSurfaceContext`, and `EditorSurfaceHostController` exist as a staged migration path for per-session editor surfaces. `UseEditorSurfaceHostForMainWindow` is currently `false`, so production editing still uses the legacy shared `EditorGrid` reparent path.
+- `EditorSurfaceControl`, `EditorSurfaceContext`, and `EditorSurfaceHostController` are on the active path. Each session owns a complete editor surface with graph list, canvas, node palette, and inspector UI; detached windows host that surface directly. The shared `EditorGrid`/legacy region move path is removed from the active code path.
 
 ## 2026-06-09 multi editor windows
 
 - Opened assets are tracked as `EditorSessionViewModel` instances in `MainWindow.EditorSessions`; duplicate open focuses the existing session and keeps its remembered active graph.
-- Each session owns its own `GraphEditorService`, `NodeFactory`, `GraphCommandService`, and graph list collections. `MainWindow` swaps active services/controllers and raises binding changes for `Nodes`, `ConnectionPaths`, `GraphListItems`, `FunctionListItems`, and `MacroListItems`.
+- Each session owns its own `GraphEditorService`, `NodeFactory`, `GraphCommandService`, graph list collections, `EditorSurfaceControl`, and `EditorSurfaceContext` controller set. `MainWindow` mirrors the active context controllers only for remaining legacy handlers.
 - `EditorWindowBar` is under the toolbar and shows only main-window tab sessions (`DockMode != Detached`). Right-click close-all/close-right affect only visible main-window tabs; all-session save/exit still walks `EditorSessions`.
-- Dragging a tab outside the main window detaches it to `DetachedEditorWindow`; dragging inside the main window only activates the tab. Detached active sessions reparent the shared `EditorGrid` into the standalone window; switching hosts must clear the previous host first.
-- Tab dragging shows a following popup preview; inactive detached windows show a read-only remembered-graph preview instead of the old "activate this window" placeholder.
-- After reparenting the shared `EditorGrid` into or out of `DetachedEditorWindow`, explicitly keep `EditorGrid.DataContext = MainWindow`; otherwise node/path/list bindings go blank.
+- Dragging a tab outside the main window detaches it to `DetachedEditorWindow`; dragging inside the main window only activates the tab. Detached windows keep showing their own editable `EditorSurfaceControl`; activation only changes toolbar/global-command target.
+- `EditorSurfaceContext.Configure(...)` is intentionally idempotent. Do not rebuild per-session controllers on every attach/activate; doing so resets active graph/list expansion and causes main/detached windows to appear polluted.
+- Surface events use lightweight session activation: switch `MainWindow` active proxies to the event's session/context, but do not reload the remembered graph. Detached activation must not overwrite `_lastMainEditorSession`; the main host keeps showing the last main-window tab surface.
+- Tab dragging shows a following popup preview. Do not reintroduce inactive detached read-only previews or the old "activate this window" placeholder.
+- `MainWindow.EditorSurfaceRegions.cs` and legacy region reparent hooks are deleted. Do not restore legacy region reparenting.
 - Closing a session snapshots to its `ContentAssetViewModel` but does not delete the asset. Deleting content-browser assets must close all sessions targeting deleted asset ids.
 - Save/exit/compile must snapshot all open sessions before reading graph data. Toolbar compile is active-asset scoped through `GraphCompileService.CompileAsset(...)`; scripts compile their event/function/macro graphs, libraries compile all graphs in that library.
 
@@ -91,7 +93,7 @@
 - Verification gates now include startup crash probe: build, `git diff --check`, run `dotnet run --project .\AutomationStudioWpf.csproj` only long enough to confirm the window starts, then `codegraph.cmd sync`. Do not wait 20s; early exit, WPF startup exception, or `Unhandled exception` is failure and requires collecting stdout/stderr/stack output first. Run broad smoke only when the touched area needs it or the user explicitly asks.
 - `Tests/CodexSmoke` is lightweight regression smoke, not a full test framework. Keep it focused on critical UI/data regressions and do not push test-related folders unless the user explicitly asks.
 
-- Event graph / function / macro share one editor canvas instance, but data must stay isolated in separate `GraphListItemViewModel.Graph` models.
+- Event graph / function / macro share one current canvas per editor session, not one global app-wide canvas. Data stays isolated in separate `GraphListItemViewModel.Graph` models and in each session's own `GraphEditorService`.
 - Critical rule: before loading a graph from another section, first `SnapshotActiveAsset()`, then set `_activeAssetController` to the target controller, then call `LoadItem(..., snapshotCurrent: false)`.
 - Do not call `GraphListController.Load()` while `_activeAssetController` still points at the old controller. `Load()` persists library; if active controller is stale, `PersistAssetLibrary()` can snapshot the newly-loaded canvas into the old graph and mix event/function/macro contents.
 - Graph/function/macro list items now activate on single left click through `ActivateGraphListItem(...)`; double-click remains supported but is not required for navigation.

@@ -15,15 +15,16 @@ WPF 可视化节点自动化编辑器，类似 UE4 蓝图。技术栈 C# 12 / .N
 
 - 多窗口不是 graph JSON 功能；不要改保存 schema。运行期用 `EditorSessionViewModel` 管打开资产窗口。
 - 每个打开资产一个 session，持有独立 `GraphEditorService`、`NodeFactory`、`GraphCommandService`、事件图/函数/宏集合和 remembered active graph。重复打开同资产只聚焦已有 session。
-- `MainWindow` 仍复用一套 `EditorGrid` XAML。激活 session 时切换 `_editorService` / `_nodeFactory`，重建 Interaction controllers，并触发 `Nodes` / `ConnectionPaths` / graph list bindings 刷新。
+- 每个 session 持有自己的完整 `EditorSurfaceControl`，包含图列表、画布、节点菜单和属性面板；`EditorSurfaceContext` 持有该 session 的 graph list/canvas/drag/inspector/pin/palette/import controllers。
 - `EditorWindowBar` 在工具栏下方，只显示主窗口标签页 session（非 detached）；右键关闭全部/关闭右侧只作用于可见标签页。拖出主窗口会创建 `DetachedEditorWindow`；拖到主窗口内部只激活标签，不创建画布子窗口。
 - 拖动窗口标签时有 `Popup` 跟随预览卡片；越过主窗口边界时提示会变为“释放后成为独立窗口”。
-- detached active session 会把共享 `EditorGrid` reparent 到独立窗口；切换宿主前必须先清空旧 host，避免 WPF parent 死引用。
-- `EditorGrid` reparent 到独立窗口或搬回主窗口后必须显式 `EditorGrid.DataContext = this`，否则 `Nodes` / `ConnectionPaths` / 图列表绑定会变空。
-- inactive detached 窗口显示 remembered graph 的只读预览，不能退回只显示“激活此窗口后在这里编辑”。
+- 主窗口 tab 和 `DetachedEditorWindow` 都直接 host 对应 session 的 `Surface`；detached 窗口始终显示自己的可编辑 surface，不再显示 remembered graph 只读预览。
+- `EditorSurfaceContext.Configure(...)` 必须保持幂等；不要在 surface attach/activate 时重建该 session 的 controller，否则 active graph、列表展开和节点显示会被重置。
+- surface 事件进入 `EditorSurfaceContext.HandleEvent(...)` 后只做轻量 active-session 切换，再使用该 context 自己的 controllers。detached 激活不能覆盖 `_lastMainEditorSession`，主窗口应继续显示最近的主窗口 tab。
+- 旧 `MainWindow.EditorSurfaceRegions.cs` 已删除。不要恢复 legacy sidebar/canvas/inspector 区域搬移。
 - 关闭 editor session 只 snapshot 回 `ContentAssetViewModel`，不删除内容浏览器资产。删除资产时要关闭所有指向被删 asset id 的 sessions。
 - 保存、退出、编译前用 `CommitInspectorAndSnapshotAllSessions()` / `CommitAllSessionsToAssets()`；工具栏编译用 `GraphCompileService.CompileAsset(...)` 编译当前激活资产内全部图，编译前必须先 snapshot 所有打开 session。
-- `EditorSurfaceControl` / `EditorSurfaceContext` / `EditorSurfaceHostController` 是当前代码里的迁移脚手架；`UseEditorSurfaceHostForMainWindow = false` 时生产路径仍走 legacy `EditorGrid`，不要误以为已启用多份可编辑 surface。
+- `EditorSurfaceControl` 事件直接进入 `EditorSurfaceContext.HandleEvent(...)`，再通过 typed `EditorSurfaceEvent` 激活 session 并复用剩余 `MainWindow` handler；不要恢复字符串反射 `RouteEditorSurfaceEvent`。
 
 ### 2026-06-09: ToDo 持久化 / Log 复制 / 内容浏览器导航
 
@@ -486,7 +487,7 @@ Runtime
 ### 2026-06-04: Content Browser + Script / Function Library / Macro Library assets
 
 - Bottom panel now has a UE-style content browser on the left and log panel on the right, separated by a `GridSplitter`.
-- Startup does not open graph editing UI by default. `EditorGrid` is hidden and `EmptyEditorPanel` asks the user to open an asset from the content browser.
+- Startup does not open graph editing UI by default. `EditorSurfaceHostRoot` is hidden and `EmptyEditorPanel` asks the user to open an asset from the content browser; opening an asset hosts that session's `EditorSurfaceControl`.
 - New content asset kinds:
   - `Folder`: content browser placeholder/category item for now.
   - `Script`: blueprint-like executable asset with its own event graphs, private functions, and private macros.

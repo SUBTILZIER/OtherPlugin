@@ -190,9 +190,10 @@ public partial class MainWindow
     {
         if (_editorService.Nodes.Count == 0)
             return false;
-        if (GraphViewport.ActualWidth <= 1 || GraphViewport.ActualHeight <= 1)
+        var surface = GetActiveEditorSurface();
+        if (surface.GraphViewport.ActualWidth <= 1 || surface.GraphViewport.ActualHeight <= 1)
             return false;
-        if (EditorGrid.ActualWidth <= 1 || EditorGrid.ActualHeight <= 1)
+        if (surface.ActualWidth <= 1 || surface.ActualHeight <= 1)
             return false;
 
         return _editorService.Nodes.All(node =>
@@ -471,7 +472,8 @@ public partial class MainWindow
 
         OpenOrActivateAsset(target.Asset, target.Graph, kind);
 
-        var listBox = kind == GraphAssetKind.Function ? FunctionListBox : MacroListBox;
+        var surface = GetActiveEditorSurface();
+        var listBox = kind == GraphAssetKind.Function ? surface.FunctionListBox : surface.MacroListBox;
         var controller = kind == GraphAssetKind.Function ? _functionListController : _macroListController;
         controller.SetSectionExpanded(true);
         SaveSectionExpansionForActiveAsset(controller);

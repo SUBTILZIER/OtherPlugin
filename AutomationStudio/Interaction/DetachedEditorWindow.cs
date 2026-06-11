@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using WpfButton = System.Windows.Controls.Button;
 using WpfBrushes = System.Windows.Media.Brushes;
@@ -14,8 +15,12 @@ public sealed class DetachedEditorWindow : Window
     private readonly Action<EditorSessionViewModel> _activateRequested;
     private readonly Action<EditorSessionViewModel> _dockRequested;
     private readonly Action<EditorSessionViewModel> _closeRequested;
-    private readonly Func<EditorSessionViewModel, UIElement> _previewFactory;
-    private readonly ContentControl _editorHost = new();
+    private readonly Action<EditorSessionViewModel, MouseButtonEventArgs> _previewMouseDownRequested;
+    private readonly ContentControl _editorHost = new()
+    {
+        HorizontalContentAlignment = System.Windows.HorizontalAlignment.Stretch,
+        VerticalContentAlignment = VerticalAlignment.Stretch,
+    };
     private readonly TextBlock _titleText = new();
     private bool _closingFromOwner;
 
@@ -25,16 +30,14 @@ public sealed class DetachedEditorWindow : Window
         Action<EditorSessionViewModel> activateRequested,
         Action<EditorSessionViewModel> dockRequested,
         Action<EditorSessionViewModel> closeRequested,
-        Func<EditorSessionViewModel, UIElement> previewFactory)
+        Action<EditorSessionViewModel, MouseButtonEventArgs> previewMouseDownRequested)
     {
         _session = session;
         _activateRequested = activateRequested;
         _dockRequested = dockRequested;
         _closeRequested = closeRequested;
-        _previewFactory = previewFactory;
+        _previewMouseDownRequested = previewMouseDownRequested;
 
-        if (owner.IsVisible)
-            Owner = owner;
         Title = session.DisplayTitle;
         Width = Math.Max(760, session.Width);
         Height = Math.Max(480, session.Height);
@@ -44,6 +47,7 @@ public sealed class DetachedEditorWindow : Window
         Background = new SolidColorBrush(WpfColor.FromRgb(17, 21, 26));
 
         Content = CreateContent();
+        PreviewMouseDown += DetachedEditorWindow_PreviewMouseDown;
         Closing += DetachedEditorWindow_Closing;
     }
 
@@ -55,14 +59,22 @@ public sealed class DetachedEditorWindow : Window
 
     public void SetEditorContent(UIElement editor)
     {
+        if (ReferenceEquals(_editorHost.Content, editor))
+        {
+            RefreshChrome();
+            return;
+        }
+
         _editorHost.Content = editor;
         RefreshChrome();
     }
 
+    public bool HasEditorContent(UIElement editor) => ReferenceEquals(_editorHost.Content, editor);
+
     public void ClearEditorContent(UIElement editor)
     {
         if (ReferenceEquals(_editorHost.Content, editor))
-            _editorHost.Content = _previewFactory(_session);
+            _editorHost.Content = null;
     }
 
     public void CloseFromOwner()
@@ -76,7 +88,6 @@ public sealed class DetachedEditorWindow : Window
         var root = new DockPanel();
         root.Children.Add(CreateToolbar());
         DockPanel.SetDock(root.Children[0], Dock.Top);
-        _editorHost.Content = _previewFactory(_session);
         root.Children.Add(_editorHost);
         return root;
     }
@@ -129,5 +140,10 @@ public sealed class DetachedEditorWindow : Window
 
         e.Cancel = true;
         Dispatcher.BeginInvoke(new Action(() => _closeRequested(_session)));
+    }
+
+    private void DetachedEditorWindow_PreviewMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        _previewMouseDownRequested(_session, e);
     }
 }

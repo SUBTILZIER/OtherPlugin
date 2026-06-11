@@ -15,7 +15,13 @@ public sealed class EditorSurfaceHostController
         ArgumentNullException.ThrowIfNull(host);
 
         var context = session.EnsureSurfaceContext();
-        RemoveFromCurrentParent(context.Surface);
+        if (ReferenceEquals(host.Content, context.Surface))
+        {
+            host.Visibility = Visibility.Visible;
+            return;
+        }
+
+        DetachFromCurrentParent(context.Surface);
         host.Content = context.Surface;
         host.Visibility = Visibility.Visible;
     }
@@ -27,50 +33,10 @@ public sealed class EditorSurfaceHostController
         host.Visibility = Visibility.Collapsed;
     }
 
-    public void AttachRegions(EditorSurfaceControl surface, UIElement? sidebar, UIElement? canvas, UIElement? inspector)
+    public static void DetachFromCurrentParent(FrameworkElement element)
     {
-        ArgumentNullException.ThrowIfNull(surface);
+        ArgumentNullException.ThrowIfNull(element);
 
-        SetRegionContent(surface.SidebarHost, sidebar);
-        SetRegionContent(surface.CanvasHost, canvas);
-        SetRegionContent(surface.InspectorRegionHost, inspector);
-    }
-
-    public void ClearRegions(EditorSurfaceControl surface)
-    {
-        ArgumentNullException.ThrowIfNull(surface);
-
-        ClearRegion(surface.SidebarHost);
-        ClearRegion(surface.CanvasHost);
-        ClearRegion(surface.InspectorRegionHost);
-    }
-
-    private static void SetRegionContent(ContentControl host, UIElement? content)
-    {
-        ArgumentNullException.ThrowIfNull(host);
-
-        if (content is null)
-        {
-            ClearRegion(host);
-            return;
-        }
-
-        if (content is FrameworkElement frameworkElement)
-            RemoveFromCurrentParent(frameworkElement);
-
-        host.Content = content;
-        host.Visibility = Visibility.Visible;
-    }
-
-    private static void ClearRegion(ContentControl host)
-    {
-        ArgumentNullException.ThrowIfNull(host);
-        host.Content = null;
-        host.Visibility = Visibility.Collapsed;
-    }
-
-    private static void RemoveFromCurrentParent(FrameworkElement element)
-    {
         switch (element.Parent)
         {
             case ContentControl contentControl when ReferenceEquals(contentControl.Content, element):

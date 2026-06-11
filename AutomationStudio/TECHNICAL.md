@@ -146,13 +146,14 @@ public class GraphEditorService
 
 #### Editor sessions and window bar
 - 多编辑窗口由 `EditorSessionViewModel` 表示：每个打开资产一个 session，持有自己的 `GraphEditorService`、`NodeFactory`、`GraphCommandService`、事件图/函数/宏集合和当前图记忆。
-- `MainWindow` 仍复用一套 XAML 编辑视图；激活 session 时切换 `_editorService` / `_nodeFactory`，重建 Interaction controllers，并通过 `INotifyPropertyChanged` 让 `Nodes`、`ConnectionPaths` 和图列表重新绑定到 active session。
+- 每个 `EditorSessionViewModel` 持有自己的完整 `EditorSurfaceControl`，其中包含图列表、画布、节点菜单和属性面板；`EditorSurfaceContext` 持有该 session 的 graph list/canvas/drag/inspector/pin/palette/import controllers。`MainWindow` 只镜像 active context controllers 以支撑尚未拆完的 handler。
 - `OpenContentAsset(...)` 现在是 `OpenOrActivateAsset(...)` wrapper。重复打开同一资产只聚焦已有 session，不重置到第一个事件图；函数/宏调用节点双击会打开或聚焦目标资产 session，再加载目标 graph id。
 - 工具栏下方 `EditorWindowBar` 绑定主窗口内的 `MainEditorSessions`，不显示 `DockMode.Detached` 的独立窗口；窗口栏右键的关闭全部/关闭右侧只作用于主窗口标签页。全量 `EditorSessions` 仍包含 detached，供保存、退出、compile-all 使用。拖出主窗口会创建 `DetachedEditorWindow`；拖到主窗口内部只激活标签，不创建画布子窗口。
 - 拖动窗口标签时会显示跟随预览卡片，越过主窗口边界后提示释放/继续拖出为独立窗口。
-- 共享 `EditorGrid` reparent 到 `DetachedEditorWindow` 或搬回主窗口后，必须显式保持 `EditorGrid.DataContext = MainWindow`；否则 `Nodes`、`ConnectionPaths` 和图列表绑定会变空。
-- inactive detached 窗口不再显示占位文案，而是显示该 session remembered graph 的只读节点/连线预览；当前 active detached 窗口仍承载真实可编辑 `EditorGrid`。
-- `EditorSurfaceControl` / `EditorSurfaceContext` / `EditorSurfaceHostController` 已存在，但当前是迁移脚手架：`UseEditorSurfaceHostForMainWindow = false`，主窗口生产路径仍使用 legacy `EditorGrid`。不要把这些类型当成已经启用的多份并行编辑 surface。
+- 主窗口标签页和 `DetachedEditorWindow` 都直接 host 对应 session 的 `Surface`；detached 窗口不再显示只读 preview，也不再要求“激活后在这里编辑”。
+- `EditorSurfaceContext.Configure(...)` 是幂等的：同一个 session 的 controller 不因 host attach/activate 反复重建。surface 事件只做轻量 active-session 切换并复用该 context 自己的 controller，避免 tab 切换回第一个图、列表折叠或 detached/main 互相污染。
+- detached session 激活时只更新全局工具栏/运行/保存目标，不覆盖 `_lastMainEditorSession`；主窗口继续显示最近的主窗口 tab surface。
+- `MainWindow.EditorSurfaceRegions.cs` 和 legacy region reparent hooks 已删除。不要恢复 `AttachLegacyEditorRegionsToSessionSurface()` 的区域搬移逻辑。
 - session 关闭只 snapshot 回 `ContentAssetViewModel` 并移除编辑窗口，不删除资产。删除内容浏览器资产时会关闭所有指向该资产的 session，避免悬空编辑窗口。
 - 保存、退出、编译前使用 `CommitInspectorAndSnapshotAllSessions()` / `CommitAllSessionsToAssets()`，保证多窗口编辑内容参与引用同步和校验。
 - 工具栏编译是 active-asset scoped，走 `GraphCompileService.CompileAsset(...)`：脚本会编译该资产内事件图、函数、宏；函数库/宏库会编译该库内全部图。`GraphCompileService.CompileGraph(...)` 仍保留为 current-graph scoped 内部能力，但工具栏不使用它。
@@ -537,7 +538,7 @@ Python 参数规则：
 
 - Current project skill source of truth is `AutomationStudio/Agent/skills/automation-studio-wpf/SKILL.md`. The old `.kimi/skills/automation-studio-wpf/SKILL.md` path is deleted and must not be restored.
 - CodeGraph sync is part of the final gate. Commit only ignore/config policy; database, wal/shm, cache, dirty markers, and logs stay local.
-- README, TECHNICAL, `agentmemory.md`, and project skill must describe the active code path accurately: multi-window sessions are real, detached inactive windows show preview, and per-session `EditorSurfaceControl` is scaffolded but disabled for the main production path.
+- README, TECHNICAL, `agentmemory.md`, and project skill must describe the active code path accurately: multi-window sessions are real, each session owns a complete `EditorSurfaceControl`, and detached windows host editable surfaces directly. Do not document inactive detached preview or legacy region moving as active behavior.
 - Do not describe git push as allowed unless the user explicitly requests push in the current task.
 
 ### 2026-06-08: CodeGraph / docs / skill refresh
@@ -940,7 +941,7 @@ dotnet publish -c Release -r win-x64 \
 - 事件图支持 `CustomEvent` / `CustomEventCall`。自定义事件只属于当前脚本事件图，调用节点通过 `CustomEventId` 绑定入口节点。
 
 ### UI 行为
-- 启动默认隐藏 `EditorGrid`，显示 `EmptyEditorPanel`，提示从内容浏览器打开资产。
+- 启动默认隐藏 `EditorSurfaceHostRoot`，显示 `EmptyEditorPanel`，提示从内容浏览器打开资产；打开资产后把该 session 的 `EditorSurfaceControl` 放入 host。
 - 底部左侧为内容浏览器，右侧为日志，中间 `GridSplitter` 可调比例。
 - 打开脚本：显示事件图、自定义函数、宏、画布和属性面板。
 - 打开函数库：只显示函数列表、画布和属性面板。

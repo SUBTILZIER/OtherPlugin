@@ -1,61 +1,1264 @@
-<UserControl x:Class="AutomationStudioWpf.Controls.EditorSurfaceControl"
+﻿<UserControl x:Class="AutomationStudioWpf.Controls.EditorSurfaceControl"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:graph="clr-namespace:AutomationStudioWpf.Graph"
              mc:Ignorable="d"
              d:DesignHeight="720"
              d:DesignWidth="1280"
+             HorizontalAlignment="Stretch"
+             VerticalAlignment="Stretch"
              Background="#181B20">
-    <Grid x:Name="SurfaceRoot"
-          Background="#181B20">
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition x:Name="GraphSidebarColumn" Width="240" MinWidth="180" MaxWidth="420" />
-            <ColumnDefinition x:Name="GraphSidebarSplitterColumn" Width="Auto" />
-            <ColumnDefinition x:Name="GraphCanvasColumn" Width="*" MinWidth="360" />
-            <ColumnDefinition x:Name="InspectorSplitterColumn" Width="Auto" />
-            <ColumnDefinition x:Name="InspectorColumn" Width="460" MinWidth="420" MaxWidth="720" />
-        </Grid.ColumnDefinitions>
+    <UserControl.Resources>
+        <Style x:Key="DarkContextMenuStyle" TargetType="ContextMenu">
+            <Setter Property="Background" Value="#1B2028" />
+            <Setter Property="BorderBrush" Value="#303744" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Foreground" Value="#E8EDF5" />
+            <Setter Property="Padding" Value="4" />
+            <Setter Property="HasDropShadow" Value="True" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type ContextMenu}">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                Padding="{TemplateBinding Padding}"
+                                SnapsToDevicePixels="True">
+                            <StackPanel IsItemsHost="True"
+                                        KeyboardNavigation.DirectionalNavigation="Cycle" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="GraphItemDirtyGlyphStyle" TargetType="{x:Type Border}">
+            <Setter Property="Width" Value="8" />
+            <Setter Property="Height" Value="8" />
+            <Setter Property="Margin" Value="0,0,7,0" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Background" Value="#D68A22" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Visibility" Value="Collapsed" />
+            <Setter Property="ToolTip" Value="图表已修改" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsDirty}" Value="True">
+                    <Setter Property="Visibility" Value="Visible" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IsEditing}" Value="True">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+    </UserControl.Resources>
+            <Grid x:Name="EditorGrid">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition x:Name="GraphSidebarColumn" Width="240" MinWidth="180" MaxWidth="420" />
+                    <ColumnDefinition x:Name="GraphSidebarSplitterColumn" Width="Auto" />
+                    <ColumnDefinition x:Name="GraphCanvasColumn" Width="*" MinWidth="360" />
+                    <ColumnDefinition x:Name="InspectorSplitterColumn" Width="Auto" />
+                    <ColumnDefinition x:Name="InspectorColumn" Width="460" MinWidth="420" MaxWidth="720" />
+                </Grid.ColumnDefinitions>
 
-        <Border Grid.Column="0"
-                Margin="10"
-                Background="#20242B"
-                BorderBrush="#303744"
-                BorderThickness="1"
-                CornerRadius="6">
-            <ContentControl x:Name="GraphSidebarHost" />
-        </Border>
+                <Border Grid.Column="0"
+                        Margin="10,10,10,10"
+                        Background="#20242B"
+                        BorderBrush="#303744"
+                        BorderThickness="1"
+                        CornerRadius="8">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel>
+                        <Border x:Name="EventGraphPanel" Margin="8,8,8,6" Padding="8" Background="#20242B" BorderBrush="#384150" BorderThickness="1" CornerRadius="6">
+                            <StackPanel>
+                        <Grid x:Name="EventGraphSection" Margin="0,0,0,6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Button x:Name="EventGraphSectionToggle" Grid.Column="0" Content=">" Width="20" Height="22" Padding="0" Margin="0,0,8,0" Click="ToggleEventGraphSection_Click" />
+                            <TextBlock Grid.Column="1"
+                                       Text="事件图表"
+                                       FontWeight="SemiBold"
+                                       FontSize="15"
+                                       VerticalAlignment="Center" />
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                <Border x:Name="EventGraphDirtyBadge"
+                                        Width="10"
+                                        Height="10"
+                                        Margin="0,0,6,0"
+                                        CornerRadius="5"
+                                        Background="#D68A22"
+                                        Visibility="Collapsed" />
+                                <Button Content="+"
+                                        Width="28"
+                                        Height="26"
+                                        Padding="0"
+                                        Click="AddGraphListItem_Click" />
+                            </StackPanel>
+                        </Grid>
 
-        <GridSplitter Grid.Column="1"
-                      Width="5"
-                      HorizontalAlignment="Stretch"
-                      VerticalAlignment="Stretch"
-                      Background="#303744"
-                      ShowsPreview="True" />
+                        <ListBox x:Name="GraphListBox"
+                                 DockPanel.Dock="Top"
+                                 ItemsSource="{Binding GraphListItems}"
+                                 SelectedItem="{Binding SelectedGraphItem, Mode=TwoWay}"
+                                 Background="Transparent"
+                                 BorderThickness="0"
+                                 Foreground="White"
+                                 KeyDown="GraphListBox_KeyDown"
+                                 MouseDoubleClick="GraphListBox_MouseDoubleClick">
+                            <ListBox.ItemContainerStyle>
+                                <Style TargetType="ListBoxItem">
+                                    <Setter Property="Margin" Value="8,2" />
+                                    <Setter Property="Padding" Value="8,6" />
+                                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                     <Setter Property="Foreground" Value="White" />
+                                     <Setter Property="Background" Value="Transparent" />
+                                    <EventSetter Event="PreviewMouseLeftButtonDown" Handler="GraphListItem_PreviewMouseLeftButtonDown" />
+                                    <EventSetter Event="PreviewMouseRightButtonDown" Handler="GraphListItem_PreviewMouseRightButtonDown" />
+                                    <Style.Triggers>
+                                        <Trigger Property="IsSelected" Value="True">
+                                            <Setter Property="Background" Value="#30445C" />
+                                        </Trigger>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter Property="Background" Value="#2B3542" />
+                                        </Trigger>
+                                        <DataTrigger Binding="{Binding IsCompileDirty}" Value="True">
+                                            <Setter Property="Background" Value="#3E2D18" />
+                                            <Setter Property="BorderBrush" Value="#D68A22" />
+                                            <Setter Property="BorderThickness" Value="1" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </ListBox.ItemContainerStyle>
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Grid.Column="0" Style="{StaticResource GraphItemDirtyGlyphStyle}" />
+                                        <TextBlock Grid.Column="1"
+                                                   Text="{Binding Name}"
+                                                   VerticalAlignment="Center">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsEditing}" Value="True">
+                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                        <TextBox Grid.Column="0"
+                                                 Grid.ColumnSpan="2"
+                                                 Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}"
+                                                 KeyDown="GraphNameTextBox_KeyDown"
+                                                 LostFocus="GraphNameTextBox_LostFocus">
+                                            <TextBox.Style>
+                                                <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsEditing}" Value="True">
+                                                            <Setter Property="Visibility" Value="Visible" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBox.Style>
+                                        </TextBox>
+                                    </Grid>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                            <ListBox.ContextMenu>
+                                <ContextMenu Style="{StaticResource DarkContextMenuStyle}">
+                                    <MenuItem Header="重命名" Click="RenameGraphMenuItem_Click" />
+                                    <MenuItem Header="删除" Click="DeleteGraphMenuItem_Click" />
+                                </ContextMenu>
+                            </ListBox.ContextMenu>
+                        </ListBox>
+                            </StackPanel>
+                        </Border>
+                        <Border x:Name="FunctionPanel" Margin="8,6,8,6" Padding="8" Background="#20242B" BorderBrush="#384150" BorderThickness="1" CornerRadius="6">
+                            <StackPanel>
+                        <Grid x:Name="FunctionSection" Margin="0,0,0,6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Button x:Name="FunctionSectionToggle" Grid.Column="0" Content=">" Width="20" Height="22" Padding="0" Margin="0,0,8,0" Click="ToggleFunctionSection_Click" />
+                            <TextBlock Grid.Column="1" Text="函数" FontWeight="SemiBold" FontSize="15" VerticalAlignment="Center" />
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                <Border x:Name="FunctionDirtyBadge"
+                                        Width="10"
+                                        Height="10"
+                                        Margin="0,0,6,0"
+                                        CornerRadius="5"
+                                        Background="#D68A22"
+                                        Visibility="Collapsed" />
+                                <Button Content="+" Width="28" Height="26" Padding="0" Click="AddFunctionListItem_Click" />
+                            </StackPanel>
+                        </Grid>
+                        <ListBox x:Name="FunctionListBox"
+                                 DockPanel.Dock="Top"
+                                 ItemsSource="{Binding FunctionListItems}"
+                                 SelectedItem="{Binding SelectedFunctionItem, Mode=TwoWay}"
+                                 Background="Transparent"
+                                 BorderThickness="0"
+                                 Foreground="White"
+                                 KeyDown="FunctionListBox_KeyDown"
+                                 MouseDoubleClick="FunctionListBox_MouseDoubleClick">
+                            <ListBox.ItemContainerStyle>
+                                <Style TargetType="ListBoxItem">
+                                    <Setter Property="Margin" Value="8,2" />
+                                    <Setter Property="Padding" Value="8,6" />
+                                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                    <Setter Property="Foreground" Value="White" />
+                                    <Setter Property="Background" Value="Transparent" />
+                                    <EventSetter Event="PreviewMouseLeftButtonDown" Handler="FunctionListItem_PreviewMouseLeftButtonDown" />
+                                    <EventSetter Event="PreviewMouseRightButtonDown" Handler="FunctionListItem_PreviewMouseRightButtonDown" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsCompileDirty}" Value="True">
+                                            <Setter Property="Background" Value="#3E2D18" />
+                                            <Setter Property="BorderBrush" Value="#D68A22" />
+                                            <Setter Property="BorderThickness" Value="1" />
+                                        </DataTrigger>
+                                        <Trigger Property="IsSelected" Value="True">
+                                            <Setter Property="Background" Value="#30445C" />
+                                        </Trigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </ListBox.ItemContainerStyle>
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Grid.Column="0" Style="{StaticResource GraphItemDirtyGlyphStyle}" />
+                                        <TextBlock Grid.Column="1"
+                                                   Text="{Binding Name}"
+                                                   VerticalAlignment="Center"
+                                                   TextTrimming="CharacterEllipsis">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsEditing}" Value="True">
+                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                        <CheckBox Grid.Column="2"
+                                                  Content="公开到库"
+                                                  Margin="8,0,0,0"
+                                                  VerticalAlignment="Center"
+                                                  Foreground="#C8D0DB"
+                                                  IsChecked="{Binding IsPublicToLibrary, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                  Click="LibraryPublishCheckBox_Click">
+                                            <CheckBox.Style>
+                                                <Style TargetType="CheckBox" BasedOn="{StaticResource {x:Type CheckBox}}">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding ShowLibraryPublishOption}" Value="True">
+                                                            <Setter Property="Visibility" Value="Visible" />
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding IsEditing}" Value="True">
+                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </CheckBox.Style>
+                                        </CheckBox>
+                                        <TextBox Grid.Column="0"
+                                                 Grid.ColumnSpan="3"
+                                                 Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}"
+                                                  KeyDown="GraphNameTextBox_KeyDown"
+                                                  LostFocus="GraphNameTextBox_LostFocus">
+                                            <TextBox.Style>
+                                                <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsEditing}" Value="True">
+                                                            <Setter Property="Visibility" Value="Visible" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBox.Style>
+                                        </TextBox>
+                                    </Grid>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                            <ListBox.ContextMenu>
+                                <ContextMenu Style="{StaticResource DarkContextMenuStyle}">
+                                    <MenuItem Header="重命名" Click="RenameGraphMenuItem_Click" />
+                                    <MenuItem Header="删除" Click="DeleteGraphMenuItem_Click" />
+                                </ContextMenu>
+                            </ListBox.ContextMenu>
+                            </ListBox>
+                            </StackPanel>
+                        </Border>
+                        <Border x:Name="MacroPanel" Margin="8,6,8,8" Padding="8" Background="#20242B" BorderBrush="#384150" BorderThickness="1" CornerRadius="6">
+                            <StackPanel>
+                        <Grid x:Name="MacroSection" Margin="0,0,0,6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Button x:Name="MacroSectionToggle" Grid.Column="0" Content=">" Width="20" Height="22" Padding="0" Margin="0,0,8,0" Click="ToggleMacroSection_Click" />
+                            <TextBlock Grid.Column="1" Text="宏" FontWeight="SemiBold" FontSize="15" VerticalAlignment="Center" />
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                <Border x:Name="MacroDirtyBadge"
+                                        Width="10"
+                                        Height="10"
+                                        Margin="0,0,6,0"
+                                        CornerRadius="5"
+                                        Background="#D68A22"
+                                        Visibility="Collapsed" />
+                                <Button Content="+" Width="28" Height="26" Padding="0" Click="AddMacroListItem_Click" />
+                            </StackPanel>
+                        </Grid>
+                        <ListBox x:Name="MacroListBox"
+                                 ItemsSource="{Binding MacroListItems}"
+                                 SelectedItem="{Binding SelectedMacroItem, Mode=TwoWay}"
+                                 Background="Transparent"
+                                 BorderThickness="0"
+                                 Foreground="White"
+                                 KeyDown="MacroListBox_KeyDown"
+                                 MouseDoubleClick="MacroListBox_MouseDoubleClick">
+                            <ListBox.ItemContainerStyle>
+                                <Style TargetType="ListBoxItem">
+                                    <Setter Property="Margin" Value="8,2" />
+                                    <Setter Property="Padding" Value="8,6" />
+                                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                    <Setter Property="Foreground" Value="White" />
+                                    <Setter Property="Background" Value="Transparent" />
+                                    <EventSetter Event="PreviewMouseLeftButtonDown" Handler="MacroListItem_PreviewMouseLeftButtonDown" />
+                                    <EventSetter Event="PreviewMouseRightButtonDown" Handler="MacroListItem_PreviewMouseRightButtonDown" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsCompileDirty}" Value="True">
+                                            <Setter Property="Background" Value="#3E2D18" />
+                                            <Setter Property="BorderBrush" Value="#D68A22" />
+                                            <Setter Property="BorderThickness" Value="1" />
+                                        </DataTrigger>
+                                        <Trigger Property="IsSelected" Value="True">
+                                            <Setter Property="Background" Value="#30445C" />
+                                        </Trigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </ListBox.ItemContainerStyle>
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Grid.Column="0" Style="{StaticResource GraphItemDirtyGlyphStyle}" />
+                                        <TextBlock Grid.Column="1"
+                                                   Text="{Binding Name}"
+                                                   VerticalAlignment="Center"
+                                                   TextTrimming="CharacterEllipsis">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsEditing}" Value="True">
+                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                        <CheckBox Grid.Column="2"
+                                                  Content="公开到库"
+                                                  Margin="8,0,0,0"
+                                                  VerticalAlignment="Center"
+                                                  Foreground="#C8D0DB"
+                                                  IsChecked="{Binding IsPublicToLibrary, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                  Click="LibraryPublishCheckBox_Click">
+                                            <CheckBox.Style>
+                                                <Style TargetType="CheckBox" BasedOn="{StaticResource {x:Type CheckBox}}">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding ShowLibraryPublishOption}" Value="True">
+                                                            <Setter Property="Visibility" Value="Visible" />
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding IsEditing}" Value="True">
+                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </CheckBox.Style>
+                                        </CheckBox>
+                                        <TextBox Grid.Column="0"
+                                                 Grid.ColumnSpan="3"
+                                                 Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}"
+                                                   KeyDown="GraphNameTextBox_KeyDown"
+                                                   LostFocus="GraphNameTextBox_LostFocus">
+                                            <TextBox.Style>
+                                                <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsEditing}" Value="True">
+                                                            <Setter Property="Visibility" Value="Visible" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBox.Style>
+                                        </TextBox>
+                                    </Grid>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                            <ListBox.ContextMenu>
+                                <ContextMenu Style="{StaticResource DarkContextMenuStyle}">
+                                    <MenuItem Header="重命名" Click="RenameGraphMenuItem_Click" />
+                                    <MenuItem Header="删除" Click="DeleteGraphMenuItem_Click" />
+                                </ContextMenu>
+                            </ListBox.ContextMenu>
+                        </ListBox>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                    </ScrollViewer>
+                </Border>
 
-        <Border Grid.Column="2"
-                Margin="0,10"
-                Background="#181B20"
-                BorderBrush="#303744"
-                BorderThickness="1"
-                CornerRadius="6">
-            <ContentControl x:Name="GraphCanvasHost" />
-        </Border>
+                <GridSplitter x:Name="GraphSidebarSplitter"
+                              Grid.Column="1"
+                              Width="5"
+                              HorizontalAlignment="Stretch"
+                              VerticalAlignment="Stretch"
+                              Background="#2E3440"
+                              ResizeDirection="Columns"
+                              ResizeBehavior="PreviousAndNext"
+                              ShowsPreview="True" />
 
-        <GridSplitter Grid.Column="3"
-                      Width="5"
-                      HorizontalAlignment="Stretch"
-                      VerticalAlignment="Stretch"
-                      Background="#303744"
-                      ShowsPreview="True" />
+                <Border Grid.Column="2"
+                        Margin="0,10,10,10"
+                        Background="#11151A"
+                        BorderBrush="#303744"
+                        BorderThickness="1"
+                        CornerRadius="8">
+                    <Border x:Name="GraphViewport"
+                            ClipToBounds="True"
+                            Focusable="True"
+                            PreviewMouseWheel="GraphViewport_PreviewMouseWheel"
+                            PreviewMouseLeftButtonDown="GraphViewport_PreviewMouseLeftButtonDown"
+                            PreviewMouseMove="GraphViewport_PreviewMouseMove"
+                            PreviewMouseLeftButtonUp="GraphViewport_PreviewMouseLeftButtonUp"
+                            PreviewMouseRightButtonDown="GraphViewport_PreviewMouseRightButtonDown"
+                            PreviewMouseRightButtonUp="GraphViewport_PreviewMouseRightButtonUp">
+                        <Border.Background>
+                            <DrawingBrush TileMode="Tile"
+                                          Viewport="0,0,32,32"
+                                          ViewportUnits="Absolute"
+                                          Stretch="None">
+                                <DrawingBrush.Transform>
+                                    <TransformGroup>
+                                        <ScaleTransform ScaleX="{Binding ElementName=GraphZoomTransform, Path=ScaleX}"
+                                                        ScaleY="{Binding ElementName=GraphZoomTransform, Path=ScaleY}"/>
+                                        <TranslateTransform X="{Binding ElementName=GraphPanTransform, Path=X}"
+                                                            Y="{Binding ElementName=GraphPanTransform, Path=Y}"/>
+                                    </TransformGroup>
+                                </DrawingBrush.Transform>
+                                <DrawingBrush.Drawing>
+                                    <DrawingGroup>
+                                        <GeometryDrawing Brush="#171B22">
+                                            <GeometryDrawing.Geometry>
+                                                <RectangleGeometry Rect="0,0,32,32" />
+                                            </GeometryDrawing.Geometry>
+                                        </GeometryDrawing>
+                                        <GeometryDrawing Brush="{x:Null}">
+                                            <GeometryDrawing.Pen>
+                                                <Pen Brush="#232931" Thickness="1" />
+                                            </GeometryDrawing.Pen>
+                                            <GeometryDrawing.Geometry>
+                                                <GeometryGroup>
+                                                    <LineGeometry StartPoint="0,0" EndPoint="32,0" />
+                                                    <LineGeometry StartPoint="0,0" EndPoint="0,32" />
+                                                </GeometryGroup>
+                                            </GeometryDrawing.Geometry>
+                                        </GeometryDrawing>
+                                    </DrawingGroup>
+                                </DrawingBrush.Drawing>
+                            </DrawingBrush>
+                        </Border.Background>
+                        <Canvas>
+                            <Canvas x:Name="GraphSurface"
+                                    Canvas.Left="0" Canvas.Top="0"
+                                    Width="400000"
+                                    Height="400000">
+                                <Canvas.RenderTransform>
+                                    <TransformGroup>
+                                        <ScaleTransform x:Name="GraphZoomTransform" ScaleX="1" ScaleY="1" />
+                                        <TranslateTransform x:Name="GraphPanTransform" X="0" Y="0" />
+                                    </TransformGroup>
+                                </Canvas.RenderTransform>
 
-        <Border Grid.Column="4"
-                Margin="10"
-                Background="#20242B"
-                BorderBrush="#303744"
-                BorderThickness="1"
-                CornerRadius="6">
-            <ContentControl x:Name="InspectorHost" />
-        </Border>
-    </Grid>
+                                <ItemsControl ItemsSource="{Binding ConnectionPaths}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <Canvas />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type graph:ConnectionPathViewModel}">
+                                        <ContentControl MouseDoubleClick="ConnectionPath_MouseDoubleClick"
+                                                        Background="Transparent"
+                                                        BorderThickness="0">
+                                            <ContentControl.ContextMenu>
+                                                <ContextMenu Style="{StaticResource DarkContextMenuStyle}">
+                                                    <MenuItem Header="添加路由点" Click="AddRerouteToConnectionPath_Click" />
+                                                    <MenuItem Header="删除连线" Click="DeleteConnectionPath_Click" />
+                                                </ContextMenu>
+                                            </ContentControl.ContextMenu>
+                                            <Grid PreviewMouseRightButtonDown="ConnectionPath_PreviewMouseRightButtonDown">
+                                                <Path Data="{Binding PathGeometry}"
+                                                      Stroke="#2BA8FF"
+                                                      StrokeThickness="10"
+                                                      Opacity="{Binding SelectionOpacity}"
+                                                      SnapsToDevicePixels="True"
+                                                      StrokeStartLineCap="Round"
+                                                      StrokeEndLineCap="Round"
+                                                      IsHitTestVisible="False" />
+                                                <Path Data="{Binding PathGeometry}"
+                                                      Stroke="{Binding StrokeBrush}"
+                                                      StrokeThickness="{Binding StrokeThickness}"
+                                                      SnapsToDevicePixels="True"
+                                                      StrokeStartLineCap="Round"
+                                                      StrokeEndLineCap="Round"
+                                                      Cursor="Hand"
+                                                      MouseLeftButtonDown="ConnectionPath_MouseLeftButtonDown"
+                                                      PreviewMouseLeftButtonDown="ConnectionPath_PreviewMouseLeftButtonDown" />
+                                            </Grid>
+                                        </ContentControl>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <Path x:Name="PreviewConnectionPath"
+                                  Visibility="Collapsed"
+                                  Stroke="#F5F5F5"
+                                  StrokeThickness="4"
+                                  StrokeStartLineCap="Round"
+                                  StrokeEndLineCap="Round"
+                                  StrokeDashArray="4,4"
+                                  IsHitTestVisible="False"
+                                  Panel.ZIndex="450" />
+
+                            <ItemsControl ItemsSource="{Binding Nodes}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <Canvas />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemContainerStyle>
+                                    <Style TargetType="ContentPresenter">
+                                        <Setter Property="Canvas.Left" Value="{Binding X}" />
+                                        <Setter Property="Canvas.Top" Value="{Binding Y}" />
+                                    </Style>
+                                </ItemsControl.ItemContainerStyle>
+                                <ItemsControl.Resources>
+                                    <DataTemplate DataType="{x:Type graph:RerouteNodeViewModel}">
+                                        <Border Width="20" Height="20"
+                                                Background="Transparent"
+                                                BorderThickness="0"
+                                                Panel.ZIndex="100"
+                                                PreviewMouseLeftButtonDown="NodeHeader_PreviewMouseLeftButtonDown"
+                                                PreviewMouseMove="NodeHeader_PreviewMouseMove"
+                                                PreviewMouseLeftButtonUp="NodeHeader_PreviewMouseLeftButtonUp">
+                                            <Grid>
+                                                <Ellipse x:Name="RerouteSelectionGlow"
+                                                         Width="26"
+                                                         Height="26"
+                                                         Fill="Transparent"
+                                                         Stroke="#FFD24A"
+                                                         StrokeThickness="2.4"
+                                                         Opacity="0"
+                                                         IsHitTestVisible="False">
+                                                    <Ellipse.Effect>
+                                                        <DropShadowEffect Color="#FF9F1C"
+                                                                          BlurRadius="12"
+                                                                          ShadowDepth="0"
+                                                                          Opacity="0.95" />
+                                                    </Ellipse.Effect>
+                                                </Ellipse>
+                                                <Ellipse x:Name="RerouteSelectionRing"
+                                                         Width="19"
+                                                         Height="19"
+                                                         Fill="Transparent"
+                                                         Stroke="#0D0F12"
+                                                         StrokeThickness="4"
+                                                         Opacity="0"
+                                                         IsHitTestVisible="False" />
+                                                <Grid Width="6" Height="6"
+                                                      HorizontalAlignment="Left"
+                                                      VerticalAlignment="Center"
+                                                      Loaded="PinAnchor_Loaded"
+                                                      LayoutUpdated="PinAnchor_LayoutUpdated"
+                                                      DataContext="{Binding InputPins[0]}" />
+                                                <Ellipse Width="14" Height="14"
+                                                         Fill="{Binding CircleFill}"
+                                                         Stroke="#0D0F12"
+                                                         StrokeThickness="1.5" />
+                                                <Grid Width="6" Height="6"
+                                                      HorizontalAlignment="Right"
+                                                      VerticalAlignment="Center"
+                                                      Loaded="PinAnchor_Loaded"
+                                                      LayoutUpdated="PinAnchor_LayoutUpdated"
+                                                      DataContext="{Binding OutputPins[0]}" />
+                                            </Grid>
+                                        </Border>
+                                        <DataTemplate.Triggers>
+                                            <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                <Setter TargetName="RerouteSelectionGlow" Property="Opacity" Value="1" />
+                                                <Setter TargetName="RerouteSelectionRing" Property="Opacity" Value="1" />
+                                            </DataTrigger>
+                                        </DataTemplate.Triggers>
+                                    </DataTemplate>
+
+                                    <DataTemplate DataType="{x:Type graph:NodeBaseViewModel}">
+                                        <Border Width="{Binding Width}"
+                                                Background="#20242A"
+                                                BorderBrush="{Binding BorderBrush}"
+                                                BorderThickness="2"
+                                                CornerRadius="6"
+                                                Opacity="0.8"
+                                                Panel.ZIndex="100"
+                                                PreviewMouseLeftButtonDown="NodeHeader_PreviewMouseLeftButtonDown"
+                                                PreviewMouseMove="NodeHeader_PreviewMouseMove"
+                                                PreviewMouseLeftButtonUp="NodeHeader_PreviewMouseLeftButtonUp"
+                                                MouseLeftButtonDown="NodeCard_MouseLeftButtonDown">
+                                            <Grid>
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="30" />
+                                                    <RowDefinition Height="Auto" />
+                                                </Grid.RowDefinitions>
+
+                                                <Border Grid.Row="0"
+                                                        Background="{Binding HeaderBrush}"
+                                                        CornerRadius="4,4,0,0"
+                                                        Padding="10,4">
+                                                    <DockPanel LastChildFill="True">
+                                                        <Border DockPanel.Dock="Left"
+                                                                Background="#660D0F12"
+                                                                CornerRadius="3"
+                                                                Padding="5,1"
+                                                                Margin="0,0,7,0">
+                                                            <TextBlock Text="{Binding NodeNumber}"
+                                                                       FontSize="11"
+                                                                       FontWeight="SemiBold"
+                                                                       Foreground="{Binding HeaderForegroundBrush}" />
+                                                        </Border>
+                                                        <TextBlock Text="{Binding Title}"
+                                                                   FontSize="14"
+                                                                   FontWeight="Bold"
+                                                                   Foreground="{Binding HeaderForegroundBrush}"
+                                                                   TextTrimming="CharacterEllipsis" />
+                                                    </DockPanel>
+                                                </Border>
+
+                                                <Grid Grid.Row="1" Margin="4,6,4,6">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto" />
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+
+                                                    <ItemsControl Grid.Column="0" ItemsSource="{Binding InputPins}">
+                                                        <ItemsControl.ItemsPanel>
+                                                            <ItemsPanelTemplate>
+                                                                <StackPanel Orientation="Vertical" />
+                                                            </ItemsPanelTemplate>
+                                                        </ItemsControl.ItemsPanel>
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate DataType="{x:Type graph:PinViewModel}">
+                                                                <Button PreviewMouseLeftButtonDown="PinButton_PreviewMouseLeftButtonDown"
+                                                                        PreviewMouseLeftButtonUp="PinButton_PreviewMouseLeftButtonUp"
+                                                                        Height="28"
+                                                                        Padding="0"
+                                                                        Margin="6,0,0,3"
+                                                                        Background="Transparent"
+                                                                        BorderThickness="0"
+                                                                        HorizontalAlignment="Left"
+                                                                        Cursor="Hand">
+                                                                    <StackPanel Orientation="Horizontal">
+                                                                        <Grid Width="12" Height="12"
+                                                                              Loaded="PinAnchor_Loaded"
+                                                                              LayoutUpdated="PinAnchor_LayoutUpdated">
+                                                                            <Path x:Name="ExecTriangle"
+                                                                                  Data="{Binding TriangleGeometry}"
+                                                                                  Fill="{Binding PinFillBrush}"
+                                                                                  Stroke="{Binding PinBrush}"
+                                                                                  StrokeThickness="1.2"
+                                                                                  Visibility="Collapsed" />
+                                                                            <Ellipse x:Name="DataCircle"
+                                                                                     Width="10"
+                                                                                     Height="10"
+                                                                                     Fill="{Binding PinFillBrush}"
+                                                                                     Stroke="{Binding PinBrush}"
+                                                                                     StrokeThickness="1.1"
+                                                                                     Visibility="Visible" />
+                                                                        </Grid>
+                                                                        <TextBlock Text="{Binding DisplayName}"
+                                                                                   Margin="6,0,0,0"
+                                                                                   VerticalAlignment="Center"
+                                                                                   Foreground="#E9EEF6"
+                                                                                   FontSize="12" />
+                                                                    </StackPanel>
+                                                                </Button>
+                                                                <DataTemplate.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsExecution}" Value="True">
+                                                                        <Setter TargetName="ExecTriangle" Property="Visibility" Value="Visible" />
+                                                                        <Setter TargetName="DataCircle" Property="Visibility" Value="Collapsed" />
+                                                                    </DataTrigger>
+                                                                </DataTemplate.Triggers>
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
+
+                                                    <TextBlock Grid.Column="1"
+                                                               Text="{Binding Description}"
+                                                               Foreground="#C8D0DB"
+                                                               FontSize="11"
+                                                               Margin="8,0"
+                                                               VerticalAlignment="Center"
+                                                               HorizontalAlignment="Left"
+                                                               TextAlignment="Left"
+                                                               TextWrapping="Wrap" />
+
+                                                    <ItemsControl Grid.Column="2" ItemsSource="{Binding OutputPins}">
+                                                        <ItemsControl.ItemsPanel>
+                                                            <ItemsPanelTemplate>
+                                                                <StackPanel Orientation="Vertical" />
+                                                            </ItemsPanelTemplate>
+                                                        </ItemsControl.ItemsPanel>
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate DataType="{x:Type graph:PinViewModel}">
+                                                                <Button PreviewMouseLeftButtonDown="PinButton_PreviewMouseLeftButtonDown"
+                                                                        PreviewMouseLeftButtonUp="PinButton_PreviewMouseLeftButtonUp"
+                                                                        Height="28"
+                                                                        Padding="0"
+                                                                        Margin="0,0,6,3"
+                                                                        Background="Transparent"
+                                                                        BorderThickness="0"
+                                                                        HorizontalAlignment="Right"
+                                                                        Cursor="Hand">
+                                                                    <StackPanel Orientation="Horizontal">
+                                                                        <TextBlock Text="{Binding DisplayName}"
+                                                                                   Margin="0,0,6,0"
+                                                                                   VerticalAlignment="Center"
+                                                                                   Foreground="#E9EEF6"
+                                                                                   FontSize="12" />
+                                                                        <Grid Width="12" Height="12"
+                                                                              Loaded="PinAnchor_Loaded"
+                                                                              LayoutUpdated="PinAnchor_LayoutUpdated">
+                                                                            <Path x:Name="ExecTriangle"
+                                                                                  Data="{Binding TriangleGeometry}"
+                                                                                  Fill="{Binding PinFillBrush}"
+                                                                                  Stroke="{Binding PinBrush}"
+                                                                                  StrokeThickness="1.2"
+                                                                                  Visibility="Collapsed" />
+                                                                            <Ellipse x:Name="DataCircle"
+                                                                                     Width="10"
+                                                                                     Height="10"
+                                                                                     Fill="{Binding PinFillBrush}"
+                                                                                     Stroke="{Binding PinBrush}"
+                                                                                     StrokeThickness="1.1"
+                                                                                     Visibility="Visible" />
+                                                                        </Grid>
+                                                                    </StackPanel>
+                                                                </Button>
+                                                                <DataTemplate.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsExecution}" Value="True">
+                                                                        <Setter TargetName="ExecTriangle" Property="Visibility" Value="Visible" />
+                                                                        <Setter TargetName="DataCircle" Property="Visibility" Value="Collapsed" />
+                                                                    </DataTrigger>
+                                                                </DataTemplate.Triggers>
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
+                                                </Grid>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.Resources>
+                            </ItemsControl>
+
+                            <Rectangle x:Name="SelectionRectangle"
+                                       Visibility="Collapsed"
+                                       Stroke="#66A8D5FF"
+                                       StrokeThickness="1.5"
+                                       Fill="#2258AFFF"
+                                       RadiusX="2"
+                                       RadiusY="2"
+                                       Panel.ZIndex="500" />
+                            </Canvas>
+
+                            <Border x:Name="NodePalette"
+                                    Visibility="Collapsed"
+                                    Width="260"
+                                    MaxHeight="500"
+                                    Background="#20242B"
+                                    BorderBrush="#303744"
+                                    BorderThickness="1"
+                                    CornerRadius="8"
+                                    Panel.ZIndex="1000">
+                                <Border.Effect>
+                                    <DropShadowEffect ShadowDepth="4" BlurRadius="12" Opacity="0.5" Color="Black"/>
+                                </Border.Effect>
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="*"/>
+                                    </Grid.RowDefinitions>
+                                    <TextBox x:Name="NodePaletteSearchBox"
+                                             Grid.Row="0"
+                                             Margin="8,8,8,0"
+                                             Padding="8,4"
+                                             Background="#181B20"
+                                             Foreground="White"
+                                             BorderBrush="#303744"
+                                             BorderThickness="1"
+                                             CaretBrush="White"
+                                             TextChanged="NodePaletteSearchBox_TextChanged"/>
+                                     <ScrollViewer Grid.Row="1"
+                                                   VerticalScrollBarVisibility="Auto"
+                                                   HorizontalScrollBarVisibility="Disabled"
+                                                   Margin="0,4,0,8"
+                                                   PreviewMouseWheel="NodePaletteScrollViewer_PreviewMouseWheel">
+                                        <StackPanel x:Name="NodePaletteContent">
+                                            <!-- 动态生成节点列表 -->
+                                        </StackPanel>
+                                    </ScrollViewer>
+                                </Grid>
+                            </Border>
+                        </Canvas>
+                    </Border>
+                </Border>
+
+                <GridSplitter x:Name="InspectorSplitter"
+                              Grid.Column="3"
+                              Width="5"
+                              HorizontalAlignment="Stretch"
+                              VerticalAlignment="Stretch"
+                              Background="#2E3440"
+                              ResizeDirection="Columns"
+                              ResizeBehavior="PreviousAndNext"
+                              ShowsPreview="True" />
+
+                <Border x:Name="InspectorPanel"
+                        Grid.Column="4"
+                        Margin="0,10,10,10"
+                        Padding="14"
+                        Background="#20242B"
+                        BorderBrush="#303744"
+                        BorderThickness="1"
+                        CornerRadius="8">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel>
+                            <TextBlock x:Name="DetailsPanelTitleTextBlock"
+                                       Text="细节面板"
+                                       Foreground="White"
+                                       FontSize="18"
+                                       FontWeight="Bold" />
+                            <TextBlock x:Name="InspectorHintTextBlock"
+                                       Margin="0,8,0,14"
+                                       Text="请选择一个节点进行编辑。"
+                                       Foreground="#B7C0CD"
+                                       TextWrapping="Wrap" />
+
+                            <TextBlock Text="节点名称" Foreground="White" />
+                            <TextBox x:Name="NodeTitleTextBox" Margin="0,4,0,12" TextChanged="InspectorField_TextChanged" />
+                            <TextBlock Text="节点编号" Foreground="White" />
+                            <TextBlock x:Name="NodeNumberTextBlock"
+                                       Text="N001"
+                                       Foreground="#D0D7E2"
+                                       Background="#252B34"
+                                       Padding="8,4"
+                                       Margin="0,4,0,12" />
+
+                            <StackPanel x:Name="ParameterInspectorPanel" Visibility="Collapsed" Margin="0,0,0,12">
+                                <DockPanel Margin="0,0,0,8">
+                                    <Button x:Name="AddParameterButton"
+                                            Content="+"
+                                            DockPanel.Dock="Right"
+                                            Width="28"
+                                            Height="24"
+                                            Padding="0"
+                                            Click="AddParameterButton_Click" />
+                                    <TextBlock x:Name="ParameterInspectorTitle"
+                                               Text="参数"
+                                               Foreground="White"
+                                               FontWeight="SemiBold"
+                                               VerticalAlignment="Center" />
+                                </DockPanel>
+                                <StackPanel x:Name="ParameterRowsPanel" />
+                            </StackPanel>
+
+                            <StackPanel x:Name="FindImageInspectorPanel" Visibility="Collapsed">
+                                <TextBlock Text="查找源" Foreground="White" />
+                                <ComboBox x:Name="FindImageSourceModeComboBox"
+                                          Margin="0,4,0,10"
+                                          SelectionChanged="FindImageSourceModeComboBox_SelectionChanged">
+                                    <ComboBoxItem Content="手动配置（输入图像路径）" Tag="ManualImage" />
+                                    <ComboBoxItem Content="实时截屏" Tag="RealtimeScreenshot" />
+                                </ComboBox>
+                                <TextBlock x:Name="FindImageSourcePathLabel" Text="查找源图像路径" Foreground="White" />
+                                <DockPanel x:Name="FindImageSourcePathPanel" Margin="0,4,0,10">
+                                    <Button Content="浏览" DockPanel.Dock="Right" Padding="12,4" Click="BrowseFindImageSourcePath_Click" />
+                                    <TextBox x:Name="FindImageSourcePathTextBox" Margin="0,0,8,0" TextChanged="InspectorField_TextChanged" />
+                                </DockPanel>
+                                <TextBlock Text="查找目标" Foreground="White" />
+                                <DockPanel Margin="0,4,0,10">
+                                    <Button Content="浏览" DockPanel.Dock="Right" Padding="12,4" Click="BrowseFindImagePath_Click" />
+                                    <TextBox x:Name="FindImagePathTextBox" Margin="0,0,8,0" TextChanged="InspectorField_TextChanged" />
+                                </DockPanel>
+                                <TextBlock Text="相似度阈值 (%)" Foreground="White" />
+                                <TextBox x:Name="FindImageThresholdTextBox" Margin="0,4,0,12" TextChanged="InspectorField_TextChanged" />
+                                <CheckBox x:Name="FindImageUseRegionCheckBox"
+                                          Content="限制识别区域"
+                                          Margin="0,0,0,10"
+                                          Foreground="#D0D7E2"
+                                          Checked="InspectorField_CheckedChanged"
+                                          Unchecked="InspectorField_CheckedChanged" />
+                                <Grid Margin="0,0,0,12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="8" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="区域 X" Foreground="White" />
+                                    <TextBlock Grid.Row="0" Grid.Column="2" Text="区域 Y" Foreground="White" />
+                                    <TextBox x:Name="FindImageRegionXTextBox" Grid.Row="1" Grid.Column="0" Margin="0,4,0,8" TextChanged="InspectorField_TextChanged" />
+                                    <TextBox x:Name="FindImageRegionYTextBox" Grid.Row="1" Grid.Column="2" Margin="0,4,0,8" TextChanged="InspectorField_TextChanged" />
+                                    <TextBlock Grid.Row="2" Grid.Column="0" Text="区域宽" Foreground="White" />
+                                    <TextBlock Grid.Row="2" Grid.Column="2" Text="区域高" Foreground="White" />
+                                    <TextBox x:Name="FindImageRegionWidthTextBox" Grid.Row="3" Grid.Column="0" Margin="0,4,0,0" TextChanged="InspectorField_TextChanged" />
+                                    <TextBox x:Name="FindImageRegionHeightTextBox" Grid.Row="3" Grid.Column="2" Margin="0,4,0,0" TextChanged="InspectorField_TextChanged" />
+                                </Grid>
+                                <TextBlock Text="说明" Foreground="#A7B1BF" FontWeight="SemiBold" />
+                                <TextBlock Margin="0,4,0,0"
+                                           Foreground="#A7B1BF"
+                                           Text="达到阈值即认为找到了图像。可限制屏幕识别区域；未启用时默认全屏。节点输出会提供成功 bool 和中心点 Vector2D。"
+                                           TextWrapping="Wrap" />
+                            </StackPanel>
+
+                            <StackPanel x:Name="MouseLeftInspectorPanel" Visibility="Collapsed">
+                                <TextBlock Text="鼠标按键" Foreground="White" />
+                                <ComboBox x:Name="MouseButtonComboBox" Margin="0,4,0,12" SelectionChanged="InspectorField_SelectionChanged">
+                                    <ComboBoxItem Content="左键" Tag="Left" />
+                                    <ComboBoxItem Content="右键" Tag="Right" />
+                                    <ComboBoxItem Content="侧键1" Tag="XButton1" />
+                                    <ComboBoxItem Content="侧键2" Tag="XButton2" />
+                                </ComboBox>
+
+                                <TextBlock Text="操作模式" Foreground="White" />
+                                <ComboBox x:Name="MouseClickOperationModeComboBox" Margin="0,4,0,12" SelectionChanged="InspectorField_SelectionChanged">
+                                    <ComboBoxItem Content="按下" Tag="Press" />
+                                    <ComboBoxItem Content="抬起" Tag="Release" />
+                                    <ComboBoxItem Content="点击" Tag="Click" />
+                                </ComboBox>
+
+                                <TextBlock x:Name="MousePositionXLabel" Text="点击位置 X" Foreground="White" />
+                                <TextBox x:Name="MousePositionXTextBox" Margin="0,4,0,10" TextChanged="InspectorField_TextChanged" />
+                                <TextBlock x:Name="MousePositionYLabel" Text="点击位置 Y" Foreground="White" />
+                                <TextBox x:Name="MousePositionYTextBox" Margin="0,4,0,10" TextChanged="InspectorField_TextChanged" />
+
+                                <TextBlock Text="说明" Foreground="#A7B1BF" FontWeight="SemiBold" />
+                                <TextBlock Margin="0,4,0,0"
+                                           Foreground="#A7B1BF"
+                                           Text="位置可手动填写，也可由前序节点的 Vector2D 输出引脚连接提供。"
+                                           TextWrapping="Wrap" />
+                            </StackPanel>
+
+                            <StackPanel x:Name="DelayInspectorPanel" Visibility="Collapsed">
+                                <TextBlock Text="延迟时长 (ms)" Foreground="White" />
+                                <TextBox x:Name="DelayMsTextBox" Margin="0,4,0,12" TextChanged="InspectorField_TextChanged" />
+                            </StackPanel>
+
+                            <StackPanel x:Name="IfInspectorPanel" Visibility="Collapsed">
+                                <TextBlock x:Name="IfConditionLabel" Text="结束条件" Foreground="White" />
+                                <ComboBox x:Name="IfConditionComboBox" Margin="0,4,0,12" SelectionChanged="InspectorField_SelectionChanged">
+                                    <ComboBoxItem Content="False" />
+                                    <ComboBoxItem Content="True" />
+                                </ComboBox>
+                            </StackPanel>
+
+                            <StackPanel x:Name="ForLoopInspectorPanel" Visibility="Collapsed">
+                                <TextBlock Text="循环次数" Foreground="White" />
+                                <TextBox x:Name="ForLoopCountTextBox" Margin="0,4,0,10" TextChanged="InspectorField_TextChanged" />
+                                <TextBlock x:Name="ForLoopEndConditionLabel" Text="结束条件（为真时跳出）" Foreground="White" />
+                                <ComboBox x:Name="ForLoopEndConditionComboBox" Margin="0,4,0,12" SelectionChanged="InspectorField_SelectionChanged">
+                                    <ComboBoxItem Content="False" />
+                                    <ComboBoxItem Content="True" />
+                                </ComboBox>
+                            </StackPanel>
+
+                            <StackPanel x:Name="WhileLoopInspectorPanel" Visibility="Collapsed">
+                                <TextBlock x:Name="WhileConditionLabel" Text="结束条件（为真时跳出）" Foreground="White" />
+                                <ComboBox x:Name="WhileLoopConditionComboBox" Margin="0,4,0,10" SelectionChanged="InspectorField_SelectionChanged">
+                                    <ComboBoxItem Content="False" />
+                                    <ComboBoxItem Content="True" />
+                                </ComboBox>
+                                <TextBlock Text="循环模式" Foreground="White" />
+                                <ComboBox x:Name="WhileLoopModeComboBox" Margin="0,4,0,10" SelectionChanged="InspectorField_SelectionChanged">
+                                    <ComboBoxItem Content="有限" Tag="Finite" />
+                                    <ComboBoxItem Content="无限" Tag="Infinite" />
+                                </ComboBox>
+                                <TextBlock x:Name="WhileMaxIterationsLabel" Text="最大循环次数" Foreground="White" />
+                                <TextBox x:Name="WhileMaxIterationsTextBox" Margin="0,4,0,12" TextChanged="InspectorField_TextChanged" />
+                            </StackPanel>
+
+                            <StackPanel x:Name="StartProgramInspectorPanel" Visibility="Collapsed">
+                                <TextBlock Text="程序路径" Foreground="White" />
+                                <Grid Margin="0,4,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox x:Name="StartProgramPathTextBox" Grid.Column="0"
+                                             Margin="0,0,4,0" TextChanged="InspectorField_TextChanged" />
+                                    <Button Grid.Column="1" Content="..." Width="32" Height="24"
+                                            Click="BrowseStartProgramPath_Click" />
+                                </Grid>
+
+                                <TextBlock Text="待响应时长 (ms)" Foreground="White" />
+                                <TextBox x:Name="StartProgramWaitTimeoutTextBox" Margin="0,4,0,10" TextChanged="InspectorField_TextChanged" />
+
+                                <TextBlock Text="失败后操作" Foreground="White" />
+                                <ComboBox x:Name="StartProgramFailureActionComboBox" Margin="0,4,0,10" SelectionChanged="InspectorField_SelectionChanged">
+                                    <ComboBoxItem Content="无" Tag="None" />
+                                    <ComboBoxItem Content="尝试重启" Tag="Retry" />
+                                </ComboBox>
+
+                                <TextBlock x:Name="StartProgramRetryCountLabel" Text="重启次数" Foreground="White" />
+                                <TextBox x:Name="StartProgramRetryCountTextBox" Margin="0,4,0,12" TextChanged="InspectorField_TextChanged" />
+                            </StackPanel>
+
+                            <StackPanel x:Name="PrintLogInspectorPanel" Visibility="Collapsed">
+                                <TextBlock Text="功能" Foreground="#A7B1BF" />
+                                <TextBlock Margin="0,4,0,10" Foreground="#A7B1BF" Text="打印填入的字符串到 log 中。" TextWrapping="Wrap" />
+                                <TextBlock x:Name="PrintLogMessageLabel" Text="字符串" Foreground="White" />
+                                <TextBox x:Name="PrintLogMessageTextBox" Margin="0,4,0,12" TextChanged="InspectorField_TextChanged" />
+                            </StackPanel>
+
+                            <StackPanel x:Name="SelectWindowInspectorPanel" Visibility="Collapsed">
+                                <TextBlock Text="功能" Foreground="#A7B1BF" />
+                                <TextBlock Margin="0,4,0,10"
+                                           Foreground="#A7B1BF"
+                                           Text="按进程名查找窗口，并把窗口恢复、置前、设为前台窗口。"
+                                           TextWrapping="Wrap" />
+                                <TextBlock Text="输入模式" Foreground="White" />
+                                <ComboBox x:Name="SelectWindowInputModeComboBox" Margin="0,4,0,10" SelectionChanged="SelectWindowInputMode_SelectionChanged">
+                                    <ComboBoxItem Content="手动输入" Tag="Manual" />
+                                    <ComboBoxItem Content="自动获取" Tag="Auto" />
+                                </ComboBox>
+                                <StackPanel x:Name="SelectWindowManualPanel">
+                                    <TextBlock x:Name="SelectWindowProcessNameLabel" Text="进程名" Foreground="White" />
+                                    <TextBox x:Name="SelectWindowProcessNameTextBox" Margin="0,4,0,12" TextChanged="InspectorField_TextChanged" />
+                                </StackPanel>
+                                <StackPanel x:Name="SelectWindowAutoPanel" Visibility="Collapsed">
+                                    <TextBlock Text="选择窗口" Foreground="White" />
+                                    <Grid Margin="0,4,0,4">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <ComboBox x:Name="SelectWindowAutoComboBox" Grid.Column="0" Margin="0,0,4,0" SelectionChanged="SelectWindowAutoComboBox_SelectionChanged" />
+                                        <Button Grid.Column="1" Content="刷新" Width="48" Height="24" Padding="0" Click="RefreshWindowList_Click" />
+                                    </Grid>
+                                </StackPanel>
+                            </StackPanel>
+
+                            <StackPanel x:Name="ToDoInspectorPanel" Visibility="Collapsed">
+                                <TextBlock Text="ToDo 目标" Foreground="#A7B1BF" FontWeight="SemiBold" />
+                                <TextBlock Text="搜索节点名或编号" Foreground="White" Margin="0,10,0,0" />
+                                <TextBox x:Name="ToDoSearchBox" Margin="0,4,0,8" TextChanged="ToDoSearchBox_TextChanged" />
+                                <ListBox x:Name="ToDoTargetListBox"
+                                         Style="{StaticResource DarkDropdownListBoxStyle}"
+                                         MaxHeight="160"
+                                         Margin="0,0,0,10"
+                                         SelectionChanged="ToDoTargetListBox_SelectionChanged"
+                                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                         ScrollViewer.VerticalScrollBarVisibility="Auto">
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <DockPanel Margin="4,3">
+                                                <TextBlock Text="{Binding Number}"
+                                                           DockPanel.Dock="Left"
+                                                           Foreground="#FFD27A"
+                                                           FontWeight="SemiBold"
+                                                           Margin="0,0,8,0" />
+                                                <TextBlock Text="{Binding Title}"
+                                                           Foreground="#E8EDF5"
+                                                           TextTrimming="CharacterEllipsis" />
+                                            </DockPanel>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                                <TextBlock Text="节点名" Foreground="White" />
+                                <TextBox x:Name="ToDoTargetTitleTextBox" Margin="0,4,0,10" TextChanged="InspectorField_TextChanged" />
+                                <TextBlock Text="编号" Foreground="White" />
+                                <TextBox x:Name="ToDoTargetNumberTextBox" Margin="0,4,0,10" TextChanged="InspectorField_TextChanged" />
+                                <CheckBox x:Name="ToDoReturnAfterTargetCheckBox"
+                                          Content="目标执行完后返回 ToDo 输出"
+                                          Foreground="#D0D7E2"
+                                          Margin="0,0,0,10"
+                                          Checked="InspectorField_CheckedChanged"
+                                          Unchecked="InspectorField_CheckedChanged" />
+                                <TextBlock Text="运行时同时匹配节点名和编号；任一不匹配就停止。"
+                                           Foreground="#7A8797"
+                                           TextWrapping="Wrap" />
+                            </StackPanel>
+
+                            <StackPanel x:Name="KeyboardInspectorPanel" Visibility="Collapsed">
+                                <TextBlock Text="按键" Foreground="White" />
+                                <ComboBox x:Name="KeyboardKeyComboBox" Margin="0,4,0,12" SelectionChanged="InspectorField_SelectionChanged" />
+                                <TextBlock Text="操作模式" Foreground="White" />
+                                <ComboBox x:Name="KeyboardOperationModeComboBox" Margin="0,4,0,12" SelectionChanged="InspectorField_SelectionChanged">
+                                    <ComboBoxItem Content="按下" Tag="Press" />
+                                    <ComboBoxItem Content="抬起" Tag="Release" />
+                                    <ComboBoxItem Content="点击" Tag="Click" />
+                                </ComboBox>
+                            </StackPanel>
+
+                            <StackPanel x:Name="ScrollWheelInspectorPanel" Visibility="Collapsed">
+                                <TextBlock Text="滚轮动作" Foreground="White" />
+                                <ComboBox x:Name="ScrollWheelActionComboBox" Margin="0,4,0,12" SelectionChanged="InspectorField_SelectionChanged">
+                                    <ComboBoxItem Content="中键按下" Tag="Press" />
+                                    <ComboBoxItem Content="中键抬起" Tag="Release" />
+                                    <ComboBoxItem Content="向前滚动" Tag="ScrollForward" />
+                                    <ComboBoxItem Content="向后滚动" Tag="ScrollBackward" />
+                                </ComboBox>
+                                <TextBlock Text="滚动速度 (120=一个刻度)" Foreground="White" />
+                                <TextBox x:Name="ScrollWheelSpeedTextBox" Margin="0,4,0,10" TextChanged="InspectorField_TextChanged" />
+                                <TextBlock Text="滚动间隔 (ms)" Foreground="White" />
+                                <TextBox x:Name="ScrollWheelIntervalTextBox" Margin="0,4,0,10" TextChanged="InspectorField_TextChanged" />
+                                <TextBlock Text="滚动时长 (ms, 0=永久)" Foreground="White" />
+                                <TextBox x:Name="ScrollWheelDurationTextBox" Margin="0,4,0,12" TextChanged="InspectorField_TextChanged" />
+                            </StackPanel>
+
+                            <StackPanel x:Name="MouseMoveInspectorPanel" Visibility="Collapsed">
+                                <TextBlock x:Name="MouseMovePositionXLabel" Text="目标坐标 X" Foreground="White" />
+                                <TextBox x:Name="MouseMovePositionXTextBox" Margin="0,4,0,10" TextChanged="InspectorField_TextChanged" />
+                                <TextBlock x:Name="MouseMovePositionYLabel" Text="目标坐标 Y" Foreground="White" />
+                                <TextBox x:Name="MouseMovePositionYTextBox" Margin="0,4,0,12" TextChanged="InspectorField_TextChanged" />
+                            </StackPanel>
+
+                            <StackPanel x:Name="CommonInspectorPanel" Visibility="Collapsed">
+                                <TextBlock Text="通用参数" Foreground="#A7B1BF" FontWeight="SemiBold" />
+
+                                <StackPanel x:Name="CommonKeyChordAddPanel" Visibility="Collapsed" Margin="0,10,0,10">
+                                    <TextBlock Text="增加按键" Foreground="White" />
+                                    <DockPanel Margin="0,4,0,0">
+                                        <Button Content="增加"
+                                                DockPanel.Dock="Right"
+                                                Padding="12,4"
+                                                Margin="8,0,0,0"
+                                                Click="CommonKeyChordAddButton_Click" />
+                                        <ComboBox x:Name="CommonKeyChordKeyComboBox"
+                                                  IsEditable="True"
+                                                  IsTextSearchEnabled="True" />
+                                    </DockPanel>
+                                </StackPanel>
+
+                                <StackPanel x:Name="CommonModePanel" Visibility="Collapsed" Margin="0,10,0,10">
+                                    <TextBlock Text="目标选择模式" Foreground="White" />
+                                    <ComboBox x:Name="CommonModeComboBox" Margin="0,4,0,0" SelectionChanged="CommonModeComboBox_SelectionChanged">
+                                        <ComboBoxItem Content="手填进程名" Tag="Manual" />
+                                        <ComboBoxItem Content="从运行窗口选择" Tag="Auto" />
+                                        <ComboBoxItem Content="浏览 exe 自动填进程名" Tag="ExePath" />
+                                    </ComboBox>
+                                </StackPanel>
+
+                                <StackPanel x:Name="CommonWindowPickerPanel" Visibility="Collapsed" Margin="0,0,0,10">
+                                    <TextBlock Text="选择运行窗口" Foreground="White" />
+                                    <DockPanel Margin="0,4,0,0">
+                                        <Button Content="刷新"
+                                                DockPanel.Dock="Right"
+                                                Width="48"
+                                                Padding="0"
+                                                Margin="8,0,0,0"
+                                                Click="CommonWindowRefreshButton_Click" />
+                                        <ComboBox x:Name="CommonWindowComboBox" SelectionChanged="CommonWindowComboBox_SelectionChanged" />
+                                    </DockPanel>
+                                </StackPanel>
+
+                                <StackPanel x:Name="CommonEnumPanel" Visibility="Collapsed" Margin="0,10,0,10">
+                                    <TextBlock x:Name="CommonEnumLabel" Text="模式" Foreground="White" />
+                                    <ComboBox x:Name="CommonEnumComboBox"
+                                              Margin="0,4,0,0"
+                                              SelectionChanged="CommonEnumComboBox_SelectionChanged" />
+                                </StackPanel>
+
+                                <TextBlock x:Name="CommonTextLabel" Text="文本 1" Foreground="White" Margin="0,10,0,0" />
+                                <TextBox x:Name="CommonTextBox" Margin="0,4,0,10" TextChanged="InspectorField_TextChanged" />
+                                <Button x:Name="CommonBrowseFileButton"
+                                        Content="浏览"
+                                        Visibility="Collapsed"
+                                        Margin="0,0,0,10"
+                                        Padding="12,4"
+                                        Click="CommonBrowseFileButton_Click" />
+
+                                <TextBlock x:Name="CommonText2Label" Text="文本 2" Foreground="White" />
+                                <TextBox x:Name="CommonText2Box" Margin="0,4,0,10" TextChanged="InspectorField_TextChanged" />
+
+                                <TextBlock x:Name="CommonText3Label" Text="文本 3" Foreground="White" />
+                                <TextBox x:Name="CommonText3Box" Margin="0,4,0,10" TextChanged="InspectorField_TextChanged" />
+
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="8" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <TextBlock x:Name="CommonNumberLabel" Grid.Row="0" Grid.Column="0" Text="数值 1" Foreground="White" />
+                                    <TextBlock x:Name="CommonNumber2Label" Grid.Row="0" Grid.Column="2" Text="数值 2" Foreground="White" />
+                                    <TextBox x:Name="CommonNumberBox" Grid.Row="1" Grid.Column="0" Margin="0,4,0,10" TextChanged="InspectorField_TextChanged" />
+                                    <TextBox x:Name="CommonNumber2Box" Grid.Row="1" Grid.Column="2" Margin="0,4,0,10" TextChanged="InspectorField_TextChanged" />
+                                    <TextBlock x:Name="CommonNumber3Label" Grid.Row="2" Grid.Column="0" Text="数值 3" Foreground="White" />
+                                    <TextBlock x:Name="CommonNumber4Label" Grid.Row="2" Grid.Column="2" Text="数值 4" Foreground="White" />
+                                    <TextBox x:Name="CommonNumber3Box" Grid.Row="3" Grid.Column="0" Margin="0,4,0,10" TextChanged="InspectorField_TextChanged" />
+                                    <TextBox x:Name="CommonNumber4Box" Grid.Row="3" Grid.Column="2" Margin="0,4,0,10" TextChanged="InspectorField_TextChanged" />
+                                </Grid>
+
+                                <CheckBox x:Name="CommonFlagCheckBox"
+                                          Content="布尔值"
+                                          Foreground="#D0D7E2"
+                                          Margin="0,0,0,10"
+                                          Checked="InspectorField_CheckedChanged"
+                                          Unchecked="InspectorField_CheckedChanged" />
+
+                                <TextBlock x:Name="CommonHelpTextBlock"
+                                           Foreground="#A7B1BF"
+                                           TextWrapping="Wrap" />
+                            </StackPanel>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Border>
+            </Grid>
 </UserControl>

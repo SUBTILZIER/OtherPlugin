@@ -7,6 +7,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
+using AutomationStudioWpf.Controls;
 using AutomationStudioWpf.Graph;
 using AutomationStudioWpf.Interaction;
 using AutomationStudioWpf.Logging;
@@ -53,9 +54,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private Point _editorSessionDragStart;
     private bool _isEditorSessionDrag;
     private System.Windows.Controls.Primitives.Popup? _editorSessionDragPreviewPopup;
-    private System.Windows.Controls.Panel? _editorGridHomeParent;
-    private int _editorGridHomeIndex = -1;
-    private DetachedEditorWindow? _editorGridOwnerWindow;
+    private EditorSurfaceControl? _fallbackEditorSurface;
+    private EditorSessionViewModel? _eventSurfaceSessionOverride;
     private GraphCommandService _graphCommandService = null!;
     private ExecutionController _executionController = null!;
     private NodePaletteController _nodePaletteController = null!;
@@ -155,7 +155,24 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void RebuildEditorControllers()
     {
+        if (_activeEditorSession?.SurfaceContext is { IsConfigured: true } activeContext)
+        {
+            _executionController = new ExecutionController(
+                this,
+                _editorService,
+                new Runtime.GraphRuntimeExecutor(nodeRegistry: _nodeRegistry, adapters: new Adapters.RuntimeAdapters()),
+                new GraphCore.GraphValidator(),
+                RunGraphButton,
+                GetRuntimeCallableFunctions,
+                GetRuntimeCallableMacros,
+                SetStatus);
+
+            ApplyEditorSurfaceContext(activeContext);
+            return;
+        }
+
         _graphCommandService = GetOrCreateActiveCommandService();
+        var surface = GetActiveEditorSurface();
 
         _executionController = new ExecutionController(
             this,
@@ -172,7 +189,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             _editorService,
             _graphLibraryService,
             _nodeFactory,
-            GraphListBox,
+            surface.GraphListBox,
             GraphListItems,
             SyncNodeFactorySequence,
             PersistAssetLibrary,
@@ -186,7 +203,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             _editorService,
             _graphLibraryService,
             _nodeFactory,
-            FunctionListBox,
+            surface.FunctionListBox,
             FunctionListItems,
             SyncNodeFactorySequence,
             PersistAssetLibrary,
@@ -200,7 +217,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             _editorService,
             _graphLibraryService,
             _nodeFactory,
-            MacroListBox,
+            surface.MacroListBox,
             MacroListItems,
             SyncNodeFactorySequence,
             PersistAssetLibrary,
@@ -231,12 +248,29 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             SetStatus);
     }
 
+    private void ApplyEditorSurfaceContext(EditorSurfaceContext context)
+    {
+        _graphCommandService = context.CommandService;
+        _graphListController = context.GraphListController;
+        _functionListController = context.FunctionListController;
+        _macroListController = context.MacroListController;
+        _activeAssetController = context.ActiveAssetController;
+        _canvasPanZoomController = context.CanvasPanZoomController;
+        _nodeDragSelectionController = context.NodeDragSelectionController;
+        _inspectorController = context.InspectorController;
+        _pinConnectionController = context.PinConnectionController;
+        _nodePaletteController = context.NodePaletteController;
+        _graphImportDropController = context.GraphImportDropController;
+    }
+
     private void RebuildInteractionControllers()
     {
+        var surface = GetActiveEditorSurface();
+
         _nodePaletteController = new NodePaletteController(
-            NodePalette,
-            NodePaletteSearchBox,
-            NodePaletteContent,
+            surface.NodePalette,
+            surface.NodePaletteSearchBox,
+            surface.NodePaletteContent,
             _nodeFactory,
             _editorService,
             _graphCommandService,
@@ -247,14 +281,14 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             GetActiveGraphKind,
             SnapshotActiveAsset,
             ViewportToGraph,
-            () => new System.Windows.Size(GraphViewport.ActualWidth, GraphViewport.ActualHeight),
+            () => new System.Windows.Size(surface.GraphViewport.ActualWidth, surface.GraphViewport.ActualHeight),
             SelectNode,
             node => _pinConnectionController.TryAutoConnectNewNode(node));
 
         _canvasPanZoomController = new CanvasPanZoomController(
-            GraphViewport,
-            GraphZoomTransform,
-            GraphPanTransform,
+            surface.GraphViewport,
+            surface.GraphZoomTransform,
+            surface.GraphPanTransform,
             _editorService,
             SetStatus);
 
@@ -263,8 +297,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             _graphCommandService,
             _clipboardService,
             _nodeFactory,
-            GraphViewport,
-            SelectionRectangle,
+            surface.GraphViewport,
+            surface.SelectionRectangle,
             ViewportToGraph,
             LoadNodeToInspector,
             FitGraphToView,
@@ -279,106 +313,106 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             new Adapters.Win32WindowAdapter(),
             MarkActiveAssetDirty,
             SetStatus,
-            InspectorHintTextBlock,
-            NodeTitleTextBox,
-            NodeNumberTextBlock,
-            ParameterInspectorPanel,
-            AddParameterButton,
-            ParameterInspectorTitle,
-            ParameterRowsPanel,
-            FindImageInspectorPanel,
-            FindImageSourceModeComboBox,
-            FindImageSourcePathLabel,
-            FindImageSourcePathPanel,
-            FindImageSourcePathTextBox,
-            FindImagePathTextBox,
-            FindImageThresholdTextBox,
-            FindImageUseRegionCheckBox,
-            FindImageRegionXTextBox,
-            FindImageRegionYTextBox,
-            FindImageRegionWidthTextBox,
-            FindImageRegionHeightTextBox,
-            MouseLeftInspectorPanel,
-            MousePositionXTextBox,
-            MousePositionYTextBox,
-            MouseClickOperationModeComboBox,
-            MouseButtonComboBox,
-            KeyboardInspectorPanel,
-            KeyboardKeyComboBox,
-            KeyboardOperationModeComboBox,
-            ScrollWheelInspectorPanel,
-            ScrollWheelActionComboBox,
-            ScrollWheelSpeedTextBox,
-            ScrollWheelIntervalTextBox,
-            ScrollWheelDurationTextBox,
-            IfInspectorPanel,
-            IfConditionComboBox,
-            ForLoopInspectorPanel,
-            ForLoopCountTextBox,
-            ForLoopEndConditionComboBox,
-            WhileLoopInspectorPanel,
-            WhileLoopConditionComboBox,
-            WhileLoopModeComboBox,
-            WhileMaxIterationsLabel,
-            WhileMaxIterationsTextBox,
-            DelayInspectorPanel,
-            DelayMsTextBox,
-            MouseMoveInspectorPanel,
-            MouseMovePositionXTextBox,
-            MouseMovePositionYTextBox,
-            StartProgramInspectorPanel,
-            StartProgramPathTextBox,
-            StartProgramWaitTimeoutTextBox,
-            StartProgramFailureActionComboBox,
-            StartProgramRetryCountTextBox,
-            PrintLogInspectorPanel,
-            PrintLogMessageTextBox,
-            SelectWindowInspectorPanel,
-            SelectWindowInputModeComboBox,
-            SelectWindowManualPanel,
-            SelectWindowProcessNameTextBox,
-            SelectWindowAutoPanel,
-            SelectWindowAutoComboBox,
-            ToDoInspectorPanel,
-            ToDoSearchBox,
-            ToDoTargetListBox,
-            ToDoTargetTitleTextBox,
-            ToDoTargetNumberTextBox,
-            ToDoReturnAfterTargetCheckBox,
-            CommonInspectorPanel,
-            CommonKeyChordAddPanel,
-            CommonKeyChordKeyComboBox,
-            CommonModePanel,
-            CommonModeComboBox,
-            CommonWindowPickerPanel,
-            CommonWindowComboBox,
-            CommonEnumPanel,
-            CommonEnumLabel,
-            CommonEnumComboBox,
-            CommonBrowseFileButton,
-            CommonTextLabel,
-            CommonTextBox,
-            CommonText2Label,
-            CommonText2Box,
-            CommonText3Label,
-            CommonText3Box,
-            CommonNumberLabel,
-            CommonNumberBox,
-            CommonNumber2Label,
-            CommonNumber2Box,
-            CommonNumber3Label,
-            CommonNumber3Box,
-            CommonNumber4Label,
-            CommonNumber4Box,
-            CommonFlagCheckBox,
-            CommonHelpTextBlock);
+            surface.InspectorHintTextBlock,
+            surface.NodeTitleTextBox,
+            surface.NodeNumberTextBlock,
+            surface.ParameterInspectorPanel,
+            surface.AddParameterButton,
+            surface.ParameterInspectorTitle,
+            surface.ParameterRowsPanel,
+            surface.FindImageInspectorPanel,
+            surface.FindImageSourceModeComboBox,
+            surface.FindImageSourcePathLabel,
+            surface.FindImageSourcePathPanel,
+            surface.FindImageSourcePathTextBox,
+            surface.FindImagePathTextBox,
+            surface.FindImageThresholdTextBox,
+            surface.FindImageUseRegionCheckBox,
+            surface.FindImageRegionXTextBox,
+            surface.FindImageRegionYTextBox,
+            surface.FindImageRegionWidthTextBox,
+            surface.FindImageRegionHeightTextBox,
+            surface.MouseLeftInspectorPanel,
+            surface.MousePositionXTextBox,
+            surface.MousePositionYTextBox,
+            surface.MouseClickOperationModeComboBox,
+            surface.MouseButtonComboBox,
+            surface.KeyboardInspectorPanel,
+            surface.KeyboardKeyComboBox,
+            surface.KeyboardOperationModeComboBox,
+            surface.ScrollWheelInspectorPanel,
+            surface.ScrollWheelActionComboBox,
+            surface.ScrollWheelSpeedTextBox,
+            surface.ScrollWheelIntervalTextBox,
+            surface.ScrollWheelDurationTextBox,
+            surface.IfInspectorPanel,
+            surface.IfConditionComboBox,
+            surface.ForLoopInspectorPanel,
+            surface.ForLoopCountTextBox,
+            surface.ForLoopEndConditionComboBox,
+            surface.WhileLoopInspectorPanel,
+            surface.WhileLoopConditionComboBox,
+            surface.WhileLoopModeComboBox,
+            surface.WhileMaxIterationsLabel,
+            surface.WhileMaxIterationsTextBox,
+            surface.DelayInspectorPanel,
+            surface.DelayMsTextBox,
+            surface.MouseMoveInspectorPanel,
+            surface.MouseMovePositionXTextBox,
+            surface.MouseMovePositionYTextBox,
+            surface.StartProgramInspectorPanel,
+            surface.StartProgramPathTextBox,
+            surface.StartProgramWaitTimeoutTextBox,
+            surface.StartProgramFailureActionComboBox,
+            surface.StartProgramRetryCountTextBox,
+            surface.PrintLogInspectorPanel,
+            surface.PrintLogMessageTextBox,
+            surface.SelectWindowInspectorPanel,
+            surface.SelectWindowInputModeComboBox,
+            surface.SelectWindowManualPanel,
+            surface.SelectWindowProcessNameTextBox,
+            surface.SelectWindowAutoPanel,
+            surface.SelectWindowAutoComboBox,
+            surface.ToDoInspectorPanel,
+            surface.ToDoSearchBox,
+            surface.ToDoTargetListBox,
+            surface.ToDoTargetTitleTextBox,
+            surface.ToDoTargetNumberTextBox,
+            surface.ToDoReturnAfterTargetCheckBox,
+            surface.CommonInspectorPanel,
+            surface.CommonKeyChordAddPanel,
+            surface.CommonKeyChordKeyComboBox,
+            surface.CommonModePanel,
+            surface.CommonModeComboBox,
+            surface.CommonWindowPickerPanel,
+            surface.CommonWindowComboBox,
+            surface.CommonEnumPanel,
+            surface.CommonEnumLabel,
+            surface.CommonEnumComboBox,
+            surface.CommonBrowseFileButton,
+            surface.CommonTextLabel,
+            surface.CommonTextBox,
+            surface.CommonText2Label,
+            surface.CommonText2Box,
+            surface.CommonText3Label,
+            surface.CommonText3Box,
+            surface.CommonNumberLabel,
+            surface.CommonNumberBox,
+            surface.CommonNumber2Label,
+            surface.CommonNumber2Box,
+            surface.CommonNumber3Label,
+            surface.CommonNumber3Box,
+            surface.CommonNumber4Label,
+            surface.CommonNumber4Box,
+            surface.CommonFlagCheckBox,
+            surface.CommonHelpTextBlock);
 
         _pinConnectionController = new PinConnectionController(
             _editorService,
             _graphCommandService,
             _nodeFactory,
-            GraphViewport,
-            PreviewConnectionPath,
+            surface.GraphViewport,
+            surface.PreviewConnectionPath,
             ViewportToGraph,
             position => TryGetPinAtPosition(position, out var pin) ? pin : null,
             OpenNodePaletteForConnection,
@@ -390,21 +424,237 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         _graphImportDropController = new GraphImportDropController(this, _graphListController);
     }
 
+    private EditorSurfaceControl GetActiveEditorSurface()
+    {
+        if (_eventSurfaceSessionOverride?.Surface is { } overrideSurface)
+            return overrideSurface;
+
+        if (_activeEditorSession?.Surface is { } activeSurface)
+            return activeSurface;
+
+        _fallbackEditorSurface ??= new EditorSurfaceControl
+        {
+            DataContext = this,
+        };
+        return _fallbackEditorSurface;
+    }
+
+    internal void ActivateEditorSurface(EditorSurfaceControl surface)
+    {
+        var session = _editorSessions.FirstOrDefault(candidate => ReferenceEquals(candidate.Surface, surface));
+        if (session is not null)
+            ActivateEditorSessionForSurfaceInteraction(session);
+    }
+
+    private bool ActivateEditorSessionForSurfaceInteraction(EditorSessionViewModel session)
+    {
+        if (_executionController?.IsRunning == true)
+        {
+            SetStatus("执行中，不能切换编辑窗口。");
+            return false;
+        }
+
+        ConfigureEditorSurface(session);
+        if (ReferenceEquals(session, _activeEditorSession))
+        {
+            if (session.SurfaceContext is { } activeContext)
+                ApplyEditorSurfaceContext(activeContext);
+            return true;
+        }
+
+        if (!ReferenceEquals(session, _activeEditorSession))
+        {
+            CommitCurrentSessionToAsset();
+            if (_activeEditorSession is not null)
+                _activeEditorSession.IsActive = false;
+
+            _activeEditorSession = session;
+            _activeEditorSession.IsActive = true;
+            _activeContentAsset = session.ContentAsset;
+            _editorService = session.EditorService;
+            _nodeFactory = session.NodeFactory;
+            AttachActiveEditorService(_editorService);
+        }
+
+        RebuildEditorControllers();
+        AttachGraphCollectionChangeHandlers();
+        UpdateCompileButtonState();
+        return true;
+    }
+
+    internal void HandleEditorSurfaceEvent(EditorSessionViewModel session, EditorSurfaceEvent surfaceEvent, object sender, EventArgs e, bool promoteToActive)
+    {
+        if (promoteToActive && !ActivateEditorSessionForSurfaceInteraction(session))
+            return;
+
+        if (ReferenceEquals(session, _activeEditorSession))
+        {
+            if (session.SurfaceContext is { } activeContext)
+                ApplyEditorSurfaceContext(activeContext);
+            HandleEditorSurfaceEvent(surfaceEvent, sender, e);
+            if (session.SurfaceContext is { } updatedContext)
+                ApplyEditorSurfaceContext(updatedContext);
+            return;
+        }
+
+        RunWithSurfaceContext(session, () => HandleEditorSurfaceEvent(surfaceEvent, sender, e));
+    }
+
+    private void RunWithSurfaceContext(EditorSessionViewModel session, Action action)
+    {
+        ConfigureEditorSurface(session);
+        if (session.SurfaceContext is not { IsConfigured: true } context)
+            return;
+
+        var previousOverride = _eventSurfaceSessionOverride;
+        var previousContentAsset = _activeContentAsset;
+        var previousEditorService = _editorService;
+        var previousNodeFactory = _nodeFactory;
+        var previousCommandService = _graphCommandService;
+        var previousGraphListController = _graphListController;
+        var previousFunctionListController = _functionListController;
+        var previousMacroListController = _macroListController;
+        var previousActiveAssetController = _activeAssetController;
+        var previousCanvasPanZoomController = _canvasPanZoomController;
+        var previousNodeDragSelectionController = _nodeDragSelectionController;
+        var previousInspectorController = _inspectorController;
+        var previousPinConnectionController = _pinConnectionController;
+        var previousNodePaletteController = _nodePaletteController;
+        var previousGraphImportDropController = _graphImportDropController;
+
+        try
+        {
+            _eventSurfaceSessionOverride = session;
+            _activeContentAsset = session.ContentAsset;
+            _editorService = session.EditorService;
+            _nodeFactory = session.NodeFactory;
+            ApplyEditorSurfaceContext(context);
+            action();
+        }
+        finally
+        {
+            _eventSurfaceSessionOverride = previousOverride;
+            _activeContentAsset = previousContentAsset;
+            _editorService = previousEditorService;
+            _nodeFactory = previousNodeFactory;
+            _graphCommandService = previousCommandService;
+            _graphListController = previousGraphListController;
+            _functionListController = previousFunctionListController;
+            _macroListController = previousMacroListController;
+            _activeAssetController = previousActiveAssetController;
+            _canvasPanZoomController = previousCanvasPanZoomController;
+            _nodeDragSelectionController = previousNodeDragSelectionController;
+            _inspectorController = previousInspectorController;
+            _pinConnectionController = previousPinConnectionController;
+            _nodePaletteController = previousNodePaletteController;
+            _graphImportDropController = previousGraphImportDropController;
+        }
+    }
+
+    internal void HandleEditorSurfaceEvent(EditorSurfaceEvent surfaceEvent, object sender, EventArgs e)
+    {
+        switch (surfaceEvent)
+        {
+            case EditorSurfaceEvent.AddGraphListItemClick: AddGraphListItem_Click(sender, (RoutedEventArgs)e); break;
+            case EditorSurfaceEvent.GraphListBoxMouseDoubleClick: GraphListBox_MouseDoubleClick(sender, (MouseButtonEventArgs)e); break;
+            case EditorSurfaceEvent.GraphListBoxKeyDown: GraphListBox_KeyDown(sender, (KeyEventArgs)e); break;
+            case EditorSurfaceEvent.RenameGraphMenuItemClick: RenameGraphMenuItem_Click(sender, (RoutedEventArgs)e); break;
+            case EditorSurfaceEvent.DeleteGraphMenuItemClick: DeleteGraphMenuItem_Click(sender, (RoutedEventArgs)e); break;
+            case EditorSurfaceEvent.AddFunctionListItemClick: AddFunctionListItem_Click(sender, (RoutedEventArgs)e); break;
+            case EditorSurfaceEvent.FunctionListBoxMouseDoubleClick: FunctionListBox_MouseDoubleClick(sender, (MouseButtonEventArgs)e); break;
+            case EditorSurfaceEvent.FunctionListBoxKeyDown: FunctionListBox_KeyDown(sender, (KeyEventArgs)e); break;
+            case EditorSurfaceEvent.FunctionListItemPreviewMouseRightButtonDown: FunctionListItem_PreviewMouseRightButtonDown(sender, (MouseButtonEventArgs)e); break;
+            case EditorSurfaceEvent.FunctionListItemPreviewMouseLeftButtonDown: FunctionListItem_PreviewMouseLeftButtonDown(sender, (MouseButtonEventArgs)e); break;
+            case EditorSurfaceEvent.AddMacroListItemClick: AddMacroListItem_Click(sender, (RoutedEventArgs)e); break;
+            case EditorSurfaceEvent.MacroListBoxMouseDoubleClick: MacroListBox_MouseDoubleClick(sender, (MouseButtonEventArgs)e); break;
+            case EditorSurfaceEvent.MacroListBoxKeyDown: MacroListBox_KeyDown(sender, (KeyEventArgs)e); break;
+            case EditorSurfaceEvent.MacroListItemPreviewMouseRightButtonDown: MacroListItem_PreviewMouseRightButtonDown(sender, (MouseButtonEventArgs)e); break;
+            case EditorSurfaceEvent.MacroListItemPreviewMouseLeftButtonDown: MacroListItem_PreviewMouseLeftButtonDown(sender, (MouseButtonEventArgs)e); break;
+            case EditorSurfaceEvent.GraphListItemPreviewMouseRightButtonDown: GraphListItem_PreviewMouseRightButtonDown(sender, (MouseButtonEventArgs)e); break;
+            case EditorSurfaceEvent.GraphListItemPreviewMouseLeftButtonDown: GraphListItem_PreviewMouseLeftButtonDown(sender, (MouseButtonEventArgs)e); break;
+            case EditorSurfaceEvent.GraphNameTextBoxKeyDown: GraphNameTextBox_KeyDown(sender, (KeyEventArgs)e); break;
+            case EditorSurfaceEvent.GraphNameTextBoxLostFocus: GraphNameTextBox_LostFocus(sender, (RoutedEventArgs)e); break;
+            case EditorSurfaceEvent.LibraryPublishCheckBoxClick: LibraryPublishCheckBox_Click(sender, (RoutedEventArgs)e); break;
+            case EditorSurfaceEvent.ToggleEventGraphSectionClick: ToggleEventGraphSection_Click(sender, (RoutedEventArgs)e); break;
+            case EditorSurfaceEvent.ToggleFunctionSectionClick: ToggleFunctionSection_Click(sender, (RoutedEventArgs)e); break;
+            case EditorSurfaceEvent.ToggleMacroSectionClick: ToggleMacroSection_Click(sender, (RoutedEventArgs)e); break;
+            case EditorSurfaceEvent.NodeCardMouseLeftButtonDown: NodeCard_MouseLeftButtonDown(sender, (MouseButtonEventArgs)e); break;
+            case EditorSurfaceEvent.NodeHeaderPreviewMouseLeftButtonDown: NodeHeader_PreviewMouseLeftButtonDown(sender, (MouseButtonEventArgs)e); break;
+            case EditorSurfaceEvent.NodeHeaderPreviewMouseMove: NodeHeader_PreviewMouseMove(sender, (MouseEventArgs)e); break;
+            case EditorSurfaceEvent.NodeHeaderPreviewMouseLeftButtonUp: NodeHeader_PreviewMouseLeftButtonUp(sender, (MouseButtonEventArgs)e); break;
+            case EditorSurfaceEvent.GraphViewportPreviewMouseLeftButtonDown: GraphViewport_PreviewMouseLeftButtonDown(sender, (MouseButtonEventArgs)e); break;
+            case EditorSurfaceEvent.GraphViewportPreviewMouseMove: GraphViewport_PreviewMouseMove(sender, (MouseEventArgs)e); break;
+            case EditorSurfaceEvent.GraphViewportPreviewMouseLeftButtonUp: GraphViewport_PreviewMouseLeftButtonUp(sender, (MouseButtonEventArgs)e); break;
+            case EditorSurfaceEvent.GraphViewportPreviewMouseRightButtonDown: GraphViewport_PreviewMouseRightButtonDown(sender, (MouseButtonEventArgs)e); break;
+            case EditorSurfaceEvent.GraphViewportPreviewMouseRightButtonUp: GraphViewport_PreviewMouseRightButtonUp(sender, (MouseButtonEventArgs)e); break;
+            case EditorSurfaceEvent.GraphViewportPreviewMouseWheel: GraphViewport_PreviewMouseWheel(sender, (MouseWheelEventArgs)e); break;
+            case EditorSurfaceEvent.NodePaletteScrollViewerPreviewMouseWheel: NodePaletteScrollViewer_PreviewMouseWheel(sender, (MouseWheelEventArgs)e); break;
+            case EditorSurfaceEvent.PinButtonPreviewMouseLeftButtonDown: PinButton_PreviewMouseLeftButtonDown(sender, (MouseButtonEventArgs)e); break;
+            case EditorSurfaceEvent.PinButtonPreviewMouseLeftButtonUp: PinButton_PreviewMouseLeftButtonUp(sender, (MouseButtonEventArgs)e); break;
+            case EditorSurfaceEvent.ConnectionPathMouseDoubleClick: ConnectionPath_MouseDoubleClick(sender, (MouseButtonEventArgs)e); break;
+            case EditorSurfaceEvent.ConnectionPathMouseLeftButtonDown: ConnectionPath_MouseLeftButtonDown(sender, (MouseButtonEventArgs)e); break;
+            case EditorSurfaceEvent.ConnectionPathPreviewMouseLeftButtonDown: ConnectionPath_PreviewMouseLeftButtonDown(sender, (MouseButtonEventArgs)e); break;
+            case EditorSurfaceEvent.ConnectionPathPreviewMouseRightButtonDown: ConnectionPath_PreviewMouseRightButtonDown(sender, (MouseButtonEventArgs)e); break;
+            case EditorSurfaceEvent.DeleteConnectionPathClick: DeleteConnectionPath_Click(sender, (RoutedEventArgs)e); break;
+            case EditorSurfaceEvent.AddRerouteToConnectionPathClick: AddRerouteToConnectionPath_Click(sender, (RoutedEventArgs)e); break;
+            case EditorSurfaceEvent.InspectorFieldTextChanged: InspectorField_TextChanged(sender, (TextChangedEventArgs)e); break;
+            case EditorSurfaceEvent.InspectorFieldSelectionChanged: InspectorField_SelectionChanged(sender, (SelectionChangedEventArgs)e); break;
+            case EditorSurfaceEvent.InspectorFieldCheckedChanged: InspectorField_CheckedChanged(sender, (RoutedEventArgs)e); break;
+            case EditorSurfaceEvent.ToDoSearchBoxTextChanged: ToDoSearchBox_TextChanged(sender, (TextChangedEventArgs)e); break;
+            case EditorSurfaceEvent.ToDoTargetListBoxSelectionChanged: ToDoTargetListBox_SelectionChanged(sender, (SelectionChangedEventArgs)e); break;
+            case EditorSurfaceEvent.BrowseFindImagePathClick: BrowseFindImagePath_Click(sender, (RoutedEventArgs)e); break;
+            case EditorSurfaceEvent.BrowseStartProgramPathClick: BrowseStartProgramPath_Click(sender, (RoutedEventArgs)e); break;
+            case EditorSurfaceEvent.RefreshWindowListClick: RefreshWindowList_Click(sender, (RoutedEventArgs)e); break;
+            case EditorSurfaceEvent.BrowseFindImageSourcePathClick: BrowseFindImageSourcePath_Click(sender, (RoutedEventArgs)e); break;
+            case EditorSurfaceEvent.CommonKeyChordAddButtonClick: CommonKeyChordAddButton_Click(sender, (RoutedEventArgs)e); break;
+            case EditorSurfaceEvent.AddParameterButtonClick: AddParameterButton_Click(sender, (RoutedEventArgs)e); break;
+            case EditorSurfaceEvent.CommonModeComboBoxSelectionChanged: CommonModeComboBox_SelectionChanged(sender, (SelectionChangedEventArgs)e); break;
+            case EditorSurfaceEvent.CommonWindowComboBoxSelectionChanged: CommonWindowComboBox_SelectionChanged(sender, (SelectionChangedEventArgs)e); break;
+            case EditorSurfaceEvent.CommonWindowRefreshButtonClick: CommonWindowRefreshButton_Click(sender, (RoutedEventArgs)e); break;
+            case EditorSurfaceEvent.CommonEnumComboBoxSelectionChanged: CommonEnumComboBox_SelectionChanged(sender, (SelectionChangedEventArgs)e); break;
+            case EditorSurfaceEvent.CommonBrowseFileButtonClick: CommonBrowseFileButton_Click(sender, (RoutedEventArgs)e); break;
+            case EditorSurfaceEvent.SelectWindowInputModeSelectionChanged: SelectWindowInputMode_SelectionChanged(sender, (SelectionChangedEventArgs)e); break;
+            case EditorSurfaceEvent.SelectWindowAutoComboBoxSelectionChanged: SelectWindowAutoComboBox_SelectionChanged(sender, (SelectionChangedEventArgs)e); break;
+            case EditorSurfaceEvent.FindImageSourceModeComboBoxSelectionChanged: FindImageSourceModeComboBox_SelectionChanged(sender, (SelectionChangedEventArgs)e); break;
+            case EditorSurfaceEvent.PinAnchorLoaded: PinAnchor_Loaded(sender, (RoutedEventArgs)e); break;
+            case EditorSurfaceEvent.PinAnchorLayoutUpdated: PinAnchor_LayoutUpdated(sender, e); break;
+            case EditorSurfaceEvent.NodePaletteSearchBoxTextChanged: NodePaletteSearchBox_TextChanged(sender, (TextChangedEventArgs)e); break;
+        }
+
+        if (_activeEditorSession?.SurfaceContext is { } context)
+            context.ActiveAssetController = _activeAssetController;
+    }
+
+    private void ConfigureEditorSurface(EditorSessionViewModel session)
+    {
+        var context = session.EnsureSurfaceContext();
+        context.Configure(this, CreateEditorSurfaceHostServices());
+        if (_themedDialogOverridesInstalled)
+            InstallGraphListHandlersForSurface(context.Surface, context);
+        if (ReferenceEquals(session, _activeEditorSession))
+            ApplyEditorSurfaceContext(context);
+    }
+
+    private EditorSurfaceHostServices CreateEditorSurfaceHostServices() => new(
+        this,
+        _graphLibraryService,
+        _clipboardService,
+        _nodeRegistry,
+        PersistAssetLibrary,
+        SnapshotActiveAsset,
+        MarkActiveAssetDirty,
+        MarkActiveAssetLayoutDirty,
+        EnsureCanvasLargeEnough,
+        SetStatus,
+        GetCallableFunctions,
+        GetCallableMacros,
+        GetCallableCustomEvents);
+
     private void InitializeEditor()
     {
-        CaptureEditorGridHome();
         LoadGraphLibrary();
         InitializeNodePalette();
         EnsureCanvasLargeEnough();
-    }
-
-    private void CaptureEditorGridHome()
-    {
-        if (EditorGrid.Parent is System.Windows.Controls.Panel parent)
-        {
-            _editorGridHomeParent = parent;
-            _editorGridHomeIndex = parent.Children.IndexOf(EditorGrid);
-        }
     }
 
     #endregion
@@ -641,6 +891,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         _activeAssetController = controller;
         controller.LoadItem(item, snapshotCurrent: false);
         _activeEditorSession?.RememberActive(controller);
+        if (_activeEditorSession?.SurfaceContext is { } context)
+            context.ActiveAssetController = controller;
         _graphCommandService.Clear();
     }
 
@@ -730,13 +982,14 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         bool showEvent = _activeContentAsset?.Kind == ContentAssetKind.Script;
         bool showFunction = _activeContentAsset?.Kind is ContentAssetKind.Script or ContentAssetKind.FunctionLibrary;
         bool showMacro = _activeContentAsset?.Kind is ContentAssetKind.Script or ContentAssetKind.MacroLibrary;
+        var surface = GetActiveEditorSurface();
 
-        UpdateGraphSection(_graphListController, EventGraphPanel, EventGraphSection, EventGraphSectionToggle, GraphListBox, showEvent);
-        UpdateGraphSection(_functionListController, FunctionPanel, FunctionSection, FunctionSectionToggle, FunctionListBox, showFunction);
-        UpdateGraphSection(_macroListController, MacroPanel, MacroSection, MacroSectionToggle, MacroListBox, showMacro);
-        EventGraphDirtyBadge.Visibility = showEvent && _graphListController.HasCompileDirtyItems ? Visibility.Visible : Visibility.Collapsed;
-        FunctionDirtyBadge.Visibility = showFunction && _functionListController.HasCompileDirtyItems ? Visibility.Visible : Visibility.Collapsed;
-        MacroDirtyBadge.Visibility = showMacro && _macroListController.HasCompileDirtyItems ? Visibility.Visible : Visibility.Collapsed;
+        UpdateGraphSection(_graphListController, surface.EventGraphPanel, surface.EventGraphSection, surface.EventGraphSectionToggle, surface.GraphListBox, showEvent);
+        UpdateGraphSection(_functionListController, surface.FunctionPanel, surface.FunctionSection, surface.FunctionSectionToggle, surface.FunctionListBox, showFunction);
+        UpdateGraphSection(_macroListController, surface.MacroPanel, surface.MacroSection, surface.MacroSectionToggle, surface.MacroListBox, showMacro);
+        surface.EventGraphDirtyBadge.Visibility = showEvent && _graphListController.HasCompileDirtyItems ? Visibility.Visible : Visibility.Collapsed;
+        surface.FunctionDirtyBadge.Visibility = showFunction && _functionListController.HasCompileDirtyItems ? Visibility.Visible : Visibility.Collapsed;
+        surface.MacroDirtyBadge.Visibility = showMacro && _macroListController.HasCompileDirtyItems ? Visibility.Visible : Visibility.Collapsed;
         UpdateLibraryPublishOptionVisibility();
         UpdateCompileButtonState();
     }
@@ -1043,7 +1296,10 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (!_editorSessions.Contains(session))
             AddEditorSession(session);
 
-        ActivateEditorSession(session, targetGraph, targetKind);
+        if (session.DockMode == EditorDockMode.Detached)
+            ActivateEditorSession(session, targetGraph, targetKind);
+        else
+            ActivateEditorSessionFromMainTab(session, targetGraph, targetKind);
     }
 
     private EditorSessionViewModel CreateEditorSession(ContentAssetViewModel asset)
@@ -1103,7 +1359,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         _activeContentAsset = session.ContentAsset;
         _editorService = session.EditorService;
         _nodeFactory = session.NodeFactory;
-        MoveEditorGridForSession(session);
+        ShowEditorSurfaceForSession(session);
         ContentBrowserListBox.SelectedItem = session.ContentAsset;
 
         AttachActiveEditorService(_editorService);
@@ -1115,6 +1371,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         _functionListController.ClearActive();
         _macroListController.ClearActive();
         _activeAssetController = null;
+        if (session.SurfaceContext is { } context)
+            context.ActiveAssetController = null;
 
         _graphListController.LoadSectionExpansion(session.ContentAsset.EventGraphSectionExpanded, session.ContentAsset.EventGraphSectionHasState);
         _functionListController.LoadSectionExpansion(session.ContentAsset.FunctionSectionExpanded, session.ContentAsset.FunctionSectionHasState);
@@ -1186,8 +1444,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private void ApplyEditorModeForContent(ContentAssetViewModel asset)
     {
         EmptyEditorPanel.Visibility = Visibility.Collapsed;
-        EditorGrid.Visibility = Visibility.Visible;
-        InspectorPanel.Visibility = Visibility.Visible;
+        EnsureEditorSurfaceHost();
         UpdateGraphSectionVisibility();
     }
 
@@ -1219,6 +1476,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
 
         _activeAssetController = null;
+        if (_activeEditorSession?.SurfaceContext is { } context)
+            context.ActiveAssetController = null;
         _suppressGraphChangedDirty = true;
         try
         {
@@ -1229,7 +1488,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             _suppressGraphChangedDirty = false;
         }
-        InspectorHintTextBlock.Visibility = Visibility.Visible;
+        GetActiveEditorSurface().InspectorHintTextBlock.Visibility = Visibility.Visible;
     }
 
     private void CloseActiveEditor()
@@ -1250,8 +1509,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         else
             session.SaveToAsset();
 
-        if (ReferenceEquals(session.DetachedWindow, _editorGridOwnerWindow))
-            MoveEditorGridHome();
+        if (ReferenceEquals(session, _activeEditorSession))
+            HideMainEditorSurfaceHostOnly();
         session.DetachedWindow?.CloseFromOwner();
         session.DetachedWindow = null;
         RemoveEditorSession(session);
@@ -1317,10 +1576,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         _editorService.ClearGraph();
         _graphCommandService.Clear();
         RaiseEditorBindingProperties();
-        MoveEditorGridHome();
+        HideEditorSurfaceHost();
         EmptyEditorPanel.Visibility = Visibility.Visible;
-        EditorGrid.Visibility = Visibility.Collapsed;
-        InspectorPanel.Visibility = Visibility.Collapsed;
         UpdateEditorSessionChrome();
     }
 
@@ -1934,9 +2191,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (e.Cancel)
             return;
 
-        foreach (var session in _editorSessions.ToList())
-            session.DetachedWindow?.CloseFromOwner();
         _isClosing = true;
+        foreach (var session in _editorSessions.ToList())
+        {
+            session.DetachedWindow?.CloseFromOwner();
+            session.DetachedWindow = null;
+        }
     }
 
     #endregion
@@ -1984,12 +2244,13 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void GraphViewport_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
+        var surface = GetActiveEditorSurface();
         // 节点菜单打开时，点击菜单内部不处理画布事件
-        if (NodePalette.Visibility == Visibility.Visible)
+        if (surface.NodePalette.Visibility == Visibility.Visible)
         {
-            var posInPalette = e.GetPosition(NodePalette);
-            if (posInPalette.X >= 0 && posInPalette.X <= NodePalette.ActualWidth &&
-                posInPalette.Y >= 0 && posInPalette.Y <= NodePalette.ActualHeight)
+            var posInPalette = e.GetPosition(surface.NodePalette);
+            if (posInPalette.X >= 0 && posInPalette.X <= surface.NodePalette.ActualWidth &&
+                posInPalette.Y >= 0 && posInPalette.Y <= surface.NodePalette.ActualHeight)
             {
                 return;
             }
@@ -2009,7 +2270,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void GraphViewport_PreviewMouseMove(object sender, MouseEventArgs e)
     {
-        var viewportPos = e.GetPosition(GraphViewport);
+        var surface = GetActiveEditorSurface();
+        var viewportPos = e.GetPosition(surface.GraphViewport);
         _nodeDragSelectionController.UpdateMousePosition(e);
 
         if (_nodeDragSelectionController.IsDragging || _pinConnectionController.IsConnecting)
@@ -2051,15 +2313,16 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     {
         if (!IsGraphBlankSource(e.OriginalSource as DependencyObject)) return;
 
+        var surface = GetActiveEditorSurface();
         _nodeDragSelectionController.CancelSelection();
         _nodeDragSelectionController.CancelDrag();
-        GraphViewport.ReleaseMouseCapture();
+        surface.GraphViewport.ReleaseMouseCapture();
         _nodeDragSelectionController.SetCanvasFocusActive(true);
-        GraphViewport.Focus();
+        surface.GraphViewport.Focus();
 
         // 判断是点击还是拖动：记录起始位置，尝试移动后决定
         _rightClickPending = true;
-        _rightClickStartPos = e.GetPosition(GraphViewport);
+        _rightClickStartPos = e.GetPosition(surface.GraphViewport);
         e.Handled = true;
     }
 
@@ -2076,7 +2339,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         if (!_canvasPanZoomController.IsPanning)
         {
-            GraphViewport.ReleaseMouseCapture();
+            GetActiveEditorSurface().GraphViewport.ReleaseMouseCapture();
             return;
         }
 
@@ -2086,11 +2349,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void GraphViewport_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
     {
-        if (NodePalette.Visibility == Visibility.Visible)
+        var surface = GetActiveEditorSurface();
+        if (surface.NodePalette.Visibility == Visibility.Visible)
         {
-            var pos = e.GetPosition(NodePalette);
-            if (pos.X >= 0 && pos.X <= NodePalette.ActualWidth &&
-                pos.Y >= 0 && pos.Y <= NodePalette.ActualHeight)
+            var pos = e.GetPosition(surface.NodePalette);
+            if (pos.X >= 0 && pos.X <= surface.NodePalette.ActualWidth &&
+                pos.Y >= 0 && pos.Y <= surface.NodePalette.ActualHeight)
             {
                 return;
             }
@@ -2180,6 +2444,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
     {
+        var surface = GetActiveEditorSurface();
         // Esc：取消执行或取消连线
         if (e.Key == Key.Escape)
         {
@@ -2195,7 +2460,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             return;
         }
 
-        if (IsFocusInside(GraphListBox) || IsFocusInside(FunctionListBox) || IsFocusInside(MacroListBox))
+        if (IsFocusInside(surface.GraphListBox) || IsFocusInside(surface.FunctionListBox) || IsFocusInside(surface.MacroListBox))
         {
             if (Keyboard.FocusedElement is not TextBoxBase && GetFocusedGraphController() is { } controller)
             {
@@ -2246,11 +2511,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private GraphListController? GetFocusedGraphController()
     {
-        if (IsFocusInside(FunctionListBox))
+        var surface = GetActiveEditorSurface();
+        if (IsFocusInside(surface.FunctionListBox))
             return _functionListController;
-        if (IsFocusInside(MacroListBox))
+        if (IsFocusInside(surface.MacroListBox))
             return _macroListController;
-        if (IsFocusInside(GraphListBox))
+        if (IsFocusInside(surface.GraphListBox))
             return _graphListController;
         return null;
     }
@@ -2501,8 +2767,10 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private bool CompileActiveAsset(bool showPrompt)
     {
+        var targetSession = _activeEditorSession;
+        var targetAsset = targetSession?.ContentAsset ?? _activeContentAsset;
         CommitInspectorAndSnapshotAllSessions();
-        if (_activeContentAsset is null || _activeContentAsset.Kind == ContentAssetKind.Folder)
+        if (targetAsset is null || targetAsset.Kind == ContentAssetKind.Folder)
         {
             if (showPrompt)
                 WpfMessageBox.Show(this, "没有打开可编译的资产。", "无法编译", MessageBoxButton.OK, MessageBoxImage.Warning);
@@ -2510,21 +2778,40 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             return false;
         }
 
-        var result = _graphCompileService.CompileAsset(ContentBrowserItems, _activeContentAsset);
+        var targetContext = targetSession?.SurfaceContext;
+        var targetController = targetContext?.ActiveAssetController ?? _activeAssetController;
+        var targetCommandService = targetContext?.CommandService ?? _graphCommandService;
+
+        var result = _graphCompileService.CompileAsset(ContentBrowserItems, targetAsset);
         foreach (var item in ContentBrowserItems.Where(item => result.ChangedAssetIds.Contains(item.Id)))
             item.IsDirty = true;
 
         if (!HandleCompileResult(result, showPrompt))
             return false;
 
-        if (_activeAssetController?.ActiveItem is { } active)
+        if (targetController?.ActiveItem is { } active)
         {
-            _activeAssetController.ReloadItemWithoutPersist(active);
-            _graphCommandService.Clear();
+            if (targetSession is not null)
+            {
+                RunWithSurfaceContext(targetSession, () =>
+                {
+                    targetController.ReloadItemWithoutPersist(active);
+                    targetCommandService.Clear();
+                });
+            }
+            else
+            {
+                targetController.ReloadItemWithoutPersist(active);
+                targetCommandService.Clear();
+            }
         }
+
+        targetSession?.RefreshDirtyState();
         PersistAssetLibrary();
-        UpdateGraphSectionVisibility();
-        SetStatus($"编译完成：{_activeContentAsset.Name}，同步 {result.UpdatedCallNodes} 个调用节点，移除 {result.RemovedConnections} 条无效连线。");
+        if (targetSession is null || ReferenceEquals(targetSession, _activeEditorSession))
+            UpdateGraphSectionVisibility();
+        UpdateEditorSessionChrome();
+        SetStatus($"编译完成：{targetAsset.Name}，同步 {result.UpdatedCallNodes} 个调用节点，移除 {result.RemovedConnections} 条无效连线。");
         return true;
     }
 
@@ -2627,7 +2914,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private bool TryGetPinAtPosition(Point position, out PinViewModel? pin)
     {
-        var hit = GraphSurface.InputHitTest(position) as DependencyObject;
+        var hit = GetActiveEditorSurface().GraphSurface.InputHitTest(position) as DependencyObject;
         if (TryGetPinFromSource(hit, out pin))
             return true;
 
@@ -2685,7 +2972,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 if (element.DataContext is NodeBaseViewModel or PinViewModel or ConnectionViewModel or ConnectionPathViewModel)
                     return false;
 
-                if (ReferenceEquals(element, GraphSurface) || ReferenceEquals(element, GraphViewport))
+                var surface = GetActiveEditorSurface();
+                if (ReferenceEquals(element, surface.GraphSurface) || ReferenceEquals(element, surface.GraphViewport))
                     return true;
             }
 
@@ -2742,207 +3030,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         OnPropertyChanged(nameof(MainEditorSessions));
     }
 
-    private void MoveEditorGridForSession(EditorSessionViewModel? session)
-    {
-        if (session?.DockMode == EditorDockMode.Detached && session.DetachedWindow is { } detachedWindow)
-        {
-            if (!detachedWindow.IsVisible)
-                detachedWindow.Show();
-            MoveEditorGridToDetachedWindow(detachedWindow);
-            if (!detachedWindow.IsActive)
-                detachedWindow.Activate();
-            return;
-        }
-
-        MoveEditorGridHome();
-    }
-
-    private void MoveEditorGridHome()
-    {
-        if (_editorGridHomeParent is null)
-            return;
-
-        ClearEditorGridOwnerHosts();
-
-        if (!ReferenceEquals(EditorGrid.Parent, _editorGridHomeParent))
-        {
-            RemoveElementFromParent(EditorGrid);
-            int index = _editorGridHomeIndex < 0 ? _editorGridHomeParent.Children.Count : Math.Min(_editorGridHomeIndex, _editorGridHomeParent.Children.Count);
-            _editorGridHomeParent.Children.Insert(index, EditorGrid);
-            Grid.SetRow(EditorGrid, 0);
-        }
-        EditorGrid.DataContext = this;
-    }
-
-    private void MoveEditorGridToDetachedWindow(DetachedEditorWindow detachedWindow)
-    {
-        if (ReferenceEquals(_editorGridOwnerWindow, detachedWindow))
-            return;
-
-        ClearEditorGridOwnerHosts();
-
-        RemoveElementFromParent(EditorGrid);
-        detachedWindow.SetEditorContent(EditorGrid);
-        EditorGrid.DataContext = this;
-        _editorGridOwnerWindow = detachedWindow;
-    }
-
-    private UIElement CreateDetachedEditorPreview(EditorSessionViewModel session)
-    {
-        SnapshotSessionIfActive(session);
-        var graph = GetRememberedGraphForSession(session);
-        if (graph is null || graph.Nodes.Count == 0)
-            return CreateDetachedPreviewEmptyState(session);
-
-        const double padding = 48;
-        const double nodeWidth = 172;
-        const double nodeHeight = 64;
-        double minX = graph.Nodes.Min(node => node.X);
-        double minY = graph.Nodes.Min(node => node.Y);
-        double maxX = graph.Nodes.Max(node => node.X) + nodeWidth;
-        double maxY = graph.Nodes.Max(node => node.Y) + nodeHeight;
-
-        var canvas = new Canvas
-        {
-            Width = Math.Max(900, maxX - minX + padding * 2),
-            Height = Math.Max(620, maxY - minY + padding * 2),
-            Background = new SolidColorBrush(System.Windows.Media.Color.FromRgb(17, 21, 26)),
-            IsHitTestVisible = false,
-        };
-
-        var nodeLookup = graph.Nodes.ToDictionary(node => node.Id, StringComparer.Ordinal);
-        foreach (var connection in graph.Connections)
-        {
-            if (!nodeLookup.TryGetValue(connection.SourceNodeId, out var source) ||
-                !nodeLookup.TryGetValue(connection.TargetNodeId, out var target))
-            {
-                continue;
-            }
-
-            var line = new System.Windows.Shapes.Line
-            {
-                X1 = source.X - minX + padding + nodeWidth,
-                Y1 = source.Y - minY + padding + nodeHeight / 2,
-                X2 = target.X - minX + padding,
-                Y2 = target.Y - minY + padding + nodeHeight / 2,
-                Stroke = new SolidColorBrush(System.Windows.Media.Color.FromRgb(222, 226, 232)),
-                StrokeThickness = 2,
-                Opacity = 0.7,
-            };
-            canvas.Children.Add(line);
-        }
-
-        foreach (var node in graph.Nodes)
-        {
-            var card = CreateDetachedPreviewNodeCard(node, nodeWidth, nodeHeight);
-            Canvas.SetLeft(card, node.X - minX + padding);
-            Canvas.SetTop(card, node.Y - minY + padding);
-            canvas.Children.Add(card);
-        }
-
-        var scrollViewer = new ScrollViewer
-        {
-            Content = canvas,
-            Background = new SolidColorBrush(System.Windows.Media.Color.FromRgb(17, 21, 26)),
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-        };
-        scrollViewer.ScrollToHorizontalOffset(Math.Max(0, padding - 24));
-        scrollViewer.ScrollToVerticalOffset(Math.Max(0, padding - 24));
-        return scrollViewer;
-    }
-
-    private void SnapshotSessionIfActive(EditorSessionViewModel session)
-    {
-        if (ReferenceEquals(session, _activeEditorSession))
-            SnapshotActiveAsset();
-    }
-
-    private GraphFileModel? GetRememberedGraphForSession(EditorSessionViewModel session)
-    {
-        if (session.ActiveGraphKind is { } kind && !string.IsNullOrWhiteSpace(session.ActiveGraphItemId))
-        {
-            var remembered = GetCollectionForKind(session, kind)
-                .FirstOrDefault(item => string.Equals(item.Id, session.ActiveGraphItemId, StringComparison.Ordinal));
-            if (remembered is not null)
-                return remembered.Graph;
-        }
-
-        return session.ContentAsset.Kind switch
-        {
-            ContentAssetKind.Script => session.GraphListItems.Concat(session.FunctionListItems).Concat(session.MacroListItems).FirstOrDefault()?.Graph,
-            ContentAssetKind.FunctionLibrary => session.FunctionListItems.FirstOrDefault()?.Graph,
-            ContentAssetKind.MacroLibrary => session.MacroListItems.FirstOrDefault()?.Graph,
-            _ => null,
-        };
-    }
-
-    private static Border CreateDetachedPreviewNodeCard(NodeFileModel node, double width, double height)
-    {
-        var title = string.IsNullOrWhiteSpace(node.NodeNumber)
-            ? node.Title
-            : $"{node.NodeNumber}  {node.Title}";
-        var stack = new StackPanel();
-        stack.Children.Add(new TextBlock
-        {
-            Text = string.IsNullOrWhiteSpace(title) ? node.NodeTypeKey : title,
-            Foreground = System.Windows.Media.Brushes.White,
-            FontWeight = FontWeights.SemiBold,
-            TextTrimming = TextTrimming.CharacterEllipsis,
-        });
-        stack.Children.Add(new TextBlock
-        {
-            Text = node.NodeTypeKey,
-            Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(164, 176, 194)),
-            FontSize = 11,
-            Margin = new Thickness(0, 5, 0, 0),
-            TextTrimming = TextTrimming.CharacterEllipsis,
-        });
-
-        return new Border
-        {
-            Width = width,
-            Height = height,
-            Padding = new Thickness(10, 8, 10, 8),
-            CornerRadius = new CornerRadius(6),
-            BorderThickness = new Thickness(1),
-            BorderBrush = new SolidColorBrush(System.Windows.Media.Color.FromRgb(69, 80, 96)),
-            Background = new SolidColorBrush(GetPreviewNodeColor(node.NodeTypeKey)),
-            Child = stack,
-        };
-    }
-
-    private static System.Windows.Media.Color GetPreviewNodeColor(string typeKey) => typeKey switch
-    {
-        "start" or "print_log" => System.Windows.Media.Color.FromRgb(35, 112, 74),
-        "function_entry" or "function_return" or "function_call" => System.Windows.Media.Color.FromRgb(64, 67, 168),
-        "macro_entry" or "macro_output" or "macro_call" => System.Windows.Media.Color.FromRgb(128, 82, 30),
-        "todo" => System.Windows.Media.Color.FromRgb(157, 93, 30),
-        "reroute" => System.Windows.Media.Color.FromRgb(48, 54, 64),
-        _ => System.Windows.Media.Color.FromRgb(32, 38, 48),
-    };
-
-    private static UIElement CreateDetachedPreviewEmptyState(EditorSessionViewModel session) => new Border
-    {
-        Background = new SolidColorBrush(System.Windows.Media.Color.FromRgb(17, 21, 26)),
-        Child = new TextBlock
-        {
-            Text = $"{session.DisplayTitle}\n当前图表没有可预览节点。",
-            Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(160, 170, 184)),
-            TextAlignment = TextAlignment.Center,
-            HorizontalAlignment = System.Windows.HorizontalAlignment.Center,
-            VerticalAlignment = System.Windows.VerticalAlignment.Center,
-        },
-    };
-
-    private void ClearEditorGridOwnerHosts()
-    {
-        if (_editorGridOwnerWindow is not null)
-        {
-            _editorGridOwnerWindow.ClearEditorContent(EditorGrid);
-            _editorGridOwnerWindow = null;
-        }
-    }
 
     private static void RemoveElementFromParent(UIElement element)
     {
@@ -3034,17 +3121,32 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void NodePaletteSearchBox_TextChanged(object sender, TextChangedEventArgs e)
     {
-        _nodePaletteController.Filter(NodePaletteSearchBox.Text.Trim());
+        _nodePaletteController.Filter(GetActiveEditorSurface().NodePaletteSearchBox.Text.Trim());
     }
 
     private void Window_PreviewMouseDown(object sender, MouseButtonEventArgs e)
     {
-        if (!_nodePaletteController.IsOpen) return;
+        var sourceSurface = FindAncestor<EditorSurfaceControl>(e.OriginalSource as DependencyObject);
+        HandleEditorSurfacePreviewMouseDown(sourceSurface, e);
+    }
 
-        var pos = e.GetPosition(NodePalette);
-        if (!_nodePaletteController.IsPointInside(pos))
+    internal void HandleEditorSurfacePreviewMouseDown(EditorSurfaceControl? sourceSurface, MouseButtonEventArgs e)
+    {
+        foreach (var session in _editorSessions.ToList())
         {
-            CloseNodePalette();
+            var context = session.SurfaceContext;
+            if (context is null || !context.IsConfigured || !context.NodePaletteController.IsOpen)
+                continue;
+
+            if (!ReferenceEquals(context.Surface, sourceSurface))
+            {
+                context.CloseNodePalette();
+                continue;
+            }
+
+            var pos = e.GetPosition(context.Surface.NodePalette);
+            if (!context.NodePaletteController.IsPointInside(pos))
+                context.CloseNodePalette();
         }
     }
 

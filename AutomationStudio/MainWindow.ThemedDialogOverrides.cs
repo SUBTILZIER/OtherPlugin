@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Windows.Controls;
+using AutomationStudioWpf.Controls;
 using AutomationStudioWpf.Interaction;
 using AutomationStudioWpf.Services;
 using WpfButton = System.Windows.Controls.Button;
@@ -28,6 +29,7 @@ namespace AutomationStudioWpf;
 public partial class MainWindow
 {
     private bool _themedDialogOverridesInstalled;
+    private readonly HashSet<EditorSurfaceControl> _themedGraphListHandlerSurfaces = [];
 
     protected override void OnSourceInitialized(EventArgs e)
     {
@@ -65,9 +67,27 @@ public partial class MainWindow
         ContentBrowserBodyGrid.RemoveHandler(WpfDragDrop.PreviewDropEvent, new WpfDragEventHandler(ContentBrowserEnhanced_PreviewDrop));
         ContentBrowserBodyGrid.AddHandler(WpfDragDrop.PreviewDropEvent, new WpfDragEventHandler(ContentBrowserThemed_PreviewDrop), true);
 
-        ReplaceGraphListHandlers(GraphListBox, _graphListController, GraphListBox_KeyDown);
-        ReplaceGraphListHandlers(FunctionListBox, _functionListController, FunctionListBox_KeyDown);
-        ReplaceGraphListHandlers(MacroListBox, _macroListController, MacroListBox_KeyDown);
+        InstallGraphListHandlersForActiveSurface();
+    }
+
+    private void InstallGraphListHandlersForActiveSurface()
+    {
+        var surface = GetActiveEditorSurface();
+        InstallGraphListHandlersForSurface(surface, surface.SurfaceContext);
+    }
+
+    private void InstallGraphListHandlersForSurface(EditorSurfaceControl surface, EditorSurfaceContext? context = null)
+    {
+        context ??= surface.SurfaceContext;
+        if (context is null)
+            return;
+
+        if (!_themedGraphListHandlerSurfaces.Add(surface))
+            return;
+
+        ReplaceGraphListHandlers(surface.GraphListBox, context.GraphListController, GraphListBox_KeyDown);
+        ReplaceGraphListHandlers(surface.FunctionListBox, context.FunctionListController, FunctionListBox_KeyDown);
+        ReplaceGraphListHandlers(surface.MacroListBox, context.MacroListController, MacroListBox_KeyDown);
     }
 
     private void ReplaceToolbarButton(string content, WpfRoutedEventHandler oldHandler, WpfRoutedEventHandler newHandler)

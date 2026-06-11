@@ -17,6 +17,9 @@ public sealed class EditorSessionViewModel : ObservableObject
     private bool _isDirty;
     private bool _isCompileDirty;
     private EditorDockMode _dockMode;
+    private GraphListItemViewModel? _selectedGraphItem;
+    private GraphListItemViewModel? _selectedFunctionItem;
+    private GraphListItemViewModel? _selectedMacroItem;
     private double _left = 48;
     private double _top = 42;
     private double _width = 920;
@@ -51,6 +54,28 @@ public sealed class EditorSessionViewModel : ObservableObject
     public ObservableCollection<GraphListItemViewModel> FunctionListItems { get; }
 
     public ObservableCollection<GraphListItemViewModel> MacroListItems { get; }
+
+    public ObservableCollection<NodeBaseViewModel> Nodes => EditorService.Nodes;
+
+    public ObservableCollection<ConnectionPathViewModel> ConnectionPaths => EditorService.ConnectionPaths;
+
+    public GraphListItemViewModel? SelectedGraphItem
+    {
+        get => _selectedGraphItem;
+        set => SetProperty(ref _selectedGraphItem, value);
+    }
+
+    public GraphListItemViewModel? SelectedFunctionItem
+    {
+        get => _selectedFunctionItem;
+        set => SetProperty(ref _selectedFunctionItem, value);
+    }
+
+    public GraphListItemViewModel? SelectedMacroItem
+    {
+        get => _selectedMacroItem;
+        set => SetProperty(ref _selectedMacroItem, value);
+    }
 
     public string? ActiveGraphItemId { get; set; }
 

@@ -1,7 +1,9 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using AutomationStudioWpf.Graph;
 using AutomationStudioWpf.Interaction;
+using AutomationStudioWpf.Services;
 using WpfBorder = System.Windows.Controls.Border;
 using WpfButton = System.Windows.Controls.Button;
 using WpfMenuItem = System.Windows.Controls.MenuItem;
@@ -117,7 +119,7 @@ public partial class MainWindow
                 ActivateEditorSessionFromDetachedWindow,
                 DockEditorSessionToTab,
                 CloseEditorSession,
-                CreateDetachedEditorPreview);
+                HandleDetachedEditorPreviewMouseDown);
         }
 
         if (session.DockMode != EditorDockMode.Detached && ReferenceEquals(session, _activeEditorSession))
@@ -129,6 +131,9 @@ public partial class MainWindow
             session.DetachedWindow.Left = Math.Max(0, pos.X - session.DetachedWindow.Width / 2);
             session.DetachedWindow.Top = Math.Max(0, pos.Y - 18);
         }
+        if (_lastMainEditorSession is not null)
+            TryShowSessionSurfaceInMainHost(_lastMainEditorSession);
+        AttachSessionSurfaceToDetachedWindow(session, session.DetachedWindow);
         if (!session.DetachedWindow.IsVisible)
             session.DetachedWindow.Show();
         ActivateEditorSessionFromDetachedWindow(session);
@@ -139,25 +144,27 @@ public partial class MainWindow
     private void DockEditorSessionToTab(EditorSessionViewModel session)
     {
         session.DockMode = EditorDockMode.Tab;
-        if (ReferenceEquals(session.DetachedWindow, _editorGridOwnerWindow))
-            MoveEditorGridHome();
         session.DetachedWindow?.CloseFromOwner();
         session.DetachedWindow = null;
         ActivateEditorSessionFromMainTab(session);
         SetStatus($"已停靠窗口：{session.ContentAsset.Name}");
     }
 
-    private void ActivateEditorSessionFromMainTab(EditorSessionViewModel session)
+    private void ActivateEditorSessionFromMainTab(EditorSessionViewModel session, GraphListItemViewModel? targetGraph = null, GraphAssetKind? targetKind = null)
     {
         _lastMainEditorSession = session;
         RestoreMainEditorDefaultPanel();
-        ActivateEditorSession(session);
+        ActivateEditorSession(session, targetGraph, targetKind);
     }
 
     private void ActivateEditorSessionFromDetachedWindow(EditorSessionViewModel session)
     {
-        ActivateEditorSession(session);
-        ShowMainEditorPreviewWhileDetachedSessionIsEditing(session);
+        ActivateEditorSessionForSurfaceInteraction(session);
+    }
+
+    private void HandleDetachedEditorPreviewMouseDown(EditorSessionViewModel session, MouseButtonEventArgs e)
+    {
+        HandleEditorSurfacePreviewMouseDown(session.Surface, e);
     }
 
     private Rect GetMainWindowScreenRect()
@@ -247,38 +254,6 @@ public partial class MainWindow
         _editorSessionDragPreviewPopup.IsOpen = false;
         _editorSessionDragPreviewPopup = null;
     }
-
-    private void ShowMainEditorPreviewWhileDetachedSessionIsEditing(EditorSessionViewModel detachedSession)
-    {
-        EnsureEmptyEditorPanelDefaultChild();
-
-        var previewSession = _lastMainEditorSession;
-        if (previewSession is null ||
-            previewSession.DockMode == EditorDockMode.Detached ||
-            ReferenceEquals(previewSession, detachedSession) ||
-            !_editorSessions.Contains(previewSession))
-        {
-            previewSession = _mainEditorSessions.LastOrDefault(item => !ReferenceEquals(item, detachedSession));
-        }
-
-        EmptyEditorPanel.Child = previewSession is null
-            ? CreateDetachedMainPreviewPlaceholder(detachedSession)
-            : CreateDetachedEditorPreview(previewSession);
-        EmptyEditorPanel.Visibility = Visibility.Visible;
-    }
-
-    private UIElement CreateDetachedMainPreviewPlaceholder(EditorSessionViewModel detachedSession) => new Border
-    {
-        Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(17, 21, 26)),
-        Child = new TextBlock
-        {
-            Text = $"{detachedSession.DisplayTitle} 正在独立窗口编辑。\n主窗口没有其它停靠编辑标签。",
-            Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(160, 170, 184)),
-            TextAlignment = TextAlignment.Center,
-            HorizontalAlignment = System.Windows.HorizontalAlignment.Center,
-            VerticalAlignment = System.Windows.VerticalAlignment.Center,
-        },
-    };
 
     private void RestoreMainEditorDefaultPanel()
     {

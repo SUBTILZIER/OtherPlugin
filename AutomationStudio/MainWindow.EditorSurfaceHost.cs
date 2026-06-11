@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using System.Collections.Specialized;
-using System.ComponentModel;
 using System.Windows;
 using AutomationStudioWpf.Interaction;
 
@@ -8,10 +7,6 @@ namespace AutomationStudioWpf;
 
 public partial class MainWindow
 {
-    // Keep disabled until EditorSurfaceControl owns the full graph/editor UI.
-    // When disabled, the application still uses the existing EditorGrid path.
-    private static readonly bool UseEditorSurfaceHostForMainWindow = false;
-
     private readonly EditorSurfaceHostController _editorSurfaceHostController = new();
     private readonly HashSet<EditorSessionViewModel> _editorSurfaceHostTrackedSessions = new();
     private System.Windows.Controls.ContentControl? _editorSurfaceHost;
@@ -21,20 +16,8 @@ public partial class MainWindow
     {
         if (_editorSurfaceHost is null)
         {
-            _editorSurfaceHost = new System.Windows.Controls.ContentControl
-            {
-                Visibility = Visibility.Collapsed,
-                Focusable = false,
-            };
-            System.Windows.Controls.Grid.SetRow(_editorSurfaceHost, 0);
-
-            if (_editorGridHomeParent is not null)
-            {
-                var insertIndex = _editorGridHomeIndex >= 0
-                    ? Math.Min(_editorGridHomeIndex + 1, _editorGridHomeParent.Children.Count)
-                    : _editorGridHomeParent.Children.Count;
-                _editorGridHomeParent.Children.Insert(insertIndex, _editorSurfaceHost);
-            }
+            _editorSurfaceHost = EditorSurfaceHostRoot;
+            _editorSurfaceHost.Focusable = false;
         }
 
         InstallEditorSurfaceHostSessionTracking();
@@ -79,51 +62,69 @@ public partial class MainWindow
         if (!_editorSurfaceHostTrackedSessions.Add(session))
             return;
 
-        session.EnsureSurfaceContext();
-        session.PropertyChanged += EditorSurfaceHostSession_PropertyChanged;
-
-        if (session.IsActive)
-            ActivateSessionSurfaceHostPath(session);
+        ConfigureEditorSurface(session);
     }
 
     private void UntrackEditorSurfaceHostSession(EditorSessionViewModel session)
     {
-        if (!_editorSurfaceHostTrackedSessions.Remove(session))
-            return;
-
-        session.PropertyChanged -= EditorSurfaceHostSession_PropertyChanged;
-    }
-
-    private void EditorSurfaceHostSession_PropertyChanged(object? sender, PropertyChangedEventArgs e)
-    {
-        if (e.PropertyName != nameof(EditorSessionViewModel.IsActive))
-            return;
-
-        if (sender is EditorSessionViewModel { IsActive: true } session)
-            ActivateSessionSurfaceHostPath(session);
-    }
-
-    private void ActivateSessionSurfaceHostPath(EditorSessionViewModel session)
-    {
-        if (!TryShowSessionSurfaceInMainHost(session))
-            PrepareSessionSurfaceForHiddenHost(session);
+        _editorSurfaceHostTrackedSessions.Remove(session);
     }
 
     private void PrepareSessionSurfaceForHiddenHost(EditorSessionViewModel session)
     {
-        session.EnsureSurfaceContext();
+        ConfigureEditorSurface(session);
         _ = EnsureEditorSurfaceHost();
     }
 
     private bool TryShowSessionSurfaceInMainHost(EditorSessionViewModel session)
     {
-        if (!UseEditorSurfaceHostForMainWindow)
+        if (session.DockMode == EditorDockMode.Detached)
             return false;
 
-        AttachLegacyEditorRegionsToSessionSurface(session);
+        ConfigureEditorSurface(session);
         AttachSessionSurfaceToMainHost(session);
-        EditorGrid.Visibility = Visibility.Collapsed;
         return true;
+    }
+
+    private void ShowLastMainSessionSurface()
+    {
+        var session = _lastMainEditorSession;
+        if (session is null ||
+            !_editorSessions.Contains(session) ||
+            session.DockMode == EditorDockMode.Detached)
+        {
+            session = _mainEditorSessions.LastOrDefault(item => item.DockMode != EditorDockMode.Detached);
+            _lastMainEditorSession = session;
+        }
+
+        if (session is not null)
+        {
+            TryShowSessionSurfaceInMainHost(session);
+            return;
+        }
+
+        HideMainEditorSurfaceHostOnly();
+    }
+
+    private void ShowEditorSurfaceForSession(EditorSessionViewModel? session)
+    {
+        if (session is null)
+        {
+            HideEditorSurfaceHost();
+            return;
+        }
+
+        if (session.DockMode == EditorDockMode.Detached && session.DetachedWindow is { } detachedWindow)
+        {
+            ConfigureEditorSurface(session);
+            AttachSessionSurfaceToDetachedWindow(session, detachedWindow);
+            if (!detachedWindow.IsVisible)
+                detachedWindow.Show();
+            ShowLastMainSessionSurface();
+            return;
+        }
+
+        TryShowSessionSurfaceInMainHost(session);
     }
 
     private void AttachSessionSurfaceToMainHost(EditorSessionViewModel session)
@@ -132,11 +133,30 @@ public partial class MainWindow
         _editorSurfaceHostController.AttachToHost(session, host);
     }
 
+    private void AttachSessionSurfaceToDetachedWindow(EditorSessionViewModel session, DetachedEditorWindow detachedWindow)
+    {
+        ConfigureEditorSurface(session);
+        var context = session.EnsureSurfaceContext();
+        if (detachedWindow.HasEditorContent(context.Surface))
+        {
+            detachedWindow.RefreshChrome();
+            return;
+        }
+
+        EditorSurfaceHostController.DetachFromCurrentParent(context.Surface);
+        detachedWindow.SetEditorContent(context.Surface);
+        detachedWindow.RefreshChrome();
+    }
+
     private void HideEditorSurfaceHost()
     {
-        if (_editorSurfaceHost is null)
-            return;
-
-        _editorSurfaceHostController.ClearHost(_editorSurfaceHost);
+        HideMainEditorSurfaceHostOnly();
     }
+
+    private void HideMainEditorSurfaceHostOnly()
+    {
+        if (_editorSurfaceHost is not null)
+            _editorSurfaceHostController.ClearHost(_editorSurfaceHost);
+    }
+
 }
