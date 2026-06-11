@@ -1,8 +1,8 @@
 # AutomationStudioWpf
 
-## Current Notes (2026-06-09)
+## Current Notes (2026-06-11)
 
-- 2026-06-09: CodeGraph, project skill, technical docs, README, and agent memory were audited against the current local code. CodeGraph database files remain local and ignored; only the CodeGraph ignore policy is tracked.
+- 2026-06-11: CodeGraph, project skill, technical docs, README, and agent memory were audited against the current local code. CodeGraph generated database/cache/log files remain local and ignored.
 - Visual wires bind to `GraphEditorService.ConnectionPaths`; persisted graph data and runtime execution still use `GraphEditorService.Connections`.
 - `ConnectionPathViewModel` aggregates linear reroute chains only for drawing. Reroute order follows the real `Connections` chain, not point distance, so moving route nodes does not reorder or jump the wire.
 - `ConnectionSplinePlanner` is the active visible-wire geometry builder. Single backing connections use one cubic Bezier; aggregated reroute chains use per-segment spline handles scaled from neighboring point distance.
@@ -18,6 +18,7 @@
 - Current content browser supports folder tree, current-folder tiles, multi-select, box select, drag move/copy, copy/paste, rename/delete, double-click asset open, recursive fuzzy search under the current folder, and `Ctrl+B` locate-to-real-folder.
 - Double-clicking a `FunctionCallNodeViewModel` or `MacroCallNodeViewModel` opens the owning script/function-library/macro-library asset and loads the target function/macro graph by stable id.
 - The editor now keeps one `EditorSessionViewModel` per opened asset. Reopening the same asset focuses the existing session instead of replacing it; the main window bar shows only tab sessions, while detached sessions are managed by their own standalone windows.
+- Detached active windows host the shared legacy `EditorGrid`; inactive detached windows show a read-only remembered-graph preview. `EditorSurfaceControl` exists as disabled migration scaffolding, not the active production editor surface yet.
 - Toolbar compile is active-asset scoped: scripts compile all event/function/macro graphs in that asset, and function/macro libraries compile all graphs in that library.
 - Reroute nodes use centered anchors and a UE-style yellow selection glow/ring for click and box selection feedback.
 - `GraphCommandService` records graph-edit snapshots for Undo/Redo. Ctrl+Z undoes graph edits; Ctrl+Y or Ctrl+Shift+Z redoes them.
@@ -139,6 +140,8 @@ AutomationStudioWpf/
 │   ├── ExecutionController.cs   # 执行、取消、校验、Python 检查
 │   ├── GraphListController.cs   # 图谱列表、切换、删除、重命名
 │   ├── EditorSessionViewModel.cs # 多编辑窗口 session 状态
+│   ├── EditorSurfaceContext.cs  # per-session surface 迁移上下文
+│   ├── EditorSurfaceHostController.cs # surface/region 宿主迁移控制器
 │   ├── DetachedEditorWindow.cs  # 独立编辑窗口宿主
 │   ├── CanvasPanZoomController.cs  # 平移、缩放、EdgePan
 │   ├── NodeDragSelectionController.cs  # 拖动、框选、复制粘贴、对齐
@@ -152,6 +155,8 @@ AutomationStudioWpf/
 │   ├── LogEntry.cs              # 日志条目模型
 │   ├── LogLevel.cs              # 级别枚举
 │   └── LoggingModule.cs         # 过滤 + 着色
+├── Controls/
+│   └── EditorSurfaceControl.xaml(.cs) # 编辑 surface 宿主控件（当前迁移脚手架）
 ├── Python/                      # Python 脚本
 │   ├── find_image.py            # OpenCV 找图
 │   └── Installer/               # Python 安装包
@@ -165,6 +170,8 @@ AutomationStudioWpf/
 │   └── NodeRegistry.cs          # 节点定义 + 执行器入口
 ├── Tests/CodexSmoke/            # UI smoke 门禁
 ├── MainWindow.xaml(.cs)         # 主窗口 + partial 交互扩展
+├── MainWindow.EditorSessions.cs # 多窗口标签/独立窗口交互
+├── MainWindow.EditorSurfaceHost.cs / EditorSurfaceRegions.cs # surface 迁移宿主
 ├── LogWindow.xaml(.cs)          # 独立日志窗口
 └── App.xaml(.cs)                # 应用程序入口
 ```
@@ -181,11 +188,15 @@ dotnet run
 # 发布（单文件）
 dotnet publish -c Release -r win-x64 --self-contained true /p:PublishSingleFile=true
 
-# Smoke 验证
+# 必要验证
 dotnet build .\AutomationStudioWpf.csproj -o .\bin\CodexBuildCheck
+git diff --check
+dotnet run --project .\AutomationStudioWpf.csproj
+
+# 按需 smoke（改到对应交互或用户要求时再跑）
 dotnet run --project .\Tests\CodexSmoke\AutomationStudioSmoke.csproj --no-restore
 
-# Optional reroute repro smoke
+# Optional reroute repro smoke（仅 reroute 复现需要）
 $env:AUTOMATION_STUDIO_REROUTE_GRAPH_JSON='C:\Users\Administrator\Desktop\graph.json'
 dotnet run --project .\Tests\CodexSmoke\AutomationStudioSmoke.csproj --no-restore
 
@@ -201,6 +212,11 @@ saved/log/Log_2026_05_28_22_11.txt
 ```
 
 ## 最近更新
+
+### v1.2.8 (2026-06-11)
+- **Changed**: Documentation, project skill, agent memory, and CodeGraph were refreshed against current code after the latest `main` pull.
+- **Clarified**: `EditorSurfaceControl` / `EditorSurfaceContext` / `EditorSurfaceHostController` are migration scaffolding. The active editor path still uses the shared legacy `EditorGrid`; inactive detached windows render a read-only remembered-graph preview.
+- **Changed**: Project skill source is now `AutomationStudio/Agent/skills/automation-studio-wpf/SKILL.md`; the old `.kimi/skills/...` path is deleted.
 
 ### v1.2.7 (2026-06-09)
 - **Added**: UE-style editor window bar. Open assets stay as sessions; reopening an asset focuses the existing session instead of replacing the current editor.

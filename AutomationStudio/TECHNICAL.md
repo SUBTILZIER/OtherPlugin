@@ -152,6 +152,7 @@ public class GraphEditorService
 - 拖动窗口标签时会显示跟随预览卡片，越过主窗口边界后提示释放/继续拖出为独立窗口。
 - 共享 `EditorGrid` reparent 到 `DetachedEditorWindow` 或搬回主窗口后，必须显式保持 `EditorGrid.DataContext = MainWindow`；否则 `Nodes`、`ConnectionPaths` 和图列表绑定会变空。
 - inactive detached 窗口不再显示占位文案，而是显示该 session remembered graph 的只读节点/连线预览；当前 active detached 窗口仍承载真实可编辑 `EditorGrid`。
+- `EditorSurfaceControl` / `EditorSurfaceContext` / `EditorSurfaceHostController` 已存在，但当前是迁移脚手架：`UseEditorSurfaceHostForMainWindow = false`，主窗口生产路径仍使用 legacy `EditorGrid`。不要把这些类型当成已经启用的多份并行编辑 surface。
 - session 关闭只 snapshot 回 `ContentAssetViewModel` 并移除编辑窗口，不删除资产。删除内容浏览器资产时会关闭所有指向该资产的 session，避免悬空编辑窗口。
 - 保存、退出、编译前使用 `CommitInspectorAndSnapshotAllSessions()` / `CommitAllSessionsToAssets()`，保证多窗口编辑内容参与引用同步和校验。
 - 工具栏编译是 active-asset scoped，走 `GraphCompileService.CompileAsset(...)`：脚本会编译该资产内事件图、函数、宏；函数库/宏库会编译该库内全部图。`GraphCompileService.CompileGraph(...)` 仍保留为 current-graph scoped 内部能力，但工具栏不使用它。
@@ -522,20 +523,27 @@ Python 参数规则：
 #### 验证门禁
 - `Tests/CodexSmoke/Program.cs` 负责 UI smoke：检查 header 无新建按钮、右键菜单模式、暗色菜单模板、树缩进、箭头几何、splitter 列宽、单击进入/箭头展开行为、图表隔离、公开到库硬隔离与编译校验。
 - Smoke 是轻量启动/回归验收，不是完整测试框架。只放关键交互和数据隔离断言；如果单次执行明显变慢，要优先拆小或删除低价值断言。
-- 完成功能前固定执行：
+- 默认完成前执行：
   - `dotnet build .\AutomationStudioWpf.csproj -o .\bin\CodexBuildCheck`
-  - `dotnet run --project .\Tests\CodexSmoke\AutomationStudioSmoke.csproj --no-restore`
-  - `$env:AUTOMATION_STUDIO_REROUTE_GRAPH_JSON='C:\Users\Administrator\Desktop\graph.json'; dotnet run --project .\Tests\CodexSmoke\AutomationStudioSmoke.csproj --no-restore`
+  - `git diff --check`
   - `dotnet run --project .\AutomationStudioWpf.csproj` 做短启动探测，能正常拉起窗口即可
   - `codegraph.cmd sync`
+- 只有改到对应高风险交互、需要锁回归，或用户明确要求时才跑 broad smoke / optional reroute repro smoke。
 
 - 启动验证不再固定等待 20 秒；只确认能正常启动。若进程快速退出、输出 `Unhandled exception` 或 WPF 初始化异常，必须收集终端输出/异常栈并先修。
 - 不要自动 `git push`。只有用户明确要求推送时才推；推送前确认不包含测试功能相关文件夹。
 
+### 2026-06-11: CodeGraph / docs / skill refresh
+
+- Current project skill source of truth is `AutomationStudio/Agent/skills/automation-studio-wpf/SKILL.md`. The old `.kimi/skills/automation-studio-wpf/SKILL.md` path is deleted and must not be restored.
+- CodeGraph sync is part of the final gate. Commit only ignore/config policy; database, wal/shm, cache, dirty markers, and logs stay local.
+- README, TECHNICAL, `agentmemory.md`, and project skill must describe the active code path accurately: multi-window sessions are real, detached inactive windows show preview, and per-session `EditorSurfaceControl` is scaffolded but disabled for the main production path.
+- Do not describe git push as allowed unless the user explicitly requests push in the current task.
+
 ### 2026-06-08: CodeGraph / docs / skill refresh
 
 - CodeGraph sync is part of the final gate. Commit `.codegraph/.gitignore` so database, wal/shm, cache, and logs stay local.
-- Project skill source of truth in this local project is `.kimi/skills/automation-studio-wpf/SKILL.md`; no `.agents/skills/automationstudio-wpf/` tree exists here.
+- Project skill source of truth in this local project is `AutomationStudio/Agent/skills/automation-studio-wpf/SKILL.md`; the old `.kimi/skills/automation-studio-wpf/SKILL.md` tree is gone.
 - README, TECHNICAL, `agentmemory.md`, and project skill should mention durable graph-editor rules: `ConnectionPaths` for visuals, `Connections` for persistence/runtime, batched connection edits, command-stack boundaries, and wire/reroute UX.
 - Do not describe git push as allowed unless the user explicitly requests push in the current task.
 

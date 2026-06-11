@@ -6,6 +6,12 @@
 - 技术细节保留准确名词、文件名、命令；解释原因时用短句。
 - 不要自动 `git push`。只有用户明确要求推送时才推；推送前必须确认不包含测试功能相关文件夹。
 
+## 2026-06-11 docs/codegraph refresh
+
+- Current project skill source is `AutomationStudio/Agent/skills/automation-studio-wpf/SKILL.md`. The old `.kimi/skills/automation-studio-wpf/SKILL.md` path was removed/moved; do not resurrect it.
+- CodeGraph sync remains a local maintenance gate. Track only ignore/config policy, not db/wal/shm/cache/log generated files.
+- `EditorSurfaceControl`, `EditorSurfaceContext`, and `EditorSurfaceHostController` exist as a staged migration path for per-session editor surfaces. `UseEditorSurfaceHostForMainWindow` is currently `false`, so production editing still uses the legacy shared `EditorGrid` reparent path.
+
 ## 2026-06-09 multi editor windows
 
 - Opened assets are tracked as `EditorSessionViewModel` instances in `MainWindow.EditorSessions`; duplicate open focuses the existing session and keeps its remembered active graph.
@@ -72,8 +78,8 @@
 
 - User requested CodeGraph, project skill, TECHNICAL, README, and agentmemory audit/update against current local code. Do not push unless the user explicitly asks in the same task.
 - Track `.codegraph/.gitignore`; do not commit CodeGraph db/wal/shm/log/cache files.
-- Current project skill lives under `.kimi/skills/automation-studio-wpf/SKILL.md`; there is no `.agents/skills/automationstudio-wpf/` tree in this local project.
-- Before push, run build, smoke, optional external reroute graph smoke, WPF startup probe, and `codegraph.cmd sync`.
+- Current project skill lives under `AutomationStudio/Agent/skills/automation-studio-wpf/SKILL.md`; the old `.kimi/skills/automation-studio-wpf/SKILL.md` path is deleted.
+- Before push, run build, `git diff --check`, WPF startup probe, and `codegraph.cmd sync`. Run broad smoke only when the touched area needs it or the user explicitly asks.
 
 ## 2026-06-05 graph isolation fix
 
@@ -82,7 +88,7 @@
 - Folder tree UX: single-click row enters folder; arrow button only expands/collapses. `HasFolderChildren` counts child folders only. `TreeIndent` controls pixel indentation; `TreeDisplayName` is plain name, no leading spaces.
 - Folder tree arrow uses `ContentFolderToggleIconStyle`. Keep default `Path.Data` in style setter so `DataTrigger` can switch expanded state to the down triangle.
 - Content browser layout: `ContentTreeColumn` default width 180, min 120, max 420; `ContentBrowserTreeSplitter` separates tree and tile grid; tile grid stays in column 2 and wraps with horizontal scrolling disabled.
-- Verification gates now include startup crash probe: build, smoke, run `dotnet run --project .\AutomationStudioWpf.csproj` only long enough to confirm the window starts, then `codegraph.cmd sync`. Do not wait 20s; early exit, WPF startup exception, or `Unhandled exception` is failure and requires collecting stdout/stderr/stack output first.
+- Verification gates now include startup crash probe: build, `git diff --check`, run `dotnet run --project .\AutomationStudioWpf.csproj` only long enough to confirm the window starts, then `codegraph.cmd sync`. Do not wait 20s; early exit, WPF startup exception, or `Unhandled exception` is failure and requires collecting stdout/stderr/stack output first. Run broad smoke only when the touched area needs it or the user explicitly asks.
 - `Tests/CodexSmoke` is lightweight regression smoke, not a full test framework. Keep it focused on critical UI/data regressions and do not push test-related folders unless the user explicitly asks.
 
 - Event graph / function / macro share one editor canvas instance, but data must stay isolated in separate `GraphListItemViewModel.Graph` models.
@@ -110,4 +116,4 @@
 - Save may prompt compile for any dirty graph. Run is blocked only when the current active graph is compile-dirty.
 - Shared dark context menu style is `DarkContextMenuStyle`; content browser/tree and graph lists must keep it attached.
 - Isolated tests can set `AUTOMATION_STUDIO_LIBRARY_DIR`; default library path remains `%APPDATA%/AutomationStudioWpf`.
-- Verification gates: `dotnet build .\AutomationStudioWpf.csproj -o .\bin\CodexBuildCheck`, `dotnet run --project .\Tests\CodexSmoke\AutomationStudioSmoke.csproj --no-restore`, launch crash probe `dotnet run --project .\AutomationStudioWpf.csproj` without fixed 20s wait, then `codegraph.cmd sync`.
+- Verification gates: `dotnet build .\AutomationStudioWpf.csproj -o .\bin\CodexBuildCheck`, `git diff --check`, launch crash probe `dotnet run --project .\AutomationStudioWpf.csproj` without fixed 20s wait, then `codegraph.cmd sync`. Run broad smoke only when needed for the touched area or explicitly requested.

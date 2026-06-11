@@ -23,6 +23,7 @@ WPF 可视化节点自动化编辑器，类似 UE4 蓝图。技术栈 C# 12 / .N
 - inactive detached 窗口显示 remembered graph 的只读预览，不能退回只显示“激活此窗口后在这里编辑”。
 - 关闭 editor session 只 snapshot 回 `ContentAssetViewModel`，不删除内容浏览器资产。删除资产时要关闭所有指向被删 asset id 的 sessions。
 - 保存、退出、编译前用 `CommitInspectorAndSnapshotAllSessions()` / `CommitAllSessionsToAssets()`；工具栏编译用 `GraphCompileService.CompileAsset(...)` 编译当前激活资产内全部图，编译前必须先 snapshot 所有打开 session。
+- `EditorSurfaceControl` / `EditorSurfaceContext` / `EditorSurfaceHostController` 是当前代码里的迁移脚手架；`UseEditorSurfaceHostForMainWindow = false` 时生产路径仍走 legacy `EditorGrid`，不要误以为已启用多份可编辑 surface。
 
 ### 2026-06-09: ToDo 持久化 / Log 复制 / 内容浏览器导航
 
@@ -46,7 +47,7 @@ WPF 可视化节点自动化编辑器，类似 UE4 蓝图。技术栈 C# 12 / .N
 
 ### 2026-06-08: 本地文档 / CodeGraph / 连线渲染现状
 
-- 当前项目 skill 源文件是 `.kimi/skills/automation-studio-wpf/SKILL.md`；本地没有 `.agents/skills/automationstudio-wpf/`。
+- 当前项目 skill 源文件是 `AutomationStudio/Agent/skills/automation-studio-wpf/SKILL.md`；旧 `.kimi/skills/automation-studio-wpf/SKILL.md` 已删除，不要恢复。
 - CodeGraph 数据库在 `.codegraph/codegraph.db`，`.codegraph/.gitignore` 负责忽略 db/wal/shm/cache/log/dirty 等本机文件。
 - 可见连线绑定 `GraphEditorService.ConnectionPaths`；持久化和运行时仍使用 `GraphEditorService.Connections`。
 - `ConnectionPathViewModel` 只负责把线性 reroute 链聚合成一条可见路径，链顺序来自真实 `Connections` 拓扑，不按点距离重排。
@@ -70,7 +71,7 @@ WPF 可视化节点自动化编辑器，类似 UE4 蓝图。技术栈 C# 12 / .N
 - 文件夹树：单击文件夹行进入该文件夹；点击箭头按钮只展开/收起，不进入。`HasFolderChildren` 只统计子文件夹，不因脚本/库资产显示箭头。
 - 文件夹树缩进用 `TreeIndent` 像素绑定，不用 `TreeDisplayName` 前置空格。箭头图标样式为 `ContentFolderToggleIconStyle`：收起朝右，展开朝下；默认 `Path.Data` 必须放在 `Style Setter`，不要写本地 `Data`，否则 `DataTrigger` 覆盖不了。
 - 内容浏览器左树和右瓦片之间有 `ContentBrowserTreeSplitter`，左树列 `ContentTreeColumn` 默认 180，范围 120-420；右侧瓦片列最小 240，并继续用禁横向滚动的 `WrapPanel` 自动换行。
-- 验证门禁：完成前必须跑 `dotnet build .\AutomationStudioWpf.csproj -o .\bin\CodexBuildCheck`、`dotnet run --project .\Tests\CodexSmoke\AutomationStudioSmoke.csproj --no-restore`、`dotnet run --project .\AutomationStudioWpf.csproj` 启动崩溃探测、`codegraph.cmd sync`。启动检查不固定等待 20 秒；能正常创建窗口即可。若进程快速退出、输出 `Unhandled exception` 或 WPF 初始化异常，必须收集终端输出/异常栈并先修。
+- 默认验证门禁：`dotnet build .\AutomationStudioWpf.csproj -o .\bin\CodexBuildCheck`、`git diff --check`、`dotnet run --project .\AutomationStudioWpf.csproj` 启动崩溃探测、`codegraph.cmd sync`。启动检查不固定等待 20 秒；能正常创建窗口即可。若进程快速退出、输出 `Unhandled exception` 或 WPF 初始化异常，必须收集终端输出/异常栈并先修。只有改到对应高风险交互或用户明确要求时才跑 broad smoke。
 - `Tests/CodexSmoke` 是轻量 smoke/回归验收，不是完整测试框架。只覆盖关键 UI/数据回归，避免越加越慢；测试相关文件夹不要推送，除非用户明确要求纳入版本。
 
 ### 2026-06-05: 事件图 / 函数 / 宏画布串图
