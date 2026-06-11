@@ -10,7 +10,7 @@ public partial class MainWindow
 {
     // Keep disabled until EditorSurfaceControl owns the full graph/editor UI.
     // When disabled, the application still uses the existing EditorGrid path.
-    private const bool UseEditorSurfaceHostForMainWindow = false;
+    private static readonly bool UseEditorSurfaceHostForMainWindow = false;
 
     private readonly EditorSurfaceHostController _editorSurfaceHostController = new();
     private readonly HashSet<EditorSessionViewModel> _editorSurfaceHostTrackedSessions = new();
