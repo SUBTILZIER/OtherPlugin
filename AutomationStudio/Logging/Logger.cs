@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.IO;
+using System.Windows.Threading;
 
 namespace AutomationStudioWpf.Logging;
 
@@ -7,6 +8,9 @@ public static class Logger
 {
     private static readonly string LogDir = Path.Combine(AppContext.BaseDirectory, "saved", "log");
     private static readonly object _lock = new();
+    private static readonly object _uiLock = new();
+    private static readonly List<LogEntry> _pendingUiEntries = [];
+    private static bool _uiFlushQueued;
 
     public static ObservableCollection<LogEntry> Entries { get; } = [];
 
@@ -45,9 +49,40 @@ public static class Logger
             }
         }
 
-        // Marshal collection write to UI thread.
-        System.Windows.Application.Current.Dispatcher.InvokeAsync(() => Entries.Add(entry));
+        QueueEntryForUi(entry);
     }
 
     public static string GetLogDirectory() => LogDir;
+
+    private static void QueueEntryForUi(LogEntry entry)
+    {
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
+        if (dispatcher is null || dispatcher.HasShutdownStarted || dispatcher.HasShutdownFinished)
+            return;
+
+        lock (_uiLock)
+        {
+            _pendingUiEntries.Add(entry);
+            if (_uiFlushQueued)
+                return;
+
+            _uiFlushQueued = true;
+        }
+
+        dispatcher.BeginInvoke(FlushPendingUiEntries, DispatcherPriority.Background);
+    }
+
+    private static void FlushPendingUiEntries()
+    {
+        List<LogEntry> entries;
+        lock (_uiLock)
+        {
+            entries = [.. _pendingUiEntries];
+            _pendingUiEntries.Clear();
+            _uiFlushQueued = false;
+        }
+
+        foreach (var entry in entries)
+            Entries.Add(entry);
+    }
 }

@@ -37,9 +37,9 @@ UE4 风格的 WPF 蓝图节点编辑器 — 用于桌面自动化脚本编排。
 - **内容浏览器**: 文件夹树 + 瓦片视图，支持递归模糊搜索、多选、框选、复制粘贴、拖拽移动/复制到文件夹、`Ctrl+B` 定位
 - **多编辑窗口**: 工具栏下方窗口栏管理主窗口标签页，支持切换、关闭、关闭右侧、关闭所有、拖出为独立窗口；独立窗口不再占用主窗口标签
 - **多格式兼容**: 支持鼠标左键/右键/侧键、键盘按键、滚轮方向
-- **日志系统**: 内嵌日志面板 + 独立日志窗口，分级过滤(INFO/WARN/ERROR)，自动文件持久化，支持复制
+- **日志系统**: 内嵌日志面板 + 独立日志窗口，分级过滤(INFO/WARN/ERROR)，增量刷新、自动文件持久化，支持复制
 - **蓝图编辑器体验**: 框选、组拖动、复制粘贴、对齐、缩放平移、路由节点、边缘自动平移(EdgePan)、快捷键
-- **自动环境检测**: 启动时自动检测 Python 环境，提供一键安装指引
+- **自动环境检测**: 首次执行前后台检测并缓存 Python 环境结果，提供安装指引
 - **执行前校验**: 检查节点可达性、参数缺失、连线唯一性、循环/坏图
 - **ToDo 跳转**: 用节点名 + 编号在同图内跳转，可选目标执行完后返回
 
@@ -104,7 +104,7 @@ UE4 风格的 WPF 蓝图节点编辑器 — 用于桌面自动化脚本编排。
 - NumPy (`numpy`)
 
 ### 自动安装
-首次启动时，程序会自动检测 Python 环境。如果未安装，会弹出提示窗口，提供可复制的安装命令：
+首次执行图谱前，程序会在后台检测并缓存 Python 环境结果。如果未安装，会弹出提示窗口，提供可复制的安装命令：
 
 ```bash
 pip install opencv-python pillow numpy -i https://mirrors.aliyun.com/pypi/simple/
@@ -148,7 +148,7 @@ AutomationStudioWpf/
 │   ├── PinConnectionController.cs  # 连线、断线、路由节点
 │   ├── InspectorController.cs   # 属性面板、字段锁定
 │   ├── NodePaletteController.cs # 右键节点菜单
-│   ├── LogPanelController.cs    # 日志过滤、刷新
+│   ├── LogPanelController.cs    # 日志过滤、增量刷新
 │   └── GraphImportDropController.cs  # JSON 图谱拖拽导入
 ├── Logging/                     # 日志模块
 │   ├── Logger.cs                # 存储 + 文件写入

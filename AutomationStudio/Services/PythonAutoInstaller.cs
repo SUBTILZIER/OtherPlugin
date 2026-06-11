@@ -11,48 +11,107 @@ namespace AutomationStudioWpf.Services;
 /// </summary>
 public static class PythonAutoInstaller
 {
+    private static readonly object CacheLock = new();
+    private static readonly SemaphoreSlim CheckSemaphore = new(1, 1);
+    private static PythonEnvironmentResult? _cachedResult;
+    private static bool _missingDialogShown;
+
+    private sealed record PythonEnvironmentResult(bool IsAvailable, string PythonPath, List<string> MissingLibraries);
+
     /// <summary>
     /// 检查 Python 环境，如缺失则提示用户手动安装
     /// </summary>
-    public static Task<bool> EnsurePythonAsync(IProgress<string> progress)
+    public static async Task<bool> EnsurePythonAsync(IProgress<string> progress)
     {
-        // 检查环境
-        var (isAvailable, pythonPath, missingLibs) = CheckEnvironmentDetailed();
+        var (result, fromCache) = await GetEnvironmentResultAsync(progress);
         
-        if (isAvailable)
+        if (result.IsAvailable)
         {
-            Logger.Info($"Python 环境正常: {pythonPath}");
-            return Task.FromResult(true);
+            Logger.Info(fromCache
+                ? $"Python 环境正常（缓存）: {result.PythonPath}"
+                : $"Python 环境正常: {result.PythonPath}");
+            return true;
         }
 
         // Python 未安装或缺少依赖
-        if (!string.IsNullOrEmpty(pythonPath) && File.Exists(pythonPath) && missingLibs.Count > 0)
+        if (!string.IsNullOrEmpty(result.PythonPath) && File.Exists(result.PythonPath) && result.MissingLibraries.Count > 0)
         {
             // Python 已安装但缺少依赖
-            Logger.Warn($"Python 已安装但缺少依赖库: {string.Join(", ", missingLibs)}");
+            Logger.Warn($"Python 已安装但缺少依赖库: {string.Join(", ", result.MissingLibraries)}");
             
-            ShowInstallDialog("依赖库", """
-                1. 打开命令提示符（CMD）
-                2. 执行以下命令：
-                """, "pip install opencv-python pillow numpy -i https://mirrors.aliyun.com/pypi/simple/");
+            if (ShouldShowMissingDialog())
+            {
+                ShowInstallDialog("依赖库", """
+                    1. 打开命令提示符（CMD）
+                    2. 执行以下命令：
+                    """, "pip install opencv-python pillow numpy -i https://mirrors.aliyun.com/pypi/simple/");
+            }
             
-            return Task.FromResult(false);
+            return false;
         }
 
         // Python 未安装
         Logger.Warn("未检测到 Python 环境");
         
-        ShowInstallDialog("Python", """
-            1. 下载 Python 3.11
-               https://www.python.org/downloads/release/python-3118/
-               下载 Windows installer (64-bit)
+        if (ShouldShowMissingDialog())
+        {
+            ShowInstallDialog("Python", """
+                1. 下载 Python 3.11
+                   https://www.python.org/downloads/release/python-3118/
+                   下载 Windows installer (64-bit)
 
-            2. 运行安装程序，勾选 "Add Python to PATH"
+                2. 运行安装程序，勾选 "Add Python to PATH"
 
-            3. 安装依赖库，打开 CMD 执行：
-            """, "pip install opencv-python pillow numpy -i https://mirrors.aliyun.com/pypi/simple/");
+                3. 安装依赖库，打开 CMD 执行：
+                """, "pip install opencv-python pillow numpy -i https://mirrors.aliyun.com/pypi/simple/");
+        }
 
-        return Task.FromResult(false);
+        return false;
+    }
+
+    private static async Task<(PythonEnvironmentResult Result, bool FromCache)> GetEnvironmentResultAsync(IProgress<string> progress)
+    {
+        lock (CacheLock)
+        {
+            if (_cachedResult is not null)
+                return (_cachedResult, true);
+        }
+
+        await CheckSemaphore.WaitAsync();
+        try
+        {
+            lock (CacheLock)
+            {
+                if (_cachedResult is not null)
+                    return (_cachedResult, true);
+            }
+
+            progress.Report("正在检查 Python 环境...");
+            var (isAvailable, pythonPath, missingLibs) = await Task.Run(CheckEnvironmentDetailed);
+            var checkedResult = new PythonEnvironmentResult(isAvailable, pythonPath, missingLibs);
+
+            lock (CacheLock)
+            {
+                _cachedResult ??= checkedResult;
+                return (_cachedResult, !ReferenceEquals(_cachedResult, checkedResult));
+            }
+        }
+        finally
+        {
+            CheckSemaphore.Release();
+        }
+    }
+
+    private static bool ShouldShowMissingDialog()
+    {
+        lock (CacheLock)
+        {
+            if (_missingDialogShown)
+                return false;
+
+            _missingDialogShown = true;
+            return true;
+        }
     }
 
     /// <summary>
@@ -108,8 +167,13 @@ public static class PythonAutoInstaller
             using var process = Process.Start(psi);
             if (process != null)
             {
+                if (!process.WaitForExit(3000))
+                {
+                    TryKill(process);
+                    return "python";
+                }
+
                 var output = process.StandardOutput.ReadToEnd();
-                process.WaitForExit();
                 if (process.ExitCode == 0)
                 {
                     var path = output.Trim().Split('\n')[0].Trim();
@@ -142,7 +206,13 @@ public static class PythonAutoInstaller
                 using var process = Process.Start(psi);
                 if (process != null)
                 {
-                    process.WaitForExit(5000);
+                    if (!process.WaitForExit(5000))
+                    {
+                        TryKill(process);
+                        missing.Add(lib);
+                        continue;
+                    }
+
                     if (process.ExitCode != 0) missing.Add(lib);
                 }
             }
@@ -150,6 +220,19 @@ public static class PythonAutoInstaller
         }
 
         return missing;
+    }
+
+    private static void TryKill(Process process)
+    {
+        try
+        {
+            if (!process.HasExited)
+                process.Kill(entireProcessTree: true);
+        }
+        catch
+        {
+            // Best-effort cleanup for timed-out environment probes.
+        }
     }
 
     /// <summary>

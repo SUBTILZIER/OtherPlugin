@@ -20,7 +20,7 @@ WPF 可视化节点自动化编辑器，类似 UE4 蓝图。技术栈 C# 12 / .N
 - 拖动窗口标签时有 `Popup` 跟随预览卡片；越过主窗口边界时提示会变为“释放后成为独立窗口”。
 - 主窗口 tab 和 `DetachedEditorWindow` 都直接 host 对应 session 的 `Surface`；detached 窗口始终显示自己的可编辑 surface，不再显示 remembered graph 只读预览。
 - `EditorSurfaceContext.Configure(...)` 必须保持幂等；不要在 surface attach/activate 时重建该 session 的 controller，否则 active graph、列表展开和节点显示会被重置。
-- surface 事件进入 `EditorSurfaceContext.HandleEvent(...)` 后只做轻量 active-session 切换，再使用该 context 自己的 controllers。detached 激活不能覆盖 `_lastMainEditorSession`，主窗口应继续显示最近的主窗口 tab。
+- surface 事件进入 `EditorSurfaceContext.HandleEvent(...)` 后先分类：明确用户交互才提升 active session；`PinAnchorLoaded/LayoutUpdated`、无按键 `MouseMove`、初始化触发的 `TextChanged/SelectionChanged` 只使用所属 context 或直接忽略，不能改变工具栏编译目标。detached 激活不能覆盖 `_lastMainEditorSession`，主窗口应继续显示最近的主窗口 tab。
 - 旧 `MainWindow.EditorSurfaceRegions.cs` 已删除。不要恢复 legacy sidebar/canvas/inspector 区域搬移。
 - 关闭 editor session 只 snapshot 回 `ContentAssetViewModel`，不删除内容浏览器资产。删除资产时要关闭所有指向被删 asset id 的 sessions。
 - 保存、退出、编译前用 `CommitInspectorAndSnapshotAllSessions()` / `CommitAllSessionsToAssets()`；工具栏编译用 `GraphCompileService.CompileAsset(...)` 编译当前激活资产内全部图，编译前必须先 snapshot 所有打开 session。
@@ -32,7 +32,9 @@ WPF 可视化节点自动化编辑器，类似 UE4 蓝图。技术栈 C# 12 / .N
 - `InspectorController.ToDoTargetSelected()` 选择目标后要立即写 `TargetNodeTitle`、`TargetNodeNumber`、`TargetNodeId`，刷新描述、标脏并快照 active graph。不要等保存/编译时才读 UI。
 - `GraphCompileService.EnsureGraphToDoTargets()` 会用有效 `TargetNodeId` 回填旧数据缺失的 title/number；`target_title` / `target_number` 有输入连线时跳过静态目标必填，但静态下拉值仍要保留。
 - 日志面板是只读 `RichTextBox`。全局快捷键必须对 `TextBoxBase` 放行；`LogPanelController` 显式绑定 `ApplicationCommands.Copy` / `SelectAll`，避免 `Ctrl+C` 被节点复制截获。
+- `Logger.Write(...)` 会合并 UI dispatch，批量把 pending entries flush 到 `Logger.Entries`。主日志面板和 `LogWindow` 对新增日志做增量追加；只有切过滤器、Reset/Clear 时才全量 `Refresh()`。不要改回每条日志单独 `Dispatcher.InvokeAsync` 或重建整个 `FlowDocument`。
 - 内容浏览器递归模糊搜索已实现，入口在 `MainWindow.NavigationFeatures.cs` 动态安装到 `ContentBrowserHeaderBar`。搜索范围是当前目录及子目录，支持空格关键字、路径片段、不区分大小写和 subsequence 模糊匹配。
+- 内容浏览器刷新和搜索要复用本轮 `assetById` / `childrenByParent` / path cache。不要在每个文件夹、每个搜索结果里反复 `ContentBrowserItems.FirstOrDefault/Any` 全表扫描。
 - `Ctrl+B` 定位已实现：选中搜索结果/资产时清空搜索并进入真实父目录；无浏览器选中项时定位当前打开资产。
 - `FunctionCallNodeViewModel` / `MacroCallNodeViewModel` 双击跳转已实现：按 stable `FunctionId` / `MacroId` 找到目标资产和图，打开资产后加载对应函数/宏编辑面板。
 - 内容浏览器多选、框选、资产 Ctrl+C/Ctrl+V、拖拽预览、多删除在 `MainWindow.ContentBrowserMultiSelect.cs`；主题弹窗替换在 `MainWindow.ThemedDialogOverrides.cs`。
@@ -196,7 +198,7 @@ WPF 可视化节点自动化编辑器，类似 UE4 蓝图。技术栈 C# 12 / .N
   - `PinConnectionController`：拖线、连线、断线、预览线、双击连线插入路由节点。
   - `InspectorController`：属性面板加载、自动保存、浏览对话框、窗口列表、字段锁定灰态。
   - `NodePaletteController`：右键节点菜单，条目来自 `NodeRegistry.Definitions`。
-  - `LogPanelController`：日志过滤、刷新、清空。
+  - `LogPanelController`：日志过滤、增量刷新、清空。
   - `GraphImportDropController`：JSON 图谱拖拽导入。
 - **Current OCR status**:
   - 当前软件不包含识字/OCR 节点。
@@ -279,9 +281,9 @@ WPF 可视化节点自动化编辑器，类似 UE4 蓝图。技术栈 C# 12 / .N
 
 #### Problem 4: 执行图谱前 Python 环境检查卡顿
 - **Symptom**: 每次点击执行都要等好几秒才开始跑
-- **Root cause**: `EnsurePythonAsync` 每次同步检查 6 个库（包括 `torch`，import 极慢），5s 超时 × 6 = 最多 30s，且结果不缓存
-- **Fix**: 首次检查后缓存结果（`_checked` / `_cachedResult` 静态字段），后续调用直接返回
-- **Lesson**: 环境检测只做一次。启动时（`App.xaml.cs`）做首次检查，执行时复用缓存结果
+- **Root cause**: `EnsurePythonAsync` 每次同步检查 `cv2` / `PIL` / `numpy`，且历史实现没有缓存；超时 import 进程也可能残留
+- **Fix**: 首次检查在后台线程执行并缓存 `PythonEnvironmentResult`，后续执行复用缓存；并发检查通过 `SemaphoreSlim` 合并；缺环境提示同一进程只弹一次；超时 probe 会 kill 进程树
+- **Lesson**: 环境检测只做一次。当前是在首次执行前检查，不是 App 启动时自动检查
 
 #### Problem 5: 新增图谱时旧图谱节点丢失
 - **Symptom**: 编辑图表1→保存→新增图表2→编辑→保存→退出→重启→图表1节点全部丢失

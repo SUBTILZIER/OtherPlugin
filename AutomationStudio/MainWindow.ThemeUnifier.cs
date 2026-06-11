@@ -115,14 +115,16 @@ public partial class MainWindow
 
     private void RefreshContentVisibleItemsForCurrentFolder()
     {
-        if (_currentContentFolderId is not null && ContentBrowserItems.All(item => item.Id != _currentContentFolderId))
+        var assetById = BuildContentAssetLookup();
+        if (_currentContentFolderId is not null &&
+            (!assetById.TryGetValue(_currentContentFolderId, out var currentFolder) || !currentFolder.IsFolder))
+        {
             _currentContentFolderId = null;
+        }
 
+        var childrenByParent = BuildContentChildrenLookup(foldersOnly: false);
         ContentVisibleItems.Clear();
-        foreach (var item in ContentBrowserItems
-                     .Where(item => item.ParentFolderId == _currentContentFolderId)
-                     .OrderByDescending(item => item.IsFolder)
-                     .ThenBy(item => item.Name))
+        foreach (var item in SortContentChildren(childrenByParent[_currentContentFolderId]))
         {
             ContentVisibleItems.Add(item);
         }
@@ -130,13 +132,14 @@ public partial class MainWindow
 
     private void RefreshContentBrowserTreeKeepingExpansion()
     {
+        var folderChildrenByParent = BuildContentChildrenLookup(foldersOnly: true);
         ContentFolderItems.Clear();
         _rootContentFolder.ViewDepth = 0;
         _rootContentFolder.IsTreeExpanded = true;
-        _rootContentFolder.HasFolderChildren = ContentBrowserItems.Any(item => item.IsFolder && item.ParentFolderId is null);
+        _rootContentFolder.HasFolderChildren = folderChildrenByParent[null].Any();
         ContentFolderItems.Add(_rootContentFolder);
 
-        foreach (var folder in BuildFolderTree(null, 1, new HashSet<string>()))
+        foreach (var folder in BuildFolderTree(null, 1, new HashSet<string>(), folderChildrenByParent))
             ContentFolderItems.Add(folder);
 
         ContentFolderListBox.SelectedItem = _currentContentFolderId is null

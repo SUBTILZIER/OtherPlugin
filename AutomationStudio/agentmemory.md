@@ -19,11 +19,12 @@
 - `EditorWindowBar` is under the toolbar and shows only main-window tab sessions (`DockMode != Detached`). Right-click close-all/close-right affect only visible main-window tabs; all-session save/exit still walks `EditorSessions`.
 - Dragging a tab outside the main window detaches it to `DetachedEditorWindow`; dragging inside the main window only activates the tab. Detached windows keep showing their own editable `EditorSurfaceControl`; activation only changes toolbar/global-command target.
 - `EditorSurfaceContext.Configure(...)` is intentionally idempotent. Do not rebuild per-session controllers on every attach/activate; doing so resets active graph/list expansion and causes main/detached windows to appear polluted.
-- Surface events use lightweight session activation: switch `MainWindow` active proxies to the event's session/context, but do not reload the remembered graph. Detached activation must not overwrite `_lastMainEditorSession`; the main host keeps showing the last main-window tab surface.
+- Surface events are classified before dispatch: explicit user interactions promote the session to active; passive layout/binding events such as `PinAnchorLoaded/LayoutUpdated`, mouse move without pressed buttons, and initialization `TextChanged/SelectionChanged` only use the owning context or are ignored. Detached activation must not overwrite `_lastMainEditorSession`; the main host keeps showing the last main-window tab surface.
 - Tab dragging shows a following popup preview. Do not reintroduce inactive detached read-only previews or the old "activate this window" placeholder.
 - `MainWindow.EditorSurfaceRegions.cs` and legacy region reparent hooks are deleted. Do not restore legacy region reparenting.
 - Closing a session snapshots to its `ContentAssetViewModel` but does not delete the asset. Deleting content-browser assets must close all sessions targeting deleted asset ids.
 - Save/exit/compile must snapshot all open sessions before reading graph data. Toolbar compile is active-asset scoped through `GraphCompileService.CompileAsset(...)`; scripts compile their event/function/macro graphs, libraries compile all graphs in that library.
+- `PythonAutoInstaller.EnsurePythonAsync(...)` performs the first environment probe on a background thread, caches `PythonEnvironmentResult`, merges concurrent checks with `SemaphoreSlim`, and shows missing-environment dialogs at most once per process.
 
 ## 2026-06-08 ToDo jump and reusable node numbers
 
@@ -41,11 +42,13 @@
 - `GraphCompileService.EnsureGraphToDoTargets()` repairs old ToDo data that has only `TargetNodeId` by filling title/number from the referenced same-graph node before validation.
 - Connected ToDo `target_title` / `target_number` pins are runtime overrides. They must not clear the persisted static dropdown target.
 - Main log panel is a read-only `RichTextBox`. `Window_PreviewKeyDown` must pass through any `TextBoxBase` focus, and `LogPanelController` owns `Ctrl+A`/`Ctrl+C` command bindings for selecting/copying filtered log text.
+- `Logger.Write(...)` batches UI dispatch for pending entries; main log panel and `LogWindow` append newly added log entries incrementally. Filter changes and reset/clear still rebuild the `FlowDocument`; do not restore per-entry dispatcher calls or full `Refresh()` rebuilds.
 
 ## 2026-06-09 UE-style browser/search/navigation work
 
 - Current content browser has recursive fuzzy search installed dynamically by `MainWindow.NavigationFeatures.cs`. Search scope is the current folder plus descendants; root searches all content assets. Tokens match name/display/kind/path by contains or subsequence, case-insensitive.
 - Search results replace `ContentVisibleItems`; double-click keeps normal behavior: folders enter, scripts/function libraries/macro libraries open.
+- Content browser refresh/search builds per-pass lookup indexes (`assetById`, `childrenByParent`, `folderChildrenByParent`) and search path cache. Keep this pattern; avoid per-item full scans of `ContentBrowserItems` in tree/search hot paths.
 - `Ctrl+B` locate is implemented. With a selected content asset it clears search, enters the asset's real parent folder, selects and scrolls to that asset. Without a selected browser asset, it locates the currently opened asset.
 - Function/macro call nodes double-click navigate by stable `FunctionId` / `MacroId`. `OpenCallableGraph(...)` saves the current visible graphs, finds the owning script/function-library/macro-library asset, opens it if needed, then loads the target `GraphListItemViewModel`.
 - Content browser enhanced interactions live in `MainWindow.ContentBrowserMultiSelect.cs`: multi-select, box select, Ctrl+C/Ctrl+V asset copy/paste, multi-delete, drag preview, and move/copy drop. Themed variants are installed by `MainWindow.ThemedDialogOverrides.cs`.

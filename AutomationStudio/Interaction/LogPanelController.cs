@@ -1,3 +1,4 @@
+using System.Collections.Specialized;
 using AutomationStudioWpf.Logging;
 using System.Windows.Documents;
 using System.Windows.Input;
@@ -55,6 +56,28 @@ public sealed class LogPanelController
             _logTextBox.ScrollToEnd();
     }
 
+    public void HandleEntriesChanged(NotifyCollectionChangedEventArgs e)
+    {
+        if (e.Action != NotifyCollectionChangedAction.Add || e.NewItems is null)
+        {
+            Refresh();
+            return;
+        }
+
+        bool appendedAny = false;
+        foreach (var item in e.NewItems)
+        {
+            if (item is not LogEntry entry || !MatchesFilter(entry))
+                continue;
+
+            AppendEntry(entry);
+            appendedAny = true;
+        }
+
+        if (appendedAny)
+            _logTextBox.ScrollToEnd();
+    }
+
     public void ApplyFilterFromUi()
     {
         LoggingModule.FilterLevel = _filterAllRadio.IsChecked == true ? null :
@@ -95,6 +118,18 @@ public sealed class LogPanelController
             },
             (_, e) => e.CanExecute = true));
     }
+
+    private void AppendEntry(LogEntry entry)
+    {
+        _logTextBox.Document.Blocks.Add(new Paragraph(new Run(entry.DisplayText))
+        {
+            Margin = new System.Windows.Thickness(0),
+            Foreground = BrushFor(entry.Level),
+        });
+    }
+
+    private static bool MatchesFilter(LogEntry entry) =>
+        LoggingModule.FilterLevel is null || entry.Level == LoggingModule.FilterLevel.Value;
 
     private static System.Windows.Media.Brush BrushFor(LogLevel level) => level switch
     {

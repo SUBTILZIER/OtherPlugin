@@ -290,11 +290,14 @@ public partial class MainWindow
         _isApplyingContentBrowserSearch = true;
         try
         {
+            var assetById = BuildContentAssetLookup();
+            var pathCache = new Dictionary<string, string>(StringComparer.Ordinal);
+            var tokens = SplitContentSearchTokens(query);
             var results = ContentBrowserItems
-                .Where(IsInCurrentContentSearchScope)
-                .Where(item => ContentAssetMatchesQuery(item, query))
+                .Where(item => IsInCurrentContentSearchScope(item, assetById))
+                .Where(item => ContentAssetMatchesQuery(item, tokens, assetById, pathCache))
                 .OrderByDescending(item => item.IsFolder)
-                .ThenBy(GetContentAssetPath, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(item => GetContentAssetPath(item, assetById, pathCache), StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
             ContentVisibleItems.Clear();
@@ -314,6 +317,13 @@ public partial class MainWindow
 
     private bool IsInCurrentContentSearchScope(ContentAssetViewModel item)
     {
+        return IsInCurrentContentSearchScope(item, BuildContentAssetLookup());
+    }
+
+    private bool IsInCurrentContentSearchScope(
+        ContentAssetViewModel item,
+        IReadOnlyDictionary<string, ContentAssetViewModel> assetById)
+    {
         if (_currentContentFolderId is null)
             return true;
 
@@ -323,7 +333,7 @@ public partial class MainWindow
             if (string.Equals(parentId, _currentContentFolderId, StringComparison.Ordinal))
                 return true;
 
-            parentId = ContentBrowserItems.FirstOrDefault(candidate => candidate.Id == parentId)?.ParentFolderId;
+            parentId = assetById.TryGetValue(parentId, out var parent) ? parent.ParentFolderId : null;
         }
 
         return false;
@@ -331,12 +341,24 @@ public partial class MainWindow
 
     private bool ContentAssetMatchesQuery(ContentAssetViewModel item, string query)
     {
-        var tokens = query
-            .Split([' ', '\t', '/', '\\'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        if (tokens.Length == 0)
+        var assetById = BuildContentAssetLookup();
+        var pathCache = new Dictionary<string, string>(StringComparer.Ordinal);
+        return ContentAssetMatchesQuery(item, SplitContentSearchTokens(query), assetById, pathCache);
+    }
+
+    private static string[] SplitContentSearchTokens(string query) =>
+        query.Split([' ', '\t', '/', '\\'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+    private static bool ContentAssetMatchesQuery(
+        ContentAssetViewModel item,
+        IReadOnlyList<string> tokens,
+        IReadOnlyDictionary<string, ContentAssetViewModel> assetById,
+        Dictionary<string, string> pathCache)
+    {
+        if (tokens.Count == 0)
             return true;
 
-        string searchable = $"{item.Name} {item.DisplayName} {item.Kind} {GetContentAssetPath(item)}";
+        string searchable = $"{item.Name} {item.DisplayName} {item.Kind} {GetContentAssetPath(item, assetById, pathCache)}";
         return tokens.All(token => ContainsIgnoreCase(searchable, token) || IsFuzzyMatch(searchable, token));
     }
 
@@ -364,6 +386,20 @@ public partial class MainWindow
 
     private string GetContentAssetPath(ContentAssetViewModel item)
     {
+        return GetContentAssetPath(
+            item,
+            BuildContentAssetLookup(),
+            new Dictionary<string, string>(StringComparer.Ordinal));
+    }
+
+    private static string GetContentAssetPath(
+        ContentAssetViewModel item,
+        IReadOnlyDictionary<string, ContentAssetViewModel> assetById,
+        Dictionary<string, string> pathCache)
+    {
+        if (pathCache.TryGetValue(item.Id, out var cached))
+            return cached;
+
         var names = new Stack<string>();
         names.Push(item.Name);
 
@@ -371,15 +407,16 @@ public partial class MainWindow
         var visited = new HashSet<string>(StringComparer.Ordinal);
         while (!string.IsNullOrWhiteSpace(parentId) && visited.Add(parentId))
         {
-            var parent = ContentBrowserItems.FirstOrDefault(candidate => candidate.Id == parentId);
-            if (parent is null)
+            if (!assetById.TryGetValue(parentId, out var parent))
                 break;
 
             names.Push(parent.Name);
             parentId = parent.ParentFolderId;
         }
 
-        return names.Count == 0 ? item.Name : string.Join("/", names);
+        var path = names.Count == 0 ? item.Name : string.Join("/", names);
+        pathCache[item.Id] = path;
+        return path;
     }
 
     private void MainWindow_NavigationPreviewKeyDown(object sender, WpfKeyEventArgs e)

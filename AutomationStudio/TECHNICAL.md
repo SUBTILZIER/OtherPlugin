@@ -19,7 +19,7 @@ Interaction
     ├─ PinConnectionController   ← 拖线、连线、断线、预览线、路由节点插入
     ├─ InspectorController       ← 属性面板加载、自动保存、浏览对话框、窗口列表、字段锁定和灰态
     ├─ NodePaletteController     ← 右键节点菜单，来自 NodeRegistry.Definitions
-    ├─ LogPanelController        ← 日志过滤、刷新、清空
+    ├─ LogPanelController        ← 日志过滤、增量刷新、清空
     └─ GraphImportDropController ← JSON 图谱拖拽导入
 
 GraphCore / Services
@@ -137,6 +137,7 @@ public class GraphEditorService
 #### Content browser search and callable navigation
 - 内容浏览器源数据是 `ContentBrowserItems`；左树投影 `ContentFolderItems`，右侧瓦片投影 `ContentVisibleItems`。
 - `MainWindow.NavigationFeatures.cs` 在窗口 `Loaded` 后动态给 `ContentBrowserHeaderBar` 安装搜索框。搜索范围是当前 `_currentContentFolderId` 及全部子文件夹；根目录时搜索全部内容资产。
+- 内容浏览器刷新会为本轮构建 `assetById`、`childrenByParent`、`folderChildrenByParent` 索引；搜索会复用 `assetById` 和 path cache，避免树刷新/路径匹配时对 `ContentBrowserItems` 反复全量扫描。
 - 搜索支持空格关键字、路径片段、`DisplayName` / `Kind`、不区分大小写和 subsequence 模糊匹配。搜索结果直接替换 `ContentVisibleItems`，文件夹和资产都会进入结果。
 - 搜索结果双击仍走内容浏览器现有打开逻辑：文件夹进入目录，脚本/函数库/宏库调用 `OpenContentAsset(asset)`。
 - `Ctrl+B` 由 `MainWindow_NavigationPreviewKeyDown` / `ContentBrowserListBox_NavigationPreviewKeyDown` 处理：有选中资产时清空搜索、进入真实父目录、选中并滚动到资产；没有内容浏览器选中项时定位当前打开资产。
@@ -151,7 +152,7 @@ public class GraphEditorService
 - 工具栏下方 `EditorWindowBar` 绑定主窗口内的 `MainEditorSessions`，不显示 `DockMode.Detached` 的独立窗口；窗口栏右键的关闭全部/关闭右侧只作用于主窗口标签页。全量 `EditorSessions` 仍包含 detached，供保存、退出、compile-all 使用。拖出主窗口会创建 `DetachedEditorWindow`；拖到主窗口内部只激活标签，不创建画布子窗口。
 - 拖动窗口标签时会显示跟随预览卡片，越过主窗口边界后提示释放/继续拖出为独立窗口。
 - 主窗口标签页和 `DetachedEditorWindow` 都直接 host 对应 session 的 `Surface`；detached 窗口不再显示只读 preview，也不再要求“激活后在这里编辑”。
-- `EditorSurfaceContext.Configure(...)` 是幂等的：同一个 session 的 controller 不因 host attach/activate 反复重建。surface 事件只做轻量 active-session 切换并复用该 context 自己的 controller，避免 tab 切换回第一个图、列表折叠或 detached/main 互相污染。
+- `EditorSurfaceContext.Configure(...)` 是幂等的：同一个 session 的 controller 不因 host attach/activate 反复重建。surface 事件按类型分类：明确用户交互才提升 active session；`PinAnchorLoaded/LayoutUpdated`、无按键 `MouseMove`、初始化触发的 `TextChanged/SelectionChanged` 只使用所属 context 或直接忽略，避免 tab 闪动、列表折叠或 detached/main 互相污染。
 - detached session 激活时只更新全局工具栏/运行/保存目标，不覆盖 `_lastMainEditorSession`；主窗口继续显示最近的主窗口 tab surface。
 - `MainWindow.EditorSurfaceRegions.cs` 和 legacy region reparent hooks 已删除。不要恢复 `AttachLegacyEditorRegionsToSessionSurface()` 的区域搬移逻辑。
 - session 关闭只 snapshot 回 `ContentAssetViewModel` 并移除编辑窗口，不删除资产。删除内容浏览器资产时会关闭所有指向该资产的 session，避免悬空编辑窗口。
@@ -353,7 +354,7 @@ static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int x, int 
 - 文件：`saved/log/Log_yyyy_MM_dd_HH_mm.txt`
 
 #### 日志面板交互
-- 主窗口日志显示控件是只读 `RichTextBox`，由 `LogPanelController.Refresh()` 生成带颜色的 `FlowDocument`。
+- 主窗口日志显示控件是只读 `RichTextBox`；`LogPanelController.HandleEntriesChanged(...)` 对新增日志增量追加段落，切过滤器/Reset 时才由 `Refresh()` 重建带颜色的 `FlowDocument`。
 - `LogPanelController` 显式绑定 `ApplicationCommands.Copy` 和 `ApplicationCommands.SelectAll`：`Ctrl+C` 复制当前选中文本，`Ctrl+A` 全选当前过滤后的日志文本。
 - `MainWindow.Window_PreviewKeyDown` 对 `TextBoxBase` 焦点直接放行，避免日志 `RichTextBox` 焦点内的 `Ctrl+C` / `Ctrl+A` 被全局节点复制快捷键截获。
 
@@ -399,8 +400,8 @@ public class NodeFileModel
 
 ## 性能优化
 
-### 1. 虚拟化
-日志列表使用 `VirtualizingStackPanel.IsVirtualizing="True"`，避免大量日志时的内存问题。
+### 1. 日志增量刷新
+`Logger.Write(...)` 会把 UI 条目放入待刷新队列，并用一次 `DispatcherPriority.Background` flush 合并多条日志；主日志面板和独立日志窗口使用 `RichTextBox` 显示日志，新增日志只追加新增段落，过滤器变化或清空时才重建文档，避免每条日志都全量刷新或塞满 Dispatcher 小任务。
 
 ### 2. 异步执行
 图谱执行在后台线程进行，避免阻塞 UI：
@@ -435,7 +436,7 @@ pip install opencv-python pillow numpy -i https://mirrors.aliyun.com/pypi/simple
 
 ### 3. 日志无法复制
 
-已修复，现在日志使用 `TextBox` 显示，支持选择和复制。
+已修复，现在日志使用只读 `RichTextBox` 显示，支持自由选择、`Ctrl+A` 和 `Ctrl+C`。
 
 ## 扩展指南
 
@@ -740,9 +741,9 @@ Python 参数规则：
 - **教训**：环路检测不应阻止循环体内的合法重复执行
 
 #### 问题 4：每次执行图谱前 Python 检查卡顿数秒
-- **根因**：`EnsurePythonAsync` 每次同步 import 6 个库（含 `torch`，import 极慢），且结果不缓存
-- **修复**：首次检查后缓存（`_checked` + `_cachedResult`），后续直接返回
-- **教训**：环境检测只做一次，启动时检查，执行时复用
+- **根因**：`EnsurePythonAsync` 每次同步 import `cv2` / `PIL` / `numpy`，且历史实现没有缓存；超时 probe 进程也可能残留
+- **修复**：首次检查在后台线程执行并缓存 `PythonEnvironmentResult`，后续执行复用缓存；并发检查通过 `SemaphoreSlim` 合并；缺环境提示同一进程只弹一次；超时 probe 会 kill 进程树
+- **教训**：环境检测只做一次。当前是在首次执行前检查，不是 App 启动时自动检查
 
 #### 问题 5：新增图谱时旧图谱节点全部丢失
 - **现象**：编辑图表1→新增图表2→重启→图表1节点全丢

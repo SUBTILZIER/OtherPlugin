@@ -116,7 +116,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         AttachActiveEditorService(_editorService);
 
         // 日志更新
-        Logger.Entries.CollectionChanged += (_, _) => _logPanelController.Refresh();
+        Logger.Entries.CollectionChanged += (_, e) => _logPanelController.HandleEntriesChanged(e);
 
         // 窗口关闭时释放按键，并处理未保存图谱。
         Closing += Window_Closing;
@@ -1648,21 +1648,28 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void RefreshContentBrowserViews()
     {
-        if (_currentContentFolderId is not null && ContentBrowserItems.All(item => item.Id != _currentContentFolderId))
+        var assetById = BuildContentAssetLookup();
+        if (_currentContentFolderId is not null &&
+            (!assetById.TryGetValue(_currentContentFolderId, out var currentFolder) || !currentFolder.IsFolder))
+        {
             _currentContentFolderId = null;
-        ExpandFolderPath(_currentContentFolderId);
+        }
+
+        ExpandFolderPath(_currentContentFolderId, assetById);
+        var folderChildrenByParent = BuildContentChildrenLookup(foldersOnly: true);
+        var childrenByParent = BuildContentChildrenLookup(foldersOnly: false);
 
         ContentFolderItems.Clear();
         _rootContentFolder.ViewDepth = 0;
         _rootContentFolder.IsTreeExpanded = true;
-        _rootContentFolder.HasFolderChildren = ContentBrowserItems.Any(item => item.IsFolder && item.ParentFolderId is null);
+        _rootContentFolder.HasFolderChildren = folderChildrenByParent[null].Any();
         ContentFolderItems.Add(_rootContentFolder);
 
-        foreach (var folder in BuildFolderTree(null, 1, new HashSet<string>()))
+        foreach (var folder in BuildFolderTree(null, 1, new HashSet<string>(), folderChildrenByParent))
             ContentFolderItems.Add(folder);
 
         ContentVisibleItems.Clear();
-        foreach (var item in ContentBrowserItems.Where(item => item.ParentFolderId == _currentContentFolderId).OrderByDescending(item => item.IsFolder).ThenBy(item => item.Name))
+        foreach (var item in SortContentChildren(childrenByParent[_currentContentFolderId]))
             ContentVisibleItems.Add(item);
 
         ContentFolderListBox.SelectedItem = _currentContentFolderId is null
@@ -1672,24 +1679,51 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private IEnumerable<ContentAssetViewModel> BuildFolderTree(string? parentId, int depth, HashSet<string> visited)
     {
-        foreach (var folder in ContentBrowserItems
-                     .Where(item => item.IsFolder && item.ParentFolderId == parentId)
-                     .OrderBy(item => item.Name))
+        var folderChildrenByParent = BuildContentChildrenLookup(foldersOnly: true);
+        return BuildFolderTree(parentId, depth, visited, folderChildrenByParent);
+    }
+
+    private static IEnumerable<ContentAssetViewModel> BuildFolderTree(
+        string? parentId,
+        int depth,
+        HashSet<string> visited,
+        ILookup<string?, ContentAssetViewModel> folderChildrenByParent)
+    {
+        foreach (var folder in folderChildrenByParent[parentId].OrderBy(item => item.Name))
         {
             if (!visited.Add(folder.Id))
                 continue;
 
             folder.ViewDepth = depth;
-            folder.HasFolderChildren = ContentBrowserItems.Any(item => item.IsFolder && item.ParentFolderId == folder.Id);
+            folder.HasFolderChildren = folderChildrenByParent[folder.Id].Any();
             yield return folder;
 
             if (!folder.IsTreeExpanded)
                 continue;
 
-            foreach (var child in BuildFolderTree(folder.Id, depth + 1, visited))
+            foreach (var child in BuildFolderTree(folder.Id, depth + 1, visited, folderChildrenByParent))
                 yield return child;
         }
     }
+
+    private Dictionary<string, ContentAssetViewModel> BuildContentAssetLookup()
+    {
+        var lookup = new Dictionary<string, ContentAssetViewModel>(StringComparer.Ordinal);
+        foreach (var item in ContentBrowserItems)
+            lookup[item.Id] = item;
+        return lookup;
+    }
+
+    private ILookup<string?, ContentAssetViewModel> BuildContentChildrenLookup(bool foldersOnly)
+    {
+        var source = foldersOnly
+            ? ContentBrowserItems.Where(item => item.IsFolder)
+            : ContentBrowserItems;
+        return source.ToLookup(item => item.ParentFolderId, StringComparer.Ordinal);
+    }
+
+    private static IEnumerable<ContentAssetViewModel> SortContentChildren(IEnumerable<ContentAssetViewModel> items) =>
+        items.OrderByDescending(item => item.IsFolder).ThenBy(item => item.Name);
 
     private void EnterContentFolder(ContentAssetViewModel? folder)
     {
@@ -1957,12 +1991,22 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void ExpandFolderPath(string? folderId)
     {
-        var current = ContentBrowserItems.FirstOrDefault(item => item.Id == folderId && item.IsFolder);
-        folderId = current?.Id;
+        ExpandFolderPath(folderId, BuildContentAssetLookup());
+    }
+
+    private static void ExpandFolderPath(string? folderId, IReadOnlyDictionary<string, ContentAssetViewModel> assetById)
+    {
+        if (folderId is null ||
+            !assetById.TryGetValue(folderId, out var current) ||
+            !current.IsFolder)
+        {
+            return;
+        }
+
+        folderId = current.Id;
         while (folderId is not null)
         {
-            var folder = ContentBrowserItems.FirstOrDefault(item => item.Id == folderId && item.IsFolder);
-            if (folder is null)
+            if (!assetById.TryGetValue(folderId, out var folder) || !folder.IsFolder)
                 return;
 
             folder.IsTreeExpanded = true;
