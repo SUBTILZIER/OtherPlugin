@@ -83,7 +83,7 @@ public partial class MainWindow
         session.PropertyChanged += EditorSurfaceHostSession_PropertyChanged;
 
         if (session.IsActive)
-            PrepareSessionSurfaceForHiddenHost(session);
+            ActivateSessionSurfaceHostPath(session);
     }
 
     private void UntrackEditorSurfaceHostSession(EditorSessionViewModel session)
@@ -100,6 +100,12 @@ public partial class MainWindow
             return;
 
         if (sender is EditorSessionViewModel { IsActive: true } session)
+            ActivateSessionSurfaceHostPath(session);
+    }
+
+    private void ActivateSessionSurfaceHostPath(EditorSessionViewModel session)
+    {
+        if (!TryShowSessionSurfaceInMainHost(session))
             PrepareSessionSurfaceForHiddenHost(session);
     }
 
