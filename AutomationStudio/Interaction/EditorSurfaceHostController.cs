@@ -55,7 +55,9 @@ public sealed class EditorSurfaceHostController
             return;
         }
 
-        RemoveFromCurrentParent(content);
+        if (content is FrameworkElement frameworkElement)
+            RemoveFromCurrentParent(frameworkElement);
+
         host.Content = content;
         host.Visibility = Visibility.Visible;
     }
