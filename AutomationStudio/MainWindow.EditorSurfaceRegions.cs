@@ -1,4 +1,5 @@
 using System.Windows;
+using AutomationStudioWpf.Interaction;
 
 namespace AutomationStudioWpf;
 
@@ -12,6 +13,18 @@ public partial class MainWindow
             GetEditorGridRegionByColumn(0),
             GetEditorGridRegionByColumn(2),
             InspectorPanel ?? GetEditorGridRegionByColumn(4));
+    }
+
+    private void AttachLegacyEditorRegionsToSessionSurface(EditorSessionViewModel session)
+    {
+        var context = session.EnsureSurfaceContext();
+        var regions = GetLegacyEditorSurfaceRegions();
+
+        _editorSurfaceHostController.AttachRegions(
+            context.Surface,
+            regions.Sidebar,
+            regions.Canvas,
+            regions.Inspector);
     }
 
     private UIElement? GetEditorGridRegionByColumn(int column)
