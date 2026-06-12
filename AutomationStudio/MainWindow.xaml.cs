@@ -407,6 +407,13 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private EditorSurfaceControl GetActiveEditorSurface()
     {
+        if (TryGetActiveEditorSurface() is { } surface)
+            return surface;
+        throw new InvalidOperationException("No active editor surface is available.");
+    }
+
+    private EditorSurfaceControl? TryGetActiveEditorSurface()
+    {
         if (_eventSurfaceSessionOverride?.Surface is { } overrideSurface)
             return overrideSurface;
 
@@ -417,7 +424,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             _editorSessions.Contains(_lastMainEditorSession))
             return mainSurface;
 
-        throw new InvalidOperationException("No active editor surface is available.");
+        return null;
     }
 
     private EditorSurfaceControl GetEditorSurfaceForControllerSetup()

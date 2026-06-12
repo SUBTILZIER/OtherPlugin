@@ -72,8 +72,8 @@ public partial class MainWindow
 
     private void InstallGraphListHandlersForActiveSurface()
     {
-        var surface = GetActiveEditorSurface();
-        InstallGraphListHandlersForSurface(surface, surface.SurfaceContext);
+        if (TryGetActiveEditorSurface() is { } surface)
+            InstallGraphListHandlersForSurface(surface, surface.SurfaceContext);
     }
 
     private void InstallGraphListHandlersForSurface(EditorSurfaceControl surface, EditorSurfaceContext? context = null)
