@@ -147,6 +147,7 @@ AutomationStudioWpf/
 │   ├── EditorSurfaceContext.cs  # per-session surface 上下文
 │   ├── EditorSurfaceHostController.cs # surface 宿主控制器
 │   ├── DetachedEditorWindow.cs  # 独立编辑窗口宿主
+│   ├── ContentBrowserIndex.cs   # 内容浏览器 lookup/path/search 缓存
 │   ├── CanvasPanZoomController.cs  # 平移、缩放、EdgePan
 │   ├── NodeDragSelectionController.cs  # 拖动、框选、复制粘贴、对齐
 │   ├── PinConnectionController.cs  # 连线、断线、路由节点
@@ -178,7 +179,12 @@ AutomationStudioWpf/
 │   └── NodeRegistry.cs          # 节点定义 + 执行器入口
 ├── MainWindow.xaml(.cs)         # 主窗口 + partial 交互扩展
 ├── MainWindow.AssetCommands.cs  # 新建/打开/保存/编译/运行按钮入口
+├── MainWindow.ContentBrowserCommands.cs # 内容浏览器基础 CRUD、目录刷新、路径索引入口
+├── MainWindow.InspectorHandlers.cs # 属性面板事件转发
 ├── MainWindow.GraphInputHandlers.cs # 画布、节点、pin、节点菜单输入事件
+├── MainWindow.LogAndImportHandlers.cs # 日志与拖拽导入入口
+├── MainWindow.VisualTreeHelpers.cs # WPF visual/focus tree helpers
+├── MainWindow.WindowLifecycle.cs # 窗口关闭与退出流程
 ├── MainWindow.EditorSessions.cs # 多窗口标签/独立窗口交互
 ├── MainWindow.EditorSessionState.cs # session dirty/snapshot/compile 目标状态
 ├── MainWindow.EditorSurfaceHost.cs # surface 宿主
@@ -228,6 +234,8 @@ saved/log/Log_2026_05_28_22_11.txt
 - **Changed**: Main window graph input handlers and asset command handlers were split into focused partial files without changing graph JSON, connection routing, or function-library save semantics.
 - **Changed**: Inspector parameter and common-node panels were split into `InspectorController.Parameters.cs` and `InspectorController.CommonNodes.cs`.
 - **Optimized**: Compile validation reuses a per-run asset lookup, and content browser search caches flattened searchable text/path until the asset browser refreshes.
+- **Optimized**: Content browser lookup/tree/path/search data now goes through internal `ContentBrowserIndex`; log colors are centralized in `LoggingModule.GetLevelBrush(...)`.
+- **Changed**: Content browser base commands and folder/tree refresh logic moved from `MainWindow.xaml.cs` to `MainWindow.ContentBrowserCommands.cs`; inspector event forwarding moved to `MainWindow.InspectorHandlers.cs`; multi-select remains in `MainWindow.ContentBrowserMultiSelect.cs`.
 
 ### v1.2.9 (2026-06-12)
 - **Fixed**: Function-library sessions now keep their active function controller in the owning `EditorSurfaceContext`, so switching to another asset no longer drops unsaved function nodes or reloads default entry/return graphs.

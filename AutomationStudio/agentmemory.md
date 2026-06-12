@@ -31,9 +31,10 @@
 - Closing a session snapshots to its `ContentAssetViewModel` but does not delete the asset. Deleting content-browser assets must close all sessions targeting deleted asset ids.
 - Save/exit/compile must snapshot all open sessions before reading graph data. Toolbar compile is active-asset scoped through `GraphCompileService.CompileAsset(...)`; scripts compile their event/function graphs, function libraries compile their functions.
 - Successful compile must sync cleared graph dirty/compile-dirty state from `ContentAssetViewModel` back into the target session's graph list and refresh window chrome/compile button immediately.
-- `MainWindow.GraphInputHandlers.cs` owns canvas/node/pin/node-palette input handlers. `MainWindow.AssetCommands.cs` owns toolbar new/open/save/compile/run handlers. Keep these out of `MainWindow.xaml.cs`.
+- `MainWindow.GraphInputHandlers.cs` owns canvas/node/pin/node-palette input handlers. `MainWindow.AssetCommands.cs` owns toolbar new/open/save/compile/run handlers. `MainWindow.ContentBrowserCommands.cs` owns content-browser base CRUD, rename/delete, folder/tree projection, and move/copy dialog logic. `MainWindow.InspectorHandlers.cs` owns inspector event forwarding. `MainWindow.LogAndImportHandlers.cs` owns log/import events. `MainWindow.WindowLifecycle.cs` owns close/exit protection. `MainWindow.VisualTreeHelpers.cs` owns WPF visual/focus tree helpers. Keep these out of `MainWindow.xaml.cs`.
 - `InspectorController.Parameters.cs` owns function/event parameter rows. `InspectorController.CommonNodes.cs` owns generic `CommonNodeViewModel` panel behavior. `InspectorController.cs` remains the main load/apply/lock entry point.
-- `GraphCompileService` compile entry points reuse one asset id lookup for validation. Content browser search caches flattened asset/path/search text and invalidates through `RefreshContentBrowserViews()`.
+- `GraphCompileService` compile entry points reuse one asset id lookup for validation. Content browser lookup/search/path data now lives in `ContentBrowserIndex` and is rebuilt from `RefreshContentBrowserViews()`.
+- `LoggingModule.GetLevelBrush(...)` is the shared log color source. `LogPanelController` and `LogWindow` should not carry their own per-level brush maps.
 - `PythonAutoInstaller.EnsurePythonAsync(...)` performs the first environment probe on a background thread, caches `PythonEnvironmentResult`, merges concurrent checks with `SemaphoreSlim`, and shows missing-environment dialogs at most once per process.
 
 ## 2026-06-08 ToDo jump and reusable node numbers
@@ -58,10 +59,10 @@
 
 - Current content browser has recursive fuzzy search installed dynamically by `MainWindow.NavigationFeatures.cs`. Search scope is the current folder plus descendants; root searches all content assets. Tokens match name/display/kind/path by contains or subsequence, case-insensitive.
 - Search results replace `ContentVisibleItems`; double-click keeps normal behavior: folders enter, scripts/function libraries open.
-- Content browser refresh/search builds per-pass lookup indexes (`assetById`, `childrenByParent`, `folderChildrenByParent`) and search path cache. Keep this pattern; avoid per-item full scans of `ContentBrowserItems` in tree/search hot paths.
+- Content browser refresh/search uses `ContentBrowserIndex` for `assetById`, `childrenByParent`, `folderChildrenByParent`, paths, and search entries. Rebuild it through `RefreshContentBrowserViews()` after asset add/rename/move/delete; avoid per-item full scans of `ContentBrowserItems` in tree/search hot paths.
 - `Ctrl+B` locate is implemented. With a selected content asset it clears search, enters the asset's real parent folder, selects and scrolls to that asset. Without a selected browser asset, it locates the currently opened asset.
 - Function call nodes double-click navigate by stable `FunctionId`. `OpenCallableGraph(...)` commits inspector edits and snapshots all sessions, finds the owning script/function-library asset, opens it if needed, then loads the target `GraphListItemViewModel`.
-- Content browser enhanced interactions live in `MainWindow.ContentBrowserMultiSelect.cs`: multi-select, box select, Ctrl+C/Ctrl+V asset copy/paste, multi-delete, drag preview, and move/copy drop. Themed variants are installed by `MainWindow.ThemedDialogOverrides.cs`.
+- Content browser base commands live in `MainWindow.ContentBrowserCommands.cs`; enhanced interactions live in `MainWindow.ContentBrowserMultiSelect.cs`: multi-select, box select, Ctrl+C/Ctrl+V asset copy/paste, multi-delete, drag preview, and move/copy drop. Themed variants are installed by `MainWindow.ThemedDialogOverrides.cs`.
 
 ## 2026-06-08 connection batching and runtime lookup
 

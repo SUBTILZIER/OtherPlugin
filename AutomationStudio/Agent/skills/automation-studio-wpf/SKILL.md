@@ -31,9 +31,9 @@ WPF 可视化节点自动化编辑器，类似 UE4 蓝图。技术栈 C# 12 / .N
 - 保存、退出、编译前用 `CommitInspectorAndSnapshotAllSessions()` / `CommitAllSessionsToAssets()`；工具栏编译用 `GraphCompileService.CompileAsset(...)` 编译当前激活资产内全部图，编译前必须先 snapshot 所有打开 session。
 - `CompileActiveAsset(...)` 成功后必须把 asset 中被清掉的 `IsCompileDirty` 同步回对应 session 图列表，再刷新窗口栏、section badge 和编译按钮；不要等保存才清 UI 黄点。
 - `GraphCompileService` compile 入口复用一次 asset id lookup；新增校验不要在每个 `Validate*` 里重复建索引。
-- 内容浏览器搜索使用扁平 `ContentAssetSearchEntry` 缓存；资产刷新、移动、重命名后要失效缓存，避免搜索路径/名字过期。
+- 内容浏览器搜索使用 `ContentBrowserIndex` 内的扁平 `ContentAssetSearchEntry` 缓存；资产刷新、移动、重命名后要重建 index，避免搜索路径/名字过期。
 - session dirty/snapshot/compile helper 在 `MainWindow.EditorSessionState.cs`；保持这里集中，不要把多窗口状态路径重新散回 `MainWindow.xaml.cs`。
-- `MainWindow.GraphInputHandlers.cs` 放画布/节点/pin/节点菜单输入，`MainWindow.AssetCommands.cs` 放工具栏资产命令；不要回填到 `MainWindow.xaml.cs`。
+- `MainWindow.GraphInputHandlers.cs` 放画布/节点/pin/节点菜单输入，`MainWindow.AssetCommands.cs` 放工具栏资产命令，`MainWindow.ContentBrowserCommands.cs` 放内容浏览器基础 CRUD / 刷新，`MainWindow.InspectorHandlers.cs` 放属性面板事件转发，`MainWindow.LogAndImportHandlers.cs` 放日志/导入入口，`MainWindow.WindowLifecycle.cs` 放关闭流程，`MainWindow.VisualTreeHelpers.cs` 放 visual/focus tree helper；不要回填到 `MainWindow.xaml.cs`。
 - `EditorSurfaceControl` 事件直接进入 `EditorSurfaceContext.HandleEvent(...)`，再通过 typed `EditorSurfaceEvent` 激活 session 并复用剩余 `MainWindow` handler；不要恢复字符串反射 `RouteEditorSurfaceEvent`。
 
 ### 2026-06-09: ToDo 持久化 / Log 复制 / 内容浏览器导航
@@ -41,10 +41,10 @@ WPF 可视化节点自动化编辑器，类似 UE4 蓝图。技术栈 C# 12 / .N
 - 编译、保存、运行前必须先应用属性面板并 snapshot 打开的 sessions，保证多窗口里的 VM 内容写入对应 `GraphFileModel` / `ContentAssetViewModel`。
 - `InspectorController.ToDoTargetSelected()` 选择目标后要立即写 `TargetNodeTitle`、`TargetNodeNumber`、`TargetNodeId`，刷新描述、标脏并快照 active graph。不要等保存/编译时才读 UI。
 - `GraphCompileService.EnsureGraphToDoTargets()` 会用有效 `TargetNodeId` 回填旧数据缺失的 title/number；`target_title` / `target_number` 有输入连线时跳过静态目标必填，但静态下拉值仍要保留。
-- 日志面板是只读 `RichTextBox`。全局快捷键必须对 `TextBoxBase` 放行；`LogPanelController` 显式绑定 `ApplicationCommands.Copy` / `SelectAll`，避免 `Ctrl+C` 被节点复制截获。
+- 日志面板是只读 `RichTextBox`。全局快捷键必须对 `TextBoxBase` 放行；`LogPanelController` 显式绑定 `ApplicationCommands.Copy` / `SelectAll`，避免 `Ctrl+C` 被节点复制截获。日志级别颜色统一走 `LoggingModule.GetLevelBrush(...)`。
 - `Logger.Write(...)` 会合并 UI dispatch，并通过 `RangeObservableCollection.AddRange(...)` 把 pending entries 作为一次 collection add flush 到 `Logger.Entries`。主日志面板和 `LogWindow` 对新增日志做增量追加；只有切过滤器、Reset/Clear 时才全量 `Refresh()`。不要改回每条日志单独 `Dispatcher.InvokeAsync`、逐条 `Entries.Add(...)` 或重建整个 `FlowDocument`。
 - 内容浏览器递归模糊搜索已实现，入口在 `MainWindow.NavigationFeatures.cs` 动态安装到 `ContentBrowserHeaderBar`。搜索范围是当前目录及子目录，支持空格关键字、路径片段、不区分大小写和 subsequence 模糊匹配。
-- 内容浏览器刷新和搜索要复用本轮 `assetById` / `childrenByParent` / path cache。不要在每个文件夹、每个搜索结果里反复 `ContentBrowserItems.FirstOrDefault/Any` 全表扫描。
+- 内容浏览器刷新和搜索要复用 `ContentBrowserIndex` 的 `assetById` / children lookup / path cache / search entries；基础 CRUD 和目录投影放 `MainWindow.ContentBrowserCommands.cs`，多选扩展放 `MainWindow.ContentBrowserMultiSelect.cs`。不要在每个文件夹、每个搜索结果里反复 `ContentBrowserItems.FirstOrDefault/Any` 全表扫描。
 - `Ctrl+B` 定位已实现：选中搜索结果/资产时清空搜索并进入真实父目录；无浏览器选中项时定位当前打开资产。
 - `FunctionCallNodeViewModel` 双击跳转已实现：按 stable `FunctionId` 找到目标资产和图，打开资产后加载对应函数编辑面板。
 - 内容浏览器多选、框选、资产 Ctrl+C/Ctrl+V、拖拽预览、多删除在 `MainWindow.ContentBrowserMultiSelect.cs`；主题弹窗替换在 `MainWindow.ThemedDialogOverrides.cs`。

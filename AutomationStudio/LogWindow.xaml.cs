@@ -54,7 +54,7 @@ public partial class LogWindow : Window
             document.Blocks.Add(new Paragraph(new Run(entry.DisplayText))
             {
                 Margin = new Thickness(0),
-                Foreground = BrushFor(entry.Level),
+                Foreground = LoggingModule.GetLevelBrush(entry.Level),
             });
         }
 
@@ -70,7 +70,7 @@ public partial class LogWindow : Window
         LogRichTextBox.Document.Blocks.Add(new Paragraph(new Run(entry.DisplayText))
         {
             Margin = new Thickness(0),
-            Foreground = BrushFor(entry.Level),
+            Foreground = LoggingModule.GetLevelBrush(entry.Level),
         });
     }
 
@@ -102,11 +102,4 @@ public partial class LogWindow : Window
 
     private static bool MatchesFilter(LogEntry entry) =>
         LoggingModule.FilterLevel is null || entry.Level == LoggingModule.FilterLevel.Value;
-
-    private static System.Windows.Media.Brush BrushFor(LogLevel level) => level switch
-    {
-        LogLevel.Warn => System.Windows.Media.Brushes.Gold,
-        LogLevel.Error => new SolidColorBrush(System.Windows.Media.Color.FromRgb(255, 107, 107)),
-        _ => new SolidColorBrush(System.Windows.Media.Color.FromRgb(208, 215, 226)),
-    };
 }

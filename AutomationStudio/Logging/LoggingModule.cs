@@ -14,8 +14,8 @@ public static class LoggingModule
 
     public static Media.Brush GetLevelBrush(LogLevel level) => level switch
     {
-        LogLevel.Warn => new Media.SolidColorBrush(Media.Color.FromRgb(255, 215, 0)),    // 金色警告
-        LogLevel.Error => new Media.SolidColorBrush(Media.Color.FromRgb(255, 68, 68)),   // 红色错误
+        LogLevel.Warn => new Media.SolidColorBrush(Media.Color.FromRgb(255, 215, 0)),
+        LogLevel.Error => new Media.SolidColorBrush(Media.Color.FromRgb(255, 107, 107)),
         _ => new Media.SolidColorBrush(Media.Color.FromRgb(208, 215, 226)),              // 默认灰色
     };
 

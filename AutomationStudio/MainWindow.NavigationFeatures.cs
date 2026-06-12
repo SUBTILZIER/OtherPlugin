@@ -32,7 +32,7 @@ public partial class MainWindow
     private WpfTextBox? _contentBrowserSearchBox;
     private bool _isApplyingContentBrowserSearch;
     private bool _contentBrowserSearchRefreshQueued;
-    private List<ContentAssetSearchEntry>? _contentBrowserSearchCache;
+    private ContentBrowserIndex? _contentBrowserIndex;
     private bool _navigationFeaturesInstalled;
     private bool _autoFitGraphQueued;
     private bool _autoFitRenderingAttached;
@@ -296,10 +296,10 @@ public partial class MainWindow
         _isApplyingContentBrowserSearch = true;
         try
         {
-            var assetById = BuildContentAssetLookup();
             var tokens = SplitContentSearchTokens(query);
-            var results = GetContentBrowserSearchEntries(assetById)
-                .Where(entry => IsInCurrentContentSearchScope(entry.Asset, assetById))
+            var index = GetContentBrowserIndex();
+            var results = index.SearchEntries
+                .Where(entry => index.IsInScope(entry.Asset, _currentContentFolderId))
                 .Where(entry => ContentAssetMatchesQuery(entry, tokens))
                 .OrderByDescending(entry => entry.Asset.IsFolder)
                 .ThenBy(entry => entry.Path, StringComparer.OrdinalIgnoreCase)
@@ -319,59 +319,8 @@ public partial class MainWindow
 
     private string GetContentBrowserSearchText() => _contentBrowserSearchBox?.Text.Trim() ?? string.Empty;
 
-    private void InvalidateContentBrowserSearchCache()
-    {
-        _contentBrowserSearchCache = null;
-    }
-
-    private IReadOnlyList<ContentAssetSearchEntry> GetContentBrowserSearchEntries(
-        IReadOnlyDictionary<string, ContentAssetViewModel> assetById)
-    {
-        if (_contentBrowserSearchCache is not null)
-            return _contentBrowserSearchCache;
-
-        var pathCache = new Dictionary<string, string>(StringComparer.Ordinal);
-        _contentBrowserSearchCache = ContentBrowserItems
-            .Select(item =>
-            {
-                string path = GetContentAssetPath(item, assetById, pathCache);
-                string searchable = $"{item.Name} {item.DisplayName} {item.Kind} {path}";
-                return new ContentAssetSearchEntry(item, path, searchable);
-            })
-            .ToList();
-        return _contentBrowserSearchCache;
-    }
-
-    private bool IsInCurrentContentSearchScope(ContentAssetViewModel item)
-    {
-        return IsInCurrentContentSearchScope(item, BuildContentAssetLookup());
-    }
-
-    private bool IsInCurrentContentSearchScope(
-        ContentAssetViewModel item,
-        IReadOnlyDictionary<string, ContentAssetViewModel> assetById)
-    {
-        if (_currentContentFolderId is null)
-            return true;
-
-        string? parentId = item.ParentFolderId;
-        while (!string.IsNullOrWhiteSpace(parentId))
-        {
-            if (string.Equals(parentId, _currentContentFolderId, StringComparison.Ordinal))
-                return true;
-
-            parentId = assetById.TryGetValue(parentId, out var parent) ? parent.ParentFolderId : null;
-        }
-
-        return false;
-    }
-
-    private bool ContentAssetMatchesQuery(ContentAssetViewModel item, string query)
-    {
-        var assetById = BuildContentAssetLookup();
-        var pathCache = new Dictionary<string, string>(StringComparer.Ordinal);
-        return ContentAssetMatchesQuery(item, SplitContentSearchTokens(query), assetById, pathCache);
-    }
+    private ContentBrowserIndex GetContentBrowserIndex() =>
+        _contentBrowserIndex ??= new ContentBrowserIndex(ContentBrowserItems);
 
     private static bool ContentAssetMatchesQuery(ContentAssetSearchEntry entry, IReadOnlyList<string> tokens)
     {
@@ -382,24 +331,6 @@ public partial class MainWindow
 
     private static string[] SplitContentSearchTokens(string query) =>
         query.Split([' ', '\t', '/', '\\'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-
-    private static bool ContentAssetMatchesQuery(
-        ContentAssetViewModel item,
-        IReadOnlyList<string> tokens,
-        IReadOnlyDictionary<string, ContentAssetViewModel> assetById,
-        Dictionary<string, string> pathCache)
-    {
-        if (tokens.Count == 0)
-            return true;
-
-        string searchable = $"{item.Name} {item.DisplayName} {item.Kind} {GetContentAssetPath(item, assetById, pathCache)}";
-        return tokens.All(token => ContainsIgnoreCase(searchable, token) || IsFuzzyMatch(searchable, token));
-    }
-
-    private sealed record ContentAssetSearchEntry(
-        ContentAssetViewModel Asset,
-        string Path,
-        string SearchableText);
 
     private static bool ContainsIgnoreCase(string text, string token) =>
         text.Contains(token, StringComparison.OrdinalIgnoreCase);
@@ -425,37 +356,7 @@ public partial class MainWindow
 
     private string GetContentAssetPath(ContentAssetViewModel item)
     {
-        return GetContentAssetPath(
-            item,
-            BuildContentAssetLookup(),
-            new Dictionary<string, string>(StringComparer.Ordinal));
-    }
-
-    private static string GetContentAssetPath(
-        ContentAssetViewModel item,
-        IReadOnlyDictionary<string, ContentAssetViewModel> assetById,
-        Dictionary<string, string> pathCache)
-    {
-        if (pathCache.TryGetValue(item.Id, out var cached))
-            return cached;
-
-        var names = new Stack<string>();
-        names.Push(item.Name);
-
-        string? parentId = item.ParentFolderId;
-        var visited = new HashSet<string>(StringComparer.Ordinal);
-        while (!string.IsNullOrWhiteSpace(parentId) && visited.Add(parentId))
-        {
-            if (!assetById.TryGetValue(parentId, out var parent))
-                break;
-
-            names.Push(parent.Name);
-            parentId = parent.ParentFolderId;
-        }
-
-        var path = names.Count == 0 ? item.Name : string.Join("/", names);
-        pathCache[item.Id] = path;
-        return path;
+        return GetContentBrowserIndex().GetContentAssetPath(item);
     }
 
     private void MainWindow_NavigationPreviewKeyDown(object sender, WpfKeyEventArgs e)
