@@ -21,6 +21,9 @@
 - `EditorSurfaceContext.Configure(...)` is intentionally idempotent. Do not rebuild per-session controllers on every attach/activate; doing so resets active graph/list expansion and causes main/detached windows to appear polluted.
 - Surface events are classified before dispatch: explicit user interactions promote the session to active; passive layout/binding events such as `PinAnchorLoaded/LayoutUpdated`, mouse move without pressed buttons, and initialization `TextChanged/SelectionChanged` only use the owning context or are ignored. Detached activation must not overwrite `_lastMainEditorSession`; the main host keeps showing the last main-window tab surface.
 - Surface dirty/snapshot callbacks are bound to the owning `EditorSessionViewModel`. Do not use global `_activeAssetController` as the only dirty target from per-session controllers, or edits in C can mark A dirty.
+- Active graph controller state must be written through `SetSessionActiveGraphController(session, controller)`. It updates the owning `EditorSurfaceContext.ActiveAssetController`, remembered graph id/kind, and only mirrors `_activeAssetController` for the explicit active/operation session.
+- Do not add graph/function items by only assigning `_activeAssetController`. After `GraphListController.AddAndRename(...)` or `LoadItem(...)`, the session context must know the active controller or switching tabs can snapshot nothing and reload the old default function graph.
+- `HandleEditorSurfaceEvent(...)` must not copy the current global `_activeAssetController` back into another session's context after dispatch. That cross-write was a root cause of script/function-library session pollution.
 - Tab dragging shows a following popup preview. Do not reintroduce inactive detached read-only previews or the old "activate this window" placeholder.
 - `MainWindow.EditorSurfaceRegions.cs` and legacy region reparent hooks are deleted. Do not restore legacy region reparenting.
 - Closing a session snapshots to its `ContentAssetViewModel` but does not delete the asset. Deleting content-browser assets must close all sessions targeting deleted asset ids.
@@ -52,7 +55,7 @@
 - Search results replace `ContentVisibleItems`; double-click keeps normal behavior: folders enter, scripts/function libraries open.
 - Content browser refresh/search builds per-pass lookup indexes (`assetById`, `childrenByParent`, `folderChildrenByParent`) and search path cache. Keep this pattern; avoid per-item full scans of `ContentBrowserItems` in tree/search hot paths.
 - `Ctrl+B` locate is implemented. With a selected content asset it clears search, enters the asset's real parent folder, selects and scrolls to that asset. Without a selected browser asset, it locates the currently opened asset.
-- Function call nodes double-click navigate by stable `FunctionId`. `OpenCallableGraph(...)` saves the current visible graphs, finds the owning script/function-library asset, opens it if needed, then loads the target `GraphListItemViewModel`.
+- Function call nodes double-click navigate by stable `FunctionId`. `OpenCallableGraph(...)` commits inspector edits and snapshots all sessions, finds the owning script/function-library asset, opens it if needed, then loads the target `GraphListItemViewModel`.
 - Content browser enhanced interactions live in `MainWindow.ContentBrowserMultiSelect.cs`: multi-select, box select, Ctrl+C/Ctrl+V asset copy/paste, multi-delete, drag preview, and move/copy drop. Themed variants are installed by `MainWindow.ThemedDialogOverrides.cs`.
 
 ## 2026-06-08 connection batching and runtime lookup
@@ -99,8 +102,8 @@
 - `Tests/CodexSmoke` is lightweight regression smoke, not a full test framework. Keep it focused on critical UI/data regressions and do not push test-related folders unless the user explicitly asks.
 
 - Event graph / function share one current canvas per editor session, not one global app-wide canvas. Data stays isolated in separate `GraphListItemViewModel.Graph` models and in each session's own `GraphEditorService`.
-- Critical rule: before loading a graph from another section, first `SnapshotActiveAsset()`, then set `_activeAssetController` to the target controller, then call `LoadItem(..., snapshotCurrent: false)`.
-- Do not call `GraphListController.Load()` while `_activeAssetController` still points at the old controller. `Load()` persists library; if active controller is stale, `PersistAssetLibrary()` can snapshot the newly-loaded canvas into the old graph and mix event/function contents.
+- Critical rule: before loading a graph from another section, first `SnapshotActiveAsset()`, then call `SetSessionActiveGraphController(session, targetController, remember: false)`, then `LoadItem(..., snapshotCurrent: false)`, then call `SetSessionActiveGraphController(session, targetController)`.
+- Do not call `GraphListController.Load()` while the owning session's `EditorSurfaceContext.ActiveAssetController` still points at the old controller. `Load()` persists library; if the session active controller is stale or null, later snapshot/compile can use the wrong graph or reload a default function graph.
 - Graph/function list items now activate on single left click through `ActivateGraphListItem(...)`; double-click remains supported but is not required for navigation.
 - Right-click graph/function items also activates the item before opening the context menu so rename/delete target the correct controller.
 - Bottom panel default: content browser and log split 50/50; bottom row height starts at 360 with min 180.

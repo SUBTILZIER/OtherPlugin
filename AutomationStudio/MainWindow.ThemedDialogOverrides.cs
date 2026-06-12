@@ -156,7 +156,8 @@ public partial class MainWindow
         if (!EnsureCompiledBeforeRunThemed())
             return;
 
-        if (_activeContentAsset?.Kind != ContentAssetKind.Script || !ReferenceEquals(_activeAssetController, _graphListController))
+        var activeSessionController = _activeEditorSession is null ? _activeAssetController : GetSessionActiveAssetController(_activeEditorSession);
+        if (_activeContentAsset?.Kind != ContentAssetKind.Script || !ReferenceEquals(activeSessionController, _graphListController))
         {
             ThemedDialog.Show(this, "只有脚本里的事件图可以直接执行。请从内容浏览器打开脚本，并进入事件图。", "不能执行", WpfMessageBoxButton.OK, WpfMessageBoxImage.Information);
             return;

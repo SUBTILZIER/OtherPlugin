@@ -593,9 +593,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             case EditorSurfaceEvent.PinAnchorLayoutUpdated: PinAnchor_LayoutUpdated(sender, e); break;
             case EditorSurfaceEvent.NodePaletteSearchBoxTextChanged: NodePaletteSearchBox_TextChanged(sender, (TextChangedEventArgs)e); break;
         }
-
-        if (_activeEditorSession?.SurfaceContext is { } context)
-            context.ActiveAssetController = _activeAssetController;
     }
 
     private void ConfigureEditorSurface(EditorSessionViewModel session)
@@ -705,8 +702,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private void AddGraphListItem_Click(object sender, RoutedEventArgs e)
     {
         SnapshotActiveAsset();
-        _activeAssetController = _graphListController;
+        SetSessionActiveGraphController(GetOperationEditorSession(), _graphListController, remember: false);
         _graphListController.AddAndRename(snapshotCurrent: false);
+        SetSessionActiveGraphController(GetOperationEditorSession(), _graphListController);
         SaveSectionExpansionForActiveAsset(_graphListController);
         MarkCurrentContentDirty();
         UpdateGraphSectionVisibility();
@@ -745,8 +743,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private void AddFunctionListItem_Click(object sender, RoutedEventArgs e)
     {
         SnapshotActiveAsset();
-        _activeAssetController = _functionListController;
+        SetSessionActiveGraphController(GetOperationEditorSession(), _functionListController, remember: false);
         _functionListController.AddAndRename(snapshotCurrent: false);
+        SetSessionActiveGraphController(GetOperationEditorSession(), _functionListController);
         SaveSectionExpansionForActiveAsset(_functionListController);
         MarkCurrentContentDirty();
         UpdateGraphSectionVisibility();
@@ -821,12 +820,10 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (snapshotCurrent)
             SnapshotActiveAsset();
 
-        _activeAssetController = controller;
+        SetSessionActiveGraphController(GetOperationEditorSession(), controller, remember: false);
         controller.LoadItem(item, snapshotCurrent: false);
         var session = GetOperationEditorSession();
-        session?.RememberActive(controller);
-        if (session?.SurfaceContext is { } context)
-            context.ActiveAssetController = controller;
+        SetSessionActiveGraphController(session, controller);
         _graphCommandService.Clear();
     }
 
@@ -1279,9 +1276,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         _graphListController.ClearActive();
         _functionListController.ClearActive();
-        _activeAssetController = null;
-        if (session.SurfaceContext is { } context)
-            context.ActiveAssetController = null;
+        SetSessionActiveGraphController(session, null, remember: false);
 
         _graphListController.LoadSectionExpansion(session.ContentAsset.EventGraphSectionExpanded, session.ContentAsset.EventGraphSectionHasState);
         _functionListController.LoadSectionExpansion(session.ContentAsset.FunctionSectionExpanded, session.ContentAsset.FunctionSectionHasState);
@@ -1374,9 +1369,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 return;
             }
         }
-        _activeAssetController = null;
-        if (_activeEditorSession?.SurfaceContext is { } context)
-            context.ActiveAssetController = null;
+        SetSessionActiveGraphController(GetOperationEditorSession(), null, remember: false);
         _suppressGraphChangedDirty = true;
         try
         {
@@ -2133,7 +2126,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (!EnsureCompiledBeforeRun())
             return;
 
-        if (_activeContentAsset?.Kind != ContentAssetKind.Script || !ReferenceEquals(_activeAssetController, _graphListController))
+        var activeSessionController = _activeEditorSession is null ? _activeAssetController : GetSessionActiveAssetController(_activeEditorSession);
+        if (_activeContentAsset?.Kind != ContentAssetKind.Script || !ReferenceEquals(activeSessionController, _graphListController))
         {
             WpfMessageBox.Show(this, "只有脚本里的事件图可以直接执行。请从内容浏览器打开脚本，并进入事件图。", "不能执行", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
@@ -2671,11 +2665,54 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private GraphListController? GetSessionActiveAssetController(EditorSessionViewModel session)
     {
-        if (session.SurfaceContext?.ActiveAssetController is { } controller)
-            return controller;
+        if (session.SurfaceContext is { IsConfigured: true } context)
+        {
+            if (context.ActiveAssetController is { } controller)
+                return controller;
+
+            if (session.ActiveGraphKind is GraphAssetKind rememberedKind)
+            {
+                var rememberedController = rememberedKind == GraphAssetKind.Function
+                    ? context.FunctionListController
+                    : context.GraphListController;
+                if (rememberedController.ActiveItem is not null)
+                    return rememberedController;
+            }
+
+            if (session.ContentAsset.Kind == ContentAssetKind.FunctionLibrary)
+            {
+                if (context.FunctionListController.ActiveItem is not null)
+                    return context.FunctionListController;
+                if (context.GraphListController.ActiveItem is not null)
+                    return context.GraphListController;
+            }
+            else
+            {
+                if (context.GraphListController.ActiveItem is not null)
+                    return context.GraphListController;
+                if (context.FunctionListController.ActiveItem is not null)
+                    return context.FunctionListController;
+            }
+        }
+
         if (ReferenceEquals(session, _activeEditorSession))
             return _activeAssetController;
         return null;
+    }
+
+    private void SetSessionActiveGraphController(EditorSessionViewModel? session, GraphListController? controller, bool remember = true)
+    {
+        if (session is not null)
+        {
+            if (session.SurfaceContext is { } context)
+                context.ActiveAssetController = controller;
+
+            if (remember)
+                session.RememberActive(controller);
+        }
+
+        if (session is null || ReferenceEquals(session, _activeEditorSession) || ReferenceEquals(session, _eventSurfaceSessionOverride))
+            _activeAssetController = controller;
     }
 
     private void PersistAssetLibrary()
@@ -2722,7 +2759,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private bool EnsureCompiledBeforeRun()
     {
         CommitInspectorAndSnapshotAllSessions();
-        if (_activeAssetController?.ActiveItem?.IsCompileDirty != true)
+        var session = _activeEditorSession;
+        var controller = session is null ? _activeAssetController : GetSessionActiveAssetController(session);
+        if (controller?.ActiveItem?.IsCompileDirty != true)
             return true;
 
         WpfMessageBox.Show(this, "当前图表存在未编译修改，请先点击编译。", "需要编译", MessageBoxButton.OK, MessageBoxImage.Warning);
@@ -2743,7 +2782,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
 
         var targetContext = targetSession?.SurfaceContext;
-        var targetController = targetContext?.ActiveAssetController ?? _activeAssetController;
+        var targetController = targetSession is null ? _activeAssetController : GetSessionActiveAssetController(targetSession);
         var targetCommandService = targetContext?.CommandService ?? _graphCommandService;
 
         var result = _graphCompileService.CompileAsset(ContentBrowserItems, targetAsset);

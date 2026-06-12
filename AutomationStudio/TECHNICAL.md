@@ -141,7 +141,7 @@ public class GraphEditorService
 - 搜索结果双击仍走内容浏览器现有打开逻辑：文件夹进入目录，脚本/函数库调用 `OpenContentAsset(asset)`。
 - `Ctrl+B` 由 `MainWindow_NavigationPreviewKeyDown` / `ContentBrowserListBox_NavigationPreviewKeyDown` 处理：有选中资产时清空搜索、进入真实父目录、选中并滚动到资产；没有内容浏览器选中项时定位当前打开资产。
 - 画布中双击 `FunctionCallNodeViewModel` 会按 stable `FunctionId` 查找目标图，打开目标所在脚本/函数库资产，然后通过函数 `GraphListController` 加载目标 `GraphListItemViewModel`。
-- 双击跳转先 `SaveVisibleGraphsToActiveContent()`；随后走 `OpenOrActivateAsset(target.Asset, target.Graph, kind)` 聚焦已有 session 或创建新 session。不要靠显示名解析调用目标。
+- 双击跳转先 `CommitInspectorAndSnapshotAllSessions()`；随后走 `OpenOrActivateAsset(target.Asset, target.Graph, kind)` 聚焦已有 session 或创建新 session。不要靠显示名解析调用目标。
 - `MainWindow.ContentBrowserMultiSelect.cs` 扩展内容浏览器为 UE 风格多选：Ctrl 多选、Shift 区间、框选、Ctrl+C/Ctrl+V 复制粘贴资产、多删除、拖拽预览和移动/复制到文件夹。
 
 #### Editor sessions and window bar
@@ -153,6 +153,8 @@ public class GraphEditorService
 - 主窗口标签页和 `DetachedEditorWindow` 都直接 host 对应 session 的 `Surface`；detached 窗口不再显示只读 preview，也不再要求“激活后在这里编辑”。
 - `EditorSurfaceContext.Configure(...)` 是幂等的：同一个 session 的 controller 不因 host attach/activate 反复重建。surface 事件按类型分类：明确用户交互才提升 active session；`PinAnchorLoaded/LayoutUpdated`、无按键 `MouseMove`、初始化触发的 `TextChanged/SelectionChanged` 只使用所属 context 或直接忽略，避免 tab 闪动、列表折叠或 detached/main 互相污染。
 - surface controller 的 dirty/snapshot 回调按所属 `EditorSessionViewModel` 闭包绑定；编辑 detached 或非首个 tab 时不能直接依赖全局 `_activeAssetController`，否则 dirty 黄点和 compile target 会串到其它资产。
+- 当前图 controller 统一通过 `SetSessionActiveGraphController(session, controller)` 写入；它同步 `EditorSurfaceContext.ActiveAssetController`、session remembered active graph，以及当前操作 session 的 `_activeAssetController` 镜像。新增图/函数和 `LoadGraphItem(...)` 都必须用这个入口。
+- `HandleEditorSurfaceEvent(...)` 处理完事件后不能把全局 `_activeAssetController` 回写到 `_activeEditorSession.SurfaceContext`。非 active surface 事件通过 `RunWithSurfaceContext(...)` 临时切 controller，结束后应恢复全局状态而不是污染其它 session。
 - detached session 激活时只更新全局工具栏/运行/保存目标，不覆盖 `_lastMainEditorSession`；主窗口继续显示最近的主窗口 tab surface。
 - `MainWindow.EditorSurfaceRegions.cs` 和 legacy region reparent hooks 已删除。不要恢复 `AttachLegacyEditorRegionsToSessionSurface()` 的区域搬移逻辑。
 - session 关闭只 snapshot 回 `ContentAssetViewModel` 并移除编辑窗口，不删除资产。删除内容浏览器资产时会关闭所有指向该资产的 session，避免悬空编辑窗口。
@@ -579,14 +581,14 @@ Python 参数规则：
 
 #### 问题：切换图表时事件图、函数内容串到一个画布/模型
 - **现象**：新增一个事件图和一个函数后，再双击事件图，函数节点也混入同一画布。
-- **根因**：`GraphListController.Load()` 内部会 `Persist()`。如果加载目标图前 `_activeAssetController` 仍指向旧 controller，`PersistAssetLibrary()` 会调用 `SaveVisibleGraphsToActiveContent()`，再通过旧 controller 把当前编辑器画布快照写回旧图。结果新加载的函数画布被保存进事件图，或反向污染。
+- **根因**：`GraphListController.Load()` 内部会 `Persist()`。如果加载目标图前 owning session 的 `EditorSurfaceContext.ActiveAssetController` 仍指向旧 controller 或为空，`PersistAssetLibrary()` / snapshot / compile 会用错 controller。结果新加载的函数画布可能写回旧图，或函数库切回后重新加载默认 entry/return。
 - **修复**：
   - 新增统一入口 `ActivateGraphListItem(...)`。
-  - 切换顺序固定为：`SnapshotActiveAsset()` -> `_activeAssetController = targetController` -> `targetController.LoadItem(item, snapshotCurrent: false)`。
+  - 切换顺序固定为：`SnapshotActiveAsset()` -> `SetSessionActiveGraphController(session, targetController, remember: false)` -> `targetController.LoadItem(item, snapshotCurrent: false)` -> `SetSessionActiveGraphController(session, targetController)`。
   - 事件图、函数列表项增加 `PreviewMouseLeftButtonDown`，单击即可切换编辑界面。
   - 右键列表项也先激活目标项，再打开菜单，避免重命名/删除走错 controller。
 - **测试**：smoke 用事件图、函数来回切换，断言当前画布节点类型正确，并断言各自 `GraphFileModel.Nodes` 不混入其它图类型。
-- **教训**：所有跨 controller 画布切换，必须先快照旧画布，再更新 active controller，再加载新图。不能让 `Load()` 在 active controller 还是旧值时触发持久化。
+- **教训**：所有跨 controller 画布切换，必须先快照旧画布，再更新 owning session 的 active controller，再加载新图。不能让 `Load()` 在 session active controller 还是旧值/空值时触发持久化。
 
 #### UI 调整：内容浏览器默认尺寸
 - 底部行默认高度从 `300` 调整到 `360`，最小高度 `180`。
@@ -966,7 +968,7 @@ dotnet publish -c Release -r win-x64 \
 
 ### 重要坑点
 - 打开节点菜单前必须 `SnapshotActiveAsset()`，否则函数参数刚改完但未写回 `GraphFileModel`，调用节点会缺 pin。
-- `GraphListController.LoadItem(item, snapshotCurrent: false)` 用于上层资产切换；跨事件图/函数切换由 `MainWindow` 统一快照，避免图谱混写。
+- `GraphListController.LoadItem(item, snapshotCurrent: false)` 用于上层资产切换；跨事件图/函数切换由 `MainWindow` 统一快照，并用 `SetSessionActiveGraphController(...)` 同步 owning session，避免图谱混写或函数库切回后回默认图。
 - `ExecutionController`、`NodePaletteController`、`GraphCallReferenceSyncService` 都读取 `CallableGraphResolver` 产出的 `CallableGraphItem`，不要直接扫全局 `FunctionListItems`。
 - `公开到库` 是硬隔离：旧图如果跨脚本引用未公开库项，编译时报错并保留 dirty，不自动删节点。
 - `CustomEventCall` 在当前 `GraphExecutionPlan` 内找 `CustomEventId` 对应入口；运行时用 `custom_event:{id}` 调用栈阻止递归。

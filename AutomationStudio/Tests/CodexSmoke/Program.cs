@@ -20,7 +20,7 @@ using AutomationStudioWpf.Services;
 internal static class Program
 {
     [STAThread]
-    private static int Main()
+    private static int Main(string[] args)
     {
         var appData = Path.Combine(AppContext.BaseDirectory, "appdata");
         if (Directory.Exists(appData))
@@ -29,9 +29,20 @@ internal static class Program
         Environment.SetEnvironmentVariable("APPDATA", appData);
         Environment.SetEnvironmentVariable("AUTOMATION_STUDIO_LIBRARY_DIR", appData);
 
-        var app = new Application();
+        var app = new App();
+        app.InitializeComponent();
         try
         {
+            if (args.Contains("--targeted-function-library-session", StringComparer.Ordinal))
+            {
+                var targetedWindow = new MainWindow();
+                CheckFreshContentLibrary(targetedWindow);
+                ResetContent(targetedWindow);
+                CheckFunctionLibrarySessionSnapshot(targetedWindow);
+                Console.WriteLine("Targeted smoke OK");
+                return 0;
+            }
+
             var window = new MainWindow();
             CheckFreshContentLibrary(window);
             ResetContent(window);
@@ -190,6 +201,13 @@ internal static class Program
         Invoke(window, "OpenContentAsset", library);
         Invoke(window, "AddFunctionListItem_Click", window, new RoutedEventArgs());
         var function = window.FunctionListItems.Single();
+        var librarySession = window.EditorSessions.First(session => ReferenceEquals(session.ContentAsset, library));
+        var functionController = Get<GraphListController>(window, "_functionListController");
+        Assert(ReferenceEquals(librarySession.SurfaceContext?.ActiveAssetController, functionController),
+            "adding a function binds the function controller to the library session");
+        Assert(ReferenceEquals(functionController.ActiveItem, function), "new function is active in the function controller");
+        Assert(librarySession.ActiveGraphKind == GraphAssetKind.Function && librarySession.ActiveGraphItemId == function.Id,
+            "library session remembers the newly-added active function graph");
         function.Name = "FnLatest";
         function.IsPublicToLibrary = true;
 
@@ -203,6 +221,8 @@ internal static class Program
         editor.CreateConnection(log.OutputPins.First(pin => pin.Name == "exec_out"), ret.InputPins.First(pin => pin.Name == "exec_in"));
 
         Invoke(window, "OpenContentAsset", script);
+        Assert(function.Graph.Nodes.Any(node => node.Id == "fn_log" && node.PrintLogMessage == "latest"),
+            "switching away snapshots latest function library graph into its asset model");
         Invoke(window, "OpenContentAsset", library);
         Assert(editor.Nodes.OfType<PrintLogNodeViewModel>().Any(node => node.Id == "fn_log" && node.Message == "latest"),
             "switching away and back keeps function library edits in the session graph");
@@ -210,7 +230,7 @@ internal static class Program
         Invoke(window, "OpenContentAsset", script);
         var callable = ((IEnumerable<CallableGraphItem>)Invoke(window, "GetCallableFunctions")!)
             .First(item => item.Name.EndsWith("/FnLatest", StringComparison.Ordinal) || item.Name == "FnLatest");
-        Assert(callable.Graph.Nodes.Any(node => node.Id == "fn_log" && node.Text == "latest"),
+        Assert(callable.Graph.Nodes.Any(node => node.Id == "fn_log" && node.PrintLogMessage == "latest"),
             "script callable resolver sees unsaved latest function library graph");
 
         function.IsCompileDirty = true;
@@ -225,7 +245,7 @@ internal static class Program
         var reloadedFunction = reloaded
             .First(asset => asset.Kind == ContentAssetKind.FunctionLibrary && asset.Name == "FnLibSnapshot")
             .Functions.Single(item => item.Name == "FnLatest");
-        Assert(reloadedFunction.Graph.Nodes.Any(node => node.Id == "fn_log" && node.Text == "latest"),
+        Assert(reloadedFunction.Graph.Nodes.Any(node => node.Id == "fn_log" && node.PrintLogMessage == "latest"),
             "persisted function library graph does not revert to default entry/return only");
     }
 

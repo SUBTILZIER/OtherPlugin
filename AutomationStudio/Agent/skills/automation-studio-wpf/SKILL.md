@@ -22,6 +22,8 @@ WPF 可视化节点自动化编辑器，类似 UE4 蓝图。技术栈 C# 12 / .N
 - `EditorSurfaceContext.Configure(...)` 必须保持幂等；不要在 surface attach/activate 时重建该 session 的 controller，否则 active graph、列表展开和节点显示会被重置。
 - surface 事件进入 `EditorSurfaceContext.HandleEvent(...)` 后先分类：明确用户交互才提升 active session；`PinAnchorLoaded/LayoutUpdated`、无按键 `MouseMove`、初始化触发的 `TextChanged/SelectionChanged` 只使用所属 context 或直接忽略，不能改变工具栏编译目标。detached 激活不能覆盖 `_lastMainEditorSession`，主窗口应继续显示最近的主窗口 tab。
 - dirty/snapshot 回调必须是 session-scoped：surface controller 通过闭包调用所属 `EditorSessionViewModel` 的 active controller，不要直接用全局 `_activeAssetController` 标脏，否则多资产同开时会把 C 的黄点打到 A。
+- 图/函数切换和新增必须走 `SetSessionActiveGraphController(session, controller)`。只写全局 `_activeAssetController` 不够；session 的 `EditorSurfaceContext.ActiveAssetController` 和 remembered active graph 也必须同步，否则函数库切 tab 后可能 snapshot 空 controller 并回到默认 entry/return。
+- `HandleEditorSurfaceEvent(...)` 不能在事件结束后把当前全局 `_activeAssetController` 写回 `_activeEditorSession.SurfaceContext`。事件来自非 active surface 时这会污染另一个 session。
 - 旧 `MainWindow.EditorSurfaceRegions.cs` 已删除。不要恢复 legacy sidebar/canvas/inspector 区域搬移。
 - 关闭 editor session 只 snapshot 回 `ContentAssetViewModel`，不删除内容浏览器资产。删除资产时要关闭所有指向被删 asset id 的 sessions。
 - 保存、退出、编译前用 `CommitInspectorAndSnapshotAllSessions()` / `CommitAllSessionsToAssets()`；工具栏编译用 `GraphCompileService.CompileAsset(...)` 编译当前激活资产内全部图，编译前必须先 snapshot 所有打开 session。
@@ -82,8 +84,8 @@ WPF 可视化节点自动化编辑器，类似 UE4 蓝图。技术栈 C# 12 / .N
 ### 2026-06-05: 事件图 / 函数画布串图
 
 - 现象：新增事件图、函数后，切换时画布内容串到一起。
-- 根因：`GraphListController.Load()` 内会触发持久化；如果加载前 `_activeAssetController` 仍指向旧 controller，`PersistAssetLibrary()` 会把“刚加载的新画布”快照写回旧图，导致事件图/函数模型互相污染。
-- 正确顺序：`SnapshotActiveAsset()` -> `_activeAssetController = targetController` -> `targetController.LoadItem(item, snapshotCurrent: false)`。
+- 根因：`GraphListController.Load()` 内会触发持久化；如果加载前 session 的 active controller 仍指向旧 controller，`PersistAssetLibrary()` 或后续 snapshot/compile 会把画布快照写回错图，导致事件图/函数模型互相污染，或函数库切回后变成默认 entry/return。
+- 正确顺序：`SnapshotActiveAsset()` -> `SetSessionActiveGraphController(session, targetController, remember: false)` -> `targetController.LoadItem(item, snapshotCurrent: false)` -> `SetSessionActiveGraphController(session, targetController)`。
 - 列表导航规则：事件图、函数列表项单击即激活并切换画布；双击只是兼容。右键菜单也要先激活目标项，再做重命名/删除。
 - 测试要求：切换 event/function 后检查当前画布节点类型，也检查各自 `GraphFileModel.Nodes` 没有被其它图类型覆盖。
 - UI 默认：底部内容浏览器和日志列 50/50，底部行默认 360 高度，避免每次手动拉大内容浏览器。

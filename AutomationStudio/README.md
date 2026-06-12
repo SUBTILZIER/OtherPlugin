@@ -23,6 +23,7 @@
 - Each editor session now owns a full `EditorSurfaceControl` with its own graph list, canvas, node palette, and inspector UI. Detached windows host their own session surface directly, so main and detached windows can stay visible side by side without moving a shared `EditorGrid` or falling back to read-only previews.
 - Toolbar compile is active-asset scoped: scripts compile all event/function graphs in that asset, and function libraries compile all functions in that library.
 - Multi-window dirty and compile state is session-scoped: editing or compiling one opened asset updates that session's graph list, window tab, section badges, and compile button without leaking yellow dirty markers to another asset.
+- Graph/function switching is session-scoped through `SetSessionActiveGraphController(...)`, so function-library edits are snapshotted into the owning session before tab switches, callable lookup, compile, run, or save.
 - Reroute nodes use centered anchors and a UE-style yellow selection glow/ring for click and box selection feedback.
 - `GraphCommandService` records graph-edit snapshots for Undo/Redo. Ctrl+Z undoes graph edits; Ctrl+Y or Ctrl+Shift+Z redoes them.
 - Visible wires can be selected, highlighted, deleted with Delete/Backspace, or edited through the wire context menu.
@@ -215,6 +216,11 @@ saved/log/Log_2026_05_28_22_11.txt
 ```
 
 ## 最近更新
+
+### v1.2.9 (2026-06-12)
+- **Fixed**: Function-library sessions now keep their active function controller in the owning `EditorSurfaceContext`, so switching to another asset no longer drops unsaved function nodes or reloads default entry/return graphs.
+- **Fixed**: Active-asset compile/run checks now resolve the current graph controller from the active editor session, avoiding stale global `_activeAssetController` state in multi-window workflows.
+- **Added**: Targeted smoke flag `--targeted-function-library-session` covers script + function-library tab switching, callable lookup, compile, and persistence for the lost-function-graph regression.
 
 ### v1.2.8 (2026-06-11)
 - **Changed**: Documentation, project skill, agent memory, and CodeGraph were refreshed against current code after the latest `main` pull.
