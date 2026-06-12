@@ -150,7 +150,9 @@ AutomationStudioWpf/
 │   ├── CanvasPanZoomController.cs  # 平移、缩放、EdgePan
 │   ├── NodeDragSelectionController.cs  # 拖动、框选、复制粘贴、对齐
 │   ├── PinConnectionController.cs  # 连线、断线、路由节点
-│   ├── InspectorController.cs   # 属性面板、字段锁定
+│   ├── InspectorController.cs   # 属性面板主入口、专用节点面板、字段锁定
+│   ├── InspectorController.Parameters.cs # 函数/事件参数面板
+│   ├── InspectorController.CommonNodes.cs # 通用小节点面板
 │   ├── InspectorController.ToDo.cs # ToDo 目标选择面板逻辑
 │   ├── NodePaletteController.cs # 右键节点菜单
 │   ├── LogPanelController.cs    # 日志过滤、增量刷新
@@ -175,6 +177,8 @@ AutomationStudioWpf/
 ├── Nodes/                       # 节点注册与分类执行器
 │   └── NodeRegistry.cs          # 节点定义 + 执行器入口
 ├── MainWindow.xaml(.cs)         # 主窗口 + partial 交互扩展
+├── MainWindow.AssetCommands.cs  # 新建/打开/保存/编译/运行按钮入口
+├── MainWindow.GraphInputHandlers.cs # 画布、节点、pin、节点菜单输入事件
 ├── MainWindow.EditorSessions.cs # 多窗口标签/独立窗口交互
 ├── MainWindow.EditorSessionState.cs # session dirty/snapshot/compile 目标状态
 ├── MainWindow.EditorSurfaceHost.cs # surface 宿主
@@ -218,6 +222,12 @@ saved/log/Log_2026_05_28_22_11.txt
 ```
 
 ## 最近更新
+
+### v1.2.10 (2026-06-12)
+- **Fixed**: Global window handlers now use safe active-surface lookup or no-op when no editor surface exists, avoiding startup/no-session crashes.
+- **Changed**: Main window graph input handlers and asset command handlers were split into focused partial files without changing graph JSON, connection routing, or function-library save semantics.
+- **Changed**: Inspector parameter and common-node panels were split into `InspectorController.Parameters.cs` and `InspectorController.CommonNodes.cs`.
+- **Optimized**: Compile validation reuses a per-run asset lookup, and content browser search caches flattened searchable text/path until the asset browser refreshes.
 
 ### v1.2.9 (2026-06-12)
 - **Fixed**: Function-library sessions now keep their active function controller in the owning `EditorSurfaceContext`, so switching to another asset no longer drops unsaved function nodes or reloads default entry/return graphs.

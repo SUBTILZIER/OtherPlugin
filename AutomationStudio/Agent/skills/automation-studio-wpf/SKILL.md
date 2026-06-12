@@ -24,12 +24,16 @@ WPF 可视化节点自动化编辑器，类似 UE4 蓝图。技术栈 C# 12 / .N
 - dirty/snapshot 回调必须是 session-scoped：surface controller 通过闭包调用所属 `EditorSessionViewModel` 的 active controller，不要直接用全局 `_activeAssetController` 标脏，否则多资产同开时会把 C 的黄点打到 A。
 - 图/函数切换和新增必须走 `SetSessionActiveGraphController(session, controller)`。只写全局 `_activeAssetController` 不够；session 的 `EditorSurfaceContext.ActiveAssetController` 和 remembered active graph 也必须同步，否则函数库切 tab 后可能 snapshot 空 controller 并回到默认 entry/return。
 - `HandleEditorSurfaceEvent(...)` 不能在事件结束后把当前全局 `_activeAssetController` 写回 `_activeEditorSession.SurfaceContext`。事件来自非 active surface 时这会污染另一个 session。
+- 全局窗口事件必须优先用 `TryGetActiveEditorSurface()` 或事件来源 surface；启动/无资产/detached 切焦点时没有 active surface 应 no-op，不能抛 `No active editor surface is available.`。
 - 旧 `MainWindow.EditorSurfaceRegions.cs` 已删除。不要恢复 legacy sidebar/canvas/inspector 区域搬移。
 - `DarkContextMenuStyle`、`DarkDropdownListBoxStyle`、`DarkDropdownListBoxItemStyle` 是 `App.xaml` 共享资源；不要在 `MainWindow.xaml` / `EditorSurfaceControl.xaml` 重复定义。
 - 关闭 editor session 只 snapshot 回 `ContentAssetViewModel`，不删除内容浏览器资产。删除资产时要关闭所有指向被删 asset id 的 sessions。
 - 保存、退出、编译前用 `CommitInspectorAndSnapshotAllSessions()` / `CommitAllSessionsToAssets()`；工具栏编译用 `GraphCompileService.CompileAsset(...)` 编译当前激活资产内全部图，编译前必须先 snapshot 所有打开 session。
 - `CompileActiveAsset(...)` 成功后必须把 asset 中被清掉的 `IsCompileDirty` 同步回对应 session 图列表，再刷新窗口栏、section badge 和编译按钮；不要等保存才清 UI 黄点。
+- `GraphCompileService` compile 入口复用一次 asset id lookup；新增校验不要在每个 `Validate*` 里重复建索引。
+- 内容浏览器搜索使用扁平 `ContentAssetSearchEntry` 缓存；资产刷新、移动、重命名后要失效缓存，避免搜索路径/名字过期。
 - session dirty/snapshot/compile helper 在 `MainWindow.EditorSessionState.cs`；保持这里集中，不要把多窗口状态路径重新散回 `MainWindow.xaml.cs`。
+- `MainWindow.GraphInputHandlers.cs` 放画布/节点/pin/节点菜单输入，`MainWindow.AssetCommands.cs` 放工具栏资产命令；不要回填到 `MainWindow.xaml.cs`。
 - `EditorSurfaceControl` 事件直接进入 `EditorSurfaceContext.HandleEvent(...)`，再通过 typed `EditorSurfaceEvent` 激活 session 并复用剩余 `MainWindow` handler；不要恢复字符串反射 `RouteEditorSurfaceEvent`。
 
 ### 2026-06-09: ToDo 持久化 / Log 复制 / 内容浏览器导航
@@ -145,7 +149,7 @@ WPF 可视化节点自动化编辑器，类似 UE4 蓝图。技术栈 C# 12 / .N
 - **Rule**: 不要让新 runtime 节点复用 `ImagePath`、`DelayMs`、`ScrollSpeed` 等不相关字段。旧文件兼容读取可以留在 `NodeSerializer.FromFileModel()`，新 runtime 数据必须语义明确。
 
 #### Architecture update: InspectorController 负责完整属性面板逻辑
-- **Current**: `Interaction/InspectorController.cs` 负责节点属性加载、字段自动保存、浏览文件、窗口列表刷新、前置输入锁定和灰态；`InspectorController.ToDo.cs` 承接 ToDo 目标选择入口。
+- **Current**: `Interaction/InspectorController*.cs` 负责节点属性加载、字段自动保存、浏览文件、窗口列表刷新、前置输入锁定和灰态；参数面板在 `InspectorController.Parameters.cs`，通用小节点在 `InspectorController.CommonNodes.cs`，ToDo 目标选择入口在 `InspectorController.ToDo.cs`。
 - **MainWindow rule**: `MainWindow.xaml.cs` 只转发 XAML 事件：`LoadNodeToInspector()`、`ApplyInspectorChanges()`、浏览按钮、窗口模式切换都应调用 controller。
 - **Do not**: 不要再把节点属性 switch、字段锁定规则、文件浏览逻辑写回 `MainWindow.xaml.cs`。
 
@@ -202,7 +206,7 @@ WPF 可视化节点自动化编辑器，类似 UE4 蓝图。技术栈 C# 12 / .N
   - `CanvasPanZoomController`：右键平移、滚轮缩放、F 全览、坐标转换。
   - `NodeDragSelectionController`：节点拖动、框选、多选、复制粘贴、对齐。
   - `PinConnectionController`：拖线、连线、断线、预览线、双击连线插入路由节点。
-  - `InspectorController`：属性面板加载、自动保存、浏览对话框、窗口列表、字段锁定灰态。
+  - `InspectorController`：属性面板加载、自动保存、浏览对话框、窗口列表、字段锁定灰态；参数和通用节点面板已拆到 partial。
   - `NodePaletteController`：右键节点菜单，条目来自 `NodeRegistry.Definitions`。
   - `LogPanelController`：日志过滤、增量刷新、清空。
   - `GraphImportDropController`：JSON 图谱拖拽导入。

@@ -20,6 +20,7 @@
 - Dragging a tab outside the main window detaches it to `DetachedEditorWindow`; dragging inside the main window only activates the tab. Detached windows keep showing their own editable `EditorSurfaceControl`; activation only changes toolbar/global-command target.
 - `EditorSurfaceContext.Configure(...)` is intentionally idempotent. Do not rebuild per-session controllers on every attach/activate; doing so resets active graph/list expansion and causes main/detached windows to appear polluted.
 - Surface events are classified before dispatch: explicit user interactions promote the session to active; passive layout/binding events such as `PinAnchorLoaded/LayoutUpdated`, mouse move without pressed buttons, and initialization `TextChanged/SelectionChanged` only use the owning context or are ignored. Detached activation must not overwrite `_lastMainEditorSession`; the main host keeps showing the last main-window tab surface.
+- Global window handlers must use `TryGetActiveEditorSurface()` or the event source surface unless the command explicitly requires an active editor. Startup/no-asset/detached focus paths should no-op, not throw `No active editor surface is available.`.
 - Surface dirty/snapshot callbacks are bound to the owning `EditorSessionViewModel`. Do not use global `_activeAssetController` as the only dirty target from per-session controllers, or edits in C can mark A dirty.
 - Active graph controller state must be written through `SetSessionActiveGraphController(session, controller)`. It updates the owning `EditorSurfaceContext.ActiveAssetController`, remembered graph id/kind, and only mirrors `_activeAssetController` for the explicit active/operation session.
 - Session dirty/snapshot/compile helpers live in `MainWindow.EditorSessionState.cs`; keep multi-window state routing centralized there.
@@ -30,6 +31,9 @@
 - Closing a session snapshots to its `ContentAssetViewModel` but does not delete the asset. Deleting content-browser assets must close all sessions targeting deleted asset ids.
 - Save/exit/compile must snapshot all open sessions before reading graph data. Toolbar compile is active-asset scoped through `GraphCompileService.CompileAsset(...)`; scripts compile their event/function graphs, function libraries compile their functions.
 - Successful compile must sync cleared graph dirty/compile-dirty state from `ContentAssetViewModel` back into the target session's graph list and refresh window chrome/compile button immediately.
+- `MainWindow.GraphInputHandlers.cs` owns canvas/node/pin/node-palette input handlers. `MainWindow.AssetCommands.cs` owns toolbar new/open/save/compile/run handlers. Keep these out of `MainWindow.xaml.cs`.
+- `InspectorController.Parameters.cs` owns function/event parameter rows. `InspectorController.CommonNodes.cs` owns generic `CommonNodeViewModel` panel behavior. `InspectorController.cs` remains the main load/apply/lock entry point.
+- `GraphCompileService` compile entry points reuse one asset id lookup for validation. Content browser search caches flattened asset/path/search text and invalidates through `RefreshContentBrowserViews()`.
 - `PythonAutoInstaller.EnsurePythonAsync(...)` performs the first environment probe on a background thread, caches `PythonEnvironmentResult`, merges concurrent checks with `SemaphoreSlim`, and shows missing-environment dialogs at most once per process.
 
 ## 2026-06-08 ToDo jump and reusable node numbers

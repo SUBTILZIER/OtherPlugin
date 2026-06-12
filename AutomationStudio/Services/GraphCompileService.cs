@@ -34,7 +34,8 @@ public sealed class GraphCompileService
         var changedAssetIds = EnsureNodeNumbers(assetList);
         var sync = _referenceSyncService.Sync(assetList);
         changedAssetIds.UnionWith(sync.ChangedAssetIds);
-        var issues = ValidateAssets(assetList);
+        var assetsById = BuildAssetLookup(assetList);
+        var issues = ValidateAssets(assetList, assetsById);
         bool success = issues.All(issue => issue.Severity != GraphValidationSeverity.Error);
         if (!success)
         {
@@ -80,7 +81,8 @@ public sealed class GraphCompileService
         var sync = _referenceSyncService.SyncGraph(assetList, owner, item.Graph);
         changedAssetIds.UnionWith(sync.ChangedAssetIds);
 
-        var issues = ValidateSingleGraph(assetList, owner, item);
+        var assetsById = BuildAssetLookup(assetList);
+        var issues = ValidateSingleGraph(assetList, assetsById, owner, item);
         bool success = issues.All(issue => issue.Severity != GraphValidationSeverity.Error);
         if (success)
             item.IsCompileDirty = false;
@@ -104,7 +106,8 @@ public sealed class GraphCompileService
         var sync = SyncAssetGraphs(assetList, owner);
         changedAssetIds.UnionWith(sync.ChangedAssetIds);
 
-        var issues = ValidateAsset(assetList, owner);
+        var assetsById = BuildAssetLookup(assetList);
+        var issues = ValidateAsset(assetList, assetsById, owner);
         bool success = issues.All(issue => issue.Severity != GraphValidationSeverity.Error);
         if (success)
         {
@@ -281,10 +284,16 @@ public sealed class GraphCompileService
         return int.TryParse(suffix, out int ordinal) && ordinal > 0 ? ordinal : null;
     }
 
-    private IReadOnlyList<GraphValidationIssue> ValidateAssets(IReadOnlyList<ContentAssetViewModel> assets)
+    private static IReadOnlyDictionary<string, ContentAssetViewModel> BuildAssetLookup(IReadOnlyList<ContentAssetViewModel> assets)
+    {
+        return assets.ToDictionary(asset => asset.Id, StringComparer.Ordinal);
+    }
+
+    private IReadOnlyList<GraphValidationIssue> ValidateAssets(
+        IReadOnlyList<ContentAssetViewModel> assets,
+        IReadOnlyDictionary<string, ContentAssetViewModel> assetsById)
     {
         var issues = new List<GraphValidationIssue>();
-        var assetsById = assets.ToDictionary(asset => asset.Id, StringComparer.Ordinal);
         foreach (var asset in assets.Where(asset => asset.Kind != ContentAssetKind.Folder))
         {
             foreach (var item in asset.EventGraphs.Concat(asset.Functions))
@@ -296,10 +305,10 @@ public sealed class GraphCompileService
 
     private IReadOnlyList<GraphValidationIssue> ValidateAsset(
         IReadOnlyList<ContentAssetViewModel> assets,
+        IReadOnlyDictionary<string, ContentAssetViewModel> assetsById,
         ContentAssetViewModel owner)
     {
         var issues = new List<GraphValidationIssue>();
-        var assetsById = assets.ToDictionary(asset => asset.Id, StringComparer.Ordinal);
         foreach (var item in GetCompilableGraphs(owner))
             ValidateGraph(assets, assetsById, owner, item, issues);
 
@@ -308,11 +317,11 @@ public sealed class GraphCompileService
 
     private IReadOnlyList<GraphValidationIssue> ValidateSingleGraph(
         IReadOnlyList<ContentAssetViewModel> assets,
+        IReadOnlyDictionary<string, ContentAssetViewModel> assetsById,
         ContentAssetViewModel owner,
         GraphListItemViewModel item)
     {
         var issues = new List<GraphValidationIssue>();
-        var assetsById = assets.ToDictionary(asset => asset.Id, StringComparer.Ordinal);
         ValidateGraph(assets, assetsById, owner, item, issues);
         return issues;
     }

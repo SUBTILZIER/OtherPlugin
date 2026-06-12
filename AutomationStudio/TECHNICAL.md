@@ -147,6 +147,7 @@ public class GraphEditorService
 #### Editor sessions and window bar
 - 多编辑窗口由 `EditorSessionViewModel` 表示：每个打开资产一个 session，持有自己的 `GraphEditorService`、`NodeFactory`、`GraphCommandService`、事件图/函数集合和当前图记忆。
 - 每个 `EditorSessionViewModel` 持有自己的完整 `EditorSurfaceControl`，其中包含图列表、画布、节点菜单和属性面板；`EditorSurfaceContext` 持有该 session 的 graph list/canvas/drag/inspector/pin/palette/import controllers。`MainWindow` 只镜像 active context controllers 以支撑尚未拆完的 handler。
+- 全局窗口事件不能直接假定 active surface 存在。启动、无资产、detached 切焦点等路径必须用 `TryGetActiveEditorSurface()` 或事件来源 surface；拿不到 surface 时 no-op，只有明确要求 active editor 的命令才允许调用 `GetActiveEditorSurface()`。
 - `OpenContentAsset(...)` 现在是 `OpenOrActivateAsset(...)` wrapper。重复打开同一资产只聚焦已有 session，不重置到第一个事件图；函数调用节点双击会打开或聚焦目标资产 session，再加载目标 graph id。
 - 工具栏下方 `EditorWindowBar` 绑定主窗口内的 `MainEditorSessions`，不显示 `DockMode.Detached` 的独立窗口；窗口栏右键的关闭全部/关闭右侧只作用于主窗口标签页。全量 `EditorSessions` 仍包含 detached，供保存、退出、compile-all 使用。拖出主窗口会创建 `DetachedEditorWindow`；拖到主窗口内部只激活标签，不创建画布子窗口。
 - 拖动窗口标签时会显示跟随预览卡片，越过主窗口边界后提示释放/继续拖出为独立窗口。
@@ -158,11 +159,14 @@ public class GraphEditorService
 - `HandleEditorSurfaceEvent(...)` 处理完事件后不能把全局 `_activeAssetController` 回写到 `_activeEditorSession.SurfaceContext`。非 active surface 事件通过 `RunWithSurfaceContext(...)` 临时切 controller，结束后应恢复全局状态而不是污染其它 session。
 - detached session 激活时只更新全局工具栏/运行/保存目标，不覆盖 `_lastMainEditorSession`；主窗口继续显示最近的主窗口 tab surface。
 - `MainWindow.EditorSurfaceRegions.cs` 和 legacy region reparent hooks 已删除。不要恢复 `AttachLegacyEditorRegionsToSessionSurface()` 的区域搬移逻辑。
+- `MainWindow.GraphInputHandlers.cs` 承接画布、节点、pin、节点菜单和快捷键输入；`MainWindow.AssetCommands.cs` 承接新建、打开、保存、编译、运行按钮入口。不要把这些 handler 重新堆回 `MainWindow.xaml.cs`。
 - `DarkContextMenuStyle`、`DarkDropdownListBoxStyle`、`DarkDropdownListBoxItemStyle` 是 `App.xaml` 共享资源；不要在 `MainWindow.xaml` 或 `EditorSurfaceControl.xaml` 复制一份。
 - session 关闭只 snapshot 回 `ContentAssetViewModel` 并移除编辑窗口，不删除资产。删除内容浏览器资产时会关闭所有指向该资产的 session，避免悬空编辑窗口。
 - 保存、退出、编译前使用 `CommitInspectorAndSnapshotAllSessions()` / `CommitAllSessionsToAssets()`，保证多窗口编辑内容参与引用同步和校验。
 - 工具栏编译是 active-asset scoped，走 `GraphCompileService.CompileAsset(...)`：脚本会编译该资产内事件图和函数；函数库会编译该库内全部函数。`GraphCompileService.CompileGraph(...)` 仍保留为 current-graph scoped 内部能力，但工具栏不使用它。
+- `GraphCompileService` 每个 compile 入口只构建一次 asset id lookup，并传给下游校验。新增校验时复用该索引，不要在每层 `Validate*` 里重复 `ToDictionary(...)`。
 - 编译成功后要把 `ContentAssetViewModel` 中清掉的 graph dirty/compile dirty 同步回对应 session 图列表，并刷新窗口栏、section badge 和工具栏编译状态；保存不是清 compile dirty UI 的唯一路径。
+- 内容浏览器搜索会缓存扁平 `ContentAssetSearchEntry`（资产、路径、可搜索文本），`RefreshContentBrowserViews()` 会清缓存。新增资产重命名/移动路径时必须走刷新或显式失效缓存。
 
 #### NodeSerializer
 负责节点与持久化模型之间的转换：
@@ -629,7 +633,7 @@ Python 参数规则：
 - **维护规则**：新节点可以继续用扁平模型，但字段名必须表达真实语义；不要把某节点字段塞到别的节点字段里复用。
 
 #### 变更 1：InspectorController 不再只做灰态锁定
-- **现状**：节点属性面板的加载、自动保存、浏览文件、刷新窗口列表、字段锁定均已下沉到 `Interaction/InspectorController.cs`；ToDo 目标选择入口在 `Interaction/InspectorController.ToDo.cs`。
+- **现状**：节点属性面板的加载、自动保存、浏览文件、刷新窗口列表、字段锁定均已下沉到 `Interaction/InspectorController*.cs`；参数面板在 `InspectorController.Parameters.cs`，通用小节点面板在 `InspectorController.CommonNodes.cs`，ToDo 目标选择入口在 `InspectorController.ToDo.cs`。
 - **MainWindow 职责**：只保留 XAML 事件转发和窗口装配，不再维护属性面板业务规则。
 - **维护规则**：新增节点属性 UI 后，同步改 `InspectorController.LoadNode()`、`ApplyChanges()`、`RefreshLocks()`，不要把属性逻辑写回 `MainWindow.xaml.cs`。
 
@@ -679,7 +683,7 @@ Python 参数规则：
 - **验证**：`dotnet build .\AutomationStudioWpf.csproj` 通过，启动 exe 后进程保持运行。
 
 #### 问题 1：MainWindow 继续膨胀会把 UI、交互、运行时重新耦合
-- **现象**：画布平移、连线、图谱列表、执行入口、属性锁定全写在 `MainWindow.xaml.cs`，修改一个交互容易误伤另一个。
+- **现象**：画布平移、连线、图谱列表、执行入口、属性锁定曾经全写在 `MainWindow.xaml.cs`，修改一个交互容易误伤另一个。
 - **修复**：拆出 `Interaction/*Controller`：
   - `ExecutionController`
   - `GraphListController`
@@ -690,6 +694,7 @@ Python 参数规则：
   - `NodePaletteController`
   - `LogPanelController`
   - `GraphImportDropController`
+- **当前 partial**：`MainWindow.GraphInputHandlers.cs` 放画布输入；`MainWindow.AssetCommands.cs` 放工具栏资产命令；`MainWindow.EditorSessionState.cs` 放 session dirty/snapshot/compile 状态。
 #### 当前识字/OCR 状态
 - 当前软件不包含识字/OCR 节点。
 - 当前软件不依赖 EasyOCR，也不做 EasyOCR 自动安装。

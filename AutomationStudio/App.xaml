@@ -26,6 +26,11 @@
         <SolidColorBrush x:Key="DropdownBorderBrush" Color="#3A4554" />
         <SolidColorBrush x:Key="DropdownTextBrush" Color="#E8EDF5" />
         <SolidColorBrush x:Key="DropdownMutedTextBrush" Color="#A8B3C3" />
+        <SolidColorBrush x:Key="ToolbarButtonBackgroundBrush" Color="#20242B" />
+        <SolidColorBrush x:Key="ToolbarButtonBorderBrush" Color="#2E3440" />
+        <SolidColorBrush x:Key="CompileDirtyBackgroundBrush" Color="#4B361C" />
+        <SolidColorBrush x:Key="CompileDirtyBorderBrush" Color="#D68A22" />
+        <SolidColorBrush x:Key="StatusMutedBrush" Color="#7A8797" />
 
         <Style x:Key="DarkContextMenuStyle" TargetType="ContextMenu">
             <Setter Property="Background" Value="{StaticResource DropdownBackgroundBrush}" />

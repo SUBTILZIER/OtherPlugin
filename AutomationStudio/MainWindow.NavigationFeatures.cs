@@ -5,6 +5,7 @@ using System.Windows.Media;
 using System.Windows.Threading;
 using AutomationStudioWpf.Graph;
 using AutomationStudioWpf.Services;
+using WpfBrush = System.Windows.Media.Brush;
 using WpfBrushes = System.Windows.Media.Brushes;
 using WpfColor = System.Windows.Media.Color;
 using WpfKey = System.Windows.Input.Key;
@@ -31,6 +32,7 @@ public partial class MainWindow
     private WpfTextBox? _contentBrowserSearchBox;
     private bool _isApplyingContentBrowserSearch;
     private bool _contentBrowserSearchRefreshQueued;
+    private List<ContentAssetSearchEntry>? _contentBrowserSearchCache;
     private bool _navigationFeaturesInstalled;
     private bool _autoFitGraphQueued;
     private bool _autoFitRenderingAttached;
@@ -116,11 +118,16 @@ public partial class MainWindow
         CompileButtonText.Text = dirty ? "编译*" : "编译";
         CompileDirtyIcon.Visibility = dirty ? Visibility.Visible : Visibility.Collapsed;
         CompileGraphButton.Background = dirty
-            ? new WpfSolidColorBrush(WpfColor.FromRgb(75, 54, 28))
-            : new WpfSolidColorBrush(WpfColor.FromRgb(32, 36, 43));
+            ? AppBrush("CompileDirtyBackgroundBrush", 0x4B, 0x36, 0x1C)
+            : AppBrush("ToolbarButtonBackgroundBrush", 0x20, 0x24, 0x2B);
         CompileGraphButton.BorderBrush = dirty
-            ? new WpfSolidColorBrush(WpfColor.FromRgb(214, 138, 34))
-            : new WpfSolidColorBrush(WpfColor.FromRgb(46, 52, 64));
+            ? AppBrush("CompileDirtyBorderBrush", 0xD6, 0x8A, 0x22)
+            : AppBrush("ToolbarButtonBorderBrush", 0x2E, 0x34, 0x40);
+    }
+
+    private WpfBrush AppBrush(string key, byte r, byte g, byte b)
+    {
+        return TryFindResource(key) as WpfBrush ?? new WpfSolidColorBrush(WpfColor.FromRgb(r, g, b));
     }
 
     private bool ActiveContentAssetHasCompileDirtyGraphs()
@@ -188,7 +195,8 @@ public partial class MainWindow
     {
         if (_editorService.Nodes.Count == 0)
             return false;
-        var surface = GetActiveEditorSurface();
+        if (TryGetActiveEditorSurface() is not { } surface)
+            return false;
         if (surface.GraphViewport.ActualWidth <= 1 || surface.GraphViewport.ActualHeight <= 1)
             return false;
         if (surface.ActualWidth <= 1 || surface.ActualHeight <= 1)
@@ -237,7 +245,7 @@ public partial class MainWindow
         var hint = new WpfTextBlock
         {
             Text = "双击打开，Ctrl+B 定位真实路径",
-            Foreground = new WpfSolidColorBrush(WpfColor.FromRgb(122, 135, 151)),
+            Foreground = AppBrush("StatusMutedBrush", 0x7A, 0x87, 0x97),
             Margin = new Thickness(0, 0, 8, 0),
             VerticalAlignment = VerticalAlignment.Center,
             FontSize = 11,
@@ -289,13 +297,13 @@ public partial class MainWindow
         try
         {
             var assetById = BuildContentAssetLookup();
-            var pathCache = new Dictionary<string, string>(StringComparer.Ordinal);
             var tokens = SplitContentSearchTokens(query);
-            var results = ContentBrowserItems
-                .Where(item => IsInCurrentContentSearchScope(item, assetById))
-                .Where(item => ContentAssetMatchesQuery(item, tokens, assetById, pathCache))
-                .OrderByDescending(item => item.IsFolder)
-                .ThenBy(item => GetContentAssetPath(item, assetById, pathCache), StringComparer.OrdinalIgnoreCase)
+            var results = GetContentBrowserSearchEntries(assetById)
+                .Where(entry => IsInCurrentContentSearchScope(entry.Asset, assetById))
+                .Where(entry => ContentAssetMatchesQuery(entry, tokens))
+                .OrderByDescending(entry => entry.Asset.IsFolder)
+                .ThenBy(entry => entry.Path, StringComparer.OrdinalIgnoreCase)
+                .Select(entry => entry.Asset)
                 .ToList();
 
             ContentVisibleItems.ReplaceAll(results);
@@ -310,6 +318,29 @@ public partial class MainWindow
     }
 
     private string GetContentBrowserSearchText() => _contentBrowserSearchBox?.Text.Trim() ?? string.Empty;
+
+    private void InvalidateContentBrowserSearchCache()
+    {
+        _contentBrowserSearchCache = null;
+    }
+
+    private IReadOnlyList<ContentAssetSearchEntry> GetContentBrowserSearchEntries(
+        IReadOnlyDictionary<string, ContentAssetViewModel> assetById)
+    {
+        if (_contentBrowserSearchCache is not null)
+            return _contentBrowserSearchCache;
+
+        var pathCache = new Dictionary<string, string>(StringComparer.Ordinal);
+        _contentBrowserSearchCache = ContentBrowserItems
+            .Select(item =>
+            {
+                string path = GetContentAssetPath(item, assetById, pathCache);
+                string searchable = $"{item.Name} {item.DisplayName} {item.Kind} {path}";
+                return new ContentAssetSearchEntry(item, path, searchable);
+            })
+            .ToList();
+        return _contentBrowserSearchCache;
+    }
 
     private bool IsInCurrentContentSearchScope(ContentAssetViewModel item)
     {
@@ -342,6 +373,13 @@ public partial class MainWindow
         return ContentAssetMatchesQuery(item, SplitContentSearchTokens(query), assetById, pathCache);
     }
 
+    private static bool ContentAssetMatchesQuery(ContentAssetSearchEntry entry, IReadOnlyList<string> tokens)
+    {
+        return tokens.Count == 0 ||
+               tokens.All(token => ContainsIgnoreCase(entry.SearchableText, token) ||
+                                   IsFuzzyMatch(entry.SearchableText, token));
+    }
+
     private static string[] SplitContentSearchTokens(string query) =>
         query.Split([' ', '\t', '/', '\\'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
@@ -357,6 +395,11 @@ public partial class MainWindow
         string searchable = $"{item.Name} {item.DisplayName} {item.Kind} {GetContentAssetPath(item, assetById, pathCache)}";
         return tokens.All(token => ContainsIgnoreCase(searchable, token) || IsFuzzyMatch(searchable, token));
     }
+
+    private sealed record ContentAssetSearchEntry(
+        ContentAssetViewModel Asset,
+        string Path,
+        string SearchableText);
 
     private static bool ContainsIgnoreCase(string text, string token) =>
         text.Contains(token, StringComparison.OrdinalIgnoreCase);
@@ -501,7 +544,8 @@ public partial class MainWindow
 
         OpenOrActivateAsset(target.Asset, target.Graph, kind);
 
-        var surface = GetActiveEditorSurface();
+        if (TryGetActiveEditorSurface() is not { } surface)
+            return false;
         var listBox = surface.FunctionListBox;
         var controller = _functionListController;
         controller.SetSectionExpanded(true);
