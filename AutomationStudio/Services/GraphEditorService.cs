@@ -96,32 +96,6 @@ public sealed class GraphEditorService
         StatusChanged?.Invoke("已新建函数，并创建开始和返回节点。");
     }
 
-    public void NewMacroGraph()
-    {
-        CurrentAssetKind = GraphAssetKind.Macro;
-        ClearNodesAndConnections();
-        CurrentGraphPath = null;
-
-        var entry = new MacroEntryNodeViewModel("node_001")
-        {
-            Title = "宏开始",
-            X = 80,
-            Y = 210,
-        };
-        var output = new MacroOutputNodeViewModel("node_002")
-        {
-            Title = "宏输出",
-            X = 420,
-            Y = 210,
-        };
-        AddNodeCore(entry, CurrentAssetKind);
-        AddNodeCore(output, CurrentAssetKind);
-        Connections.Add(new ConnectionViewModel(entry.OutputPins.First(p => p.Name == "exec_out"), output.InputPins.First(p => p.Name == "exec_in")));
-
-        RaiseGraphChanged();
-        StatusChanged?.Invoke("已新建宏，并创建开始和输出节点。");
-    }
-
     public void SaveGraph(string? path = null)
     {
         if (string.IsNullOrWhiteSpace(path))
@@ -523,7 +497,6 @@ public sealed class GraphEditorService
     private static string NodeNumberPrefix(GraphAssetKind kind) => kind switch
     {
         GraphAssetKind.Function => "Fun",
-        GraphAssetKind.Macro => "Mac",
         _ => "N",
     };
 

@@ -103,10 +103,7 @@ public sealed class NodeRegistry
             Definition(NodeKind.ShowMessage, "show_message", "弹窗提示", "调试", [InExec(), InString("text", "文本"), OutExec(), OutBool("result", "结果")]),
             Definition(NodeKind.FunctionEntry, "function_entry", "函数开始", "自定义函数", [OutExec()]),
             Definition(NodeKind.FunctionReturn, "function_return", "函数返回", "自定义函数", [InExec()]),
-            Definition(NodeKind.MacroEntry, "macro_entry", "宏开始", "宏", [OutExec()]),
-            Definition(NodeKind.MacroOutput, "macro_output", "宏输出", "宏", [InExec()]),
             Definition(NodeKind.FunctionCall, "function_call", "函数调用", "自定义函数", [InExec(), OutExec()]),
-            Definition(NodeKind.MacroCall, "macro_call", "宏调用", "宏", [InExec()]),
             Definition(NodeKind.CustomEvent, "custom_event", "自定义事件", "事件", [OutExec()]),
             Definition(NodeKind.CustomEventCall, "custom_event_call", "调用自定义事件", "事件", [InExec(), OutExec()]),
         ];
@@ -143,8 +140,8 @@ public sealed class NodeRegistry
         NodeKind.ToDo => "todo",
         NodeKind.StartProgram => "start_program",
         NodeKind.SelectWindow => "select_window",
-        NodeKind.FunctionEntry or NodeKind.FunctionReturn or NodeKind.MacroEntry or NodeKind.MacroOutput => "parameterized_entry",
-        NodeKind.FunctionCall or NodeKind.MacroCall or NodeKind.CustomEvent or NodeKind.CustomEventCall => "callable",
+        NodeKind.FunctionEntry or NodeKind.FunctionReturn => "parameterized_entry",
+        NodeKind.FunctionCall or NodeKind.CustomEvent or NodeKind.CustomEventCall => "callable",
         _ => "common",
     };
 

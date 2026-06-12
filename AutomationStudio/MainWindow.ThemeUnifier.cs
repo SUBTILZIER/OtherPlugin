@@ -123,24 +123,17 @@ public partial class MainWindow
         }
 
         var childrenByParent = BuildContentChildrenLookup(foldersOnly: false);
-        ContentVisibleItems.Clear();
-        foreach (var item in SortContentChildren(childrenByParent[_currentContentFolderId]))
-        {
-            ContentVisibleItems.Add(item);
-        }
+        ContentVisibleItems.ReplaceAll(SortContentChildren(childrenByParent[_currentContentFolderId]));
     }
 
     private void RefreshContentBrowserTreeKeepingExpansion()
     {
         var folderChildrenByParent = BuildContentChildrenLookup(foldersOnly: true);
-        ContentFolderItems.Clear();
         _rootContentFolder.ViewDepth = 0;
         _rootContentFolder.IsTreeExpanded = true;
         _rootContentFolder.HasFolderChildren = folderChildrenByParent[null].Any();
-        ContentFolderItems.Add(_rootContentFolder);
-
-        foreach (var folder in BuildFolderTree(null, 1, new HashSet<string>(), folderChildrenByParent))
-            ContentFolderItems.Add(folder);
+        ContentFolderItems.ReplaceAll(new[] { _rootContentFolder }
+            .Concat(BuildFolderTree(null, 1, new HashSet<string>(), folderChildrenByParent)));
 
         ContentFolderListBox.SelectedItem = _currentContentFolderId is null
             ? _rootContentFolder

@@ -14,16 +14,18 @@ WPF 可视化节点自动化编辑器，类似 UE4 蓝图。技术栈 C# 12 / .N
 ### 2026-06-09: 多编辑窗口 / session swap
 
 - 多窗口不是 graph JSON 功能；不要改保存 schema。运行期用 `EditorSessionViewModel` 管打开资产窗口。
-- 每个打开资产一个 session，持有独立 `GraphEditorService`、`NodeFactory`、`GraphCommandService`、事件图/函数/宏集合和 remembered active graph。重复打开同资产只聚焦已有 session。
+- 每个打开资产一个 session，持有独立 `GraphEditorService`、`NodeFactory`、`GraphCommandService`、事件图/函数集合和 remembered active graph。重复打开同资产只聚焦已有 session。
 - 每个 session 持有自己的完整 `EditorSurfaceControl`，包含图列表、画布、节点菜单和属性面板；`EditorSurfaceContext` 持有该 session 的 graph list/canvas/drag/inspector/pin/palette/import controllers。
 - `EditorWindowBar` 在工具栏下方，只显示主窗口标签页 session（非 detached）；右键关闭全部/关闭右侧只作用于可见标签页。拖出主窗口会创建 `DetachedEditorWindow`；拖到主窗口内部只激活标签，不创建画布子窗口。
 - 拖动窗口标签时有 `Popup` 跟随预览卡片；越过主窗口边界时提示会变为“释放后成为独立窗口”。
 - 主窗口 tab 和 `DetachedEditorWindow` 都直接 host 对应 session 的 `Surface`；detached 窗口始终显示自己的可编辑 surface，不再显示 remembered graph 只读预览。
 - `EditorSurfaceContext.Configure(...)` 必须保持幂等；不要在 surface attach/activate 时重建该 session 的 controller，否则 active graph、列表展开和节点显示会被重置。
 - surface 事件进入 `EditorSurfaceContext.HandleEvent(...)` 后先分类：明确用户交互才提升 active session；`PinAnchorLoaded/LayoutUpdated`、无按键 `MouseMove`、初始化触发的 `TextChanged/SelectionChanged` 只使用所属 context 或直接忽略，不能改变工具栏编译目标。detached 激活不能覆盖 `_lastMainEditorSession`，主窗口应继续显示最近的主窗口 tab。
+- dirty/snapshot 回调必须是 session-scoped：surface controller 通过闭包调用所属 `EditorSessionViewModel` 的 active controller，不要直接用全局 `_activeAssetController` 标脏，否则多资产同开时会把 C 的黄点打到 A。
 - 旧 `MainWindow.EditorSurfaceRegions.cs` 已删除。不要恢复 legacy sidebar/canvas/inspector 区域搬移。
 - 关闭 editor session 只 snapshot 回 `ContentAssetViewModel`，不删除内容浏览器资产。删除资产时要关闭所有指向被删 asset id 的 sessions。
 - 保存、退出、编译前用 `CommitInspectorAndSnapshotAllSessions()` / `CommitAllSessionsToAssets()`；工具栏编译用 `GraphCompileService.CompileAsset(...)` 编译当前激活资产内全部图，编译前必须先 snapshot 所有打开 session。
+- `CompileActiveAsset(...)` 成功后必须把 asset 中被清掉的 `IsCompileDirty` 同步回对应 session 图列表，再刷新窗口栏、section badge 和编译按钮；不要等保存才清 UI 黄点。
 - `EditorSurfaceControl` 事件直接进入 `EditorSurfaceContext.HandleEvent(...)`，再通过 typed `EditorSurfaceEvent` 激活 session 并复用剩余 `MainWindow` handler；不要恢复字符串反射 `RouteEditorSurfaceEvent`。
 
 ### 2026-06-09: ToDo 持久化 / Log 复制 / 内容浏览器导航
@@ -32,16 +34,16 @@ WPF 可视化节点自动化编辑器，类似 UE4 蓝图。技术栈 C# 12 / .N
 - `InspectorController.ToDoTargetSelected()` 选择目标后要立即写 `TargetNodeTitle`、`TargetNodeNumber`、`TargetNodeId`，刷新描述、标脏并快照 active graph。不要等保存/编译时才读 UI。
 - `GraphCompileService.EnsureGraphToDoTargets()` 会用有效 `TargetNodeId` 回填旧数据缺失的 title/number；`target_title` / `target_number` 有输入连线时跳过静态目标必填，但静态下拉值仍要保留。
 - 日志面板是只读 `RichTextBox`。全局快捷键必须对 `TextBoxBase` 放行；`LogPanelController` 显式绑定 `ApplicationCommands.Copy` / `SelectAll`，避免 `Ctrl+C` 被节点复制截获。
-- `Logger.Write(...)` 会合并 UI dispatch，批量把 pending entries flush 到 `Logger.Entries`。主日志面板和 `LogWindow` 对新增日志做增量追加；只有切过滤器、Reset/Clear 时才全量 `Refresh()`。不要改回每条日志单独 `Dispatcher.InvokeAsync` 或重建整个 `FlowDocument`。
+- `Logger.Write(...)` 会合并 UI dispatch，并通过 `RangeObservableCollection.AddRange(...)` 把 pending entries 作为一次 collection add flush 到 `Logger.Entries`。主日志面板和 `LogWindow` 对新增日志做增量追加；只有切过滤器、Reset/Clear 时才全量 `Refresh()`。不要改回每条日志单独 `Dispatcher.InvokeAsync`、逐条 `Entries.Add(...)` 或重建整个 `FlowDocument`。
 - 内容浏览器递归模糊搜索已实现，入口在 `MainWindow.NavigationFeatures.cs` 动态安装到 `ContentBrowserHeaderBar`。搜索范围是当前目录及子目录，支持空格关键字、路径片段、不区分大小写和 subsequence 模糊匹配。
 - 内容浏览器刷新和搜索要复用本轮 `assetById` / `childrenByParent` / path cache。不要在每个文件夹、每个搜索结果里反复 `ContentBrowserItems.FirstOrDefault/Any` 全表扫描。
 - `Ctrl+B` 定位已实现：选中搜索结果/资产时清空搜索并进入真实父目录；无浏览器选中项时定位当前打开资产。
-- `FunctionCallNodeViewModel` / `MacroCallNodeViewModel` 双击跳转已实现：按 stable `FunctionId` / `MacroId` 找到目标资产和图，打开资产后加载对应函数/宏编辑面板。
+- `FunctionCallNodeViewModel` 双击跳转已实现：按 stable `FunctionId` 找到目标资产和图，打开资产后加载对应函数编辑面板。
 - 内容浏览器多选、框选、资产 Ctrl+C/Ctrl+V、拖拽预览、多删除在 `MainWindow.ContentBrowserMultiSelect.cs`；主题弹窗替换在 `MainWindow.ThemedDialogOverrides.cs`。
 
 ### 2026-06-08: ToDo 跳转与可复用节点编号
 
-- 非 `Reroute` 节点有可见 `NodeNumber`：事件图 `N###`、函数图 `Fun###`、宏图 `Mac###`。`GraphEditorService` 分配当前图最小空闲编号，删除节点会释放编号。
+- 非 `Reroute` 节点有可见 `NodeNumber`：事件图 `N###`、函数图 `Fun###`。`GraphEditorService` 分配当前图最小空闲编号，删除节点会释放编号。
 - `ToDoNodeViewModel` 用 `TargetNodeTitle + TargetNodeNumber` 双键在当前图内跳转；`TargetNodeId` 只用于编辑器维护引用，目标改名/改号时自动同步字段。
 - `ReturnAfterTarget=false` 是 Goto，不走 `ToDo.exec_out`；`true` 会先执行目标链，结束后再走 `ToDo.exec_out`。
 - Return 模式目标链如果自然回到源 ToDo，运行时在执行源 ToDo 前停止子链并返回源 `exec_out`；这不是递归错误。直接跳转自身仍然非法。
@@ -64,12 +66,12 @@ WPF 可视化节点自动化编辑器，类似 UE4 蓝图。技术栈 C# 12 / .N
 
 ### 2026-06-05: 内容浏览器 UE 风格交互与验证门禁
 
-- 内容浏览器顶部不再放新增按钮；新增资产统一走右侧空白右键菜单，菜单项只保留 `脚本 / 文件夹 / 函数库 / 宏库`。不要再加单独“宏”资产，宏跟随脚本/宏库内部编辑面板。
-- 函数库/宏库内函数/宏默认不出现在其他脚本节点搜索里；只有勾选 `公开到库` (`GraphListItemViewModel.IsPublicToLibrary`) 才显示。`CallableGraphResolver` 是节点菜单、编译同步、运行时查找的统一来源；未公开库项被其他脚本引用时编译失败并保留 dirty。
-- 编译错误路径必须打印内容浏览器完整路径：`content/父文件夹/.../资产/图`。函数库、宏库在嵌套文件夹里报错时也不能只显示 `资产/图`。
+- 内容浏览器顶部不再放新增按钮；新增资产统一走右侧空白右键菜单，菜单项只保留 `脚本 / 文件夹 / 函数库`。宏库和宏图已移除，不要恢复。
+- 函数库内函数默认不出现在其他脚本节点搜索里；只有勾选 `公开到库` (`GraphListItemViewModel.IsPublicToLibrary`) 才显示。`CallableGraphResolver` 是节点菜单、编译同步、运行时查找的统一来源；未公开库项被其他脚本引用时编译失败并保留 dirty。
+- 编译错误路径必须打印内容浏览器完整路径：`content/父文件夹/.../资产/图`。函数库在嵌套文件夹里报错时也不能只显示 `资产/图`。
 - 自定义事件只属于当前脚本事件图：`CustomEvent` 是入口，`CustomEventCall` 是调用，二者用 `CustomEventId` 绑定。节点菜单只在事件图显示 `本脚本事件`；运行时执行事件链后回到调用节点 `exec_out`，递归用 `custom_event:{id}` 拦截。
 - 连线交互：从输入或输出引脚拖到空白画布并抬起，会打开节点菜单；创建节点后自动连接第一个兼容的相反方向引脚。引脚释放判定使用放大半径，不只依赖精确 hit test。
-- 参数默认值：`GraphParameterDefinition.DefaultValue` 必须随保存/加载/编译同步/运行时模型传递。函数、宏、自定义事件入口参数未由调用节点输入时使用默认值；函数返回/宏输出参数未接输入时也使用默认值。
+- 参数默认值：`GraphParameterDefinition.DefaultValue` 必须随保存/加载/编译同步/运行时模型传递。函数、自定义事件入口参数未由调用节点输入时使用默认值；函数返回参数未接输入时也使用默认值。
 - 右键空白显示新增菜单；右键资产只显示 `重命名 / 删除`。同一个 `ContextMenu` 通过 `ContentBrowserContextMenu_Opened` 切换可见项，避免把带事件的菜单塞进 `ListBoxItem.Style Setter`，那会导致 WPF 启动期 `IStyleConnector` 类型转换崩溃。
 - 文件夹树：单击文件夹行进入该文件夹；点击箭头按钮只展开/收起，不进入。`HasFolderChildren` 只统计子文件夹，不因脚本/库资产显示箭头。
 - 文件夹树缩进用 `TreeIndent` 像素绑定，不用 `TreeDisplayName` 前置空格。箭头图标样式为 `ContentFolderToggleIconStyle`：收起朝右，展开朝下；默认 `Path.Data` 必须放在 `Style Setter`，不要写本地 `Data`，否则 `DataTrigger` 覆盖不了。
@@ -77,24 +79,24 @@ WPF 可视化节点自动化编辑器，类似 UE4 蓝图。技术栈 C# 12 / .N
 - 默认验证门禁：`dotnet build .\AutomationStudioWpf.csproj -o .\bin\CodexBuildCheck`、`git diff --check`、`dotnet run --project .\AutomationStudioWpf.csproj` 启动崩溃探测、`codegraph.cmd sync`。启动检查不固定等待 20 秒；能正常创建窗口即可。若进程快速退出、输出 `Unhandled exception` 或 WPF 初始化异常，必须收集终端输出/异常栈并先修。只有改到对应高风险交互或用户明确要求时才跑 broad smoke。
 - `Tests/CodexSmoke` 是轻量 smoke/回归验收，不是完整测试框架。只覆盖关键 UI/数据回归，避免越加越慢；测试相关文件夹不要推送，除非用户明确要求纳入版本。
 
-### 2026-06-05: 事件图 / 函数 / 宏画布串图
+### 2026-06-05: 事件图 / 函数画布串图
 
-- 现象：新增事件图、函数、宏后，切换时画布内容串到一起；单个函数/宏时单击不跳转，两个以上时才偶尔正常。
-- 根因：`GraphListController.Load()` 内会触发持久化；如果加载前 `_activeAssetController` 仍指向旧 controller，`PersistAssetLibrary()` 会把“刚加载的新画布”快照写回旧图，导致事件图/函数/宏模型互相污染。
+- 现象：新增事件图、函数后，切换时画布内容串到一起。
+- 根因：`GraphListController.Load()` 内会触发持久化；如果加载前 `_activeAssetController` 仍指向旧 controller，`PersistAssetLibrary()` 会把“刚加载的新画布”快照写回旧图，导致事件图/函数模型互相污染。
 - 正确顺序：`SnapshotActiveAsset()` -> `_activeAssetController = targetController` -> `targetController.LoadItem(item, snapshotCurrent: false)`。
-- 列表导航规则：事件图、函数、宏列表项单击即激活并切换画布；双击只是兼容。右键菜单也要先激活目标项，再做重命名/删除。
-- 测试要求：切换 event/function/macro 后检查当前画布节点类型，也检查各自 `GraphFileModel.Nodes` 没有被其它图类型覆盖。
+- 列表导航规则：事件图、函数列表项单击即激活并切换画布；双击只是兼容。右键菜单也要先激活目标项，再做重命名/删除。
+- 测试要求：切换 event/function 后检查当前画布节点类型，也检查各自 `GraphFileModel.Nodes` 没有被其它图类型覆盖。
 - UI 默认：底部内容浏览器和日志列 50/50，底部行默认 360 高度，避免每次手动拉大内容浏览器。
 
-### 2026-06-03: Event graphs + custom functions + macros v1
+### 2026-06-03: Event graphs + custom functions v1
 
-- `GraphLibraryState` now has event graphs (`Graphs` legacy field), `Functions`, and `Macros`. Old saved `Graphs` are treated as event graphs.
-- Function assets use `FunctionEntry` + `FunctionReturn`; macro assets use `MacroEntry` + one or more `MacroOutput`.
-- Function/macro parameter pin names use stable parameter IDs. User-visible parameter names are display labels only.
+- `GraphLibraryState` now has event graphs (`Graphs` legacy field) and `Functions`. Old saved `Graphs` are treated as event graphs.
+- Function assets use `FunctionEntry` + `FunctionReturn`.
+- Function parameter pin names use stable parameter IDs. User-visible parameter names are display labels only.
 - Parameter type mapping v1: `Boolean -> Boolean`, `Vector2D -> Vector2D`, all other parameter types (`Float`, `Vector3D`, `Vector4D`, `ImageAsset`, `String`) map to `String` pins.
-- Function calls are synchronous and return through `FunctionReturn`. Macro calls are runtime calls, not node expansion; the reached `MacroOutput` decides the caller exec output.
-- Runtime recursion is blocked by call stack keys (`function:{id}`, `macro:{id}`).
-- Only event graphs should be executed directly. Functions/macros are edited as assets and called from event graphs.
+- Function calls are synchronous and return through `FunctionReturn`.
+- Runtime recursion is blocked by call stack keys (`function:{id}`).
+- Only event graphs should be executed directly. Functions are edited as assets and called from event graphs.
 
 ### 2026-06-03: Stage-5 common nodes cleaned and optimized
 
@@ -486,47 +488,46 @@ Runtime
 8. **点击 vs 拖动延迟判断**：右键同时承载菜单和平移时，用位移阈值（如 3px）在 MouseMove 中决定行为转换
 9. **WinForms + WPF 混合项目用完整限定名**：`System.Windows.Controls.Button`、`System.Windows.HorizontalAlignment` 等避免歧义
 10. **不在 StrReplaceFile 中使用中文**：`old`/`new` 参数仅使用 ASCII 字符；中文文本通过 WriteFile 或按行号覆写注入
-### 2026-06-04: Content Browser + Script / Function Library / Macro Library assets
+### 2026-06-04: Content Browser + Script / Function Library assets
 
 - Bottom panel now has a UE-style content browser on the left and log panel on the right, separated by a `GridSplitter`.
 - Startup does not open graph editing UI by default. `EditorSurfaceHostRoot` is hidden and `EmptyEditorPanel` asks the user to open an asset from the content browser; opening an asset hosts that session's `EditorSurfaceControl`.
 - New content asset kinds:
   - `Folder`: content browser placeholder/category item for now.
-  - `Script`: blueprint-like executable asset with its own event graphs, private functions, and private macros.
+  - `Script`: blueprint-like executable asset with its own event graphs and private functions.
   - `FunctionLibrary`: global function library; functions can be searched/called by scripts.
-  - `MacroLibrary`: global macro library; macros can be searched/called by scripts.
-- `ContentAssetViewModel` owns `EventGraphs`, `Functions`, and `Macros`.
+- `ContentAssetViewModel` owns `EventGraphs` and `Functions`.
 - `GraphLibraryService.SaveContentLibrary()` writes the new `ContentAssets` model.
 - Old `graph-library.json` compatibility:
   - old `Graphs` -> default script event graphs.
   - old `Functions` -> default script private functions.
-  - old `Macros` -> default script private macros.
-- Function/macro call visibility:
-  - scripts can call their own private functions/macros.
-  - scripts can call all functions/macros from function/macro libraries.
-  - scripts cannot call private functions/macros from other scripts.
+  - old `Macros` / `MacroLibrary` -> ignored; macro libraries and macro graphs are removed.
+- Function call visibility:
+  - scripts can call their own private functions.
+  - scripts can call public functions from function libraries.
+  - scripts cannot call private functions from other scripts.
 - `CallableGraphItem` is the bridge DTO used by `NodePaletteController` and `ExecutionController`; do not return raw global `GraphListItemViewModel` lists for callable assets anymore.
-- Important: call `SnapshotActiveAsset()` before opening/filtering node palette or executing. Otherwise just-edited function/macro parameters may not be in `GraphFileModel`, causing call nodes to miss pins.
-- `GraphListController.LoadItem(item, snapshotCurrent: false)` is used when `MainWindow` already snapshots the active asset. Do not let each list controller snapshot cross-asset by itself, or event/function/macro canvases can get mixed.
-- Direct execution is only valid for a script event graph. Function libraries, macro libraries, private functions, and macros are edit/call-only.
+- Important: call `SnapshotActiveAsset()` before opening/filtering node palette or executing. Otherwise just-edited function parameters may not be in `GraphFileModel`, causing call nodes to miss pins.
+- `GraphListController.LoadItem(item, snapshotCurrent: false)` is used when `MainWindow` already snapshots the active asset. Do not let each list controller snapshot cross-asset by itself, or event/function canvases can get mixed.
+- Direct execution is only valid for a script event graph. Function libraries and private functions are edit/call-only.
 # 2026-06-04 恢复记录
 
 - 远端 `be3b34f` 没有上一轮未提交恢复内容；如果用户说“回退到 git 版了”，要在当前提交上补回功能，不做 reset。
 - 编译系统文件：`Services/GraphCompileService.cs`、`Services/GraphCallReferenceSyncService.cs`。
 - `GraphListItemViewModel.IsCompileDirty` 表示逻辑需要编译；布局移动只保存脏，不编译脏。
 - `GraphListController.MarkLogicDirty()` 用于参数/连线/节点逻辑变化；`MarkLayoutDirty()` 用于节点移动。
-- 左侧栏三块：事件图表、函数、宏。空列表折叠，新建资产默认空，用户点 `+` 才创建图表。
+- 左侧栏两块：事件图表、函数。空列表折叠，新建资产默认空，用户点 `+` 才创建图表。
 # 2026-06-04 recovery implementation notes
 
-- Content browser source of truth: `ContentBrowserItems`; visible panes: `ContentFolderItems` (folder tree) and `ContentVisibleItems` (current folder tiles).
+- Content browser source of truth: `ContentBrowserItems`; visible panes: `ContentFolderItems` (folder tree) and `ContentVisibleItems` (current folder tiles). The visible panes use `RangeObservableCollection.ReplaceAll(...)` for batch Reset refresh; do not return to `Clear()+Add` loops for directory/search projection updates.
 - New content assets inherit `_currentContentFolderId`. Double-click folder enters it; double-click non-folder opens editor.
 - Drag/drop asset onto a folder asks move/copy/cancel. Copy must allocate new content/graph IDs and clone graph DTOs.
-- Event/function/macro lists remain separate `GraphListController` instances. Do not merge selections or load one kind through another controller.
+- Event/function lists remain separate `GraphListController` instances. Do not merge selections or load one kind through another controller.
 - Section collapse state is runtime-only per content asset. Use `*SectionHasState` so a user-collapsed non-empty section does not auto-expand on reopen.
-- Deleting the last graph/function/macro must call `GraphEditorService.ClearGraph()` and must not recreate a default event graph/start node.
+- Deleting the last graph/function must call `GraphEditorService.ClearGraph()` and must not recreate a default event graph/start node.
 - Compile-dirty graph sections show orange header badges; compile-dirty items show `*` and orange row highlighting.
 - Dirty split: graph logic/signature/connection/node changes call `MarkLogicDirty()`; layout-only moves call `MarkLayoutDirty()`.
-- New graph/function/macro list items must start compile-dirty. Isolated tooling can set `AUTOMATION_STUDIO_LIBRARY_DIR` instead of writing to `%APPDATA%/AutomationStudioWpf`.
+- New graph/function list items must start compile-dirty. Isolated tooling can set `AUTOMATION_STUDIO_LIBRARY_DIR` instead of writing to `%APPDATA%/AutomationStudioWpf`.
 - Compile sync clears compile dirty and should only mark assets touched by call-reference updates as save dirty.
 - Global `Delete` / `F2` routing lives in `Window_PreviewKeyDown`; never intercept while a `TextBox` has focus.
 - Content tree commands must preserve `_contentFolderSelectionActive`; otherwise folder right-click/`Delete`/`F2` can accidentally use stale tile selection.

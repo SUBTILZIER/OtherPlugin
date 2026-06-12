@@ -119,13 +119,11 @@ public abstract class NodeBaseViewModel : ObservableObject
         NodeKind.PrintLog => new SolidColorBrush(Color.FromRgb(60, 170, 100)),
         NodeKind.SelectWindow => new SolidColorBrush(Color.FromRgb(80, 120, 200)),
         NodeKind.FunctionEntry or NodeKind.FunctionReturn or NodeKind.FunctionCall => new SolidColorBrush(Color.FromRgb(92, 92, 255)),
-        NodeKind.MacroEntry or NodeKind.MacroOutput or NodeKind.MacroCall => new SolidColorBrush(Color.FromRgb(216, 220, 227)),
         _ => new SolidColorBrush(Color.FromRgb(70, 70, 70)),
     };
 
     public Brush HeaderForegroundBrush => NodeKind switch
     {
-        NodeKind.MacroEntry or NodeKind.MacroOutput or NodeKind.MacroCall => new SolidColorBrush(Color.FromRgb(22, 26, 32)),
         _ => new SolidColorBrush(Color.FromRgb(255, 255, 255)),
     };
 

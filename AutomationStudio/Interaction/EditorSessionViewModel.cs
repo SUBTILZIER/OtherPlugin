@@ -19,7 +19,6 @@ public sealed class EditorSessionViewModel : ObservableObject
     private EditorDockMode _dockMode;
     private GraphListItemViewModel? _selectedGraphItem;
     private GraphListItemViewModel? _selectedFunctionItem;
-    private GraphListItemViewModel? _selectedMacroItem;
     private double _left = 48;
     private double _top = 42;
     private double _width = 920;
@@ -30,7 +29,6 @@ public sealed class EditorSessionViewModel : ObservableObject
         ContentAsset = contentAsset;
         GraphListItems = new ObservableCollection<GraphListItemViewModel>(contentAsset.EventGraphs);
         FunctionListItems = new ObservableCollection<GraphListItemViewModel>(contentAsset.Functions);
-        MacroListItems = new ObservableCollection<GraphListItemViewModel>(contentAsset.Macros);
         RefreshDirtyState();
         EnsureSurfaceContext();
     }
@@ -53,8 +51,6 @@ public sealed class EditorSessionViewModel : ObservableObject
 
     public ObservableCollection<GraphListItemViewModel> FunctionListItems { get; }
 
-    public ObservableCollection<GraphListItemViewModel> MacroListItems { get; }
-
     public ObservableCollection<NodeBaseViewModel> Nodes => EditorService.Nodes;
 
     public ObservableCollection<ConnectionPathViewModel> ConnectionPaths => EditorService.ConnectionPaths;
@@ -69,12 +65,6 @@ public sealed class EditorSessionViewModel : ObservableObject
     {
         get => _selectedFunctionItem;
         set => SetProperty(ref _selectedFunctionItem, value);
-    }
-
-    public GraphListItemViewModel? SelectedMacroItem
-    {
-        get => _selectedMacroItem;
-        set => SetProperty(ref _selectedMacroItem, value);
     }
 
     public string? ActiveGraphItemId { get; set; }
@@ -153,15 +143,14 @@ public sealed class EditorSessionViewModel : ObservableObject
     {
         ContentAsset.EventGraphs = new ObservableCollection<GraphListItemViewModel>(GraphListItems);
         ContentAsset.Functions = new ObservableCollection<GraphListItemViewModel>(FunctionListItems);
-        ContentAsset.Macros = new ObservableCollection<GraphListItemViewModel>(MacroListItems);
         RefreshDirtyState();
     }
 
     public void RefreshDirtyState()
     {
         IsDirty = ContentAsset.IsDirty ||
-                  GraphListItems.Concat(FunctionListItems).Concat(MacroListItems).Any(item => item.IsDirty);
-        IsCompileDirty = GraphListItems.Concat(FunctionListItems).Concat(MacroListItems).Any(item => item.IsCompileDirty);
+                  GraphListItems.Concat(FunctionListItems).Any(item => item.IsDirty);
+        IsCompileDirty = GraphListItems.Concat(FunctionListItems).Any(item => item.IsCompileDirty);
     }
 
     public void RememberActive(GraphListController? activeController)

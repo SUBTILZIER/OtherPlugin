@@ -264,7 +264,6 @@ public partial class MainWindow
         ContentBrowserNewFolderMenuItem.Visibility = newVisibility;
         ContentBrowserNewLibraryMenuSeparator.Visibility = newVisibility;
         ContentBrowserNewFunctionLibraryMenuItem.Visibility = newVisibility;
-        ContentBrowserNewMacroLibraryMenuItem.Visibility = newVisibility;
     }
 
     private void DeleteSelectedContentAssetsMenuItem_Click(object sender, WpfRoutedEventArgs e)
@@ -664,7 +663,6 @@ public partial class MainWindow
         clone.ParentFolderId = targetFolderId;
         clone.EventGraphs = new(source.EventGraphs.Select(CloneGraphItem));
         clone.Functions = new(source.Functions.Select(CloneGraphItem));
-        clone.Macros = new(source.Macros.Select(CloneGraphItem));
         clone.IsDirty = true;
         ContentBrowserItems.Add(clone);
 

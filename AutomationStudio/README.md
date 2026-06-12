@@ -10,16 +10,19 @@
 - Double-clicking a visible wire inserts a reroute node by sampling the visible curve back to the nearest backing `ConnectionViewModel`; Alt-click still removes the nearest backing connection.
 - `GraphEditorService.RunBatchedEdit(...)` batches connection mutations so `ConnectionPaths` rebuild and `GraphChanged` fire once per composed edit.
 - Runtime lookup uses an internal lazy `GraphExecutionIndex`; `GraphExecutionPlan` constructor/schema stay unchanged.
-- Non-reroute nodes get reusable per-graph numbers: event `N###`, function `Fun###`, macro `Mac###`. Deleting a node frees its number for the next created node.
+- Non-reroute nodes get reusable per-graph numbers: event `N###`, function `Fun###`. Deleting a node frees its number for the next created node.
 - `ToDo` jumps within the current graph by matching both target node title and node number. The inspector has a search box plus result list, and an option to return to `ToDo.exec_out` after the target chain finishes.
 - `ToDo` direct self-jump is invalid. Return-after-target mode executes the target chain with `stopBeforeNodeId` set to the source ToDo, so a target chain that naturally reaches the same ToDo returns to the source `exec_out` instead of looping.
 - ToDo inspector selections are committed into the active `GraphFileModel` before compile/save/run. Static dropdown targets persist as `TargetNodeTitle` / `TargetNodeNumber` / `TargetNodeId`; connected `target_title` / `target_number` pins can still override at runtime.
 - The main log panel is a read-only `RichTextBox`: drag-select text freely, `Ctrl+A` selects the filtered log text, and `Ctrl+C` copies selected text without triggering graph-node copy.
 - Current content browser supports folder tree, current-folder tiles, multi-select, box select, drag move/copy, copy/paste, rename/delete, double-click asset open, recursive fuzzy search under the current folder, and `Ctrl+B` locate-to-real-folder.
-- Double-clicking a `FunctionCallNodeViewModel` or `MacroCallNodeViewModel` opens the owning script/function-library/macro-library asset and loads the target function/macro graph by stable id.
+- Content browser folder/tree and search projections batch-refresh `ContentFolderItems` / `ContentVisibleItems` with `RangeObservableCollection.ReplaceAll(...)`, avoiding per-asset UI collection-change storms in large folders.
+- Logger UI updates batch pending entries into `Logger.Entries` with `RangeObservableCollection.AddRange(...)`; the main log panel and log window append new paragraphs incrementally instead of rebuilding the whole log per entry.
+- Double-clicking a `FunctionCallNodeViewModel` opens the owning script/function-library asset and loads the target function graph by stable id.
 - The editor now keeps one `EditorSessionViewModel` per opened asset. Reopening the same asset focuses the existing session instead of replacing it; the main window bar shows only tab sessions, while detached sessions are managed by their own standalone windows.
 - Each editor session now owns a full `EditorSurfaceControl` with its own graph list, canvas, node palette, and inspector UI. Detached windows host their own session surface directly, so main and detached windows can stay visible side by side without moving a shared `EditorGrid` or falling back to read-only previews.
-- Toolbar compile is active-asset scoped: scripts compile all event/function/macro graphs in that asset, and function/macro libraries compile all graphs in that library.
+- Toolbar compile is active-asset scoped: scripts compile all event/function graphs in that asset, and function libraries compile all functions in that library.
+- Multi-window dirty and compile state is session-scoped: editing or compiling one opened asset updates that session's graph list, window tab, section badges, and compile button without leaking yellow dirty markers to another asset.
 - Reroute nodes use centered anchors and a UE-style yellow selection glow/ring for click and box selection feedback.
 - `GraphCommandService` records graph-edit snapshots for Undo/Redo. Ctrl+Z undoes graph edits; Ctrl+Y or Ctrl+Shift+Z redoes them.
 - Visible wires can be selected, highlighted, deleted with Delete/Backspace, or edited through the wire context menu.
@@ -33,7 +36,7 @@ UE4 风格的 WPF 蓝图节点编辑器 — 用于桌面自动化脚本编排。
 - **节点式编程**: 拖拽节点，连线构建自动化流程
 - **多种节点类型**: 鼠标点击/移动/双击、键盘/组合键、滚轮、延迟、找图(OpenCV)、条件分支、循环、窗口操作、截图、弹窗、找图等待、布尔/字符串逻辑、比较
 - **Python 图像识别**: 通过 Python OpenCV `TM_CCOEFF_NORMED` 模板匹配找图
-- **资产系统**: 脚本、函数库、宏库 — 支持公开到库、私有函数/宏、自定义事件
+- **资产系统**: 脚本、函数库 — 支持公开到库、私有函数、自定义事件
 - **内容浏览器**: 文件夹树 + 瓦片视图，支持递归模糊搜索、多选、框选、复制粘贴、拖拽移动/复制到文件夹、`Ctrl+B` 定位
 - **多编辑窗口**: 工具栏下方窗口栏管理主窗口标签页，支持切换、关闭、关闭右侧、关闭所有、拖出为独立窗口；独立窗口不再占用主窗口标签
 - **多格式兼容**: 支持鼠标左键/右键/侧键、键盘按键、滚轮方向
@@ -46,7 +49,7 @@ UE4 风格的 WPF 蓝图节点编辑器 — 用于桌面自动化脚本编排。
 ## 使用
 
 1. 底部内容浏览器打开/创建脚本资产
-2. 左侧事件图/函数/宏列表添加节点
+2. 左侧事件图/函数列表添加节点
 3. 右键画布打开节点菜单添加节点
 4. 拖拽输出引脚到输入引脚连线
 5. 右侧属性面板编辑节点参数
@@ -74,22 +77,22 @@ UE4 风格的 WPF 蓝图节点编辑器 — 用于桌面自动化脚本编排。
 ## 资产系统
 
 ### 脚本 (Script)
-- 包含事件图、私有函数、私有宏
+- 包含事件图和私有函数
 - 事件图可添加自定义事件 (CustomEvent / CustomEventCall)
 - 只有事件图能直接执行
 
-### 函数库 (FunctionLibrary) / 宏库 (MacroLibrary)
-- 全局库，库内函数/宏勾选"公开到库"后才对其他脚本可见
+### 函数库 (FunctionLibrary)
+- 全局库，库内函数勾选"公开到库"后才对其他脚本可见
 - 脚本只能调用本脚本私有项 + 已公开的库项
 
 ### 内容浏览器
 - 左侧文件夹树，右侧瓦片视图
-- 支持文件夹内新建脚本/函数库/宏库/文件夹
+- 支持文件夹内新建脚本/函数库/文件夹
 - 支持多选、框选、`Ctrl+C` / `Ctrl+V` 复制粘贴资产
 - 资产拖拽到文件夹支持移动/复制，拖拽时有半透明预览
 - 顶部搜索框按当前目录递归列出匹配资产/文件夹，支持空格关键字、路径片段、模糊匹配和不区分大小写
 - 搜索结果可双击打开；选中搜索结果或资产后 `Ctrl+B` 会清空搜索并定位到真实父目录
-- 画布中双击函数/宏调用节点，会按 stable id 打开被调用函数/宏所在资产并切到对应编辑面板
+- 画布中双击函数调用节点，会按 stable id 打开被调用函数所在资产并切到对应编辑面板
 
 ## 环境要求
 
@@ -228,11 +231,11 @@ saved/log/Log_2026_05_28_22_11.txt
 ### v1.2.6 (2026-06-09)
 - **Added**: Content browser recursive fuzzy search under the current folder, including keyword/path matching and search-result double-click open.
 - **Added**: `Ctrl+B` content browser locate. It clears search, enters the asset's real parent folder, selects the asset, and can also locate the currently opened asset.
-- **Added**: Function/macro call-node double-click navigation by stable graph id. Same-asset functions/macros switch panels directly; library targets open the owning library asset before loading the target graph.
+- **Added**: Function call-node double-click navigation by stable graph id. Same-asset functions switch panels directly; library targets open the owning library asset before loading the target graph.
 - **Improved**: Content browser UE-style interaction now includes multi-select, box select, asset copy/paste, multi-delete, drag preview, and themed dialogs.
 
 ### v1.2.5 (2026-06-08)
-- **Added**: Reusable per-graph node numbers (`N###` / `Fun###` / `Mac###`) shown in node headers and inspector.
+- **Added**: Reusable per-graph node numbers (`N###` / `Fun###`) shown in node headers and inspector.
 - **Added**: `ToDo` jump node resolves targets by node title + node number, with inspector search/pick UI and optional return-after-target mode.
 - **Improved**: Runtime/validation reachability understands static ToDo jump targets; compile/save/run commits inspector edits first, and compile can backfill static ToDo title/number from `TargetNodeId`.
 - **Improved**: Log panel uses read-only `RichTextBox` selection so `Ctrl+A` / `Ctrl+C` copy log text instead of graph nodes.
@@ -266,7 +269,7 @@ saved/log/Log_2026_05_28_22_11.txt
 
 ### v1.2.0 (2026-06-05)
 - **新增**: 内容浏览器 — 文件夹树 + 瓦片视图，资产拖拽管理
-- **新增**: 脚本/函数库/宏库资产系统，支持"公开到库"硬隔离
+- **新增**: 脚本/函数库资产系统，支持"公开到库"硬隔离
 - **新增**: 自定义事件 (CustomEvent / CustomEventCall)
 - **新增**: 执行前校验 — 节点可达性、参数缺失、连线唯一性
 - **新增**: 边缘自动平移 (EdgePan) — 拖动到视口边界自动滚动
@@ -275,7 +278,7 @@ saved/log/Log_2026_05_28_22_11.txt
 - **重构**: 属性面板下沉到 InspectorController
 - **重构**: 9 个 Interaction Controller 解耦 UI 与业务
 - **优化**: 删除 6 个冗余节点 (MouseDrag/InputText/KeySequence/ClickImageCenter/SetVariable/Comment)
-- **修复**: 事件图/函数/宏画布隔离
+- **修复**: 事件图/函数画布隔离
 - **修复**: XAML 初始化事件 NullReference
 - **修复**: WPF/WinForms 类型歧义
 

@@ -405,18 +405,11 @@ public sealed class InspectorController
                 case ParameterNodeBaseViewModel parameterNode:
                     _parameterInspectorPanel.Visibility = Visibility.Visible;
                     LoadParameterNode(parameterNode);
-                    if (parameterNode is MacroOutputNodeViewModel macroOutput)
-                        _nodeTitleTextBox.Text = macroOutput.ExitName;
                     break;
 
                 case FunctionCallNodeViewModel functionCall:
                     _parameterInspectorPanel.Visibility = Visibility.Visible;
                     LoadCallNodeInputs(functionCall, functionCall.InputParameters);
-                    break;
-
-                case MacroCallNodeViewModel macroCall:
-                    _parameterInspectorPanel.Visibility = Visibility.Visible;
-                    LoadCallNodeInputs(macroCall, macroCall.InputParameters);
                     break;
 
                 case CustomEventCallNodeViewModel customEventCall:
@@ -557,9 +550,6 @@ public sealed class InspectorController
 
         switch (node)
         {
-            case MacroOutputNodeViewModel macroOutput:
-                macroOutput.ExitName = _nodeTitleTextBox.Text.Trim();
-                break;
             case ParameterNodeBaseViewModel:
                 break;
 
@@ -1161,8 +1151,6 @@ public sealed class InspectorController
         {
             FunctionEntryNodeViewModel => "输入",
             FunctionReturnNodeViewModel => "输出",
-            MacroEntryNodeViewModel => "输入",
-            MacroOutputNodeViewModel => "输出",
             CustomEventNodeViewModel => "输入",
             _ => "参数",
         };
@@ -1224,7 +1212,7 @@ public sealed class InspectorController
         Grid.SetColumn(typeBox, 1);
         row.Children.Add(typeBox);
 
-        bool valueLocked = node is FunctionReturnNodeViewModel or MacroOutputNodeViewModel &&
+        bool valueLocked = node is FunctionReturnNodeViewModel &&
                            IsInputPinConnected(node, parameter.Id);
         var defaultEditor = CreateParameterValueEditor(parameter, valueLocked, () => LoadParameterNode(node));
         Grid.SetColumn(defaultEditor, 2);

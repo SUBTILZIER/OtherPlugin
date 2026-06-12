@@ -27,12 +27,10 @@ public sealed class GraphCallReferenceSyncService
         {
             var functions = _callableResolver.ResolveFunctions(assetList, asset)
                 .ToDictionary(item => item.Id, StringComparer.Ordinal);
-            var macros = _callableResolver.ResolveMacros(assetList, asset)
-                .ToDictionary(item => item.Id, StringComparer.Ordinal);
 
-            foreach (var graph in asset.EventGraphs.Concat(asset.Functions).Concat(asset.Macros).Select(item => item.Graph))
+            foreach (var graph in asset.EventGraphs.Concat(asset.Functions).Select(item => item.Graph))
             {
-                int updated = SyncGraph(graph, functions, macros, out int removed);
+                int updated = SyncGraph(graph, functions, out int removed);
                 result.UpdatedCallNodes += updated;
                 result.RemovedConnections += removed;
                 if (updated > 0 || removed > 0)
@@ -51,11 +49,9 @@ public sealed class GraphCallReferenceSyncService
         var assetList = assets.Where(asset => asset.Kind != ContentAssetKind.Folder).ToList();
         var functions = _callableResolver.ResolveFunctions(assetList, owner)
             .ToDictionary(item => item.Id, StringComparer.Ordinal);
-        var macros = _callableResolver.ResolveMacros(assetList, owner)
-            .ToDictionary(item => item.Id, StringComparer.Ordinal);
 
         var result = new GraphCallReferenceSyncResult();
-        result.UpdatedCallNodes = SyncGraph(graph, functions, macros, out int removed);
+        result.UpdatedCallNodes = SyncGraph(graph, functions, out int removed);
         result.RemovedConnections = removed;
         if (result.UpdatedCallNodes > 0 || result.RemovedConnections > 0)
             result.ChangedAssetIds.Add(owner.Id);
@@ -66,7 +62,6 @@ public sealed class GraphCallReferenceSyncService
     private static int SyncGraph(
         GraphFileModel graph,
         IReadOnlyDictionary<string, CallableGraphItem> functions,
-        IReadOnlyDictionary<string, CallableGraphItem> macros,
         out int removedConnections)
     {
         int updated = 0;
@@ -90,30 +85,6 @@ public sealed class GraphCallReferenceSyncService
                 var outputs = GetParameterFiles(function.Graph, "function_return");
                 updated += ReplaceParameters(node, inputs, outputs, invalidPins);
                 updated += ReplaceTitle(node, function.Name);
-            }
-            else if (node.NodeTypeKey == "macro_call" && !string.IsNullOrWhiteSpace(node.MacroId) &&
-                     macros.TryGetValue(node.MacroId, out var macro))
-            {
-                var inputs = GetParameterFiles(macro.Graph, "macro_entry");
-                var outputs = GetParameterFiles(macro.Graph, "macro_output");
-                var exits = macro.Graph.Nodes
-                    .Where(n => n.NodeTypeKey == "macro_output")
-                    .Select(n => new MacroExitFileModel
-                    {
-                        Id = string.IsNullOrWhiteSpace(n.Id) ? Guid.NewGuid().ToString("N") : n.Id,
-                        Name = string.IsNullOrWhiteSpace(n.ExitName) ? "完成" : n.ExitName!,
-                    })
-                    .ToList();
-
-                updated += ReplaceParameters(node, inputs, outputs, invalidPins);
-                if (!SameMacroExits(node.MacroExits, exits))
-                {
-                    foreach (var oldExit in node.MacroExits)
-                        invalidPins.Add((node.Id, $"exec_{oldExit.Id}"));
-                    node.MacroExits = exits;
-                    updated++;
-                }
-                updated += ReplaceTitle(node, macro.Name);
             }
             else if (node.NodeTypeKey == "custom_event_call" && !string.IsNullOrWhiteSpace(node.CustomEventId) &&
                      customEvents.TryGetValue(node.CustomEventId, out var customEvent))
@@ -238,7 +209,4 @@ public sealed class GraphCallReferenceSyncService
         _ => PinKind.String,
     };
 
-    private static bool SameMacroExits(IReadOnlyList<MacroExitFileModel> left, IReadOnlyList<MacroExitFileModel> right) =>
-        left.Count == right.Count &&
-        left.Zip(right).All(pair => pair.First.Id == pair.Second.Id && pair.First.Name == pair.Second.Name);
 }

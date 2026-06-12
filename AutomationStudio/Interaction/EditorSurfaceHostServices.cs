@@ -18,5 +18,4 @@ internal sealed record EditorSurfaceHostServices(
     Action EnsureCanvasLargeEnough,
     Action<string> SetStatus,
     Func<IEnumerable<CallableGraphItem>> GetCallableFunctions,
-    Func<IEnumerable<CallableGraphItem>> GetCallableMacros,
     Func<IEnumerable<CallableCustomEventItem>> GetCallableCustomEvents);

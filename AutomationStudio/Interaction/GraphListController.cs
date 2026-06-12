@@ -116,7 +116,6 @@ public sealed class GraphListController
         var source = _kind switch
         {
             GraphAssetKind.Function => GraphLibraryService.ToFunctionViewModels(state),
-            GraphAssetKind.Macro => GraphLibraryService.ToMacroViewModels(state),
             _ => GraphLibraryService.ToViewModels(state),
         };
         foreach (var item in source)
@@ -478,8 +477,6 @@ public sealed class GraphListController
         {
             if (_kind == GraphAssetKind.Function)
                 _editorService.NewFunctionGraph();
-            else if (_kind == GraphAssetKind.Macro)
-                _editorService.NewMacroGraph();
             else
                 _editorService.NewGraph();
             _syncNodeFactorySequence();
@@ -567,8 +564,7 @@ public sealed class GraphListController
         string title = $"{graphName}开始";
         foreach (var node in nodes)
         {
-            if (_kind == GraphAssetKind.Function && node is FunctionEntryNodeViewModel ||
-                _kind == GraphAssetKind.Macro && node is MacroEntryNodeViewModel)
+            if (_kind == GraphAssetKind.Function && node is FunctionEntryNodeViewModel)
             {
                 node.Title = title;
             }
@@ -580,7 +576,6 @@ public sealed class GraphListController
         string? entryKey = _kind switch
         {
             GraphAssetKind.Function => "function_entry",
-            GraphAssetKind.Macro => "macro_entry",
             _ => null,
         };
         if (entryKey is null)

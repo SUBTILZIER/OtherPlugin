@@ -89,66 +89,6 @@ public sealed class FunctionReturnNodeViewModel : ParameterNodeBaseViewModel
     }
 }
 
-public sealed class MacroEntryNodeViewModel : ParameterNodeBaseViewModel
-{
-    public MacroEntryNodeViewModel(string id) : base(id, "宏开始")
-    {
-        AddOutput("exec_out", "执行输出", PinKind.Execution);
-        SyncPins();
-    }
-
-    public override NodeKind NodeKind => NodeKind.MacroEntry;
-    public override string NodeTypeKey => "macro_entry";
-
-    public override void RefreshDescription() => Description = $"输入参数 {Parameters.Count} 个";
-
-    public override void SyncPins()
-    {
-        for (int i = OutputPins.Count - 1; i >= 0; i--)
-            if (OutputPins[i].Kind != PinKind.Execution)
-                OutputPins.RemoveAt(i);
-        foreach (var parameter in Parameters)
-            AddOutput(parameter.Id, parameter.Name, parameter.ToPinKind());
-        RefreshDescription();
-    }
-}
-
-public sealed class MacroOutputNodeViewModel : ParameterNodeBaseViewModel
-{
-    private string _exitName = "完成";
-
-    public MacroOutputNodeViewModel(string id) : base(id, "宏输出")
-    {
-        AddInput("exec_in", "执行输入", PinKind.Execution);
-        SyncPins();
-    }
-
-    public override NodeKind NodeKind => NodeKind.MacroOutput;
-    public override string NodeTypeKey => "macro_output";
-
-    public string ExitName
-    {
-        get => _exitName;
-        set
-        {
-            if (SetProperty(ref _exitName, string.IsNullOrWhiteSpace(value) ? "完成" : value.Trim()))
-                RefreshDescription();
-        }
-    }
-
-    public override void RefreshDescription() => Description = $"出口：{ExitName}\n输出参数 {Parameters.Count} 个";
-
-    public override void SyncPins()
-    {
-        for (int i = InputPins.Count - 1; i >= 0; i--)
-            if (InputPins[i].Kind != PinKind.Execution)
-                InputPins.RemoveAt(i);
-        foreach (var parameter in Parameters)
-            AddInput(parameter.Id, parameter.Name, parameter.ToPinKind());
-        RefreshDescription();
-    }
-}
-
 public sealed class FunctionCallNodeViewModel : NodeBaseViewModel
 {
     public FunctionCallNodeViewModel(string id, string functionId, string title) : base(id, title)
@@ -183,46 +123,6 @@ public sealed class FunctionCallNodeViewModel : NodeBaseViewModel
     }
 
     public override void RefreshDescription() => Description = $"调用函数：{Title}";
-}
-
-public sealed class MacroCallNodeViewModel : NodeBaseViewModel
-{
-    public MacroCallNodeViewModel(string id, string macroId, string title) : base(id, title)
-    {
-        MacroId = macroId;
-    }
-
-    public override NodeKind NodeKind => NodeKind.MacroCall;
-    public override string NodeTypeKey => "macro_call";
-    public string MacroId { get; set; }
-    public ObservableCollection<GraphParameterDefinition> InputParameters { get; } = [];
-    public ObservableCollection<GraphParameterDefinition> OutputParameters { get; } = [];
-
-    public void ConfigurePins(
-        IEnumerable<GraphParameterDefinition> inputs,
-        IEnumerable<GraphParameterDefinition> outputs,
-        IEnumerable<(string Id, string Name)> exits)
-    {
-        CallNodeParameterSync.Merge(InputParameters, inputs, preserveDefaultValue: true);
-        CallNodeParameterSync.Merge(OutputParameters, outputs, preserveDefaultValue: false);
-        SyncPins(exits);
-    }
-
-    public void SyncPins(IEnumerable<(string Id, string Name)> exits)
-    {
-        InputPins.Clear();
-        OutputPins.Clear();
-        AddInput("exec_in", "执行输入", PinKind.Execution);
-        foreach (var input in InputParameters)
-            AddInput(input.Id, input.Name, input.ToPinKind());
-        foreach (var exit in exits)
-            AddOutput($"exec_{exit.Id}", exit.Name, PinKind.Execution);
-        foreach (var output in OutputParameters)
-            AddOutput(output.Id, output.Name, output.ToPinKind());
-        RefreshDescription();
-    }
-
-    public override void RefreshDescription() => Description = $"调用宏：{Title}";
 }
 
 internal static class CallNodeParameterSync

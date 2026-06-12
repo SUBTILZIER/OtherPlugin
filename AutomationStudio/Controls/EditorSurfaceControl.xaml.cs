@@ -44,11 +44,6 @@ public partial class EditorSurfaceControl : WpfUserControl
     private void FunctionListBox_KeyDown(object sender, WpfKeyEventArgs e) => Forward(EditorSurfaceEvent.FunctionListBoxKeyDown, sender, e);
     private void FunctionListItem_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e) => Forward(EditorSurfaceEvent.FunctionListItemPreviewMouseRightButtonDown, sender, e);
     private void FunctionListItem_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e) => Forward(EditorSurfaceEvent.FunctionListItemPreviewMouseLeftButtonDown, sender, e);
-    private void AddMacroListItem_Click(object sender, RoutedEventArgs e) => Forward(EditorSurfaceEvent.AddMacroListItemClick, sender, e);
-    private void MacroListBox_MouseDoubleClick(object sender, MouseButtonEventArgs e) => Forward(EditorSurfaceEvent.MacroListBoxMouseDoubleClick, sender, e);
-    private void MacroListBox_KeyDown(object sender, WpfKeyEventArgs e) => Forward(EditorSurfaceEvent.MacroListBoxKeyDown, sender, e);
-    private void MacroListItem_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e) => Forward(EditorSurfaceEvent.MacroListItemPreviewMouseRightButtonDown, sender, e);
-    private void MacroListItem_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e) => Forward(EditorSurfaceEvent.MacroListItemPreviewMouseLeftButtonDown, sender, e);
     private void GraphListItem_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e) => Forward(EditorSurfaceEvent.GraphListItemPreviewMouseRightButtonDown, sender, e);
     private void GraphListItem_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e) => Forward(EditorSurfaceEvent.GraphListItemPreviewMouseLeftButtonDown, sender, e);
     private void GraphNameTextBox_KeyDown(object sender, WpfKeyEventArgs e) => Forward(EditorSurfaceEvent.GraphNameTextBoxKeyDown, sender, e);
@@ -56,7 +51,6 @@ public partial class EditorSurfaceControl : WpfUserControl
     private void LibraryPublishCheckBox_Click(object sender, RoutedEventArgs e) => Forward(EditorSurfaceEvent.LibraryPublishCheckBoxClick, sender, e);
     private void ToggleEventGraphSection_Click(object sender, RoutedEventArgs e) => Forward(EditorSurfaceEvent.ToggleEventGraphSectionClick, sender, e);
     private void ToggleFunctionSection_Click(object sender, RoutedEventArgs e) => Forward(EditorSurfaceEvent.ToggleFunctionSectionClick, sender, e);
-    private void ToggleMacroSection_Click(object sender, RoutedEventArgs e) => Forward(EditorSurfaceEvent.ToggleMacroSectionClick, sender, e);
     private void NodeCard_MouseLeftButtonDown(object sender, MouseButtonEventArgs e) => Forward(EditorSurfaceEvent.NodeCardMouseLeftButtonDown, sender, e);
     private void NodeHeader_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e) => Forward(EditorSurfaceEvent.NodeHeaderPreviewMouseLeftButtonDown, sender, e);
     private void NodeHeader_PreviewMouseMove(object sender, WpfMouseEventArgs e) => Forward(EditorSurfaceEvent.NodeHeaderPreviewMouseMove, sender, e);

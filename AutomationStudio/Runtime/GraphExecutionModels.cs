@@ -115,8 +115,7 @@ public sealed record GraphRuntimeConnection(
     PinKind TargetPinKind);
 
 public sealed record RuntimeAssetLibrary(
-    IReadOnlyDictionary<string, GraphExecutionPlan> Functions,
-    IReadOnlyDictionary<string, GraphExecutionPlan> Macros);
+    IReadOnlyDictionary<string, GraphExecutionPlan> Functions);
 
 public sealed record GraphRuntimeParameter(
     string Id,
@@ -202,11 +201,7 @@ public sealed record GraphRuntimeNode(
 
     public string? FunctionId { get; init; }
 
-    public string? MacroId { get; init; }
-
     public string? CustomEventId { get; init; }
-
-    public string? ExitName { get; init; }
 
     public string NodeNumber { get; init; } = string.Empty;
 
@@ -354,17 +349,6 @@ public sealed record GraphRuntimeNode(
             Parameters = ToRuntimeParameters(parameters),
         };
 
-    public static GraphRuntimeNode ForMacroOutput(
-        string id,
-        string title,
-        string exitName,
-        IEnumerable<GraphParameterDefinition>? parameters = null) =>
-        new(id, title, NodeKind.MacroOutput, null, 0, PressReleaseMode.Press, MouseButton.Left, 0, 0, 0, null, ScrollWheelAction.ScrollForward, 120, 100, 1000, 0, false, PinKind.Execution, ProgramStartFailureAction.None, 0, null)
-        {
-            ExitName = exitName,
-            Parameters = ToRuntimeParameters(parameters),
-        };
-
     public static GraphRuntimeNode ForFunctionCall(
         string id,
         string title,
@@ -373,17 +357,6 @@ public sealed record GraphRuntimeNode(
         new(id, title, NodeKind.FunctionCall, null, 0, PressReleaseMode.Press, MouseButton.Left, 0, 0, 0, null, ScrollWheelAction.ScrollForward, 120, 100, 1000, 0, false, PinKind.Execution, ProgramStartFailureAction.None, 0, null)
         {
             FunctionId = functionId,
-            Parameters = ToRuntimeParameters(parameters),
-        };
-
-    public static GraphRuntimeNode ForMacroCall(
-        string id,
-        string title,
-        string macroId,
-        IEnumerable<GraphParameterDefinition>? parameters = null) =>
-        new(id, title, NodeKind.MacroCall, null, 0, PressReleaseMode.Press, MouseButton.Left, 0, 0, 0, null, ScrollWheelAction.ScrollForward, 120, 100, 1000, 0, false, PinKind.Execution, ProgramStartFailureAction.None, 0, null)
-        {
-            MacroId = macroId,
             Parameters = ToRuntimeParameters(parameters),
         };
 

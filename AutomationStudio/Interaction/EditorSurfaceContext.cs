@@ -42,8 +42,6 @@ public sealed class EditorSurfaceContext
 
     public GraphListController FunctionListController { get; private set; } = null!;
 
-    public GraphListController MacroListController { get; private set; } = null!;
-
     public CanvasPanZoomController CanvasPanZoomController { get; private set; } = null!;
 
     public NodeDragSelectionController NodeDragSelectionController { get; private set; } = null!;
@@ -109,20 +107,6 @@ public sealed class EditorSurfaceContext
             GraphAssetKind.Function,
             "函数",
             "新函数_",
-            services.SetStatus);
-
-        MacroListController = new GraphListController(
-            services.Owner,
-            Session.EditorService,
-            services.LibraryService,
-            Session.NodeFactory,
-            Surface.MacroListBox,
-            Session.MacroListItems,
-            SyncNodeFactorySequence,
-            services.PersistAll,
-            GraphAssetKind.Macro,
-            "宏",
-            "新宏_",
             services.SetStatus);
 
         CanvasPanZoomController = new CanvasPanZoomController(
@@ -270,7 +254,6 @@ public sealed class EditorSurfaceContext
             CommandService,
             services.NodeRegistry,
             services.GetCallableFunctions,
-            services.GetCallableMacros,
             services.GetCallableCustomEvents,
             GetActiveGraphKind,
             services.SnapshotActiveAsset,
@@ -341,7 +324,6 @@ public sealed class EditorSurfaceContext
     {
         GraphListController.ClearActive();
         FunctionListController.ClearActive();
-        MacroListController.ClearActive();
         _activeAssetController = null;
     }
 

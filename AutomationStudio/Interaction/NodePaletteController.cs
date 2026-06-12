@@ -22,10 +22,7 @@ public sealed class NodePaletteController
         NodeKind.Reroute,
         NodeKind.FunctionEntry,
         NodeKind.FunctionReturn,
-        NodeKind.MacroEntry,
-        NodeKind.MacroOutput,
         NodeKind.FunctionCall,
-        NodeKind.MacroCall,
         NodeKind.CustomEventCall,
     ];
 
@@ -37,7 +34,6 @@ public sealed class NodePaletteController
     private readonly GraphCommandService _commandService;
     private readonly NodeRegistry _nodeRegistry;
     private readonly Func<IEnumerable<CallableGraphItem>> _getFunctions;
-    private readonly Func<IEnumerable<CallableGraphItem>> _getMacros;
     private readonly Func<IEnumerable<CallableCustomEventItem>> _getCustomEvents;
     private readonly Func<GraphAssetKind?> _getActiveGraphKind;
     private readonly Action _snapshotActiveAsset;
@@ -58,7 +54,6 @@ public sealed class NodePaletteController
         GraphCommandService commandService,
         NodeRegistry nodeRegistry,
         Func<IEnumerable<CallableGraphItem>> getFunctions,
-        Func<IEnumerable<CallableGraphItem>> getMacros,
         Func<IEnumerable<CallableCustomEventItem>> getCustomEvents,
         Func<GraphAssetKind?> getActiveGraphKind,
         Action snapshotActiveAsset,
@@ -75,7 +70,6 @@ public sealed class NodePaletteController
         _commandService = commandService;
         _nodeRegistry = nodeRegistry;
         _getFunctions = getFunctions;
-        _getMacros = getMacros;
         _getCustomEvents = getCustomEvents;
         _getActiveGraphKind = getActiveGraphKind;
         _snapshotActiveAsset = snapshotActiveAsset;
@@ -152,8 +146,7 @@ public sealed class NodePaletteController
             }
         }
 
-        hasAny |= AddAssetGroups(_getFunctions(), filter, isMacro: false);
-        hasAny |= AddAssetGroups(_getMacros(), filter, isMacro: true);
+        hasAny |= AddAssetGroups(_getFunctions(), filter);
         if (isEventGraph)
             hasAny |= AddCustomEventGroups(_getCustomEvents(), filter);
 
@@ -197,7 +190,7 @@ public sealed class NodePaletteController
         Canvas.SetTop(_palette, top);
     }
 
-    private bool AddAssetGroups(IEnumerable<CallableGraphItem> assets, string filter, bool isMacro)
+    private bool AddAssetGroups(IEnumerable<CallableGraphItem> assets, string filter)
     {
         var matched = assets
             .Where(asset => string.IsNullOrWhiteSpace(filter) ||
@@ -214,7 +207,7 @@ public sealed class NodePaletteController
             AddGroupHeader(group.Key);
             foreach (var asset in group)
             {
-                var button = CreateMenuButton(asset.Name, new PaletteAsset(asset, isMacro));
+                var button = CreateMenuButton(asset.Name, new PaletteAsset(asset));
                 button.Click += AssetButton_Click;
                 _content.Children.Add(button);
             }
@@ -322,30 +315,15 @@ public sealed class NodePaletteController
 
         _snapshotActiveAsset();
         var graphPoint = _viewportToGraph(_openViewportPoint);
-        NodeBaseViewModel node;
-        if (asset.IsMacro)
-        {
-            node = _nodeFactory.CreateMacroCallNode(
-                asset.Item.Id,
-                asset.Item.Name,
-                GetEntryParameters(asset.Item.Graph, NodeKind.MacroEntry),
-                GetOutputParameters(asset.Item.Graph, NodeKind.MacroOutput),
-                GetMacroExits(asset.Item.Graph),
-                graphPoint.X,
-                graphPoint.Y);
-        }
-        else
-        {
-            node = _nodeFactory.CreateFunctionCallNode(
-                asset.Item.Id,
-                asset.Item.Name,
-                GetEntryParameters(asset.Item.Graph, NodeKind.FunctionEntry),
-                GetOutputParameters(asset.Item.Graph, NodeKind.FunctionReturn),
-                graphPoint.X,
-                graphPoint.Y);
-        }
+        var node = _nodeFactory.CreateFunctionCallNode(
+            asset.Item.Id,
+            asset.Item.Name,
+            GetEntryParameters(asset.Item.Graph, NodeKind.FunctionEntry),
+            GetOutputParameters(asset.Item.Graph, NodeKind.FunctionReturn),
+            graphPoint.X,
+            graphPoint.Y);
 
-        _commandService.Execute(asset.IsMacro ? "Add macro call" : "Add function call", () =>
+        _commandService.Execute("Add function call", () =>
         {
             _editorService.AddNode(node);
             _tryAutoConnectNode(node);
@@ -411,11 +389,6 @@ public sealed class NodePaletteController
         return nodes.SelectMany(node => node.Parameters.Select(ToParameter));
     }
 
-    private static IEnumerable<(string Id, string Name)> GetMacroExits(GraphFileModel graph) =>
-        graph.Nodes
-            .Where(node => node.NodeTypeKey == "macro_output")
-            .Select(node => (node.Id, string.IsNullOrWhiteSpace(node.ExitName) ? "完成" : node.ExitName!));
-
     private static GraphParameterDefinition ToParameter(GraphParameterFileModel file) => new()
     {
         Id = file.Id,
@@ -428,8 +401,6 @@ public sealed class NodePaletteController
     {
         "function_entry" => NodeKind.FunctionEntry,
         "function_return" => NodeKind.FunctionReturn,
-        "macro_entry" => NodeKind.MacroEntry,
-        "macro_output" => NodeKind.MacroOutput,
         _ => null,
     };
 
@@ -437,7 +408,7 @@ public sealed class NodePaletteController
 
     private static double Clamp(double value, double min, double max) => Math.Min(Math.Max(value, min), max);
 
-    private sealed record PaletteAsset(CallableGraphItem Item, bool IsMacro);
+    private sealed record PaletteAsset(CallableGraphItem Item);
 
     private sealed record PaletteCustomEvent(CallableCustomEventItem Item);
 }

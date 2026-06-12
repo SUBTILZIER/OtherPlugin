@@ -30,34 +30,6 @@ public sealed class CallableGraphResolver
         return Deduplicate(result);
     }
 
-    public IReadOnlyList<CallableGraphItem> ResolveMacros(
-        IEnumerable<ContentAssetViewModel> assets,
-        ContentAssetViewModel? activeAsset)
-    {
-        var result = new List<CallableGraphItem>();
-        if (activeAsset?.Kind == ContentAssetKind.Script)
-        {
-            result.AddRange(activeAsset.Macros.Select(macro =>
-                new CallableGraphItem(macro.Id, macro.Name, "本脚本宏", macro.Graph)));
-        }
-        else if (activeAsset?.Kind == ContentAssetKind.MacroLibrary)
-        {
-            result.AddRange(activeAsset.Macros.Select(macro =>
-                new CallableGraphItem(macro.Id, macro.Name, "本宏库", macro.Graph)));
-        }
-
-        foreach (var library in assets.Where(asset =>
-                     asset.Kind == ContentAssetKind.MacroLibrary &&
-                     !IsSameAsset(asset, activeAsset)))
-        {
-            result.AddRange(library.Macros
-                .Where(macro => macro.IsPublicToLibrary)
-                .Select(macro => new CallableGraphItem(macro.Id, $"{library.Name}/{macro.Name}", "宏库", macro.Graph)));
-        }
-
-        return Deduplicate(result);
-    }
-
     private static IReadOnlyList<CallableGraphItem> Deduplicate(IEnumerable<CallableGraphItem> items) =>
         items
             .GroupBy(item => item.Id, StringComparer.Ordinal)

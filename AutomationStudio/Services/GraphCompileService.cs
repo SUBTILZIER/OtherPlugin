@@ -50,7 +50,7 @@ public sealed class GraphCompileService
 
         foreach (var item in assetList
                      .Where(asset => asset.Kind != ContentAssetKind.Folder)
-                     .SelectMany(asset => asset.EventGraphs.Concat(asset.Functions).Concat(asset.Macros)))
+                     .SelectMany(asset => asset.EventGraphs.Concat(asset.Functions)))
         {
             item.IsCompileDirty = false;
         }
@@ -143,7 +143,7 @@ public sealed class GraphCompileService
         var changedAssetIds = new HashSet<string>(StringComparer.Ordinal);
         foreach (var asset in assets.Where(asset => asset.Kind != ContentAssetKind.Folder))
         {
-            foreach (var item in asset.EventGraphs.Concat(asset.Functions).Concat(asset.Macros))
+            foreach (var item in asset.EventGraphs.Concat(asset.Functions))
             {
                 bool changed = EnsureGraphNodeNumbers(item.Graph, item.Kind);
                 changed |= EnsureGraphToDoTargets(item.Graph);
@@ -171,9 +171,8 @@ public sealed class GraphCompileService
 
     private static IEnumerable<GraphListItemViewModel> GetCompilableGraphs(ContentAssetViewModel asset) => asset.Kind switch
     {
-        ContentAssetKind.Script => asset.EventGraphs.Concat(asset.Functions).Concat(asset.Macros),
+        ContentAssetKind.Script => asset.EventGraphs.Concat(asset.Functions),
         ContentAssetKind.FunctionLibrary => asset.Functions,
-        ContentAssetKind.MacroLibrary => asset.Macros,
         _ => Enumerable.Empty<GraphListItemViewModel>(),
     };
 
@@ -269,7 +268,6 @@ public sealed class GraphCompileService
     private static string NodeNumberPrefix(GraphAssetKind kind) => kind switch
     {
         GraphAssetKind.Function => "Fun",
-        GraphAssetKind.Macro => "Mac",
         _ => "N",
     };
 
@@ -289,7 +287,7 @@ public sealed class GraphCompileService
         var assetsById = assets.ToDictionary(asset => asset.Id, StringComparer.Ordinal);
         foreach (var asset in assets.Where(asset => asset.Kind != ContentAssetKind.Folder))
         {
-            foreach (var item in asset.EventGraphs.Concat(asset.Functions).Concat(asset.Macros))
+            foreach (var item in asset.EventGraphs.Concat(asset.Functions))
                 ValidateGraph(assets, assetsById, asset, item, issues);
         }
 
@@ -380,12 +378,6 @@ public sealed class GraphCompileService
                 if (Count(NodeKind.FunctionReturn) != 1)
                     issues.Add(Error(graphName, "函数图必须有且只有一个函数返回节点。"));
                 break;
-            case GraphAssetKind.Macro:
-                if (Count(NodeKind.MacroEntry) != 1)
-                    issues.Add(Error(graphName, "宏图必须有且只有一个宏开始节点。"));
-                if (Count(NodeKind.MacroOutput) == 0)
-                    issues.Add(Error(graphName, "宏图必须至少有一个宏输出节点。"));
-                break;
         }
     }
 
@@ -475,8 +467,6 @@ public sealed class GraphCompileService
     {
         var functions = _callableResolver.ResolveFunctions(assets, owner)
             .ToDictionary(item => item.Id, StringComparer.Ordinal);
-        var macros = _callableResolver.ResolveMacros(assets, owner)
-            .ToDictionary(item => item.Id, StringComparer.Ordinal);
         var customEvents = graph.Nodes
             .Where(node => node.NodeTypeKey == "custom_event")
             .Select(node => string.IsNullOrWhiteSpace(node.CustomEventId) ? node.Id : node.CustomEventId!)
@@ -488,11 +478,6 @@ public sealed class GraphCompileService
                 (string.IsNullOrWhiteSpace(node.FunctionId) || !functions.ContainsKey(node.FunctionId)))
             {
                 issues.Add(Error(graphName, $"函数调用不可用或未公开：{node.Title}。"));
-            }
-            else if (node.NodeTypeKey == "macro_call" &&
-                     (string.IsNullOrWhiteSpace(node.MacroId) || !macros.ContainsKey(node.MacroId)))
-            {
-                issues.Add(Error(graphName, $"宏调用不可用或未公开：{node.Title}。"));
             }
             else if (node.NodeTypeKey == "custom_event_call" &&
                      (string.IsNullOrWhiteSpace(node.CustomEventId) || !customEvents.Contains(node.CustomEventId)))

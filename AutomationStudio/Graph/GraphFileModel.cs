@@ -123,10 +123,8 @@ public sealed class NodeFileModel
 
     public bool Flag { get; set; }
 
-    // Function / macro nodes.
+    // Function and custom event nodes.
     public string? FunctionId { get; set; }
-
-    public string? MacroId { get; set; }
 
     public string? CustomEventId { get; set; }
 
@@ -137,8 +135,6 @@ public sealed class NodeFileModel
     public List<GraphParameterFileModel> InputParameters { get; set; } = [];
 
     public List<GraphParameterFileModel> OutputParameters { get; set; } = [];
-
-    public List<MacroExitFileModel> MacroExits { get; set; } = [];
 
     // ToDo jump node.
     public string? TargetNodeTitle { get; set; }
@@ -159,13 +155,6 @@ public sealed class GraphParameterFileModel
     public GraphParameterType Type { get; set; } = GraphParameterType.Boolean;
 
     public string DefaultValue { get; set; } = string.Empty;
-}
-
-public sealed class MacroExitFileModel
-{
-    public string Id { get; set; } = string.Empty;
-
-    public string Name { get; set; } = "完成";
 }
 
 public sealed class ConnectionFileModel

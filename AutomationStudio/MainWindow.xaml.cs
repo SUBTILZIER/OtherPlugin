@@ -7,6 +7,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
+using AutomationStudioWpf.Collections;
 using AutomationStudioWpf.Controls;
 using AutomationStudioWpf.Graph;
 using AutomationStudioWpf.Interaction;
@@ -45,7 +46,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private readonly ObservableCollection<EditorSessionViewModel> _mainEditorSessions = [];
     private readonly ObservableCollection<GraphListItemViewModel> _emptyGraphListItems = [];
     private readonly ObservableCollection<GraphListItemViewModel> _emptyFunctionListItems = [];
-    private readonly ObservableCollection<GraphListItemViewModel> _emptyMacroListItems = [];
     private readonly ObservableCollection<NodeBaseViewModel> _emptyNodes = [];
     private readonly ObservableCollection<ConnectionPathViewModel> _emptyConnectionPaths = [];
     private EditorSessionViewModel? _activeEditorSession;
@@ -61,7 +61,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private NodePaletteController _nodePaletteController = null!;
     private GraphListController _graphListController = null!;
     private GraphListController _functionListController = null!;
-    private GraphListController _macroListController = null!;
     private GraphListController? _activeAssetController;
     private CanvasPanZoomController _canvasPanZoomController = null!;
     private NodeDragSelectionController _nodeDragSelectionController = null!;
@@ -164,7 +163,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 new GraphCore.GraphValidator(),
                 RunGraphButton,
                 GetRuntimeCallableFunctions,
-                GetRuntimeCallableMacros,
                 SetStatus);
 
             ApplyEditorSurfaceContext(activeContext);
@@ -181,7 +179,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             new GraphCore.GraphValidator(),
             RunGraphButton,
             GetRuntimeCallableFunctions,
-            GetRuntimeCallableMacros,
             SetStatus);
 
         _graphListController = new GraphListController(
@@ -212,20 +209,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             "新函数_",
             SetStatus);
 
-        _macroListController = new GraphListController(
-            this,
-            _editorService,
-            _graphLibraryService,
-            _nodeFactory,
-            surface.MacroListBox,
-            MacroListItems,
-            SyncNodeFactorySequence,
-            PersistAssetLibrary,
-            GraphAssetKind.Macro,
-            "宏",
-            "新宏_",
-            SetStatus);
-
         RebuildInteractionControllers();
     }
 
@@ -253,7 +236,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         _graphCommandService = context.CommandService;
         _graphListController = context.GraphListController;
         _functionListController = context.FunctionListController;
-        _macroListController = context.MacroListController;
         _activeAssetController = context.ActiveAssetController;
         _canvasPanZoomController = context.CanvasPanZoomController;
         _nodeDragSelectionController = context.NodeDragSelectionController;
@@ -276,7 +258,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             _graphCommandService,
             _nodeRegistry,
             GetCallableFunctions,
-            GetCallableMacros,
             GetCallableCustomEvents,
             GetActiveGraphKind,
             SnapshotActiveAsset,
@@ -513,7 +494,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         var previousCommandService = _graphCommandService;
         var previousGraphListController = _graphListController;
         var previousFunctionListController = _functionListController;
-        var previousMacroListController = _macroListController;
         var previousActiveAssetController = _activeAssetController;
         var previousCanvasPanZoomController = _canvasPanZoomController;
         var previousNodeDragSelectionController = _nodeDragSelectionController;
@@ -540,7 +520,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             _graphCommandService = previousCommandService;
             _graphListController = previousGraphListController;
             _functionListController = previousFunctionListController;
-            _macroListController = previousMacroListController;
             _activeAssetController = previousActiveAssetController;
             _canvasPanZoomController = previousCanvasPanZoomController;
             _nodeDragSelectionController = previousNodeDragSelectionController;
@@ -565,11 +544,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             case EditorSurfaceEvent.FunctionListBoxKeyDown: FunctionListBox_KeyDown(sender, (KeyEventArgs)e); break;
             case EditorSurfaceEvent.FunctionListItemPreviewMouseRightButtonDown: FunctionListItem_PreviewMouseRightButtonDown(sender, (MouseButtonEventArgs)e); break;
             case EditorSurfaceEvent.FunctionListItemPreviewMouseLeftButtonDown: FunctionListItem_PreviewMouseLeftButtonDown(sender, (MouseButtonEventArgs)e); break;
-            case EditorSurfaceEvent.AddMacroListItemClick: AddMacroListItem_Click(sender, (RoutedEventArgs)e); break;
-            case EditorSurfaceEvent.MacroListBoxMouseDoubleClick: MacroListBox_MouseDoubleClick(sender, (MouseButtonEventArgs)e); break;
-            case EditorSurfaceEvent.MacroListBoxKeyDown: MacroListBox_KeyDown(sender, (KeyEventArgs)e); break;
-            case EditorSurfaceEvent.MacroListItemPreviewMouseRightButtonDown: MacroListItem_PreviewMouseRightButtonDown(sender, (MouseButtonEventArgs)e); break;
-            case EditorSurfaceEvent.MacroListItemPreviewMouseLeftButtonDown: MacroListItem_PreviewMouseLeftButtonDown(sender, (MouseButtonEventArgs)e); break;
             case EditorSurfaceEvent.GraphListItemPreviewMouseRightButtonDown: GraphListItem_PreviewMouseRightButtonDown(sender, (MouseButtonEventArgs)e); break;
             case EditorSurfaceEvent.GraphListItemPreviewMouseLeftButtonDown: GraphListItem_PreviewMouseLeftButtonDown(sender, (MouseButtonEventArgs)e); break;
             case EditorSurfaceEvent.GraphNameTextBoxKeyDown: GraphNameTextBox_KeyDown(sender, (KeyEventArgs)e); break;
@@ -577,7 +551,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             case EditorSurfaceEvent.LibraryPublishCheckBoxClick: LibraryPublishCheckBox_Click(sender, (RoutedEventArgs)e); break;
             case EditorSurfaceEvent.ToggleEventGraphSectionClick: ToggleEventGraphSection_Click(sender, (RoutedEventArgs)e); break;
             case EditorSurfaceEvent.ToggleFunctionSectionClick: ToggleFunctionSection_Click(sender, (RoutedEventArgs)e); break;
-            case EditorSurfaceEvent.ToggleMacroSectionClick: ToggleMacroSection_Click(sender, (RoutedEventArgs)e); break;
             case EditorSurfaceEvent.NodeCardMouseLeftButtonDown: NodeCard_MouseLeftButtonDown(sender, (MouseButtonEventArgs)e); break;
             case EditorSurfaceEvent.NodeHeaderPreviewMouseLeftButtonDown: NodeHeader_PreviewMouseLeftButtonDown(sender, (MouseButtonEventArgs)e); break;
             case EditorSurfaceEvent.NodeHeaderPreviewMouseMove: NodeHeader_PreviewMouseMove(sender, (MouseEventArgs)e); break;
@@ -628,26 +601,25 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private void ConfigureEditorSurface(EditorSessionViewModel session)
     {
         var context = session.EnsureSurfaceContext();
-        context.Configure(this, CreateEditorSurfaceHostServices());
+        context.Configure(this, CreateEditorSurfaceHostServices(session));
         if (_themedDialogOverridesInstalled)
             InstallGraphListHandlersForSurface(context.Surface, context);
         if (ReferenceEquals(session, _activeEditorSession))
             ApplyEditorSurfaceContext(context);
     }
 
-    private EditorSurfaceHostServices CreateEditorSurfaceHostServices() => new(
+    private EditorSurfaceHostServices CreateEditorSurfaceHostServices(EditorSessionViewModel session) => new(
         this,
         _graphLibraryService,
         _clipboardService,
         _nodeRegistry,
         PersistAssetLibrary,
-        SnapshotActiveAsset,
-        MarkActiveAssetDirty,
-        MarkActiveAssetLayoutDirty,
+        () => SnapshotSession(session),
+        () => MarkSessionDirty(session),
+        () => MarkSessionLayoutDirty(session),
         EnsureCanvasLargeEnough,
         SetStatus,
         GetCallableFunctions,
-        GetCallableMacros,
         GetCallableCustomEvents);
 
     private void InitializeEditor()
@@ -665,12 +637,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     public System.Collections.IEnumerable ConnectionPaths => _activeEditorSession?.EditorService.ConnectionPaths ?? _emptyConnectionPaths;
     public ObservableCollection<GraphListItemViewModel> GraphListItems => _activeEditorSession?.GraphListItems ?? _emptyGraphListItems;
     public ObservableCollection<GraphListItemViewModel> FunctionListItems => _activeEditorSession?.FunctionListItems ?? _emptyFunctionListItems;
-    public ObservableCollection<GraphListItemViewModel> MacroListItems => _activeEditorSession?.MacroListItems ?? _emptyMacroListItems;
     public ObservableCollection<EditorSessionViewModel> EditorSessions => _editorSessions;
     public ObservableCollection<EditorSessionViewModel> MainEditorSessions => _mainEditorSessions;
     public ObservableCollection<ContentAssetViewModel> ContentBrowserItems { get; } = [];
-    public ObservableCollection<ContentAssetViewModel> ContentFolderItems { get; } = [];
-    public ObservableCollection<ContentAssetViewModel> ContentVisibleItems { get; } = [];
+    public RangeObservableCollection<ContentAssetViewModel> ContentFolderItems { get; } = [];
+    public RangeObservableCollection<ContentAssetViewModel> ContentVisibleItems { get; } = [];
 
     #endregion
 
@@ -809,44 +780,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         ActivateGraphListItem(_functionListController, sender, e);
     }
 
-    private void AddMacroListItem_Click(object sender, RoutedEventArgs e)
-    {
-        SnapshotActiveAsset();
-        _activeAssetController = _macroListController;
-        _macroListController.AddAndRename(snapshotCurrent: false);
-        SaveSectionExpansionForActiveAsset(_macroListController);
-        MarkCurrentContentDirty();
-        UpdateGraphSectionVisibility();
-    }
-
-    private void MacroListBox_MouseDoubleClick(object sender, MouseButtonEventArgs e)
-    {
-        if (_macroListController.TryGetItemFromMouse(e, out var item))
-        {
-            LoadGraphItem(_macroListController, item, snapshotCurrent: true);
-            e.Handled = true;
-            UpdateGraphSectionVisibility();
-        }
-    }
-
-    private void MacroListBox_KeyDown(object sender, KeyEventArgs e)
-    {
-        _macroListController.HandleKeyDown(e);
-        SaveSectionExpansionForActiveAsset(_macroListController);
-        UpdateGraphSectionVisibility();
-    }
-
-    private void MacroListItem_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
-    {
-        _macroListController.SelectRightClickedItem(sender);
-        ActivateGraphListItem(_macroListController, sender, e);
-    }
-
-    private void MacroListItem_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-    {
-        ActivateGraphListItem(_macroListController, sender, e);
-    }
-
     private void GraphListItem_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
     {
         _graphListController.SelectRightClickedItem(sender);
@@ -912,7 +845,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     {
         if (sender is not System.Windows.Controls.CheckBox { DataContext: GraphListItemViewModel item })
             return;
-        if (_activeContentAsset?.Kind is not (ContentAssetKind.FunctionLibrary or ContentAssetKind.MacroLibrary))
+        if (_activeContentAsset?.Kind is not ContentAssetKind.FunctionLibrary)
             return;
 
         item.IsDirty = true;
@@ -927,7 +860,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         item.Kind switch
         {
             GraphAssetKind.Function => _functionListController,
-            GraphAssetKind.Macro => _macroListController,
             _ => _graphListController,
         };
 
@@ -942,13 +874,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     {
         _functionListController.SetSectionExpanded(!_functionListController.IsSectionExpanded);
         SaveSectionExpansionForActiveAsset(_functionListController);
-        UpdateGraphSectionVisibility();
-    }
-
-    private void ToggleMacroSection_Click(object sender, RoutedEventArgs e)
-    {
-        _macroListController.SetSectionExpanded(!_macroListController.IsSectionExpanded);
-        SaveSectionExpansionForActiveAsset(_macroListController);
         UpdateGraphSectionVisibility();
     }
 
@@ -967,29 +892,21 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             _activeContentAsset.FunctionSectionExpanded = controller.IsSectionExpanded;
             _activeContentAsset.FunctionSectionHasState = true;
         }
-        else if (ReferenceEquals(controller, _macroListController))
-        {
-            _activeContentAsset.MacroSectionExpanded = controller.IsSectionExpanded;
-            _activeContentAsset.MacroSectionHasState = true;
-        }
     }
 
     private void UpdateGraphSectionVisibility()
     {
-        if (_graphListController is null || _functionListController is null || _macroListController is null)
+        if (_graphListController is null || _functionListController is null)
             return;
 
         bool showEvent = _activeContentAsset?.Kind == ContentAssetKind.Script;
         bool showFunction = _activeContentAsset?.Kind is ContentAssetKind.Script or ContentAssetKind.FunctionLibrary;
-        bool showMacro = _activeContentAsset?.Kind is ContentAssetKind.Script or ContentAssetKind.MacroLibrary;
         var surface = GetActiveEditorSurface();
 
         UpdateGraphSection(_graphListController, surface.EventGraphPanel, surface.EventGraphSection, surface.EventGraphSectionToggle, surface.GraphListBox, showEvent);
         UpdateGraphSection(_functionListController, surface.FunctionPanel, surface.FunctionSection, surface.FunctionSectionToggle, surface.FunctionListBox, showFunction);
-        UpdateGraphSection(_macroListController, surface.MacroPanel, surface.MacroSection, surface.MacroSectionToggle, surface.MacroListBox, showMacro);
         surface.EventGraphDirtyBadge.Visibility = showEvent && _graphListController.HasCompileDirtyItems ? Visibility.Visible : Visibility.Collapsed;
         surface.FunctionDirtyBadge.Visibility = showFunction && _functionListController.HasCompileDirtyItems ? Visibility.Visible : Visibility.Collapsed;
-        surface.MacroDirtyBadge.Visibility = showMacro && _macroListController.HasCompileDirtyItems ? Visibility.Visible : Visibility.Collapsed;
         UpdateLibraryPublishOptionVisibility();
         UpdateCompileButtonState();
     }
@@ -997,12 +914,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private void UpdateLibraryPublishOptionVisibility()
     {
         bool showFunctions = _activeContentAsset?.Kind == ContentAssetKind.FunctionLibrary;
-        bool showMacros = _activeContentAsset?.Kind == ContentAssetKind.MacroLibrary;
 
         foreach (var item in FunctionListItems)
             item.ShowLibraryPublishOption = showFunctions;
-        foreach (var item in MacroListItems)
-            item.ShowLibraryPublishOption = showMacros;
     }
 
     private static void UpdateGraphSection(
@@ -1031,8 +945,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private void NewScriptAsset_Click(object sender, RoutedEventArgs e) => AddContentAsset(ContentAssetKind.Script, "新脚本");
 
     private void NewFunctionLibraryAsset_Click(object sender, RoutedEventArgs e) => AddContentAsset(ContentAssetKind.FunctionLibrary, "新函数库");
-
-    private void NewMacroLibraryAsset_Click(object sender, RoutedEventArgs e) => AddContentAsset(ContentAssetKind.MacroLibrary, "新宏库");
 
     private void ContentBrowserListBox_MouseDoubleClick(object sender, MouseButtonEventArgs e)
     {
@@ -1126,7 +1038,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         ContentBrowserNewFolderMenuItem.Visibility = newVisibility;
         ContentBrowserNewLibraryMenuSeparator.Visibility = newVisibility;
         ContentBrowserNewFunctionLibraryMenuItem.Visibility = newVisibility;
-        ContentBrowserNewMacroLibraryMenuItem.Visibility = newVisibility;
     }
 
     private void ContentFolder_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
@@ -1260,8 +1171,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     {
         if (kind == GraphAssetKind.Function)
             _editorService.NewFunctionGraph();
-        else if (kind == GraphAssetKind.Macro)
-            _editorService.NewMacroGraph();
         else
             _editorService.NewGraph();
 
@@ -1369,14 +1278,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         _graphListController.ClearActive();
         _functionListController.ClearActive();
-        _macroListController.ClearActive();
         _activeAssetController = null;
         if (session.SurfaceContext is { } context)
             context.ActiveAssetController = null;
 
         _graphListController.LoadSectionExpansion(session.ContentAsset.EventGraphSectionExpanded, session.ContentAsset.EventGraphSectionHasState);
         _functionListController.LoadSectionExpansion(session.ContentAsset.FunctionSectionExpanded, session.ContentAsset.FunctionSectionHasState);
-        _macroListController.LoadSectionExpansion(session.ContentAsset.MacroSectionExpanded, session.ContentAsset.MacroSectionHasState);
 
         ApplyEditorModeForContent(session.ContentAsset);
         LoadTargetOrRememberedGraphForSession(session, targetGraph, targetKind);
@@ -1410,14 +1317,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private GraphListController GetControllerForKind(GraphAssetKind kind) => kind switch
     {
         GraphAssetKind.Function => _functionListController,
-        GraphAssetKind.Macro => _macroListController,
         _ => _graphListController,
     };
 
     private static ObservableCollection<GraphListItemViewModel> GetCollectionForKind(EditorSessionViewModel session, GraphAssetKind kind) => kind switch
     {
         GraphAssetKind.Function => session.FunctionListItems,
-        GraphAssetKind.Macro => session.MacroListItems,
         _ => session.GraphListItems,
     };
 
@@ -1426,19 +1331,19 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (_activeEditorSession is null)
             return;
 
-        SnapshotActiveAsset();
-        _activeEditorSession.SaveToAsset();
+        CommitSessionToAsset(_activeEditorSession);
     }
 
     private void CommitAllSessionsToAssets()
     {
         foreach (var session in _editorSessions)
-        {
-            if (ReferenceEquals(session, _activeEditorSession))
-                CommitCurrentSessionToAsset();
-            else
-                session.SaveToAsset();
-        }
+            CommitSessionToAsset(session);
+    }
+
+    private void CommitSessionToAsset(EditorSessionViewModel session)
+    {
+        SnapshotSession(session);
+        session.SaveToAsset();
     }
 
     private void ApplyEditorModeForContent(ContentAssetViewModel asset)
@@ -1466,15 +1371,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 return;
             }
         }
-        else if (asset.Kind == ContentAssetKind.MacroLibrary)
-        {
-            if (MacroListItems.Count > 0)
-            {
-                LoadGraphItem(_macroListController, MacroListItems[0], snapshotCurrent: false);
-                return;
-            }
-        }
-
         _activeAssetController = null;
         if (_activeEditorSession?.SurfaceContext is { } context)
             context.ActiveAssetController = null;
@@ -1610,18 +1506,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         return _callableGraphResolver.ResolveFunctions(ContentBrowserItems, _activeContentAsset);
     }
 
-    private IEnumerable<CallableGraphItem> GetCallableMacros()
-    {
-        SaveVisibleGraphsToActiveContent();
-        return _callableGraphResolver.ResolveMacros(ContentBrowserItems, _activeContentAsset);
-    }
-
-    private IEnumerable<CallableGraphItem> GetRuntimeCallableMacros()
-    {
-        SaveVisibleGraphsToActiveContent();
-        return _callableGraphResolver.ResolveMacros(ContentBrowserItems, _activeContentAsset);
-    }
-
     private IEnumerable<CallableCustomEventItem> GetCallableCustomEvents()
     {
         SnapshotActiveAsset();
@@ -1659,18 +1543,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         var folderChildrenByParent = BuildContentChildrenLookup(foldersOnly: true);
         var childrenByParent = BuildContentChildrenLookup(foldersOnly: false);
 
-        ContentFolderItems.Clear();
         _rootContentFolder.ViewDepth = 0;
         _rootContentFolder.IsTreeExpanded = true;
         _rootContentFolder.HasFolderChildren = folderChildrenByParent[null].Any();
-        ContentFolderItems.Add(_rootContentFolder);
-
-        foreach (var folder in BuildFolderTree(null, 1, new HashSet<string>(), folderChildrenByParent))
-            ContentFolderItems.Add(folder);
-
-        ContentVisibleItems.Clear();
-        foreach (var item in SortContentChildren(childrenByParent[_currentContentFolderId]))
-            ContentVisibleItems.Add(item);
+        ContentFolderItems.ReplaceAll(new[] { _rootContentFolder }
+            .Concat(BuildFolderTree(null, 1, new HashSet<string>(), folderChildrenByParent)));
+        ContentVisibleItems.ReplaceAll(SortContentChildren(childrenByParent[_currentContentFolderId]));
 
         ContentFolderListBox.SelectedItem = _currentContentFolderId is null
             ? _rootContentFolder
@@ -1941,7 +1819,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         clone.ParentFolderId = targetFolderId;
         clone.EventGraphs = new ObservableCollection<GraphListItemViewModel>(source.EventGraphs.Select(CloneGraphItem));
         clone.Functions = new ObservableCollection<GraphListItemViewModel>(source.Functions.Select(CloneGraphItem));
-        clone.Macros = new ObservableCollection<GraphListItemViewModel>(source.Macros.Select(CloneGraphItem));
         return clone;
     }
 
@@ -2082,8 +1959,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         string title = $"{graphName}开始";
         foreach (var node in nodes)
         {
-            if (kind == GraphAssetKind.Function && node is FunctionEntryNodeViewModel ||
-                kind == GraphAssetKind.Macro && node is MacroEntryNodeViewModel)
+            if (kind == GraphAssetKind.Function && node is FunctionEntryNodeViewModel)
             {
                 node.Title = title;
             }
@@ -2095,7 +1971,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         string? entryKey = kind switch
         {
             GraphAssetKind.Function => "function_entry",
-            GraphAssetKind.Macro => "macro_entry",
             _ => null,
         };
         if (entryKey is null)
@@ -2154,13 +2029,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         Number4 = node.Number4,
         Flag = node.Flag,
         FunctionId = node.FunctionId,
-        MacroId = node.MacroId,
         CustomEventId = node.CustomEventId,
         ExitName = node.ExitName,
         Parameters = node.Parameters.Select(CloneParameterFile).ToList(),
         InputParameters = node.InputParameters.Select(CloneParameterFile).ToList(),
         OutputParameters = node.OutputParameters.Select(CloneParameterFile).ToList(),
-        MacroExits = node.MacroExits.Select(exit => new MacroExitFileModel { Id = exit.Id, Name = exit.Name }).ToList(),
     };
 
     private static GraphParameterFileModel CloneParameterFile(GraphParameterFileModel parameter) => new()
@@ -2214,7 +2087,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         CommitAllSessionsToAssets();
         if (ContentBrowserItems.Any(item => item.IsDirty) ||
-            GraphListItems.Concat(FunctionListItems).Concat(MacroListItems).Any(item => item.IsDirty))
+            GraphListItems.Concat(FunctionListItems).Any(item => item.IsDirty))
         {
             var result = WpfMessageBox.Show(
                 this,
@@ -2504,7 +2377,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             return;
         }
 
-        if (IsFocusInside(surface.GraphListBox) || IsFocusInside(surface.FunctionListBox) || IsFocusInside(surface.MacroListBox))
+        if (IsFocusInside(surface.GraphListBox) || IsFocusInside(surface.FunctionListBox))
         {
             if (Keyboard.FocusedElement is not TextBoxBase && GetFocusedGraphController() is { } controller)
             {
@@ -2558,8 +2431,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         var surface = GetActiveEditorSurface();
         if (IsFocusInside(surface.FunctionListBox))
             return _functionListController;
-        if (IsFocusInside(surface.MacroListBox))
-            return _macroListController;
         if (IsFocusInside(surface.GraphListBox))
             return _graphListController;
         return null;
@@ -2740,23 +2611,57 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void MarkActiveAssetDirty()
     {
-        _activeAssetController?.MarkLogicDirty();
-        MarkCurrentContentDirty();
-        UpdateGraphSectionVisibility();
+        if (_activeEditorSession is not null)
+            MarkSessionDirty(_activeEditorSession);
     }
 
     private void MarkActiveAssetLayoutDirty()
     {
-        _activeAssetController?.MarkLayoutDirty();
-        MarkCurrentContentDirty();
-        UpdateGraphSectionVisibility();
+        if (_activeEditorSession is not null)
+            MarkSessionLayoutDirty(_activeEditorSession);
     }
 
     private void SnapshotActiveAsset()
     {
-        _activeAssetController?.SnapshotActive();
-        _activeEditorSession?.RememberActive(_activeAssetController);
-        _activeEditorSession?.RefreshDirtyState();
+        if (_activeEditorSession is not null)
+            SnapshotSession(_activeEditorSession);
+    }
+
+    private void MarkSessionDirty(EditorSessionViewModel session)
+    {
+        var controller = GetSessionActiveAssetController(session);
+        controller?.MarkLogicDirty();
+        session.ContentAsset.IsDirty = true;
+        session.RefreshDirtyState();
+        if (ReferenceEquals(session, _activeEditorSession))
+            UpdateGraphSectionVisibility();
+        UpdateEditorSessionChrome();
+    }
+
+    private void MarkSessionLayoutDirty(EditorSessionViewModel session)
+    {
+        var controller = GetSessionActiveAssetController(session);
+        controller?.MarkLayoutDirty();
+        session.ContentAsset.IsDirty = true;
+        session.RefreshDirtyState();
+        if (ReferenceEquals(session, _activeEditorSession))
+            UpdateGraphSectionVisibility();
+        UpdateEditorSessionChrome();
+    }
+
+    private void SnapshotSession(EditorSessionViewModel session)
+    {
+        var controller = GetSessionActiveAssetController(session);
+        controller?.SnapshotActive();
+        session.RememberActive(controller);
+        session.RefreshDirtyState();
+    }
+
+    private GraphListController? GetSessionActiveAssetController(EditorSessionViewModel session)
+    {
+        if (ReferenceEquals(session, _activeEditorSession))
+            return _activeAssetController;
+        return session.SurfaceContext?.ActiveAssetController;
     }
 
     private void PersistAssetLibrary()
@@ -2770,18 +2675,20 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         CommitAllSessionsToAssets();
         foreach (var item in ContentBrowserItems
                      .Where(asset => asset.Kind != ContentAssetKind.Folder)
-                     .SelectMany(asset => asset.EventGraphs.Concat(asset.Functions).Concat(asset.Macros))
+                     .SelectMany(asset => asset.EventGraphs.Concat(asset.Functions))
                      .Concat(GraphListItems)
-                     .Concat(FunctionListItems)
-                     .Concat(MacroListItems))
+                     .Concat(FunctionListItems))
         {
             item.IsDirty = false;
         }
 
         foreach (var item in ContentBrowserItems)
             item.IsDirty = false;
+        foreach (var session in _editorSessions)
+            SyncSessionGraphStateFromAsset(session);
         PersistAssetLibrary();
         UpdateGraphSectionVisibility();
+        UpdateEditorSessionChrome();
         SetStatus($"已保存全部内容资产：{ContentBrowserItems.Count} 个。");
     }
 
@@ -2833,6 +2740,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (!HandleCompileResult(result, showPrompt))
             return false;
 
+        if (targetSession is not null)
+            SyncSessionGraphStateFromAsset(targetSession);
+
         if (targetController?.ActiveItem is { } active)
         {
             if (targetSession is not null)
@@ -2869,6 +2779,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (!HandleCompileResult(result, showPrompt))
             return false;
 
+        foreach (var session in _editorSessions)
+            SyncSessionGraphStateFromAsset(session);
+
         if (_activeAssetController?.ActiveItem is { } active)
         {
             _activeAssetController.ReloadItemWithoutPersist(active);
@@ -2876,6 +2789,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
         PersistAssetLibrary();
         UpdateGraphSectionVisibility();
+        UpdateEditorSessionChrome();
         SetStatus($"编译完成：同步 {result.UpdatedCallNodes} 个调用节点，移除 {result.RemovedConnections} 条无效连线。");
         return result.Success;
     }
@@ -2904,14 +2818,38 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         return false;
     }
 
+    private static void SyncSessionGraphStateFromAsset(EditorSessionViewModel session)
+    {
+        SyncGraphItems(session.GraphListItems, session.ContentAsset.EventGraphs);
+        SyncGraphItems(session.FunctionListItems, session.ContentAsset.Functions);
+        session.RefreshDirtyState();
+    }
+
+    private static void SyncGraphItems(
+        IEnumerable<GraphListItemViewModel> sessionItems,
+        IEnumerable<GraphListItemViewModel> assetItems)
+    {
+        var assetById = assetItems.ToDictionary(item => item.Id, StringComparer.Ordinal);
+        foreach (var sessionItem in sessionItems)
+        {
+            if (!assetById.TryGetValue(sessionItem.Id, out var assetItem))
+                continue;
+
+            sessionItem.Graph = assetItem.Graph;
+            sessionItem.IsDirty = assetItem.IsDirty;
+            sessionItem.IsCompileDirty = assetItem.IsCompileDirty;
+            sessionItem.IsPublicToLibrary = assetItem.IsPublicToLibrary;
+            sessionItem.Name = assetItem.Name;
+        }
+    }
+
     private bool HasCompileDirtyAssets()
     {
         return ContentBrowserItems
             .Where(asset => asset.Kind != ContentAssetKind.Folder)
-            .SelectMany(asset => asset.EventGraphs.Concat(asset.Functions).Concat(asset.Macros))
+            .SelectMany(asset => asset.EventGraphs.Concat(asset.Functions))
             .Concat(GraphListItems)
             .Concat(FunctionListItems)
-            .Concat(MacroListItems)
             .Any(item => item.IsCompileDirty);
     }
 
@@ -3043,7 +2981,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         OnPropertyChanged(nameof(ConnectionPaths));
         OnPropertyChanged(nameof(GraphListItems));
         OnPropertyChanged(nameof(FunctionListItems));
-        OnPropertyChanged(nameof(MacroListItems));
         OnPropertyChanged(nameof(EditorSessions));
         OnPropertyChanged(nameof(MainEditorSessions));
     }

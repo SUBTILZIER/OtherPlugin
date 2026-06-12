@@ -80,11 +80,10 @@ Runtime / Nodes / Adapters
 
 ## 核心模块详解
 
-### 0. 资产系统：事件图 / 自定义函数 / 宏
+### 0. 资产系统：事件图 / 自定义函数
 
-- `Graphs` 是旧字段，当前语义为事件图；新增 `Functions` 和 `Macros`。
+- `Graphs` 是旧字段，当前语义为事件图；`Functions` 保存脚本私有函数或函数库函数。
 - 函数默认包含 `FunctionEntry` 和 `FunctionReturn`，同步执行并把返回节点输入复制到调用节点输出。
-- 宏默认包含 `MacroEntry` 和 `MacroOutput`，运行期调用；到达哪个宏输出节点，就从调用节点对应执行出口继续。
 - 参数使用稳定 ID 作为 pin name；重命名只改显示名，不应破坏连线。
 - 参数类型第一版映射：`Boolean`、`Vector2D` 使用原生 pin，其余类型先映射为 `String`。
 
@@ -105,7 +104,7 @@ Runtime / Nodes / Adapters
 - 图谱的加载和保存
 - 执行计划的构建
 - 引脚连接状态管理
-- 当前图内非 `Reroute` 节点编号分配。编号按图类型使用 `N###` / `Fun###` / `Mac###`，删除节点后空出的最小编号可复用
+- 当前图内非 `Reroute` 节点编号分配。编号按图类型使用 `N###` / `Fun###`，删除节点后空出的最小编号可复用
 - 监听节点 `Title` / `NodeNumber` 变化，并同步已通过 `TargetNodeId` 维护引用到该节点的 `ToDoNodeViewModel`
 
 ```csharp
@@ -135,29 +134,31 @@ public class GraphEditorService
 - `GraphCompileService.ValidateToDoTargets()` 只有在两个目标输入 pin 都未连接，且静态 title/number 也为空或无效时才报错。
 
 #### Content browser search and callable navigation
-- 内容浏览器源数据是 `ContentBrowserItems`；左树投影 `ContentFolderItems`，右侧瓦片投影 `ContentVisibleItems`。
+- 内容浏览器源数据是 `ContentBrowserItems`；左树投影 `ContentFolderItems`，右侧瓦片投影 `ContentVisibleItems`。两个投影集合使用 `RangeObservableCollection.ReplaceAll(...)` 一次 Reset 刷新，避免大目录 `Clear()+Add` 逐项触发 WPF 重绘和搜索刷新。
 - `MainWindow.NavigationFeatures.cs` 在窗口 `Loaded` 后动态给 `ContentBrowserHeaderBar` 安装搜索框。搜索范围是当前 `_currentContentFolderId` 及全部子文件夹；根目录时搜索全部内容资产。
 - 内容浏览器刷新会为本轮构建 `assetById`、`childrenByParent`、`folderChildrenByParent` 索引；搜索会复用 `assetById` 和 path cache，避免树刷新/路径匹配时对 `ContentBrowserItems` 反复全量扫描。
 - 搜索支持空格关键字、路径片段、`DisplayName` / `Kind`、不区分大小写和 subsequence 模糊匹配。搜索结果直接替换 `ContentVisibleItems`，文件夹和资产都会进入结果。
-- 搜索结果双击仍走内容浏览器现有打开逻辑：文件夹进入目录，脚本/函数库/宏库调用 `OpenContentAsset(asset)`。
+- 搜索结果双击仍走内容浏览器现有打开逻辑：文件夹进入目录，脚本/函数库调用 `OpenContentAsset(asset)`。
 - `Ctrl+B` 由 `MainWindow_NavigationPreviewKeyDown` / `ContentBrowserListBox_NavigationPreviewKeyDown` 处理：有选中资产时清空搜索、进入真实父目录、选中并滚动到资产；没有内容浏览器选中项时定位当前打开资产。
-- 画布中双击 `FunctionCallNodeViewModel` / `MacroCallNodeViewModel` 会按 stable `FunctionId` / `MacroId` 查找目标图，打开目标所在脚本/函数库/宏库资产，然后通过对应 `GraphListController` 加载目标 `GraphListItemViewModel`。
+- 画布中双击 `FunctionCallNodeViewModel` 会按 stable `FunctionId` 查找目标图，打开目标所在脚本/函数库资产，然后通过函数 `GraphListController` 加载目标 `GraphListItemViewModel`。
 - 双击跳转先 `SaveVisibleGraphsToActiveContent()`；随后走 `OpenOrActivateAsset(target.Asset, target.Graph, kind)` 聚焦已有 session 或创建新 session。不要靠显示名解析调用目标。
 - `MainWindow.ContentBrowserMultiSelect.cs` 扩展内容浏览器为 UE 风格多选：Ctrl 多选、Shift 区间、框选、Ctrl+C/Ctrl+V 复制粘贴资产、多删除、拖拽预览和移动/复制到文件夹。
 
 #### Editor sessions and window bar
-- 多编辑窗口由 `EditorSessionViewModel` 表示：每个打开资产一个 session，持有自己的 `GraphEditorService`、`NodeFactory`、`GraphCommandService`、事件图/函数/宏集合和当前图记忆。
+- 多编辑窗口由 `EditorSessionViewModel` 表示：每个打开资产一个 session，持有自己的 `GraphEditorService`、`NodeFactory`、`GraphCommandService`、事件图/函数集合和当前图记忆。
 - 每个 `EditorSessionViewModel` 持有自己的完整 `EditorSurfaceControl`，其中包含图列表、画布、节点菜单和属性面板；`EditorSurfaceContext` 持有该 session 的 graph list/canvas/drag/inspector/pin/palette/import controllers。`MainWindow` 只镜像 active context controllers 以支撑尚未拆完的 handler。
-- `OpenContentAsset(...)` 现在是 `OpenOrActivateAsset(...)` wrapper。重复打开同一资产只聚焦已有 session，不重置到第一个事件图；函数/宏调用节点双击会打开或聚焦目标资产 session，再加载目标 graph id。
+- `OpenContentAsset(...)` 现在是 `OpenOrActivateAsset(...)` wrapper。重复打开同一资产只聚焦已有 session，不重置到第一个事件图；函数调用节点双击会打开或聚焦目标资产 session，再加载目标 graph id。
 - 工具栏下方 `EditorWindowBar` 绑定主窗口内的 `MainEditorSessions`，不显示 `DockMode.Detached` 的独立窗口；窗口栏右键的关闭全部/关闭右侧只作用于主窗口标签页。全量 `EditorSessions` 仍包含 detached，供保存、退出、compile-all 使用。拖出主窗口会创建 `DetachedEditorWindow`；拖到主窗口内部只激活标签，不创建画布子窗口。
 - 拖动窗口标签时会显示跟随预览卡片，越过主窗口边界后提示释放/继续拖出为独立窗口。
 - 主窗口标签页和 `DetachedEditorWindow` 都直接 host 对应 session 的 `Surface`；detached 窗口不再显示只读 preview，也不再要求“激活后在这里编辑”。
 - `EditorSurfaceContext.Configure(...)` 是幂等的：同一个 session 的 controller 不因 host attach/activate 反复重建。surface 事件按类型分类：明确用户交互才提升 active session；`PinAnchorLoaded/LayoutUpdated`、无按键 `MouseMove`、初始化触发的 `TextChanged/SelectionChanged` 只使用所属 context 或直接忽略，避免 tab 闪动、列表折叠或 detached/main 互相污染。
+- surface controller 的 dirty/snapshot 回调按所属 `EditorSessionViewModel` 闭包绑定；编辑 detached 或非首个 tab 时不能直接依赖全局 `_activeAssetController`，否则 dirty 黄点和 compile target 会串到其它资产。
 - detached session 激活时只更新全局工具栏/运行/保存目标，不覆盖 `_lastMainEditorSession`；主窗口继续显示最近的主窗口 tab surface。
 - `MainWindow.EditorSurfaceRegions.cs` 和 legacy region reparent hooks 已删除。不要恢复 `AttachLegacyEditorRegionsToSessionSurface()` 的区域搬移逻辑。
 - session 关闭只 snapshot 回 `ContentAssetViewModel` 并移除编辑窗口，不删除资产。删除内容浏览器资产时会关闭所有指向该资产的 session，避免悬空编辑窗口。
 - 保存、退出、编译前使用 `CommitInspectorAndSnapshotAllSessions()` / `CommitAllSessionsToAssets()`，保证多窗口编辑内容参与引用同步和校验。
-- 工具栏编译是 active-asset scoped，走 `GraphCompileService.CompileAsset(...)`：脚本会编译该资产内事件图、函数、宏；函数库/宏库会编译该库内全部图。`GraphCompileService.CompileGraph(...)` 仍保留为 current-graph scoped 内部能力，但工具栏不使用它。
+- 工具栏编译是 active-asset scoped，走 `GraphCompileService.CompileAsset(...)`：脚本会编译该资产内事件图和函数；函数库会编译该库内全部函数。`GraphCompileService.CompileGraph(...)` 仍保留为 current-graph scoped 内部能力，但工具栏不使用它。
+- 编译成功后要把 `ContentAssetViewModel` 中清掉的 graph dirty/compile dirty 同步回对应 session 图列表，并刷新窗口栏、section badge 和工具栏编译状态；保存不是清 compile dirty UI 的唯一路径。
 
 #### NodeSerializer
 负责节点与持久化模型之间的转换：
@@ -189,7 +190,7 @@ public class NodeFactory
 统一管理节点定义和执行器注册：
 - `Definitions`：节点菜单分类、显示名、引脚定义、搜索标签和属性面板 schema key。
 - `TryGetExecutor`：Runtime 对普通能力节点按 `NodeKind` 找到对应 `INodeExecutor`。
-- `GraphRuntimeExecutor` 仍直接处理结构节点：`Start`、`Reroute`、`If`、`ForLoop`、`WhileLoop`、函数/宏/自定义事件入口与调用节点。
+- `GraphRuntimeExecutor` 仍直接处理结构节点：`Start`、`Reroute`、`If`、`ForLoop`、`WhileLoop`、函数/自定义事件入口与调用节点。
 - 右键节点菜单由 `NodePaletteController` 读取 `NodeRegistry.Definitions` 生成，禁止再在 `MainWindow` 手写菜单列表。
 
 新增节点时至少更新：
@@ -401,7 +402,7 @@ public class NodeFileModel
 ## 性能优化
 
 ### 1. 日志增量刷新
-`Logger.Write(...)` 会把 UI 条目放入待刷新队列，并用一次 `DispatcherPriority.Background` flush 合并多条日志；主日志面板和独立日志窗口使用 `RichTextBox` 显示日志，新增日志只追加新增段落，过滤器变化或清空时才重建文档，避免每条日志都全量刷新或塞满 Dispatcher 小任务。
+`Logger.Write(...)` 会把 UI 条目放入待刷新队列，并用一次 `DispatcherPriority.Background` flush 合并多条日志；flush 时通过 `RangeObservableCollection.AddRange(...)` 向 `Logger.Entries` 发出一次多项 Add 事件。主日志面板和独立日志窗口使用 `RichTextBox` 显示日志，新增日志只追加新增段落，过滤器变化或清空时才重建文档，避免每条日志都全量刷新、逐条触发 collection change 或塞满 Dispatcher 小任务。
 
 ### 2. 异步执行
 图谱执行在后台线程进行，避免阻塞 UI：
@@ -483,12 +484,12 @@ Python 参数规则：
 
 #### 内容浏览器当前行为
 - 顶部 header 只显示“内容浏览器”，不再放新建按钮。
-- 新建资产只走右侧空白右键菜单，菜单项为 `脚本 / 文件夹 / 函数库 / 宏库`。没有独立“宏”资产；宏在脚本或宏库编辑面板中新增。
+- 新建资产只走右侧空白右键菜单，菜单项为 `脚本 / 文件夹 / 函数库`。宏库和宏图已移除。
 - 右键资产只显示 `重命名 / 删除`。右键空白显示新建菜单。实现上复用一个 `ContextMenu`，由 `ContentBrowserContextMenu_Opened` 根据 `_contentBrowserContextTargetsAsset` 切换 `Visibility`。
 - 不要把带事件的 `ContextMenu` 放进 `ListBoxItem.Style Setter`。WPF 会在运行期把模板子元素接到 style connector，可能启动崩溃：`Unable to cast object of type 'TextBox' to type 'Style'`。
 - `MainWindow.NavigationFeatures.cs` 动态安装搜索框，不在 XAML 内硬编码。搜索当前目录递归资产/文件夹，支持空格关键字、路径片段、subsequence 模糊匹配和不区分大小写。
 - `Ctrl+B` 是已实现定位：内容浏览器有选中资产时定位该资产真实父目录；无选中资产但有当前打开资产时定位当前打开资产。
-- 双击画布中的函数/宏调用节点是当前已实现跳转：按 stable `FunctionId` / `MacroId` 找目标图，打开目标所在资产，再加载目标函数/宏图。
+- 双击画布中的函数调用节点是当前已实现跳转：按 stable `FunctionId` 找目标图，打开目标所在资产，再加载目标函数图。
 - `MainWindow.ContentBrowserMultiSelect.cs` 负责多选、框选、资产 Ctrl+C/Ctrl+V、拖拽预览和多删除。新增内容浏览器交互优先放在该 partial 或独立 controller，不要继续膨胀 `MainWindow.xaml.cs`。
 
 ### 2026-06-08: ToDo persistence and log copy fixes
@@ -499,7 +500,7 @@ Python 参数规则：
 - Log text copy uses `RichTextBox` command bindings plus `TextBoxBase` shortcut passthrough. Do not special-case only `TextBox`, or `RichTextBox` copy will be intercepted by graph shortcuts again.
 
 #### 文件夹树
-- 左侧树绑定 `ContentFolderItems`，右侧瓦片绑定 `ContentVisibleItems`，源数据仍是 `ContentBrowserItems`。
+- 左侧树绑定 `ContentFolderItems`，右侧瓦片绑定 `ContentVisibleItems`，源数据仍是 `ContentBrowserItems`。两个投影集合用 `RangeObservableCollection.ReplaceAll(...)` 批量刷新。
 - 单击文件夹行进入文件夹并刷新右侧内容；点击箭头按钮只展开/收起，不进入。
 - `HasFolderChildren` 只统计子文件夹，不因脚本/库资产显示箭头。
 - 层级缩进由 `ContentAssetViewModel.TreeIndent` 提供，`TreeDisplayName` 只返回原始名称，不再用字符串空格缩进。
@@ -517,9 +518,9 @@ Python 参数规则：
 - 引脚释放判定不只依赖 WPF 精确 `InputHitTest`，还会按图空间距离查找最近引脚，当前半径为 24。
 
 #### 参数默认值
-- `GraphParameterDefinition.DefaultValue` 是函数/宏/自定义事件参数默认值，必须写入 `GraphParameterFileModel`，并通过 `GraphRuntimeParameter` 进入运行时。
-- 函数/宏/自定义事件入口参数：调用节点对应输入未连接时，运行时使用入口参数默认值。
-- 函数返回/宏输出参数：返回节点对应输入未连接时，调用节点输出使用返回/输出参数默认值。
+- `GraphParameterDefinition.DefaultValue` 是函数/自定义事件参数默认值，必须写入 `GraphParameterFileModel`，并通过 `GraphRuntimeParameter` 进入运行时。
+- 函数/自定义事件入口参数：调用节点对应输入未连接时，运行时使用入口参数默认值。
+- 函数返回参数：返回节点对应输入未连接时，调用节点输出使用返回参数默认值。
 - Float/Vector3D/Vector4D/ImageAsset/String 目前仍映射为 `String` pin；默认值按字符串传递，例如 `23.0f`。Boolean 默认值解析为 bool，Vector2D 默认值可写 `x,y`。
 
 #### 验证门禁
@@ -558,8 +559,8 @@ Python 参数规则：
 
 #### GraphCommandService
 - `Services/GraphCommandService.cs` owns graph edit Undo/Redo. It captures `GraphFileModel` snapshots before/after an edit and restores through `GraphEditorService.LoadFromModel(...)`.
-- Commands must use the active `GraphAssetKind`; otherwise function/macro undo can reload as an event graph and auto-create a Start node.
-- Clear the command stack when switching content assets or graph/function/macro items. Do not allow undo across graph boundaries.
+- Commands must use the active `GraphAssetKind`; otherwise function undo can reload as an event graph and auto-create a Start node.
+- Clear the command stack when switching content assets or graph/function items. Do not allow undo across graph boundaries.
 - Use `Execute(...)` for direct graph mutations and `RecordApplied(...)` for edits already applied by continuous interaction, such as node dragging.
 
 #### Wire selection and reroute editing
@@ -574,17 +575,17 @@ Python 参数规则：
 - `NodeRegistry.Definition(...)` generates baseline tags from `NodeKind`, type key, category, and pin names/labels.
 - `NodePaletteController` search must match display name, category, type key, kind, and generated tags. Keep this path metadata-driven before adding more node families.
 
-### 2026-06-05：事件图 / 函数 / 宏画布隔离修复
+### 2026-06-05：事件图 / 函数画布隔离修复
 
-#### 问题：切换图表时事件图、函数、宏内容串到一个画布/模型
-- **现象**：新增一个事件图和一个函数后，再双击事件图，函数节点也混入同一画布；单个函数/宏时单击不跳转，多个时偶尔能切换。
-- **根因**：`GraphListController.Load()` 内部会 `Persist()`。如果加载目标图前 `_activeAssetController` 仍指向旧 controller，`PersistAssetLibrary()` 会调用 `SaveVisibleGraphsToActiveContent()`，再通过旧 controller 把当前编辑器画布快照写回旧图。结果新加载的函数/宏画布被保存进事件图，或反向污染。
+#### 问题：切换图表时事件图、函数内容串到一个画布/模型
+- **现象**：新增一个事件图和一个函数后，再双击事件图，函数节点也混入同一画布。
+- **根因**：`GraphListController.Load()` 内部会 `Persist()`。如果加载目标图前 `_activeAssetController` 仍指向旧 controller，`PersistAssetLibrary()` 会调用 `SaveVisibleGraphsToActiveContent()`，再通过旧 controller 把当前编辑器画布快照写回旧图。结果新加载的函数画布被保存进事件图，或反向污染。
 - **修复**：
   - 新增统一入口 `ActivateGraphListItem(...)`。
   - 切换顺序固定为：`SnapshotActiveAsset()` -> `_activeAssetController = targetController` -> `targetController.LoadItem(item, snapshotCurrent: false)`。
-  - 事件图、函数、宏列表项增加 `PreviewMouseLeftButtonDown`，单击即可切换编辑界面。
+  - 事件图、函数列表项增加 `PreviewMouseLeftButtonDown`，单击即可切换编辑界面。
   - 右键列表项也先激活目标项，再打开菜单，避免重命名/删除走错 controller。
-- **测试**：smoke 用事件图、函数、宏来回切换，断言当前画布节点类型正确，并断言各自 `GraphFileModel.Nodes` 不混入其它图类型。
+- **测试**：smoke 用事件图、函数来回切换，断言当前画布节点类型正确，并断言各自 `GraphFileModel.Nodes` 不混入其它图类型。
 - **教训**：所有跨 controller 画布切换，必须先快照旧画布，再更新 active controller，再加载新图。不能让 `Load()` 在 active controller 还是旧值时触发持久化。
 
 #### UI 调整：内容浏览器默认尺寸
@@ -931,66 +932,66 @@ dotnet publish -c Release -r win-x64 \
 - 初始版本
 - 蓝图节点编辑器基础功能
 - 找图、鼠标、键盘、延迟等节点
-## 2026-06-04：内容浏览器 + 脚本/函数库/宏库资产系统 v1
+## 2026-06-04：内容浏览器 + 脚本/函数库资产系统 v1
 
 ### 新资产层
-- 底部新增“内容浏览器”，资产类型为 `Folder`、`Script`、`FunctionLibrary`、`MacroLibrary`。
-- `Script` 等价 UE 蓝图，包含自己的事件图、私有函数、私有宏。
-- `FunctionLibrary` / `MacroLibrary` 是全局库；库内函数/宏只有勾选 `公开到库` 后才会出现在其他脚本的节点搜索里。
-- `ContentAssetViewModel` 持有 `EventGraphs / Functions / Macros` 三个集合。
-- `CallableGraphItem` 是节点菜单和执行器使用的可调用函数/宏 DTO，包含稳定 `Id`、显示名、分组名、`GraphFileModel`。
+- 底部新增“内容浏览器”，资产类型为 `Folder`、`Script`、`FunctionLibrary`。
+- `Script` 等价 UE 蓝图，包含自己的事件图和私有函数。
+- `FunctionLibrary` 是全局库；库内函数只有勾选 `公开到库` 后才会出现在其他脚本的节点搜索里。
+- `ContentAssetViewModel` 持有 `EventGraphs / Functions` 两个集合。
+- `CallableGraphItem` 是节点菜单和执行器使用的可调用函数 DTO，包含稳定 `Id`、显示名、分组名、`GraphFileModel`。
 - 事件图支持 `CustomEvent` / `CustomEventCall`。自定义事件只属于当前脚本事件图，调用节点通过 `CustomEventId` 绑定入口节点。
 
 ### UI 行为
 - 启动默认隐藏 `EditorSurfaceHostRoot`，显示 `EmptyEditorPanel`，提示从内容浏览器打开资产；打开资产后把该 session 的 `EditorSurfaceControl` 放入 host。
 - 底部左侧为内容浏览器，右侧为日志，中间 `GridSplitter` 可调比例。
-- 打开脚本：显示事件图、自定义函数、宏、画布和属性面板。
+- 打开脚本：显示事件图、自定义函数、画布和属性面板。
 - 打开函数库：只显示函数列表、画布和属性面板。
-- 打开宏库：只显示宏列表、画布和属性面板。
+- 宏库和宏图已移除；旧宏库资产加载时忽略，不显示也不迁移。
 - `RunGraph_Click` 只允许脚本里的事件图直接执行。
 
 ### 保存与迁移
 - `GraphLibraryService.SaveContentLibrary()` 使用新版 `ContentAssets` 字段保存全部内容资产。
-- 旧 `graph-library.json` 兼容读取：旧 `Graphs` 迁移到默认脚本事件图，旧 `Functions` 迁移到默认脚本私有函数，旧 `Macros` 迁移到默认脚本私有宏。
+- 旧 `graph-library.json` 兼容读取：旧 `Graphs` 迁移到默认脚本事件图，旧 `Functions` 迁移到默认脚本私有函数，旧 `Macros`/`MacroLibrary` 数据忽略。
 - 新保存后以 `ContentAssets` 为准。
 
 ### 调用范围
-- `CallableGraphResolver` 是函数/宏可调用项的唯一来源，节点菜单、编译同步、运行时都必须走它。
-- 脚本内只能调用本脚本私有函数/宏，以及函数库/宏库中已勾选 `公开到库` 的函数/宏。
-- 函数库/宏库内部可以调用本库私有项；其他脚本不能搜索、编译同步或运行未公开库项。
-- 编译错误路径必须用内容浏览器完整路径：`content/父文件夹/.../资产/图`。函数库、宏库在文件夹内时报错也必须带完整层级。
-- 右键节点菜单按 `本脚本函数`、`本脚本宏`、`函数库`、`宏库` 分组。
-- 库函数/宏显示为 `库名/函数名` 或 `库名/宏名`，运行时仍用稳定 ID，不靠名字解析。
-- 自定义事件显示在节点菜单 `本脚本事件` 分组，只能在当前脚本事件图内调用，不跨脚本/函数库/宏库。
+- `CallableGraphResolver` 是函数可调用项的唯一来源，节点菜单、编译同步、运行时都必须走它。
+- 脚本内只能调用本脚本私有函数，以及函数库中已勾选 `公开到库` 的函数。
+- 函数库内部可以调用本库私有项；其他脚本不能搜索、编译同步或运行未公开库项。
+- 编译错误路径必须用内容浏览器完整路径：`content/父文件夹/.../资产/图`。函数库在文件夹内时报错也必须带完整层级。
+- 右键节点菜单按 `本脚本函数`、`函数库` 分组。
+- 库函数显示为 `库名/函数名`，运行时仍用稳定 ID，不靠名字解析。
+- 自定义事件显示在节点菜单 `本脚本事件` 分组，只能在当前脚本事件图内调用，不跨脚本/函数库。
 
 ### 重要坑点
-- 打开节点菜单前必须 `SnapshotActiveAsset()`，否则函数/宏参数刚改完但未写回 `GraphFileModel`，调用节点会缺 pin。
-- `GraphListController.LoadItem(item, snapshotCurrent: false)` 用于上层资产切换；跨事件图/函数/宏切换由 `MainWindow` 统一快照，避免图谱混写。
-- `ExecutionController`、`NodePaletteController`、`GraphCallReferenceSyncService` 都读取 `CallableGraphResolver` 产出的 `CallableGraphItem`，不要直接扫全局 `FunctionListItems/MacroListItems`。
+- 打开节点菜单前必须 `SnapshotActiveAsset()`，否则函数参数刚改完但未写回 `GraphFileModel`，调用节点会缺 pin。
+- `GraphListController.LoadItem(item, snapshotCurrent: false)` 用于上层资产切换；跨事件图/函数切换由 `MainWindow` 统一快照，避免图谱混写。
+- `ExecutionController`、`NodePaletteController`、`GraphCallReferenceSyncService` 都读取 `CallableGraphResolver` 产出的 `CallableGraphItem`，不要直接扫全局 `FunctionListItems`。
 - `公开到库` 是硬隔离：旧图如果跨脚本引用未公开库项，编译时报错并保留 dirty，不自动删节点。
 - `CustomEventCall` 在当前 `GraphExecutionPlan` 内找 `CustomEventId` 对应入口；运行时用 `custom_event:{id}` 调用栈阻止递归。
 - WPF + WinForms 命名冲突仍要用全限定名，尤其 `Brushes`、`Color`、`Cursors`、`HorizontalAlignment`。
 ## 2026-06-04 恢复记录：编译系统、dirty 规则、左侧折叠栏
 
 - 当前远端基线 `be3b34f Add content browser asset system` 不包含上一轮未提交改动；恢复时在该提交基础上补回，不做 git 回退。
-- 编译系统由 `GraphCompileService` + `GraphCallReferenceSyncService` 负责；编译时同步 `function_call` / `macro_call` 的参数引脚和宏出口，并删除失效连线。
-- dirty 分级：节点移动/布局变化只调用 `MarkLayoutDirty()`；节点参数、连线、函数/宏签名变化调用 `MarkLogicDirty()` 并设置 `IsCompileDirty`。
-- 左侧图谱栏为三块独立区域：事件图表、函数、宏；空列表折叠，新增后展开，删除到空后清空画布。
-- 新建脚本/函数库/宏库默认不自动创建图表，用户点击对应 `+` 后才创建。
+- 编译系统由 `GraphCompileService` + `GraphCallReferenceSyncService` 负责；编译时同步 `function_call` 的参数引脚，并删除失效连线。
+- dirty 分级：节点移动/布局变化只调用 `MarkLayoutDirty()`；节点参数、连线、函数签名变化调用 `MarkLogicDirty()` 并设置 `IsCompileDirty`。
+- 左侧图谱栏为两块独立区域：事件图表、函数；空列表折叠，新增后展开，删除到空后清空画布。
+- 新建脚本/函数库默认不自动创建图表，用户点击对应 `+` 后才创建。
 # AutomationStudio recovery note (2026-06-04)
 
-- Content browser keeps `ContentBrowserItems` as root data, projects folders into `ContentFolderItems`, and projects current-folder tiles into `ContentVisibleItems`.
+- Content browser keeps `ContentBrowserItems` as root data, projects folders into `ContentFolderItems`, and projects current-folder tiles into `ContentVisibleItems`; projection refreshes use `RangeObservableCollection.ReplaceAll(...)`.
 - Folder tree is left-side only; tile grid is right-side. Empty folders do not show an expander because `HasFolderChildren` only counts child folders.
 - Folder tree indentation uses `TreeIndent`; `TreeDisplayName` must stay plain name. The tree/tile split is adjustable through `ContentBrowserTreeSplitter`.
 - Asset tiles expose `TileGlyph` / `TileBrush` by `ContentAssetKind`; inline rename still binds `IsEditing`.
 - Asset drag/drop to folder supports move/copy/cancel. Copy creates new asset/graph IDs and deep-copies graph DTO data.
-- Graph sidebar keeps separate event/function/macro controllers. Empty sections collapse; adding expands; deleting last item clears canvas through `GraphListController`.
+- Graph sidebar keeps separate event/function controllers. Empty sections collapse; adding expands; deleting last item clears canvas through `GraphListController`.
 - Section collapse state is transient per opened asset. `*SectionHasState` distinguishes user-collapsed non-empty sections from never-toggled default sections.
 - Dirty graph sections show orange header badges; dirty graph items show `*` plus orange item highlighting.
 - `MarkLogicDirty()` marks compile dirty. `MarkLayoutDirty()` only marks save dirty.
-- New graph/function/macro list items start with `IsCompileDirty = true`; compile clears graph dirty flags only after signature/call-node sync and validation succeed.
-- Function/macro library rows persist `IsPublicToLibrary`; only public rows appear in node search, compile sync, and runtime lookup from other scripts.
-- `CustomEvent` stores `CustomEventId`; call nodes serialize it separately from `FunctionId` / `MacroId`. Do not reuse function/macro ids for events.
+- New graph/function list items start with `IsCompileDirty = true`; compile clears graph dirty flags only after signature/call-node sync and validation succeed.
+- Function library rows persist `IsPublicToLibrary`; only public rows appear in node search, compile sync, and runtime lookup from other scripts.
+- `CustomEvent` stores `CustomEventId`; call nodes serialize it separately from `FunctionId`. Do not reuse function ids for events.
 - `GraphLibraryService` defaults to `%APPDATA%/AutomationStudioWpf`, but tooling may set `AUTOMATION_STUDIO_LIBRARY_DIR` for isolated smoke tests.
 - Compile only clears graph compile flags when validation succeeds, and marks only assets changed by call-reference sync as save dirty.
 - `Window_PreviewKeyDown` routes `Delete` / `F2` to focused graph/content list, while text boxes keep normal editing behavior.

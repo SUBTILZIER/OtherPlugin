@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Windows.Threading;
+using AutomationStudioWpf.Collections;
 
 namespace AutomationStudioWpf.Logging;
 
@@ -12,7 +13,7 @@ public static class Logger
     private static readonly List<LogEntry> _pendingUiEntries = [];
     private static bool _uiFlushQueued;
 
-    public static ObservableCollection<LogEntry> Entries { get; } = [];
+    public static ObservableCollection<LogEntry> Entries { get; } = new RangeObservableCollection<LogEntry>();
 
     static Logger()
     {
@@ -80,6 +81,12 @@ public static class Logger
             entries = [.. _pendingUiEntries];
             _pendingUiEntries.Clear();
             _uiFlushQueued = false;
+        }
+
+        if (Entries is RangeObservableCollection<LogEntry> rangeEntries)
+        {
+            rangeEntries.AddRange(entries);
+            return;
         }
 
         foreach (var entry in entries)

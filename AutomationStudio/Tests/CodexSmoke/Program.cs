@@ -196,7 +196,7 @@ internal static class Program
 
         Invoke(window, "ContentBrowserListBox_PreviewMouseRightButtonDown", browser, new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, System.Windows.Input.MouseButton.Right));
         Invoke(window, "ContentBrowserContextMenu_Opened", browser.ContextMenu!, new RoutedEventArgs());
-        AssertVisibleMenuHeaders(browser.ContextMenu!, ["脚本", "文件夹", "函数库", "宏库"], "blank content browser context menu only shows create options");
+        AssertVisibleMenuHeaders(browser.ContextMenu!, ["脚本", "文件夹", "函数库"], "blank content browser context menu only shows create options");
 
         Invoke(window, "ContentAsset_PreviewMouseRightButtonDown", new ListBoxItem { DataContext = script }, new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, System.Windows.Input.MouseButton.Right));
         Invoke(window, "ContentBrowserContextMenu_Opened", browser.ContextMenu!, new RoutedEventArgs());
@@ -339,7 +339,6 @@ internal static class Program
         Assert(Get<ListBox>(window, "ContentBrowserListBox").ContextMenu?.Style is not null, "content browser uses shared dark context menu style");
         Assert(Get<ListBox>(window, "ContentFolderListBox").ContextMenu?.Style is not null, "content folder tree uses shared dark context menu style");
         Assert(Get<ListBox>(window, "FunctionListBox").ContextMenu?.Style is not null, "function list uses shared dark context menu style");
-        Assert(Get<ListBox>(window, "MacroListBox").ContextMenu?.Style is not null, "macro list uses shared dark context menu style");
         Assert(Get<ListBox>(window, "GraphListBox").ContextMenu?.Style is not null, "event graph list uses shared dark context menu style");
 
         var style = window.Resources["DarkContextMenuStyle"] as Style
@@ -370,13 +369,10 @@ internal static class Program
 
         Assert(window.GraphListItems.Count == 0, "script starts with no event graph");
         Assert(window.FunctionListItems.Count == 0, "script starts with no function");
-        Assert(window.MacroListItems.Count == 0, "script starts with no macro");
         Assert(Get<FrameworkElement>(window, "EventGraphPanel").Visibility == Visibility.Visible, "event graph section is separate visible panel");
         Assert(Get<FrameworkElement>(window, "FunctionPanel").Visibility == Visibility.Visible, "function section is separate visible panel");
-        Assert(Get<FrameworkElement>(window, "MacroPanel").Visibility == Visibility.Visible, "macro section is separate visible panel");
         Assert(Get<ListBox>(window, "GraphListBox").Visibility == Visibility.Collapsed, "empty event graph list is collapsed");
         Assert(Get<ListBox>(window, "FunctionListBox").Visibility == Visibility.Collapsed, "empty function list is collapsed");
-        Assert(Get<ListBox>(window, "MacroListBox").Visibility == Visibility.Collapsed, "empty macro list is collapsed");
 
         Invoke(window, "AddGraphListItem_Click", window, new RoutedEventArgs());
         Assert(window.GraphListItems.Count == 1, "plus creates one event graph");
@@ -410,12 +406,6 @@ internal static class Program
         Invoke(Get<object>(window, "_functionListController"), "CommitRename", fn);
         Assert(fn.Graph.Nodes.First(node => node.NodeTypeKey == "function_entry").Title == "test开始", "function start node title follows graph name");
 
-        Invoke(window, "AddMacroListItem_Click", window, new RoutedEventArgs());
-        var macro = window.MacroListItems.Single();
-        macro.Name = "test2";
-        Invoke(Get<object>(window, "_macroListController"), "CommitRename", macro);
-        Assert(macro.Graph.Nodes.First(node => node.NodeTypeKey == "macro_entry").Title == "test2开始", "macro start node title follows graph name");
-
         Invoke(window, "AddGraphListItem_Click", window, new RoutedEventArgs());
         var evt = window.GraphListItems.Single();
         evt.Name = "event";
@@ -425,15 +415,10 @@ internal static class Program
         Assert(window.Nodes.Cast<NodeBaseViewModel>().Any(node => node.NodeKind == NodeKind.FunctionEntry), "single click function activates function canvas");
         Assert(!window.Nodes.Cast<NodeBaseViewModel>().Any(node => node.NodeKind == NodeKind.Start), "function canvas does not contain event start");
 
-        ActivateGraphItem(window, "_macroListController", macro);
-        Assert(window.Nodes.Cast<NodeBaseViewModel>().Any(node => node.NodeKind == NodeKind.MacroEntry), "single click macro activates macro canvas");
-        Assert(!window.Nodes.Cast<NodeBaseViewModel>().Any(node => node.NodeKind == NodeKind.FunctionEntry), "macro canvas does not contain function entry");
-
         ActivateGraphItem(window, "_graphListController", evt);
         Assert(window.Nodes.Cast<NodeBaseViewModel>().Any(node => node.NodeKind == NodeKind.Start), "single click event activates event canvas");
         Assert(evt.Graph.Nodes.Any(node => node.NodeTypeKey == "start"), "event graph model remains event-only");
         Assert(fn.Graph.Nodes.Any(node => node.NodeTypeKey == "function_entry"), "function graph model remains function-only");
-        Assert(macro.Graph.Nodes.Any(node => node.NodeTypeKey == "macro_entry"), "macro graph model remains macro-only");
 
         ActivateGraphItem(window, "_functionListController", fn);
         int sessionCountBeforeReopen = window.EditorSessions.Count;
@@ -787,9 +772,6 @@ internal static class Program
         editor.NewFunctionGraph();
         Assert(editor.Nodes.All(node => node.NodeKind == NodeKind.Reroute || node.NodeNumber.StartsWith("Fun", StringComparison.Ordinal)),
             "function graph nodes use Fun prefix");
-        editor.NewMacroGraph();
-        Assert(editor.Nodes.All(node => node.NodeKind == NodeKind.Reroute || node.NodeNumber.StartsWith("Mac", StringComparison.Ordinal)),
-            "macro graph nodes use Mac prefix");
     }
 
     private static void CheckToDoInspectorSearch(MainWindow window)
@@ -1185,59 +1167,6 @@ internal static class Program
         var duplicateExecResult = new GraphCompileService().Compile([duplicateExec]);
         Assert(!duplicateExecResult.Success, "compile fails on duplicate execution output connections");
 
-        var hiddenMacro = new GraphListItemViewModel
-        {
-            Name = "HiddenMacro",
-            Kind = GraphAssetKind.Macro,
-            IsPublicToLibrary = false,
-            Graph = new GraphFileModel
-            {
-                AssetKind = GraphAssetKind.Macro,
-                Nodes =
-                [
-                    new NodeFileModel { Id = "macro_entry", NodeTypeKey = "macro_entry" },
-                    new NodeFileModel { Id = "macro_output", NodeTypeKey = "macro_output" },
-                ],
-            },
-        };
-        var folder1 = new ContentAssetViewModel { Kind = ContentAssetKind.Folder, Name = "Folder1" };
-        var folder2 = new ContentAssetViewModel { Kind = ContentAssetKind.Folder, Name = "Folder2", ParentFolderId = folder1.Id };
-        var macroLibrary = new ContentAssetViewModel { Kind = ContentAssetKind.MacroLibrary, Name = "MacroLib", ParentFolderId = folder2.Id };
-        macroLibrary.Macros.Add(hiddenMacro);
-        var macroCaller = new ContentAssetViewModel { Kind = ContentAssetKind.Script, Name = "MacroCaller" };
-        macroCaller.EventGraphs.Add(new GraphListItemViewModel
-        {
-            Name = "Event",
-            Kind = GraphAssetKind.EventGraph,
-            Graph = new GraphFileModel
-            {
-                AssetKind = GraphAssetKind.EventGraph,
-                Nodes =
-                [
-                    new NodeFileModel { Id = "start", NodeTypeKey = "start" },
-                    new NodeFileModel { Id = "macro_call", NodeTypeKey = "macro_call", MacroId = hiddenMacro.Id, Title = "HiddenMacro" },
-                ],
-            },
-            IsCompileDirty = true,
-        });
-
-        var macroResult = new GraphCompileService().Compile([folder1, folder2, macroLibrary, macroCaller]);
-        Assert(!macroResult.Success, "compile rejects private macro library calls from other script");
-        Assert(macroResult.Issues.Any(issue => issue.Message.StartsWith("content/MacroCaller/Event:", StringComparison.Ordinal)),
-            "caller compile issue path starts at caller content path");
-
-        var brokenMacroLibrary = new ContentAssetViewModel { Kind = ContentAssetKind.MacroLibrary, Name = "BrokenMacroLib", ParentFolderId = folder2.Id };
-        brokenMacroLibrary.Macros.Add(new GraphListItemViewModel
-        {
-            Name = "BrokenMacro",
-            Kind = GraphAssetKind.Macro,
-            Graph = new GraphFileModel { AssetKind = GraphAssetKind.Macro },
-            IsCompileDirty = true,
-        });
-        var brokenMacroResult = new GraphCompileService().Compile([folder1, folder2, brokenMacroLibrary]);
-        Assert(!brokenMacroResult.Success, "compile fails invalid macro library graph");
-        Assert(brokenMacroResult.Issues.Any(issue => issue.Message.StartsWith("content/Folder1/Folder2/BrokenMacroLib/BrokenMacro:", StringComparison.Ordinal)),
-            "library compile issue path includes full folder hierarchy");
     }
 
     private static void CheckCustomEvents()
@@ -1822,34 +1751,11 @@ internal static class Program
         functionLibrary.Functions.Add(publicFunction);
         window.ContentBrowserItems.Add(functionLibrary);
 
-        var hiddenMacro = new GraphListItemViewModel
-        {
-            Name = "HiddenMacro",
-            Kind = GraphAssetKind.Macro,
-            IsPublicToLibrary = false,
-            Graph = new GraphFileModel { AssetKind = GraphAssetKind.Macro },
-        };
-        var publicMacro = new GraphListItemViewModel
-        {
-            Name = "PublicMacro",
-            Kind = GraphAssetKind.Macro,
-            IsPublicToLibrary = true,
-            Graph = new GraphFileModel { AssetKind = GraphAssetKind.Macro },
-        };
-        var macroLibrary = new ContentAssetViewModel { Kind = ContentAssetKind.MacroLibrary, Name = "MacroLib" };
-        macroLibrary.Macros.Add(hiddenMacro);
-        macroLibrary.Macros.Add(publicMacro);
-        window.ContentBrowserItems.Add(macroLibrary);
-
         Invoke(window, "OpenContentAsset", script);
         var searchableFunctions = ((IEnumerable<CallableGraphItem>)Invoke(window, "GetCallableFunctions")!).Select(item => item.Name).ToArray();
         Assert(searchableFunctions.Contains("LocalFn"), "script-local function remains searchable");
         Assert(searchableFunctions.Contains("FnLib/PublicFn"), "public library function is searchable");
         Assert(!searchableFunctions.Contains("FnLib/HiddenFn"), "hidden library function is not searchable");
-
-        var searchableMacros = ((IEnumerable<CallableGraphItem>)Invoke(window, "GetCallableMacros")!).Select(item => item.Name).ToArray();
-        Assert(searchableMacros.Contains("MacroLib/PublicMacro"), "public library macro is searchable");
-        Assert(!searchableMacros.Contains("MacroLib/HiddenMacro"), "hidden library macro is not searchable");
 
         var runtimeFunctions = ((IEnumerable<CallableGraphItem>)Invoke(window, "GetRuntimeCallableFunctions")!).Select(item => item.Name).ToArray();
         Assert(!runtimeFunctions.Contains("FnLib/HiddenFn"), "runtime library hides private functions from other scripts");
@@ -1860,10 +1766,9 @@ internal static class Program
         Assert(window.FunctionListItems.All(item => !item.ShowLibraryPublishOption), "script function rows hide publish checkbox");
 
         var service = new GraphLibraryService();
-        service.SaveContentLibrary([functionLibrary, macroLibrary], functionLibrary.Id);
+        service.SaveContentLibrary([functionLibrary], functionLibrary.Id);
         var reloaded = service.LoadContentLibrary();
         Assert(reloaded.First(item => item.Kind == ContentAssetKind.FunctionLibrary).Functions.Single(item => item.Name == "PublicFn").IsPublicToLibrary, "function publish flag persists");
-        Assert(!reloaded.First(item => item.Kind == ContentAssetKind.MacroLibrary).Macros.Single(item => item.Name == "HiddenMacro").IsPublicToLibrary, "macro hidden flag persists");
     }
 
     private static void CheckSaveAllClearsNestedDirty(MainWindow window)
@@ -1872,12 +1777,11 @@ internal static class Program
         var script = window.ContentBrowserItems.First(item => item.Kind == ContentAssetKind.Script);
         script.EventGraphs.Add(new GraphListItemViewModel { Name = "NestedEvent", IsDirty = true });
         script.Functions.Add(new GraphListItemViewModel { Name = "NestedFunction", Kind = GraphAssetKind.Function, IsDirty = true });
-        script.Macros.Add(new GraphListItemViewModel { Name = "NestedMacro", Kind = GraphAssetKind.Macro, IsDirty = true });
         script.IsDirty = true;
 
         Invoke(window, "SaveAllAssets");
         Assert(!script.IsDirty, "save all clears asset dirty");
-        Assert(script.EventGraphs.Concat(script.Functions).Concat(script.Macros).All(item => !item.IsDirty), "save all clears nested graph dirty");
+        Assert(script.EventGraphs.Concat(script.Functions).All(item => !item.IsDirty), "save all clears nested graph dirty");
     }
 
     private static GraphRuntimeConnection Exec(string sourceNodeId, string sourcePinName, string targetNodeId, string targetPinName) =>

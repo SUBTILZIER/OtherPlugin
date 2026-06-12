@@ -16,7 +16,6 @@ public sealed class ExecutionController
     private readonly GraphValidator _graphValidator;
     private readonly System.Windows.Controls.Button _runButton;
     private readonly Func<IEnumerable<CallableGraphItem>> _getFunctions;
-    private readonly Func<IEnumerable<CallableGraphItem>> _getMacros;
     private readonly Action<string> _setStatus;
 
     private CancellationTokenSource? _executionCts;
@@ -28,7 +27,6 @@ public sealed class ExecutionController
         GraphValidator graphValidator,
         System.Windows.Controls.Button runButton,
         Func<IEnumerable<CallableGraphItem>> getFunctions,
-        Func<IEnumerable<CallableGraphItem>> getMacros,
         Action<string> setStatus)
     {
         _owner = owner;
@@ -37,7 +35,6 @@ public sealed class ExecutionController
         _graphValidator = graphValidator;
         _runButton = runButton;
         _getFunctions = getFunctions;
-        _getMacros = getMacros;
         _setStatus = setStatus;
     }
 
@@ -56,8 +53,7 @@ public sealed class ExecutionController
 
             var plan = _editorService.BuildExecutionPlan();
             var assetLibrary = new RuntimeAssetLibrary(
-                _getFunctions().ToDictionary(item => item.Id, item => BuildPlanFromModel(item.Graph)),
-                _getMacros().ToDictionary(item => item.Id, item => BuildPlanFromModel(item.Graph)));
+                _getFunctions().ToDictionary(item => item.Id, item => BuildPlanFromModel(item.Graph)));
             var baseDirectory = ResolveBaseDirectory();
             if (!Validate(plan))
                 return;

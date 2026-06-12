@@ -87,7 +87,6 @@ public partial class MainWindow
 
         ReplaceGraphListHandlers(surface.GraphListBox, context.GraphListController, GraphListBox_KeyDown);
         ReplaceGraphListHandlers(surface.FunctionListBox, context.FunctionListController, FunctionListBox_KeyDown);
-        ReplaceGraphListHandlers(surface.MacroListBox, context.MacroListController, MacroListBox_KeyDown);
     }
 
     private void ReplaceToolbarButton(string content, WpfRoutedEventHandler oldHandler, WpfRoutedEventHandler newHandler)
@@ -174,7 +173,7 @@ public partial class MainWindow
 
         SaveVisibleGraphsToActiveContent();
         if (ContentBrowserItems.Any(item => item.IsDirty) ||
-            GraphListItems.Concat(FunctionListItems).Concat(MacroListItems).Any(item => item.IsDirty))
+            GraphListItems.Concat(FunctionListItems).Any(item => item.IsDirty))
         {
             var result = ThemedDialog.ShowCustom(
                 this,
@@ -296,7 +295,7 @@ public partial class MainWindow
 
     private string GetGraphDisplayName(GraphListController controller)
     {
-        return ReferenceEquals(controller, _functionListController) ? "函数" : ReferenceEquals(controller, _macroListController) ? "宏" : "事件图";
+        return ReferenceEquals(controller, _functionListController) ? "函数" : "事件图";
     }
 
     private void ContentFolderListBox_ThemedKeyDown(object sender, WpfKeyEventArgs e)

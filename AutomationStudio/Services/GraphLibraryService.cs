@@ -74,7 +74,6 @@ public enum ContentAssetKind
     Folder,
     Script,
     FunctionLibrary,
-    MacroLibrary,
 }
 
 public sealed class ContentAssetViewModel : ObservableObject
@@ -87,10 +86,8 @@ public sealed class ContentAssetViewModel : ObservableObject
     private string _renameError = string.Empty;
     private bool _eventGraphSectionExpanded;
     private bool _functionSectionExpanded;
-    private bool _macroSectionExpanded;
     private bool _eventGraphSectionHasState;
     private bool _functionSectionHasState;
-    private bool _macroSectionHasState;
     private int _viewDepth;
     private bool _hasFolderChildren;
     private bool _isTreeExpanded;
@@ -123,8 +120,6 @@ public sealed class ContentAssetViewModel : ObservableObject
     public ObservableCollection<GraphListItemViewModel> EventGraphs { get; set; } = [];
 
     public ObservableCollection<GraphListItemViewModel> Functions { get; set; } = [];
-
-    public ObservableCollection<GraphListItemViewModel> Macros { get; set; } = [];
 
     public bool IsEditing
     {
@@ -171,7 +166,6 @@ public sealed class ContentAssetViewModel : ObservableObject
         ContentAssetKind.Folder => $"Folder {Name}",
         ContentAssetKind.Script => $"Script {Name}",
         ContentAssetKind.FunctionLibrary => $"Function Library {Name}",
-        ContentAssetKind.MacroLibrary => $"Macro Library {Name}",
         _ => Name,
     };
 
@@ -229,7 +223,6 @@ public sealed class ContentAssetViewModel : ObservableObject
         ContentAssetKind.Folder => "DIR",
         ContentAssetKind.Script => "SCR",
         ContentAssetKind.FunctionLibrary => "FN",
-        ContentAssetKind.MacroLibrary => "MAC",
         _ => "AST",
     };
 
@@ -239,14 +232,11 @@ public sealed class ContentAssetViewModel : ObservableObject
         ContentAssetKind.Folder => "#CDAA55",
         ContentAssetKind.Script => "#4FA3FF",
         ContentAssetKind.FunctionLibrary => "#6B5CFF",
-        ContentAssetKind.MacroLibrary => "#D8DCE3",
         _ => "#8A94A6",
     };
 
     [System.Text.Json.Serialization.JsonIgnore]
-    public string TileGlyphForeground => Kind == ContentAssetKind.MacroLibrary
-        ? "#161A20"
-        : "#11151A";
+    public string TileGlyphForeground => "#11151A";
 
     [System.Text.Json.Serialization.JsonIgnore]
     public bool EventGraphSectionExpanded
@@ -276,19 +266,6 @@ public sealed class ContentAssetViewModel : ObservableObject
         set => SetProperty(ref _functionSectionHasState, value);
     }
 
-    [System.Text.Json.Serialization.JsonIgnore]
-    public bool MacroSectionExpanded
-    {
-        get => _macroSectionExpanded;
-        set => SetProperty(ref _macroSectionExpanded, value);
-    }
-
-    [System.Text.Json.Serialization.JsonIgnore]
-    public bool MacroSectionHasState
-    {
-        get => _macroSectionHasState;
-        set => SetProperty(ref _macroSectionHasState, value);
-    }
 }
 
 public sealed record CallableGraphItem(
@@ -337,14 +314,12 @@ public sealed class GraphLibraryService
         Save(
             graphs.Where(item => item.Kind == GraphAssetKind.EventGraph),
             graphs.Where(item => item.Kind == GraphAssetKind.Function),
-            graphs.Where(item => item.Kind == GraphAssetKind.Macro),
             selectedId);
     }
 
     public void Save(
         IEnumerable<GraphListItemViewModel> eventGraphs,
         IEnumerable<GraphListItemViewModel> functions,
-        IEnumerable<GraphListItemViewModel> macros,
         string? selectedId)
     {
         var state = new GraphLibraryState
@@ -352,7 +327,6 @@ public sealed class GraphLibraryService
             LastSelectedId = selectedId,
             Graphs = ToItems(eventGraphs).ToList(),
             Functions = ToItems(functions).ToList(),
-            Macros = ToItems(macros).ToList(),
         };
 
         File.WriteAllText(LibraryPath, JsonSerializer.Serialize(state, JsonOptions));
@@ -372,7 +346,7 @@ public sealed class GraphLibraryService
     public ObservableCollection<ContentAssetViewModel> LoadContentLibrary()
     {
         var state = Load();
-        if (state.ContentAssets.Count == 0 && (state.Graphs.Count > 0 || state.Functions.Count > 0 || state.Macros.Count > 0))
+        if (state.ContentAssets.Count == 0 && (state.Graphs.Count > 0 || state.Functions.Count > 0))
         {
             state.ContentAssets.Add(new ContentAssetModel
             {
@@ -381,11 +355,12 @@ public sealed class GraphLibraryService
                 Kind = ContentAssetKind.Script,
                 EventGraphs = state.Graphs,
                 Functions = state.Functions,
-                Macros = state.Macros,
             });
         }
 
-        return new ObservableCollection<ContentAssetViewModel>(state.ContentAssets.Select(ToContentAssetViewModel));
+        return new ObservableCollection<ContentAssetViewModel>(state.ContentAssets
+            .Where(asset => (int)asset.Kind != 3)
+            .Select(ToContentAssetViewModel));
     }
 
     public static ObservableCollection<GraphListItemViewModel> ToViewModels(GraphLibraryState state)
@@ -396,9 +371,6 @@ public sealed class GraphLibraryService
 
     public static ObservableCollection<GraphListItemViewModel> ToFunctionViewModels(GraphLibraryState state) =>
         new(ToViewModels(state.Functions, GraphAssetKind.Function, "Unnamed Function"));
-
-    public static ObservableCollection<GraphListItemViewModel> ToMacroViewModels(GraphLibraryState state) =>
-        new(ToViewModels(state.Macros, GraphAssetKind.Macro, "Unnamed Macro"));
 
     private static IEnumerable<GraphLibraryItem> ToItems(IEnumerable<GraphListItemViewModel> items) =>
         items.Select(item => new GraphLibraryItem
@@ -417,7 +389,6 @@ public sealed class GraphLibraryService
         Name = asset.Name,
         EventGraphs = ToItems(asset.EventGraphs).ToList(),
         Functions = ToItems(asset.Functions).ToList(),
-        Macros = ToItems(asset.Macros).ToList(),
     };
 
     private static ContentAssetViewModel ToContentAssetViewModel(ContentAssetModel asset) => new()
@@ -428,7 +399,6 @@ public sealed class GraphLibraryService
         Name = string.IsNullOrWhiteSpace(asset.Name) ? "Unnamed Asset" : asset.Name,
         EventGraphs = new ObservableCollection<GraphListItemViewModel>(ToViewModels(asset.EventGraphs, GraphAssetKind.EventGraph, "Unnamed Event Graph")),
         Functions = new ObservableCollection<GraphListItemViewModel>(ToViewModels(asset.Functions, GraphAssetKind.Function, "Unnamed Function")),
-        Macros = new ObservableCollection<GraphListItemViewModel>(ToViewModels(asset.Macros, GraphAssetKind.Macro, "Unnamed Macro")),
     };
 
     private static IEnumerable<GraphListItemViewModel> ToViewModels(
@@ -457,7 +427,6 @@ public sealed class GraphLibraryState
 
     public List<GraphLibraryItem> Functions { get; set; } = [];
 
-    public List<GraphLibraryItem> Macros { get; set; } = [];
 }
 
 public sealed class GraphLibraryItem
@@ -485,5 +454,4 @@ public sealed class ContentAssetModel
 
     public List<GraphLibraryItem> Functions { get; set; } = [];
 
-    public List<GraphLibraryItem> Macros { get; set; } = [];
 }

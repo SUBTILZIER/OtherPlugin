@@ -36,10 +36,7 @@ public enum NodeKind
     ShowMessage,
     FunctionEntry,
     FunctionReturn,
-    MacroEntry,
-    MacroOutput,
     FunctionCall,
-    MacroCall,
     CustomEvent,
     CustomEventCall,
 }
@@ -48,7 +45,6 @@ public enum GraphAssetKind
 {
     EventGraph,
     Function,
-    Macro,
 }
 
 public enum GraphParameterType

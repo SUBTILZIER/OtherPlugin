@@ -31,7 +31,6 @@ public sealed class GraphRuntimeExecutor
 
     public GraphExecutionResult Execute(GraphExecutionPlan plan, string baseDirectory, CancellationToken ct = default)
         => Execute(plan, baseDirectory, new RuntimeAssetLibrary(
-            new Dictionary<string, GraphExecutionPlan>(),
             new Dictionary<string, GraphExecutionPlan>()), ct);
 
     public GraphExecutionResult Execute(GraphExecutionPlan plan, string baseDirectory, RuntimeAssetLibrary assets, CancellationToken ct = default)
@@ -207,10 +206,7 @@ public sealed class GraphRuntimeExecutor
             NodeKind.ToDo => ExecuteToDoNode(plan, node, context),
             NodeKind.FunctionEntry => NodeExecutionResult.Ok(string.Empty, "exec_out"),
             NodeKind.FunctionReturn => NodeExecutionResult.Ok(string.Empty, null),
-            NodeKind.MacroEntry => NodeExecutionResult.Ok(string.Empty, "exec_out"),
-            NodeKind.MacroOutput => NodeExecutionResult.Ok(string.Empty, null),
             NodeKind.FunctionCall => ExecuteFunctionCall(plan, node, context, baseDirectory, assets, state, ct),
-            NodeKind.MacroCall => ExecuteMacroCall(plan, node, context, baseDirectory, assets, state, ct),
             NodeKind.CustomEvent => NodeExecutionResult.Ok(string.Empty, "exec_out"),
             NodeKind.CustomEventCall => ExecuteCustomEventCall(plan, node, context, baseDirectory, assets, state, ct),
             _ => ExecuteRegisteredNode(plan, node, context, baseDirectory, assets, ct),
@@ -408,45 +404,6 @@ public sealed class GraphRuntimeExecutor
         finally
         {
             state.CallStack.Remove($"function:{callNode.FunctionId}");
-        }
-    }
-
-    private NodeExecutionResult ExecuteMacroCall(
-        GraphExecutionPlan callerPlan,
-        GraphRuntimeNode callNode,
-        RuntimeContext callerContext,
-        string baseDirectory,
-        RuntimeAssetLibrary assets,
-        RuntimeExecutionState state,
-        CancellationToken ct)
-    {
-        if (string.IsNullOrWhiteSpace(callNode.MacroId) || !assets.Macros.TryGetValue(callNode.MacroId, out var macroPlan))
-            return NodeExecutionResult.Fatal($"宏不存在：{callNode.Title}");
-        if (!state.CallStack.Add($"macro:{callNode.MacroId}"))
-            return NodeExecutionResult.Fatal($"检测到宏递归调用：{callNode.Title}");
-
-        try
-        {
-            var entry = macroPlan.Index.FirstNode(NodeKind.MacroEntry);
-            if (entry is null)
-                return NodeExecutionResult.Fatal($"宏结构无效：{callNode.Title}");
-
-            var childContext = new RuntimeContext();
-            CopyCallInputsToEntry(callerPlan, callNode, callerContext, entry, childContext);
-            var result = ExecuteChain(macroPlan, entry.Id, "exec_out", childContext, baseDirectory, assets, state, ct, out var terminal);
-            if (!result.ContinueExecution)
-                return NodeExecutionResult.Fatal(result.Message);
-            if (terminal?.NodeKind != NodeKind.MacroOutput)
-                return NodeExecutionResult.Warn($"宏没有到达输出节点：{callNode.Title}", null);
-
-            CopyReturnInputsToCallOutputs(macroPlan, terminal, childContext, callNode, callerContext);
-            string nextPin = $"exec_{terminal.Id}";
-            Logger.Info($"宏调用完成：{callNode.Title} -> {terminal.ExitName}");
-            return NodeExecutionResult.Ok($"宏调用完成：{callNode.Title}", nextPin);
-        }
-        finally
-        {
-            state.CallStack.Remove($"macro:{callNode.MacroId}");
         }
     }
 

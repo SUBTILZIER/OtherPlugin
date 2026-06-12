@@ -37,7 +37,6 @@ public partial class MainWindow
     private bool _assetCompileButtonStateQueued;
     private ObservableCollection<GraphListItemViewModel>? _attachedGraphListItems;
     private ObservableCollection<GraphListItemViewModel>? _attachedFunctionListItems;
-    private ObservableCollection<GraphListItemViewModel>? _attachedMacroListItems;
     private int _autoFitStableFrames;
     private int _autoFitFramesRemaining;
 
@@ -86,16 +85,12 @@ public partial class MainWindow
             _attachedGraphListItems.CollectionChanged -= GraphCollections_AssetCompileStateChanged;
         if (_attachedFunctionListItems is not null)
             _attachedFunctionListItems.CollectionChanged -= GraphCollections_AssetCompileStateChanged;
-        if (_attachedMacroListItems is not null)
-            _attachedMacroListItems.CollectionChanged -= GraphCollections_AssetCompileStateChanged;
 
         _attachedGraphListItems = GraphListItems;
         _attachedFunctionListItems = FunctionListItems;
-        _attachedMacroListItems = MacroListItems;
 
         _attachedGraphListItems.CollectionChanged += GraphCollections_AssetCompileStateChanged;
         _attachedFunctionListItems.CollectionChanged += GraphCollections_AssetCompileStateChanged;
-        _attachedMacroListItems.CollectionChanged += GraphCollections_AssetCompileStateChanged;
         QueueAssetCompileButtonStateUpdate();
     }
 
@@ -130,14 +125,17 @@ public partial class MainWindow
 
     private bool ActiveContentAssetHasCompileDirtyGraphs()
     {
-        if (_activeContentAsset is null)
+        var session = _activeEditorSession;
+        var asset = session?.ContentAsset ?? _activeContentAsset;
+        if (asset is null)
             return false;
 
-        return _activeContentAsset.Kind switch
+        var graphItems = session?.GraphListItems ?? GraphListItems;
+        var functionItems = session?.FunctionListItems ?? FunctionListItems;
+        return asset.Kind switch
         {
-            ContentAssetKind.Script => GraphListItems.Concat(FunctionListItems).Concat(MacroListItems).Any(item => item.IsCompileDirty),
-            ContentAssetKind.FunctionLibrary => FunctionListItems.Any(item => item.IsCompileDirty),
-            ContentAssetKind.MacroLibrary => MacroListItems.Any(item => item.IsCompileDirty),
+            ContentAssetKind.Script => graphItems.Concat(functionItems).Any(item => item.IsCompileDirty),
+            ContentAssetKind.FunctionLibrary => functionItems.Any(item => item.IsCompileDirty),
             _ => false,
         };
     }
@@ -300,9 +298,7 @@ public partial class MainWindow
                 .ThenBy(item => GetContentAssetPath(item, assetById, pathCache), StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
-            ContentVisibleItems.Clear();
-            foreach (var item in results)
-                ContentVisibleItems.Add(item);
+            ContentVisibleItems.ReplaceAll(results);
 
             if (updateStatus)
                 SetStatus($"搜索“{query}”：找到 {results.Count} 个资产。");
@@ -488,8 +484,6 @@ public partial class MainWindow
         {
             FunctionCallNodeViewModel functionCall when !string.IsNullOrWhiteSpace(functionCall.FunctionId) =>
                 OpenCallableGraph(functionCall.FunctionId, GraphAssetKind.Function),
-            MacroCallNodeViewModel macroCall when !string.IsNullOrWhiteSpace(macroCall.MacroId) =>
-                OpenCallableGraph(macroCall.MacroId, GraphAssetKind.Macro),
             _ => false,
         };
     }
@@ -501,17 +495,15 @@ public partial class MainWindow
         var target = FindCallableGraphLocation(graphId, kind);
         if (target is null)
         {
-            SetStatus(kind == GraphAssetKind.Function
-                ? "找不到函数目标，可能已删除或未公开到库。"
-                : "找不到宏目标，可能已删除或未公开到库。");
+            SetStatus("找不到函数目标，可能已删除或未公开到库。");
             return false;
         }
 
         OpenOrActivateAsset(target.Asset, target.Graph, kind);
 
         var surface = GetActiveEditorSurface();
-        var listBox = kind == GraphAssetKind.Function ? surface.FunctionListBox : surface.MacroListBox;
-        var controller = kind == GraphAssetKind.Function ? _functionListController : _macroListController;
+        var listBox = surface.FunctionListBox;
+        var controller = _functionListController;
         controller.SetSectionExpanded(true);
         SaveSectionExpansionForActiveAsset(controller);
         listBox.SelectedItem = target.Graph;
@@ -521,9 +513,7 @@ public partial class MainWindow
         ScheduleFitActiveGraphToView();
         QueueAssetCompileButtonStateUpdate();
 
-        SetStatus(kind == GraphAssetKind.Function
-            ? $"已跳转到函数：{GetContentAssetPath(target.Asset)}/{target.Graph.Name}"
-            : $"已跳转到宏：{GetContentAssetPath(target.Asset)}/{target.Graph.Name}");
+        SetStatus($"已跳转到函数：{GetContentAssetPath(target.Asset)}/{target.Graph.Name}");
         return true;
     }
 
@@ -531,8 +521,7 @@ public partial class MainWindow
     {
         foreach (var asset in EnumerateCallableSearchAssets())
         {
-            var graphs = kind == GraphAssetKind.Function ? asset.Functions : asset.Macros;
-            foreach (var graph in graphs)
+            foreach (var graph in asset.Functions)
             {
                 if (string.Equals(graph.Id, graphId, StringComparison.Ordinal))
                     return new CallableGraphLocation(asset, graph);
@@ -551,7 +540,7 @@ public partial class MainWindow
         {
             if (_activeContentAsset is not null && string.Equals(asset.Id, _activeContentAsset.Id, StringComparison.Ordinal))
                 continue;
-            if (asset.Kind is ContentAssetKind.Script or ContentAssetKind.FunctionLibrary or ContentAssetKind.MacroLibrary)
+            if (asset.Kind is ContentAssetKind.Script or ContentAssetKind.FunctionLibrary)
                 yield return asset;
         }
     }

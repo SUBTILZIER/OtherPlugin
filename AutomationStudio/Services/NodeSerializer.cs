@@ -118,8 +118,6 @@ public static class NodeSerializer
 
             case ParameterNodeBaseViewModel parameterNode:
                 file.Parameters = parameterNode.Parameters.Select(ToParameterFile).ToList();
-                if (parameterNode is MacroOutputNodeViewModel macroOutput)
-                    file.ExitName = macroOutput.ExitName;
                 if (parameterNode is CustomEventNodeViewModel customEvent)
                     file.CustomEventId = customEvent.CustomEventId;
                 break;
@@ -128,16 +126,6 @@ public static class NodeSerializer
                 file.FunctionId = functionCall.FunctionId;
                 file.InputParameters = functionCall.InputParameters.Select(ToParameterFile).ToList();
                 file.OutputParameters = functionCall.OutputParameters.Select(ToParameterFile).ToList();
-                break;
-
-            case MacroCallNodeViewModel macroCall:
-                file.MacroId = macroCall.MacroId;
-                file.InputParameters = macroCall.InputParameters.Select(ToParameterFile).ToList();
-                file.OutputParameters = macroCall.OutputParameters.Select(ToParameterFile).ToList();
-                file.MacroExits = macroCall.OutputPins
-                    .Where(p => p.Kind == PinKind.Execution)
-                    .Select(p => new MacroExitFileModel { Id = p.Name.Replace("exec_", "", StringComparison.Ordinal), Name = p.DisplayName })
-                    .ToList();
                 break;
 
             case CustomEventCallNodeViewModel customEventCall:
@@ -327,10 +315,7 @@ public static class NodeSerializer
             "show_message" => CreateCommonFromFile(file, NodeKind.ShowMessage, "弹窗提示"),
             "function_entry" => CreateParameterNodeFromFile(new FunctionEntryNodeViewModel(file.Id), file, "函数开始"),
             "function_return" => CreateParameterNodeFromFile(new FunctionReturnNodeViewModel(file.Id), file, "函数返回"),
-            "macro_entry" => CreateParameterNodeFromFile(new MacroEntryNodeViewModel(file.Id), file, "宏开始"),
-            "macro_output" => CreateMacroOutputFromFile(file),
             "function_call" => CreateFunctionCallFromFile(file),
-            "macro_call" => CreateMacroCallFromFile(file),
             "custom_event" => CreateParameterNodeFromFile(new CustomEventNodeViewModel(file.Id, file.CustomEventId), file, "自定义事件"),
             "custom_event_call" => CreateCustomEventCallFromFile(file),
 
@@ -348,7 +333,8 @@ public static class NodeSerializer
 
     private static bool IsDiscardedNodeType(string? nodeTypeKey) =>
         nodeTypeKey is "mouse_drag" or "input_text" or "key_sequence" or
-            "click_image_center" or "set_variable" or "comment";
+            "click_image_center" or "set_variable" or "comment" or
+            "macro_entry" or "macro_output" or "macro_call";
 
     public static GraphRuntimeNode ToRuntimeNode(NodeBaseViewModel node)
     {
@@ -432,10 +418,7 @@ public static class NodeSerializer
 
             FunctionEntryNodeViewModel functionEntry => GraphRuntimeNode.ForAssetNode(functionEntry.Id, functionEntry.Title, functionEntry.NodeKind, functionEntry.Parameters),
             FunctionReturnNodeViewModel functionReturn => GraphRuntimeNode.ForAssetNode(functionReturn.Id, functionReturn.Title, functionReturn.NodeKind, functionReturn.Parameters),
-            MacroEntryNodeViewModel macroEntry => GraphRuntimeNode.ForAssetNode(macroEntry.Id, macroEntry.Title, macroEntry.NodeKind, macroEntry.Parameters),
-            MacroOutputNodeViewModel macroOutput => GraphRuntimeNode.ForMacroOutput(macroOutput.Id, macroOutput.Title, macroOutput.ExitName, macroOutput.Parameters),
             FunctionCallNodeViewModel functionCall => GraphRuntimeNode.ForFunctionCall(functionCall.Id, functionCall.Title, functionCall.FunctionId, functionCall.InputParameters),
-            MacroCallNodeViewModel macroCall => GraphRuntimeNode.ForMacroCall(macroCall.Id, macroCall.Title, macroCall.MacroId, macroCall.InputParameters),
             CustomEventNodeViewModel customEvent => GraphRuntimeNode.ForCustomEvent(customEvent.Id, customEvent.Title, customEvent.CustomEventId, customEvent.Parameters),
             CustomEventCallNodeViewModel customEventCall => GraphRuntimeNode.ForCustomEventCall(customEventCall.Id, customEventCall.Title, customEventCall.CustomEventId, customEventCall.InputParameters),
 
@@ -492,13 +475,6 @@ public static class NodeSerializer
         return node;
     }
 
-    private static MacroOutputNodeViewModel CreateMacroOutputFromFile(NodeFileModel file)
-    {
-        var node = CreateParameterNodeFromFile(new MacroOutputNodeViewModel(file.Id), file, "宏输出");
-        node.ExitName = string.IsNullOrWhiteSpace(file.ExitName) ? "完成" : file.ExitName;
-        return node;
-    }
-
     private static FunctionCallNodeViewModel CreateFunctionCallFromFile(NodeFileModel file)
     {
         var node = new FunctionCallNodeViewModel(file.Id, file.FunctionId ?? string.Empty, string.IsNullOrWhiteSpace(file.Title) ? "调用函数" : file.Title)
@@ -507,20 +483,6 @@ public static class NodeSerializer
             Y = file.Y,
         };
         node.ConfigurePins(file.InputParameters.Select(FromParameterFile), file.OutputParameters.Select(FromParameterFile));
-        return node;
-    }
-
-    private static MacroCallNodeViewModel CreateMacroCallFromFile(NodeFileModel file)
-    {
-        var node = new MacroCallNodeViewModel(file.Id, file.MacroId ?? string.Empty, string.IsNullOrWhiteSpace(file.Title) ? "调用宏" : file.Title)
-        {
-            X = file.X,
-            Y = file.Y,
-        };
-        node.ConfigurePins(
-            file.InputParameters.Select(FromParameterFile),
-            file.OutputParameters.Select(FromParameterFile),
-            file.MacroExits.Select(exit => (exit.Id, exit.Name)));
         return node;
     }
 
