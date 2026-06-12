@@ -11,28 +11,6 @@
              VerticalAlignment="Stretch"
              Background="#181B20">
     <UserControl.Resources>
-        <Style x:Key="DarkContextMenuStyle" TargetType="ContextMenu">
-            <Setter Property="Background" Value="#1B2028" />
-            <Setter Property="BorderBrush" Value="#303744" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="Foreground" Value="#E8EDF5" />
-            <Setter Property="Padding" Value="4" />
-            <Setter Property="HasDropShadow" Value="True" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="{x:Type ContextMenu}">
-                        <Border Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                Padding="{TemplateBinding Padding}"
-                                SnapsToDevicePixels="True">
-                            <StackPanel IsItemsHost="True"
-                                        KeyboardNavigation.DirectionalNavigation="Cycle" />
-                        </Border>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
         <Style x:Key="GraphItemDirtyGlyphStyle" TargetType="{x:Type Border}">
             <Setter Property="Width" Value="8" />
             <Setter Property="Height" Value="8" />

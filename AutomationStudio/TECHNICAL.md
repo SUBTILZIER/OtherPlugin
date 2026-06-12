@@ -154,9 +154,11 @@ public class GraphEditorService
 - `EditorSurfaceContext.Configure(...)` 是幂等的：同一个 session 的 controller 不因 host attach/activate 反复重建。surface 事件按类型分类：明确用户交互才提升 active session；`PinAnchorLoaded/LayoutUpdated`、无按键 `MouseMove`、初始化触发的 `TextChanged/SelectionChanged` 只使用所属 context 或直接忽略，避免 tab 闪动、列表折叠或 detached/main 互相污染。
 - surface controller 的 dirty/snapshot 回调按所属 `EditorSessionViewModel` 闭包绑定；编辑 detached 或非首个 tab 时不能直接依赖全局 `_activeAssetController`，否则 dirty 黄点和 compile target 会串到其它资产。
 - 当前图 controller 统一通过 `SetSessionActiveGraphController(session, controller)` 写入；它同步 `EditorSurfaceContext.ActiveAssetController`、session remembered active graph，以及当前操作 session 的 `_activeAssetController` 镜像。新增图/函数和 `LoadGraphItem(...)` 都必须用这个入口。
+- session dirty/snapshot/compile helper 在 `MainWindow.EditorSessionState.cs`；不要把这些状态路径重新散回 `MainWindow.xaml.cs`。
 - `HandleEditorSurfaceEvent(...)` 处理完事件后不能把全局 `_activeAssetController` 回写到 `_activeEditorSession.SurfaceContext`。非 active surface 事件通过 `RunWithSurfaceContext(...)` 临时切 controller，结束后应恢复全局状态而不是污染其它 session。
 - detached session 激活时只更新全局工具栏/运行/保存目标，不覆盖 `_lastMainEditorSession`；主窗口继续显示最近的主窗口 tab surface。
 - `MainWindow.EditorSurfaceRegions.cs` 和 legacy region reparent hooks 已删除。不要恢复 `AttachLegacyEditorRegionsToSessionSurface()` 的区域搬移逻辑。
+- `DarkContextMenuStyle`、`DarkDropdownListBoxStyle`、`DarkDropdownListBoxItemStyle` 是 `App.xaml` 共享资源；不要在 `MainWindow.xaml` 或 `EditorSurfaceControl.xaml` 复制一份。
 - session 关闭只 snapshot 回 `ContentAssetViewModel` 并移除编辑窗口，不删除资产。删除内容浏览器资产时会关闭所有指向该资产的 session，避免悬空编辑窗口。
 - 保存、退出、编译前使用 `CommitInspectorAndSnapshotAllSessions()` / `CommitAllSessionsToAssets()`，保证多窗口编辑内容参与引用同步和校验。
 - 工具栏编译是 active-asset scoped，走 `GraphCompileService.CompileAsset(...)`：脚本会编译该资产内事件图和函数；函数库会编译该库内全部函数。`GraphCompileService.CompileGraph(...)` 仍保留为 current-graph scoped 内部能力，但工具栏不使用它。
@@ -526,14 +528,14 @@ Python 参数规则：
 - Float/Vector3D/Vector4D/ImageAsset/String 目前仍映射为 `String` pin；默认值按字符串传递，例如 `23.0f`。Boolean 默认值解析为 bool，Vector2D 默认值可写 `x,y`。
 
 #### 验证门禁
-- `Tests/CodexSmoke/Program.cs` 负责 UI smoke：检查 header 无新建按钮、右键菜单模式、暗色菜单模板、树缩进、箭头几何、splitter 列宽、单击进入/箭头展开行为、图表隔离、公开到库硬隔离与编译校验。
-- Smoke 是轻量启动/回归验收，不是完整测试框架。只放关键交互和数据隔离断言；如果单次执行明显变慢，要优先拆小或删除低价值断言。
+- `Tests/CodexSmoke` 是本地-only 回归辅助，Git 不跟踪、不提交；需要时可在本机保留，但不要把 smoke 当主线门禁或 PR 内容。
+- Smoke 不是完整测试框架。只在明确触碰对应高风险交互，或用户明确要求时本地运行；如果单次执行明显变慢，要优先拆小或删除低价值断言。
 - 默认完成前执行：
   - `dotnet build .\AutomationStudioWpf.csproj -o .\bin\CodexBuildCheck`
   - `git diff --check`
   - `dotnet run --project .\AutomationStudioWpf.csproj` 做短启动探测，能正常拉起窗口即可
   - `codegraph.cmd sync`
-- 只有改到对应高风险交互、需要锁回归，或用户明确要求时才跑 broad smoke / optional reroute repro smoke。
+- 只有改到对应高风险交互、需要锁回归，或用户明确要求时才本地跑 broad smoke / optional reroute repro smoke。
 
 - 启动验证不再固定等待 20 秒；只确认能正常启动。若进程快速退出、输出 `Unhandled exception` 或 WPF 初始化异常，必须收集终端输出/异常栈并先修。
 - 不要自动 `git push`。只有用户明确要求推送时才推；推送前确认不包含测试功能相关文件夹。
@@ -627,7 +629,7 @@ Python 参数规则：
 - **维护规则**：新节点可以继续用扁平模型，但字段名必须表达真实语义；不要把某节点字段塞到别的节点字段里复用。
 
 #### 变更 1：InspectorController 不再只做灰态锁定
-- **现状**：节点属性面板的加载、自动保存、浏览文件、刷新窗口列表、字段锁定均已下沉到 `Interaction/InspectorController.cs`。
+- **现状**：节点属性面板的加载、自动保存、浏览文件、刷新窗口列表、字段锁定均已下沉到 `Interaction/InspectorController.cs`；ToDo 目标选择入口在 `Interaction/InspectorController.ToDo.cs`。
 - **MainWindow 职责**：只保留 XAML 事件转发和窗口装配，不再维护属性面板业务规则。
 - **维护规则**：新增节点属性 UI 后，同步改 `InspectorController.LoadNode()`、`ApplyChanges()`、`RefreshLocks()`，不要把属性逻辑写回 `MainWindow.xaml.cs`。
 

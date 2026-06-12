@@ -1,5 +1,6 @@
 bin/
 obj/
+Tests/CodexSmoke/
 .idea/
 .codegraph/
 .claude/

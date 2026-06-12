@@ -30,28 +30,6 @@
                 </DataTrigger>
             </Style.Triggers>
         </Style>
-        <Style x:Key="DarkContextMenuStyle" TargetType="ContextMenu">
-            <Setter Property="Background" Value="#1B2028" />
-            <Setter Property="BorderBrush" Value="#303744" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="Foreground" Value="#E8EDF5" />
-            <Setter Property="Padding" Value="4" />
-            <Setter Property="HasDropShadow" Value="True" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="{x:Type ContextMenu}">
-                        <Border Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                Padding="{TemplateBinding Padding}"
-                                SnapsToDevicePixels="True">
-                            <StackPanel IsItemsHost="True"
-                                        KeyboardNavigation.DirectionalNavigation="Cycle" />
-                        </Border>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
         <Style TargetType="{x:Type Separator}">
             <Setter Property="Template">
                 <Setter.Value>
@@ -127,42 +105,6 @@
                     <Setter Property="Visibility" Value="Collapsed" />
                 </DataTrigger>
             </Style.Triggers>
-        </Style>
-        <Style x:Key="DarkDropdownListBoxItemStyle" TargetType="{x:Type ListBoxItem}">
-            <Setter Property="Foreground" Value="#E8EDF5" />
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="Padding" Value="4,2" />
-            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="{x:Type ListBoxItem}">
-                        <Border x:Name="Border"
-                                Background="{TemplateBinding Background}"
-                                Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
-                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
-                                              TextBlock.Foreground="{TemplateBinding Foreground}" />
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Border" Property="Background" Value="#263241" />
-                                <Setter Property="Foreground" Value="#FFFFFF" />
-                            </Trigger>
-                            <Trigger Property="IsSelected" Value="True">
-                                <Setter TargetName="Border" Property="Background" Value="#30455F" />
-                                <Setter Property="Foreground" Value="#FFFFFF" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-        <Style x:Key="DarkDropdownListBoxStyle" TargetType="{x:Type ListBox}">
-            <Setter Property="Foreground" Value="#E8EDF5" />
-            <Setter Property="Background" Value="#1B2028" />
-            <Setter Property="BorderBrush" Value="#3A4554" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="ItemContainerStyle" Value="{StaticResource DarkDropdownListBoxItemStyle}" />
         </Style>
     </Window.Resources>
     <DockPanel>

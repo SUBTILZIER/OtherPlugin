@@ -25,9 +25,11 @@ WPF 可视化节点自动化编辑器，类似 UE4 蓝图。技术栈 C# 12 / .N
 - 图/函数切换和新增必须走 `SetSessionActiveGraphController(session, controller)`。只写全局 `_activeAssetController` 不够；session 的 `EditorSurfaceContext.ActiveAssetController` 和 remembered active graph 也必须同步，否则函数库切 tab 后可能 snapshot 空 controller 并回到默认 entry/return。
 - `HandleEditorSurfaceEvent(...)` 不能在事件结束后把当前全局 `_activeAssetController` 写回 `_activeEditorSession.SurfaceContext`。事件来自非 active surface 时这会污染另一个 session。
 - 旧 `MainWindow.EditorSurfaceRegions.cs` 已删除。不要恢复 legacy sidebar/canvas/inspector 区域搬移。
+- `DarkContextMenuStyle`、`DarkDropdownListBoxStyle`、`DarkDropdownListBoxItemStyle` 是 `App.xaml` 共享资源；不要在 `MainWindow.xaml` / `EditorSurfaceControl.xaml` 重复定义。
 - 关闭 editor session 只 snapshot 回 `ContentAssetViewModel`，不删除内容浏览器资产。删除资产时要关闭所有指向被删 asset id 的 sessions。
 - 保存、退出、编译前用 `CommitInspectorAndSnapshotAllSessions()` / `CommitAllSessionsToAssets()`；工具栏编译用 `GraphCompileService.CompileAsset(...)` 编译当前激活资产内全部图，编译前必须先 snapshot 所有打开 session。
 - `CompileActiveAsset(...)` 成功后必须把 asset 中被清掉的 `IsCompileDirty` 同步回对应 session 图列表，再刷新窗口栏、section badge 和编译按钮；不要等保存才清 UI 黄点。
+- session dirty/snapshot/compile helper 在 `MainWindow.EditorSessionState.cs`；保持这里集中，不要把多窗口状态路径重新散回 `MainWindow.xaml.cs`。
 - `EditorSurfaceControl` 事件直接进入 `EditorSurfaceContext.HandleEvent(...)`，再通过 typed `EditorSurfaceEvent` 激活 session 并复用剩余 `MainWindow` handler；不要恢复字符串反射 `RouteEditorSurfaceEvent`。
 
 ### 2026-06-09: ToDo 持久化 / Log 复制 / 内容浏览器导航
@@ -78,8 +80,8 @@ WPF 可视化节点自动化编辑器，类似 UE4 蓝图。技术栈 C# 12 / .N
 - 文件夹树：单击文件夹行进入该文件夹；点击箭头按钮只展开/收起，不进入。`HasFolderChildren` 只统计子文件夹，不因脚本/库资产显示箭头。
 - 文件夹树缩进用 `TreeIndent` 像素绑定，不用 `TreeDisplayName` 前置空格。箭头图标样式为 `ContentFolderToggleIconStyle`：收起朝右，展开朝下；默认 `Path.Data` 必须放在 `Style Setter`，不要写本地 `Data`，否则 `DataTrigger` 覆盖不了。
 - 内容浏览器左树和右瓦片之间有 `ContentBrowserTreeSplitter`，左树列 `ContentTreeColumn` 默认 180，范围 120-420；右侧瓦片列最小 240，并继续用禁横向滚动的 `WrapPanel` 自动换行。
-- 默认验证门禁：`dotnet build .\AutomationStudioWpf.csproj -o .\bin\CodexBuildCheck`、`git diff --check`、`dotnet run --project .\AutomationStudioWpf.csproj` 启动崩溃探测、`codegraph.cmd sync`。启动检查不固定等待 20 秒；能正常创建窗口即可。若进程快速退出、输出 `Unhandled exception` 或 WPF 初始化异常，必须收集终端输出/异常栈并先修。只有改到对应高风险交互或用户明确要求时才跑 broad smoke。
-- `Tests/CodexSmoke` 是轻量 smoke/回归验收，不是完整测试框架。只覆盖关键 UI/数据回归，避免越加越慢；测试相关文件夹不要推送，除非用户明确要求纳入版本。
+- 默认验证门禁：`dotnet build .\AutomationStudioWpf.csproj -o .\bin\CodexBuildCheck`、`git diff --check`、`dotnet run --project .\AutomationStudioWpf.csproj` 启动崩溃探测、`codegraph.cmd sync`。启动检查不固定等待 20 秒；能正常创建窗口即可。若进程快速退出、输出 `Unhandled exception` 或 WPF 初始化异常，必须收集终端输出/异常栈并先修。
+- `Tests/CodexSmoke` 是本地-only 回归辅助，Git 不跟踪、不提交。只有改到对应高风险交互或用户明确要求时才本地运行 broad smoke / optional reroute repro smoke。
 
 ### 2026-06-05: 事件图 / 函数画布串图
 
@@ -143,7 +145,7 @@ WPF 可视化节点自动化编辑器，类似 UE4 蓝图。技术栈 C# 12 / .N
 - **Rule**: 不要让新 runtime 节点复用 `ImagePath`、`DelayMs`、`ScrollSpeed` 等不相关字段。旧文件兼容读取可以留在 `NodeSerializer.FromFileModel()`，新 runtime 数据必须语义明确。
 
 #### Architecture update: InspectorController 负责完整属性面板逻辑
-- **Current**: `Interaction/InspectorController.cs` 负责节点属性加载、字段自动保存、浏览文件、窗口列表刷新、前置输入锁定和灰态。
+- **Current**: `Interaction/InspectorController.cs` 负责节点属性加载、字段自动保存、浏览文件、窗口列表刷新、前置输入锁定和灰态；`InspectorController.ToDo.cs` 承接 ToDo 目标选择入口。
 - **MainWindow rule**: `MainWindow.xaml.cs` 只转发 XAML 事件：`LoadNodeToInspector()`、`ApplyInspectorChanges()`、浏览按钮、窗口模式切换都应调用 controller。
 - **Do not**: 不要再把节点属性 switch、字段锁定规则、文件浏览逻辑写回 `MainWindow.xaml.cs`。
 

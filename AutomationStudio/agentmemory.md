@@ -22,6 +22,7 @@
 - Surface events are classified before dispatch: explicit user interactions promote the session to active; passive layout/binding events such as `PinAnchorLoaded/LayoutUpdated`, mouse move without pressed buttons, and initialization `TextChanged/SelectionChanged` only use the owning context or are ignored. Detached activation must not overwrite `_lastMainEditorSession`; the main host keeps showing the last main-window tab surface.
 - Surface dirty/snapshot callbacks are bound to the owning `EditorSessionViewModel`. Do not use global `_activeAssetController` as the only dirty target from per-session controllers, or edits in C can mark A dirty.
 - Active graph controller state must be written through `SetSessionActiveGraphController(session, controller)`. It updates the owning `EditorSurfaceContext.ActiveAssetController`, remembered graph id/kind, and only mirrors `_activeAssetController` for the explicit active/operation session.
+- Session dirty/snapshot/compile helpers live in `MainWindow.EditorSessionState.cs`; keep multi-window state routing centralized there.
 - Do not add graph/function items by only assigning `_activeAssetController`. After `GraphListController.AddAndRename(...)` or `LoadItem(...)`, the session context must know the active controller or switching tabs can snapshot nothing and reload the old default function graph.
 - `HandleEditorSurfaceEvent(...)` must not copy the current global `_activeAssetController` back into another session's context after dispatch. That cross-write was a root cause of script/function-library session pollution.
 - Tab dragging shows a following popup preview. Do not reintroduce inactive detached read-only previews or the old "activate this window" placeholder.
@@ -89,7 +90,7 @@
 - User requested CodeGraph, project skill, TECHNICAL, README, and agentmemory audit/update against current local code. Do not push unless the user explicitly asks in the same task.
 - Track `.codegraph/.gitignore`; do not commit CodeGraph db/wal/shm/log/cache files.
 - Current project skill lives under `AutomationStudio/Agent/skills/automation-studio-wpf/SKILL.md`; the old `.kimi/skills/automation-studio-wpf/SKILL.md` path is deleted.
-- Before push, run build, `git diff --check`, WPF startup probe, and `codegraph.cmd sync`. Run broad smoke only when the touched area needs it or the user explicitly asks.
+- Before push, run build, `git diff --check`, WPF startup probe, and `codegraph.cmd sync`. Run smoke only locally when the touched area needs it or the user explicitly asks.
 
 ## 2026-06-05 graph isolation fix
 
@@ -98,8 +99,8 @@
 - Folder tree UX: single-click row enters folder; arrow button only expands/collapses. `HasFolderChildren` counts child folders only. `TreeIndent` controls pixel indentation; `TreeDisplayName` is plain name, no leading spaces.
 - Folder tree arrow uses `ContentFolderToggleIconStyle`. Keep default `Path.Data` in style setter so `DataTrigger` can switch expanded state to the down triangle.
 - Content browser layout: `ContentTreeColumn` default width 180, min 120, max 420; `ContentBrowserTreeSplitter` separates tree and tile grid; tile grid stays in column 2 and wraps with horizontal scrolling disabled.
-- Verification gates now include startup crash probe: build, `git diff --check`, run `dotnet run --project .\AutomationStudioWpf.csproj` only long enough to confirm the window starts, then `codegraph.cmd sync`. Do not wait 20s; early exit, WPF startup exception, or `Unhandled exception` is failure and requires collecting stdout/stderr/stack output first. Run broad smoke only when the touched area needs it or the user explicitly asks.
-- `Tests/CodexSmoke` is lightweight regression smoke, not a full test framework. Keep it focused on critical UI/data regressions and do not push test-related folders unless the user explicitly asks.
+- Verification gates now include startup crash probe: build, `git diff --check`, run `dotnet run --project .\AutomationStudioWpf.csproj` only long enough to confirm the window starts, then `codegraph.cmd sync`. Do not wait 20s; early exit, WPF startup exception, or `Unhandled exception` is failure and requires collecting stdout/stderr/stack output first.
+- `Tests/CodexSmoke` is local-only regression smoke. Git must ignore it; do not push smoke folders unless the user explicitly asks to make them tracked.
 
 - Event graph / function share one current canvas per editor session, not one global app-wide canvas. Data stays isolated in separate `GraphListItemViewModel.Graph` models and in each session's own `GraphEditorService`.
 - Critical rule: before loading a graph from another section, first `SnapshotActiveAsset()`, then call `SetSessionActiveGraphController(session, targetController, remember: false)`, then `LoadItem(..., snapshotCurrent: false)`, then call `SetSessionActiveGraphController(session, targetController)`.
@@ -124,6 +125,6 @@
 - New graph/function list items start `IsCompileDirty = true`. `MarkLogicDirty()` sets compile dirty; `MarkLayoutDirty()` only sets save dirty.
 - Compile sync updates function call nodes, clears graph compile dirty, and only marks assets changed by call-reference sync as save dirty.
 - Save may prompt compile for any dirty graph. Run is blocked only when the current active graph is compile-dirty.
-- Shared dark context menu style is `DarkContextMenuStyle`; content browser/tree and graph lists must keep it attached.
+- Shared dark context menu style is `DarkContextMenuStyle` in `App.xaml`; content browser/tree and graph lists must keep it attached.
 - Isolated tests can set `AUTOMATION_STUDIO_LIBRARY_DIR`; default library path remains `%APPDATA%/AutomationStudioWpf`.
-- Verification gates: `dotnet build .\AutomationStudioWpf.csproj -o .\bin\CodexBuildCheck`, `git diff --check`, launch crash probe `dotnet run --project .\AutomationStudioWpf.csproj` without fixed 20s wait, then `codegraph.cmd sync`. Run broad smoke only when needed for the touched area or explicitly requested.
+- Verification gates: `dotnet build .\AutomationStudioWpf.csproj -o .\bin\CodexBuildCheck`, `git diff --check`, launch crash probe `dotnet run --project .\AutomationStudioWpf.csproj` without fixed 20s wait, then `codegraph.cmd sync`. Run smoke only locally when needed for the touched area or explicitly requested.

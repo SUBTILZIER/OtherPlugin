@@ -151,6 +151,7 @@ AutomationStudioWpf/
 │   ├── NodeDragSelectionController.cs  # 拖动、框选、复制粘贴、对齐
 │   ├── PinConnectionController.cs  # 连线、断线、路由节点
 │   ├── InspectorController.cs   # 属性面板、字段锁定
+│   ├── InspectorController.ToDo.cs # ToDo 目标选择面板逻辑
 │   ├── NodePaletteController.cs # 右键节点菜单
 │   ├── LogPanelController.cs    # 日志过滤、增量刷新
 │   └── GraphImportDropController.cs  # JSON 图谱拖拽导入
@@ -160,7 +161,8 @@ AutomationStudioWpf/
 │   ├── LogLevel.cs              # 级别枚举
 │   └── LoggingModule.cs         # 过滤 + 着色
 ├── Controls/
-│   └── EditorSurfaceControl.xaml(.cs) # session 自持完整编辑 surface
+│   ├── EditorSurfaceControl.xaml(.cs) # session 自持完整编辑 surface
+│   └── EditorSurfaceControl.InspectorEvents.cs # 详情面板事件转发
 ├── Python/                      # Python 脚本
 │   ├── find_image.py            # OpenCV 找图
 │   └── Installer/               # Python 安装包
@@ -172,9 +174,9 @@ AutomationStudioWpf/
 │   └── PythonScriptAdapter.cs   # Python JSON 文件通信
 ├── Nodes/                       # 节点注册与分类执行器
 │   └── NodeRegistry.cs          # 节点定义 + 执行器入口
-├── Tests/CodexSmoke/            # UI smoke 门禁
 ├── MainWindow.xaml(.cs)         # 主窗口 + partial 交互扩展
 ├── MainWindow.EditorSessions.cs # 多窗口标签/独立窗口交互
+├── MainWindow.EditorSessionState.cs # session dirty/snapshot/compile 目标状态
 ├── MainWindow.EditorSurfaceHost.cs # surface 宿主
 ├── LogWindow.xaml(.cs)          # 独立日志窗口
 └── App.xaml(.cs)                # 应用程序入口
@@ -197,10 +199,10 @@ dotnet build .\AutomationStudioWpf.csproj -o .\bin\CodexBuildCheck
 git diff --check
 dotnet run --project .\AutomationStudioWpf.csproj
 
-# 按需 smoke（改到对应交互或用户要求时再跑）
+# 本地按需 smoke（本机可有，Git 不跟踪）
 dotnet run --project .\Tests\CodexSmoke\AutomationStudioSmoke.csproj --no-restore
 
-# Optional reroute repro smoke（仅 reroute 复现需要）
+# Optional reroute repro smoke（本地-only，仅 reroute 复现需要）
 $env:AUTOMATION_STUDIO_REROUTE_GRAPH_JSON='C:\Users\Administrator\Desktop\graph.json'
 dotnet run --project .\Tests\CodexSmoke\AutomationStudioSmoke.csproj --no-restore
 
@@ -220,7 +222,9 @@ saved/log/Log_2026_05_28_22_11.txt
 ### v1.2.9 (2026-06-12)
 - **Fixed**: Function-library sessions now keep their active function controller in the owning `EditorSurfaceContext`, so switching to another asset no longer drops unsaved function nodes or reloads default entry/return graphs.
 - **Fixed**: Active-asset compile/run checks now resolve the current graph controller from the active editor session, avoiding stale global `_activeAssetController` state in multi-window workflows.
-- **Added**: Targeted smoke flag `--targeted-function-library-session` covers script + function-library tab switching, callable lookup, compile, and persistence for the lost-function-graph regression.
+- **Changed**: `Tests/CodexSmoke` is a local-only regression helper and is ignored by Git; do not commit smoke files.
+- **Changed**: Session dirty/snapshot/compile helpers moved to `MainWindow.EditorSessionState.cs`; ToDo inspector and editor-surface inspector event forwarding now live in small partial files.
+- **Changed**: Dark context menu and dropdown list styles are shared from `App.xaml`, not duplicated per window/surface.
 
 ### v1.2.8 (2026-06-11)
 - **Changed**: Documentation, project skill, agent memory, and CodeGraph were refreshed against current code after the latest `main` pull.
