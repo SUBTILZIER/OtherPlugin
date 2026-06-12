@@ -823,8 +823,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         _activeAssetController = controller;
         controller.LoadItem(item, snapshotCurrent: false);
-        _activeEditorSession?.RememberActive(controller);
-        if (_activeEditorSession?.SurfaceContext is { } context)
+        var session = GetOperationEditorSession();
+        session?.RememberActive(controller);
+        if (session?.SurfaceContext is { } context)
             context.ActiveAssetController = controller;
         _graphCommandService.Clear();
     }
@@ -1331,17 +1332,19 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (_activeEditorSession is null)
             return;
 
-        CommitSessionToAsset(_activeEditorSession);
+        CommitSessionToAsset(_activeEditorSession, applyInspector: true);
     }
 
-    private void CommitAllSessionsToAssets()
+    private void CommitAllSessionsToAssets(bool applyInspectorForActive = false)
     {
         foreach (var session in _editorSessions)
-            CommitSessionToAsset(session);
+            CommitSessionToAsset(session, applyInspectorForActive && ReferenceEquals(session, _activeEditorSession));
     }
 
-    private void CommitSessionToAsset(EditorSessionViewModel session)
+    private void CommitSessionToAsset(EditorSessionViewModel session, bool applyInspector = false)
     {
+        if (applyInspector && ReferenceEquals(session, _activeEditorSession))
+            ApplyInspectorChanges();
         SnapshotSession(session);
         session.SaveToAsset();
     }
@@ -1400,10 +1403,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void CloseEditorSession(EditorSessionViewModel session)
     {
-        if (ReferenceEquals(session, _activeEditorSession))
-            CommitCurrentSessionToAsset();
-        else
-            session.SaveToAsset();
+        CommitSessionToAsset(session, applyInspector: ReferenceEquals(session, _activeEditorSession));
 
         if (ReferenceEquals(session, _activeEditorSession))
             HideMainEditorSurfaceHostOnly();
@@ -1479,30 +1479,38 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void SaveVisibleGraphsToActiveContent()
     {
-        if (_activeEditorSession is null)
+        var session = GetOperationEditorSession();
+        if (session is null)
             return;
 
-        SnapshotActiveAsset();
-        _activeEditorSession.SaveToAsset();
+        SnapshotSession(session);
+        session.SaveToAsset();
     }
 
     private void MarkCurrentContentDirty()
     {
-        if (_activeContentAsset is not null)
+        var session = GetOperationEditorSession();
+        if (session is not null)
+        {
+            session.ContentAsset.IsDirty = true;
+            session.RefreshDirtyState();
+        }
+        else if (_activeContentAsset is not null)
+        {
             _activeContentAsset.IsDirty = true;
-        _activeEditorSession?.RefreshDirtyState();
+        }
         UpdateEditorSessionChrome();
     }
 
     private IEnumerable<CallableGraphItem> GetCallableFunctions()
     {
-        SaveVisibleGraphsToActiveContent();
+        CommitAllSessionsToAssets(applyInspectorForActive: true);
         return _callableGraphResolver.ResolveFunctions(ContentBrowserItems, _activeContentAsset);
     }
 
     private IEnumerable<CallableGraphItem> GetRuntimeCallableFunctions()
     {
-        SaveVisibleGraphsToActiveContent();
+        CommitAllSessionsToAssets(applyInspectorForActive: true);
         return _callableGraphResolver.ResolveFunctions(ContentBrowserItems, _activeContentAsset);
     }
 
@@ -2085,7 +2093,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         _executionController.ReleaseAllKeys();
         if (_isClosing) return;
 
-        CommitAllSessionsToAssets();
+        CommitAllSessionsToAssets(applyInspectorForActive: true);
         if (ContentBrowserItems.Any(item => item.IsDirty) ||
             GraphListItems.Concat(FunctionListItems).Any(item => item.IsDirty))
         {
@@ -2131,7 +2139,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             return;
         }
 
-        SaveVisibleGraphsToActiveContent();
+        CommitInspectorAndSnapshotAllSessions();
         await _executionController.RunAsync();
     }
 
@@ -2452,14 +2460,13 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void CommitInspectorAndSnapshotActive()
     {
-        ApplyInspectorChanges();
-        SnapshotActiveAsset();
+        if (GetOperationEditorSession() is { } session)
+            CommitSessionToAsset(session, applyInspector: ReferenceEquals(session, _activeEditorSession));
     }
 
     private void CommitInspectorAndSnapshotAllSessions()
     {
-        ApplyInspectorChanges();
-        CommitAllSessionsToAssets();
+        CommitAllSessionsToAssets(applyInspectorForActive: true);
     }
 
     private void InspectorField_TextChanged(object sender, TextChangedEventArgs e) => ApplyInspectorChanges();
@@ -2596,7 +2603,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private void OnGraphChanged()
     {
         _editorService.UpdatePinConnectionStates();
-        if (!_suppressGraphChangedDirty && _activeAssetController?.IsLoadingGraph != true)
+        var session = GetOperationEditorSession();
+        var controller = session is null ? null : GetSessionActiveAssetController(session);
+        if (!_suppressGraphChangedDirty && controller?.IsLoadingGraph != true)
             MarkActiveAssetDirty();
 
         if (_editorService.Nodes.FirstOrDefault(n => n.IsSelected) is { } selected)
@@ -2611,21 +2620,24 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void MarkActiveAssetDirty()
     {
-        if (_activeEditorSession is not null)
-            MarkSessionDirty(_activeEditorSession);
+        if (GetOperationEditorSession() is { } session)
+            MarkSessionDirty(session);
     }
 
     private void MarkActiveAssetLayoutDirty()
     {
-        if (_activeEditorSession is not null)
-            MarkSessionLayoutDirty(_activeEditorSession);
+        if (GetOperationEditorSession() is { } session)
+            MarkSessionLayoutDirty(session);
     }
 
     private void SnapshotActiveAsset()
     {
-        if (_activeEditorSession is not null)
-            SnapshotSession(_activeEditorSession);
+        if (GetOperationEditorSession() is { } session)
+            SnapshotSession(session);
     }
+
+    private EditorSessionViewModel? GetOperationEditorSession() =>
+        _eventSurfaceSessionOverride ?? _activeEditorSession;
 
     private void MarkSessionDirty(EditorSessionViewModel session)
     {
@@ -2659,20 +2671,21 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private GraphListController? GetSessionActiveAssetController(EditorSessionViewModel session)
     {
+        if (session.SurfaceContext?.ActiveAssetController is { } controller)
+            return controller;
         if (ReferenceEquals(session, _activeEditorSession))
             return _activeAssetController;
-        return session.SurfaceContext?.ActiveAssetController;
+        return null;
     }
 
     private void PersistAssetLibrary()
     {
-        SaveVisibleGraphsToActiveContent();
         _graphLibraryService.SaveContentLibrary(ContentBrowserItems, _activeContentAsset?.Id);
     }
 
     private void SaveAllAssets()
     {
-        CommitAllSessionsToAssets();
+        CommitAllSessionsToAssets(applyInspectorForActive: true);
         foreach (var item in ContentBrowserItems
                      .Where(asset => asset.Kind != ContentAssetKind.Folder)
                      .SelectMany(asset => asset.EventGraphs.Concat(asset.Functions))

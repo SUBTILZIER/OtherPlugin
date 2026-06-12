@@ -37,6 +37,7 @@ internal static class Program
             ResetContent(window);
             CheckContentBrowser(window);
             CheckEditorSessions(window);
+            CheckFunctionLibrarySessionSnapshot(window);
             CheckPinConnectionPaletteAutoConnect(window);
             CheckConnectionPathHitIsNotBlank(window);
             CheckGraphCommandUndoRedo();
@@ -171,6 +172,61 @@ internal static class Program
         Invoke(window, "CloseEditorSession", scriptSession);
         Assert(window.EditorSessions.Count == 0, "closing detached editor removes session");
         Assert(window.ContentBrowserItems.Contains(script), "closing detached editor does not delete asset");
+    }
+
+    private static void CheckFunctionLibrarySessionSnapshot(MainWindow window)
+    {
+        ResetContent(window);
+        var script = window.ContentBrowserItems.First(item => item.Kind == ContentAssetKind.Script);
+        var library = new ContentAssetViewModel { Kind = ContentAssetKind.FunctionLibrary, Name = "FnLibSnapshot" };
+        window.ContentBrowserItems.Add(library);
+        Invoke(window, "RefreshContentBrowserViews");
+
+        Invoke(window, "OpenContentAsset", script);
+        Invoke(window, "AddGraphListItem_Click", window, new RoutedEventArgs());
+        var scriptGraph = window.GraphListItems.Single();
+        scriptGraph.IsCompileDirty = false;
+
+        Invoke(window, "OpenContentAsset", library);
+        Invoke(window, "AddFunctionListItem_Click", window, new RoutedEventArgs());
+        var function = window.FunctionListItems.Single();
+        function.Name = "FnLatest";
+        function.IsPublicToLibrary = true;
+
+        var editor = Get<GraphEditorService>(window, "_editorService");
+        var entry = editor.Nodes.OfType<FunctionEntryNodeViewModel>().Single();
+        var ret = editor.Nodes.OfType<FunctionReturnNodeViewModel>().Single();
+        var log = new PrintLogNodeViewModel("fn_log") { Title = "函数库打印", Message = "latest", X = 420, Y = 120 };
+        editor.AddNode(log);
+        editor.ClearConnectionsForPin(ret.InputPins.First(pin => pin.Name == "exec_in"));
+        editor.CreateConnection(entry.OutputPins.First(pin => pin.Name == "exec_out"), log.InputPins.First(pin => pin.Name == "exec_in"));
+        editor.CreateConnection(log.OutputPins.First(pin => pin.Name == "exec_out"), ret.InputPins.First(pin => pin.Name == "exec_in"));
+
+        Invoke(window, "OpenContentAsset", script);
+        Invoke(window, "OpenContentAsset", library);
+        Assert(editor.Nodes.OfType<PrintLogNodeViewModel>().Any(node => node.Id == "fn_log" && node.Message == "latest"),
+            "switching away and back keeps function library edits in the session graph");
+
+        Invoke(window, "OpenContentAsset", script);
+        var callable = ((IEnumerable<CallableGraphItem>)Invoke(window, "GetCallableFunctions")!)
+            .First(item => item.Name.EndsWith("/FnLatest", StringComparison.Ordinal) || item.Name == "FnLatest");
+        Assert(callable.Graph.Nodes.Any(node => node.Id == "fn_log" && node.Text == "latest"),
+            "script callable resolver sees unsaved latest function library graph");
+
+        function.IsCompileDirty = true;
+        scriptGraph.IsCompileDirty = false;
+        Invoke(window, "OpenContentAsset", library);
+        Invoke(window, "CompileActiveAsset", false);
+        Assert(!function.IsCompileDirty, "compiling active function library clears function dirty");
+        Assert(!scriptGraph.IsCompileDirty, "compiling function library does not mark script graph compile dirty");
+
+        Invoke(window, "PersistAssetLibrary");
+        var reloaded = Get<GraphLibraryService>(window, "_graphLibraryService").LoadContentLibrary();
+        var reloadedFunction = reloaded
+            .First(asset => asset.Kind == ContentAssetKind.FunctionLibrary && asset.Name == "FnLibSnapshot")
+            .Functions.Single(item => item.Name == "FnLatest");
+        Assert(reloadedFunction.Graph.Nodes.Any(node => node.Id == "fn_log" && node.Text == "latest"),
+            "persisted function library graph does not revert to default entry/return only");
     }
 
     private static void CheckContentBrowserHeader(MainWindow window)

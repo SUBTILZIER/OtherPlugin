@@ -162,7 +162,7 @@ public partial class MainWindow
             return;
         }
 
-        SaveVisibleGraphsToActiveContent();
+        CommitInspectorAndSnapshotAllSessions();
         await _executionController.RunAsync();
     }
 
@@ -171,7 +171,7 @@ public partial class MainWindow
         _executionController.ReleaseAllKeys();
         if (_isClosing) return;
 
-        SaveVisibleGraphsToActiveContent();
+        CommitInspectorAndSnapshotAllSessions();
         if (ContentBrowserItems.Any(item => item.IsDirty) ||
             GraphListItems.Concat(FunctionListItems).Any(item => item.IsDirty))
         {
@@ -202,8 +202,7 @@ public partial class MainWindow
 
     private bool EnsureCompiledBeforeSaveThemed()
     {
-        CommitInspectorAndSnapshotActive();
-        SaveVisibleGraphsToActiveContent();
+        CommitInspectorAndSnapshotAllSessions();
         if (!HasCompileDirtyAssets())
             return true;
 
@@ -225,8 +224,7 @@ public partial class MainWindow
 
     private bool EnsureCompiledBeforeRunThemed()
     {
-        CommitInspectorAndSnapshotActive();
-        SaveVisibleGraphsToActiveContent();
+        CommitInspectorAndSnapshotAllSessions();
         if (!HasCompileDirtyAssets())
             return true;
 

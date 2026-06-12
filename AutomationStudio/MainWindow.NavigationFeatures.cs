@@ -490,7 +490,7 @@ public partial class MainWindow
 
     private bool OpenCallableGraph(string graphId, GraphAssetKind kind)
     {
-        SaveVisibleGraphsToActiveContent();
+        CommitInspectorAndSnapshotAllSessions();
 
         var target = FindCallableGraphLocation(graphId, kind);
         if (target is null)
