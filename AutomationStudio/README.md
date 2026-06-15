@@ -54,7 +54,7 @@ UE4 风格的 WPF 蓝图节点编辑器 — 用于桌面自动化脚本编排。
 3. 右键画布打开节点菜单添加节点
 4. 拖拽输出引脚到输入引脚连线
 5. 右侧属性面板编辑节点参数
-6. 点击"执行图谱"运行
+6. 点击"执行图谱"运行；如有未编译图会先自动编译，失败才停止执行
 7. 按 Esc 停止执行
 
 ## 快捷键
@@ -184,6 +184,7 @@ AutomationStudioWpf/
 ├── MainWindow.ContentBrowserCommands.cs # 内容浏览器基础 CRUD、目录刷新、路径索引入口
 ├── MainWindow.InspectorHandlers.cs # 属性面板事件转发
 ├── MainWindow.GraphInputHandlers.cs # 画布、节点、pin、节点菜单输入事件
+├── MainWindow.GraphListHandlers.cs # 事件图/函数列表、分组展开、公开到库入口
 ├── MainWindow.LogAndImportHandlers.cs # 日志与拖拽导入入口
 ├── MainWindow.VisualTreeHelpers.cs # WPF visual/focus tree helpers
 ├── MainWindow.WindowLifecycle.cs # 窗口关闭与退出流程
@@ -238,6 +239,7 @@ saved/log/Log_2026_05_28_22_11.txt
 - **Optimized**: Compile validation reuses a per-run asset lookup, and content browser search caches flattened searchable text/path until the asset browser refreshes.
 - **Optimized**: Content browser lookup/tree/path/search data now goes through internal `ContentBrowserIndex`; log colors are centralized in `LoggingModule.GetLevelBrush(...)`.
 - **Changed**: Content browser base commands and folder/tree refresh logic moved from `MainWindow.xaml.cs` to `MainWindow.ContentBrowserCommands.cs`; inspector event forwarding moved to `MainWindow.InspectorHandlers.cs`; multi-select remains in `MainWindow.ContentBrowserMultiSelect.cs`.
+- **Changed**: Graph/function list handlers moved from `MainWindow.xaml.cs` to `MainWindow.GraphListHandlers.cs`; shared editor surface colors now use `App.xaml` brush resources where possible.
 
 ### v1.2.9 (2026-06-12)
 - **Fixed**: Function-library sessions now keep their active function controller in the owning `EditorSurfaceContext`, so switching to another asset no longer drops unsaved function nodes or reloads default entry/return graphs.

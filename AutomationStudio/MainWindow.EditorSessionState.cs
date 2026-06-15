@@ -176,13 +176,11 @@ public partial class MainWindow
     private bool EnsureCompiledBeforeRun()
     {
         CommitInspectorAndSnapshotAllSessions();
-        var session = _activeEditorSession;
-        var controller = session is null ? _activeAssetController : GetSessionActiveAssetController(session);
-        if (controller?.ActiveItem?.IsCompileDirty != true)
+        if (!HasCompileDirtyAssets())
             return true;
 
-        WpfMessageBox.Show(this, "当前图表存在未编译修改，请先点击编译。", "需要编译", MessageBoxButton.OK, MessageBoxImage.Warning);
-        return false;
+        SetStatus("执行前检测到未编译修改，正在自动编译...");
+        return CompileAllAssets(showPrompt: true);
     }
 
     private bool CompileActiveAsset(bool showPrompt)

@@ -31,7 +31,7 @@
 - Closing a session snapshots to its `ContentAssetViewModel` but does not delete the asset. Deleting content-browser assets must close all sessions targeting deleted asset ids.
 - Save/exit/compile must snapshot all open sessions before reading graph data. Toolbar compile is active-asset scoped through `GraphCompileService.CompileAsset(...)`; scripts compile their event/function graphs, function libraries compile their functions.
 - Successful compile must sync cleared graph dirty/compile-dirty state from `ContentAssetViewModel` back into the target session's graph list and refresh window chrome/compile button immediately.
-- `MainWindow.GraphInputHandlers.cs` owns canvas/node/pin/node-palette input handlers. `MainWindow.AssetCommands.cs` owns toolbar new/open/save/compile/run handlers. `MainWindow.ContentBrowserCommands.cs` owns content-browser base CRUD, rename/delete, folder/tree projection, and move/copy dialog logic. `MainWindow.InspectorHandlers.cs` owns inspector event forwarding. `MainWindow.LogAndImportHandlers.cs` owns log/import events. `MainWindow.WindowLifecycle.cs` owns close/exit protection. `MainWindow.VisualTreeHelpers.cs` owns WPF visual/focus tree helpers. Keep these out of `MainWindow.xaml.cs`.
+- `MainWindow.GraphInputHandlers.cs` owns canvas/node/pin/node-palette input handlers. `MainWindow.GraphListHandlers.cs` owns event/function list handlers, section expansion, and library publish toggles. `MainWindow.AssetCommands.cs` owns toolbar new/open/save/compile/run handlers. `MainWindow.ContentBrowserCommands.cs` owns content-browser base CRUD, rename/delete, folder/tree projection, and move/copy dialog logic. `MainWindow.InspectorHandlers.cs` owns inspector event forwarding. `MainWindow.LogAndImportHandlers.cs` owns log/import events. `MainWindow.WindowLifecycle.cs` owns close/exit protection. `MainWindow.VisualTreeHelpers.cs` owns WPF visual/focus tree helpers. Keep these out of `MainWindow.xaml.cs`.
 - `InspectorController.Parameters.cs` owns function/event parameter rows. `InspectorController.CommonNodes.cs` owns generic `CommonNodeViewModel` panel behavior. `InspectorController.SystemNodes.cs` owns find-image/window/program/keyboard helpers. `InspectorController.Locks.cs` owns front-input field locking/gray state. `InspectorController.cs` remains the load/apply dispatch entry point.
 - `GraphCompileService` compile entry points reuse one asset id lookup for validation. Content browser lookup/search/path data now lives in `ContentBrowserIndex` and is rebuilt from `RefreshContentBrowserViews()`.
 - `LoggingModule.GetLevelBrush(...)` is the shared log color source. `LogPanelController` and `LogWindow` should not carry their own per-level brush maps.
@@ -99,7 +99,7 @@
 
 ## 2026-06-05 graph isolation fix
 
-- Content browser current UX: header has title only; asset creation is only through blank right-click menu with `脚本 / 文件夹 / 函数库`. Macro libraries and macro graphs are removed; do not re-add them.
+- Content browser current UX: header has title only; asset creation is only through blank right-click menu with `脚本 / 文件夹 / 函数库`.
 - Content browser context menu uses one shared menu and toggles visibility in `ContentBrowserContextMenu_Opened`: blank area shows create items; asset right-click shows only rename/delete. Do not put eventful `ContextMenu` objects inside `ListBoxItem.Style Setter`; that caused a startup `IStyleConnector` cast crash.
 - Folder tree UX: single-click row enters folder; arrow button only expands/collapses. `HasFolderChildren` counts child folders only. `TreeIndent` controls pixel indentation; `TreeDisplayName` is plain name, no leading spaces.
 - Folder tree arrow uses `ContentFolderToggleIconStyle`. Keep default `Path.Data` in style setter so `DataTrigger` can switch expanded state to the down triangle.
@@ -129,7 +129,7 @@
 - Section collapsed state is runtime-only per content asset. `*SectionHasState` distinguishes explicit collapsed state from default auto-expand.
 - New graph/function list items start `IsCompileDirty = true`. `MarkLogicDirty()` sets compile dirty; `MarkLayoutDirty()` only sets save dirty.
 - Compile sync updates function call nodes, clears graph compile dirty, and only marks assets changed by call-reference sync as save dirty.
-- Save may prompt compile for any dirty graph. Run is blocked only when the current active graph is compile-dirty.
-- Shared dark context menu style is `DarkContextMenuStyle` in `App.xaml`; content browser/tree and graph lists must keep it attached.
+- Save may prompt compile for any dirty graph. Run auto-compiles any compile-dirty graph via `CompileAllAssets(...)`; it continues only if compile succeeds and UI dirty badges are cleared.
+- Shared dark context menu/dropdown styles and editor surface structure brushes live in `App.xaml`; content browser/tree, graph lists, and editor surfaces should reuse those resources instead of duplicating hex colors.
 - Isolated tests can set `AUTOMATION_STUDIO_LIBRARY_DIR`; default library path remains `%APPDATA%/AutomationStudioWpf`.
 - Verification gates: `dotnet build .\AutomationStudioWpf.csproj -o .\bin\CodexBuildCheck`, `git diff --check`, launch crash probe `dotnet run --project .\AutomationStudioWpf.csproj` without fixed 20s wait, then `codegraph.cmd sync`. Run smoke only locally when needed for the touched area or explicitly requested.

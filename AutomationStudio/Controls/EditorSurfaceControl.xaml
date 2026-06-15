@@ -9,14 +9,14 @@
              d:DesignWidth="1280"
              HorizontalAlignment="Stretch"
              VerticalAlignment="Stretch"
-             Background="#181B20">
+             Background="{StaticResource EditorRootBackgroundBrush}">
     <UserControl.Resources>
         <Style x:Key="GraphItemDirtyGlyphStyle" TargetType="{x:Type Border}">
             <Setter Property="Width" Value="8" />
             <Setter Property="Height" Value="8" />
             <Setter Property="Margin" Value="0,0,7,0" />
             <Setter Property="CornerRadius" Value="4" />
-            <Setter Property="Background" Value="#D68A22" />
+            <Setter Property="Background" Value="{StaticResource CompileDirtyBorderBrush}" />
             <Setter Property="VerticalAlignment" Value="Center" />
             <Setter Property="Visibility" Value="Collapsed" />
             <Setter Property="ToolTip" Value="图表已修改" />
@@ -41,14 +41,14 @@
 
                 <Border Grid.Column="0"
                         Margin="10,10,10,10"
-                        Background="#20242B"
-                        BorderBrush="#303744"
+                        Background="{StaticResource EditorPanelBackgroundBrush}"
+                        BorderBrush="{StaticResource EditorPanelBorderBrush}"
                         BorderThickness="1"
                         CornerRadius="8">
                     <ScrollViewer VerticalScrollBarVisibility="Auto"
                                   HorizontalScrollBarVisibility="Disabled">
                     <StackPanel>
-                        <Border x:Name="EventGraphPanel" Margin="8,8,8,6" Padding="8" Background="#20242B" BorderBrush="#384150" BorderThickness="1" CornerRadius="6">
+                        <Border x:Name="EventGraphPanel" Margin="8,8,8,6" Padding="8" Background="{StaticResource EditorPanelBackgroundBrush}" BorderBrush="{StaticResource EditorPanelStrongBorderBrush}" BorderThickness="1" CornerRadius="6">
                             <StackPanel>
                         <Grid x:Name="EventGraphSection" Margin="0,0,0,6">
                             <Grid.ColumnDefinitions>
@@ -68,7 +68,7 @@
                                         Height="10"
                                         Margin="0,0,6,0"
                                         CornerRadius="5"
-                                        Background="#D68A22"
+                                        Background="{StaticResource CompileDirtyBorderBrush}"
                                         Visibility="Collapsed" />
                                 <Button Content="+"
                                         Width="28"
@@ -98,14 +98,14 @@
                                     <EventSetter Event="PreviewMouseRightButtonDown" Handler="GraphListItem_PreviewMouseRightButtonDown" />
                                     <Style.Triggers>
                                         <Trigger Property="IsSelected" Value="True">
-                                            <Setter Property="Background" Value="#30445C" />
+                                            <Setter Property="Background" Value="{StaticResource EditorListSelectedBrush}" />
                                         </Trigger>
                                         <Trigger Property="IsMouseOver" Value="True">
-                                            <Setter Property="Background" Value="#2B3542" />
+                                            <Setter Property="Background" Value="{StaticResource EditorListHoverBrush}" />
                                         </Trigger>
                                         <DataTrigger Binding="{Binding IsCompileDirty}" Value="True">
-                                            <Setter Property="Background" Value="#3E2D18" />
-                                            <Setter Property="BorderBrush" Value="#D68A22" />
+                                            <Setter Property="Background" Value="{StaticResource EditorDirtyBackgroundBrush}" />
+                                            <Setter Property="BorderBrush" Value="{StaticResource CompileDirtyBorderBrush}" />
                                             <Setter Property="BorderThickness" Value="1" />
                                         </DataTrigger>
                                     </Style.Triggers>
@@ -161,7 +161,7 @@
                         </ListBox>
                             </StackPanel>
                         </Border>
-                        <Border x:Name="FunctionPanel" Margin="8,6,8,6" Padding="8" Background="#20242B" BorderBrush="#384150" BorderThickness="1" CornerRadius="6">
+                        <Border x:Name="FunctionPanel" Margin="8,6,8,6" Padding="8" Background="{StaticResource EditorPanelBackgroundBrush}" BorderBrush="{StaticResource EditorPanelStrongBorderBrush}" BorderThickness="1" CornerRadius="6">
                             <StackPanel>
                         <Grid x:Name="FunctionSection" Margin="0,0,0,6">
                             <Grid.ColumnDefinitions>
@@ -177,7 +177,7 @@
                                         Height="10"
                                         Margin="0,0,6,0"
                                         CornerRadius="5"
-                                        Background="#D68A22"
+                                        Background="{StaticResource CompileDirtyBorderBrush}"
                                         Visibility="Collapsed" />
                                 <Button Content="+" Width="28" Height="26" Padding="0" Click="AddFunctionListItem_Click" />
                             </StackPanel>
@@ -202,12 +202,12 @@
                                     <EventSetter Event="PreviewMouseRightButtonDown" Handler="FunctionListItem_PreviewMouseRightButtonDown" />
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding IsCompileDirty}" Value="True">
-                                            <Setter Property="Background" Value="#3E2D18" />
-                                            <Setter Property="BorderBrush" Value="#D68A22" />
+                                            <Setter Property="Background" Value="{StaticResource EditorDirtyBackgroundBrush}" />
+                                            <Setter Property="BorderBrush" Value="{StaticResource CompileDirtyBorderBrush}" />
                                             <Setter Property="BorderThickness" Value="1" />
                                         </DataTrigger>
                                         <Trigger Property="IsSelected" Value="True">
-                                            <Setter Property="Background" Value="#30445C" />
+                                            <Setter Property="Background" Value="{StaticResource EditorListSelectedBrush}" />
                                         </Trigger>
                                     </Style.Triggers>
                                 </Style>
@@ -240,7 +240,7 @@
                                                   Content="公开到库"
                                                   Margin="8,0,0,0"
                                                   VerticalAlignment="Center"
-                                                  Foreground="#C8D0DB"
+                                                  Foreground="{StaticResource ForegroundSecondaryBrush}"
                                                   IsChecked="{Binding IsPublicToLibrary, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                   Click="LibraryPublishCheckBox_Click">
                                             <CheckBox.Style>
@@ -294,15 +294,15 @@
                               Width="5"
                               HorizontalAlignment="Stretch"
                               VerticalAlignment="Stretch"
-                              Background="#2E3440"
+                              Background="{StaticResource EditorSectionHeaderBrush}"
                               ResizeDirection="Columns"
                               ResizeBehavior="PreviousAndNext"
                               ShowsPreview="True" />
 
                 <Border Grid.Column="2"
                         Margin="0,10,10,10"
-                        Background="#11151A"
-                        BorderBrush="#303744"
+                        Background="{StaticResource EditorCanvasBackgroundBrush}"
+                        BorderBrush="{StaticResource EditorPanelBorderBrush}"
                         BorderThickness="1"
                         CornerRadius="8">
                     <Border x:Name="GraphViewport"
@@ -329,14 +329,14 @@
                                 </DrawingBrush.Transform>
                                 <DrawingBrush.Drawing>
                                     <DrawingGroup>
-                                        <GeometryDrawing Brush="#171B22">
+                                        <GeometryDrawing Brush="{StaticResource EditorCanvasGridBackgroundBrush}">
                                             <GeometryDrawing.Geometry>
                                                 <RectangleGeometry Rect="0,0,32,32" />
                                             </GeometryDrawing.Geometry>
                                         </GeometryDrawing>
                                         <GeometryDrawing Brush="{x:Null}">
                                             <GeometryDrawing.Pen>
-                                                <Pen Brush="#232931" Thickness="1" />
+                                                <Pen Brush="{StaticResource EditorCanvasGridLineBrush}" Thickness="1" />
                                             </GeometryDrawing.Pen>
                                             <GeometryDrawing.Geometry>
                                                 <GeometryGroup>
@@ -569,7 +569,7 @@
                                                                         <TextBlock Text="{Binding DisplayName}"
                                                                                    Margin="6,0,0,0"
                                                                                    VerticalAlignment="Center"
-                                                                                   Foreground="#E9EEF6"
+                                                                                   Foreground="{StaticResource EditorTextBrightBrush}"
                                                                                    FontSize="12" />
                                                                     </StackPanel>
                                                                 </Button>
@@ -585,7 +585,7 @@
 
                                                     <TextBlock Grid.Column="1"
                                                                Text="{Binding Description}"
-                                                               Foreground="#C8D0DB"
+                                                               Foreground="{StaticResource ForegroundSecondaryBrush}"
                                                                FontSize="11"
                                                                Margin="8,0"
                                                                VerticalAlignment="Center"
@@ -614,7 +614,7 @@
                                                                         <TextBlock Text="{Binding DisplayName}"
                                                                                    Margin="0,0,6,0"
                                                                                    VerticalAlignment="Center"
-                                                                                   Foreground="#E9EEF6"
+                                                                                   Foreground="{StaticResource EditorTextBrightBrush}"
                                                                                    FontSize="12" />
                                                                         <Grid Width="12" Height="12"
                                                                               Loaded="PinAnchor_Loaded"
@@ -665,8 +665,8 @@
                                     Visibility="Collapsed"
                                     Width="260"
                                     MaxHeight="500"
-                                    Background="#20242B"
-                                    BorderBrush="#303744"
+                                    Background="{StaticResource EditorPanelBackgroundBrush}"
+                                    BorderBrush="{StaticResource EditorPanelBorderBrush}"
                                     BorderThickness="1"
                                     CornerRadius="8"
                                     Panel.ZIndex="1000">
@@ -682,9 +682,9 @@
                                              Grid.Row="0"
                                              Margin="8,8,8,0"
                                              Padding="8,4"
-                                             Background="#181B20"
+                                             Background="{StaticResource EditorRootBackgroundBrush}"
                                              Foreground="White"
-                                             BorderBrush="#303744"
+                                             BorderBrush="{StaticResource EditorPanelBorderBrush}"
                                              BorderThickness="1"
                                              CaretBrush="White"
                                              TextChanged="NodePaletteSearchBox_TextChanged"/>
@@ -708,7 +708,7 @@
                               Width="5"
                               HorizontalAlignment="Stretch"
                               VerticalAlignment="Stretch"
-                              Background="#2E3440"
+                              Background="{StaticResource EditorSectionHeaderBrush}"
                               ResizeDirection="Columns"
                               ResizeBehavior="PreviousAndNext"
                               ShowsPreview="True" />
@@ -717,8 +717,8 @@
                         Grid.Column="4"
                         Margin="0,10,10,10"
                         Padding="14"
-                        Background="#20242B"
-                        BorderBrush="#303744"
+                        Background="{StaticResource EditorPanelBackgroundBrush}"
+                        BorderBrush="{StaticResource EditorPanelBorderBrush}"
                         BorderThickness="1"
                         CornerRadius="8">
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
@@ -731,7 +731,7 @@
                             <TextBlock x:Name="InspectorHintTextBlock"
                                        Margin="0,8,0,14"
                                        Text="请选择一个节点进行编辑。"
-                                       Foreground="#B7C0CD"
+                                       Foreground="{StaticResource ForegroundSecondaryBrush}"
                                        TextWrapping="Wrap" />
 
                             <TextBlock Text="节点名称" Foreground="White" />
@@ -739,8 +739,8 @@
                             <TextBlock Text="节点编号" Foreground="White" />
                             <TextBlock x:Name="NodeNumberTextBlock"
                                        Text="N001"
-                                       Foreground="#D0D7E2"
-                                       Background="#252B34"
+                                       Foreground="{StaticResource EditorTextBrush}"
+                                       Background="{StaticResource PanelBackgroundBrush}"
                                        Padding="8,4"
                                        Margin="0,4,0,12" />
 
@@ -785,7 +785,7 @@
                                 <CheckBox x:Name="FindImageUseRegionCheckBox"
                                           Content="限制识别区域"
                                           Margin="0,0,0,10"
-                                          Foreground="#D0D7E2"
+                                          Foreground="{StaticResource EditorTextBrush}"
                                           Checked="InspectorField_CheckedChanged"
                                           Unchecked="InspectorField_CheckedChanged" />
                                 <Grid Margin="0,0,0,12">
@@ -809,9 +809,9 @@
                                     <TextBox x:Name="FindImageRegionWidthTextBox" Grid.Row="3" Grid.Column="0" Margin="0,4,0,0" TextChanged="InspectorField_TextChanged" />
                                     <TextBox x:Name="FindImageRegionHeightTextBox" Grid.Row="3" Grid.Column="2" Margin="0,4,0,0" TextChanged="InspectorField_TextChanged" />
                                 </Grid>
-                                <TextBlock Text="说明" Foreground="#A7B1BF" FontWeight="SemiBold" />
+                                <TextBlock Text="说明" Foreground="{StaticResource EditorMutedTextBrush}" FontWeight="SemiBold" />
                                 <TextBlock Margin="0,4,0,0"
-                                           Foreground="#A7B1BF"
+                                           Foreground="{StaticResource EditorMutedTextBrush}"
                                            Text="达到阈值即认为找到了图像。可限制屏幕识别区域；未启用时默认全屏。节点输出会提供成功 bool 和中心点 Vector2D。"
                                            TextWrapping="Wrap" />
                             </StackPanel>
@@ -837,9 +837,9 @@
                                 <TextBlock x:Name="MousePositionYLabel" Text="点击位置 Y" Foreground="White" />
                                 <TextBox x:Name="MousePositionYTextBox" Margin="0,4,0,10" TextChanged="InspectorField_TextChanged" />
 
-                                <TextBlock Text="说明" Foreground="#A7B1BF" FontWeight="SemiBold" />
+                                <TextBlock Text="说明" Foreground="{StaticResource EditorMutedTextBrush}" FontWeight="SemiBold" />
                                 <TextBlock Margin="0,4,0,0"
-                                           Foreground="#A7B1BF"
+                                           Foreground="{StaticResource EditorMutedTextBrush}"
                                            Text="位置可手动填写，也可由前序节点的 Vector2D 输出引脚连接提供。"
                                            TextWrapping="Wrap" />
                             </StackPanel>
@@ -909,16 +909,16 @@
                             </StackPanel>
 
                             <StackPanel x:Name="PrintLogInspectorPanel" Visibility="Collapsed">
-                                <TextBlock Text="功能" Foreground="#A7B1BF" />
-                                <TextBlock Margin="0,4,0,10" Foreground="#A7B1BF" Text="打印填入的字符串到 log 中。" TextWrapping="Wrap" />
+                                <TextBlock Text="功能" Foreground="{StaticResource EditorMutedTextBrush}" />
+                                <TextBlock Margin="0,4,0,10" Foreground="{StaticResource EditorMutedTextBrush}" Text="打印填入的字符串到 log 中。" TextWrapping="Wrap" />
                                 <TextBlock x:Name="PrintLogMessageLabel" Text="字符串" Foreground="White" />
                                 <TextBox x:Name="PrintLogMessageTextBox" Margin="0,4,0,12" TextChanged="InspectorField_TextChanged" />
                             </StackPanel>
 
                             <StackPanel x:Name="SelectWindowInspectorPanel" Visibility="Collapsed">
-                                <TextBlock Text="功能" Foreground="#A7B1BF" />
+                                <TextBlock Text="功能" Foreground="{StaticResource EditorMutedTextBrush}" />
                                 <TextBlock Margin="0,4,0,10"
-                                           Foreground="#A7B1BF"
+                                           Foreground="{StaticResource EditorMutedTextBrush}"
                                            Text="按进程名查找窗口，并把窗口恢复、置前、设为前台窗口。"
                                            TextWrapping="Wrap" />
                                 <TextBlock Text="输入模式" Foreground="White" />
@@ -944,7 +944,7 @@
                             </StackPanel>
 
                             <StackPanel x:Name="ToDoInspectorPanel" Visibility="Collapsed">
-                                <TextBlock Text="ToDo 目标" Foreground="#A7B1BF" FontWeight="SemiBold" />
+                                <TextBlock Text="ToDo 目标" Foreground="{StaticResource EditorMutedTextBrush}" FontWeight="SemiBold" />
                                 <TextBlock Text="搜索节点名或编号" Foreground="White" Margin="0,10,0,0" />
                                 <TextBox x:Name="ToDoSearchBox" Margin="0,4,0,8" TextChanged="ToDoSearchBox_TextChanged" />
                                 <ListBox x:Name="ToDoTargetListBox"
@@ -963,7 +963,7 @@
                                                            FontWeight="SemiBold"
                                                            Margin="0,0,8,0" />
                                                 <TextBlock Text="{Binding Title}"
-                                                           Foreground="#E8EDF5"
+                                                           Foreground="{StaticResource EditorTextBrightBrush}"
                                                            TextTrimming="CharacterEllipsis" />
                                             </DockPanel>
                                         </DataTemplate>
@@ -975,12 +975,12 @@
                                 <TextBox x:Name="ToDoTargetNumberTextBox" Margin="0,4,0,10" TextChanged="InspectorField_TextChanged" />
                                 <CheckBox x:Name="ToDoReturnAfterTargetCheckBox"
                                           Content="目标执行完后返回 ToDo 输出"
-                                          Foreground="#D0D7E2"
+                                          Foreground="{StaticResource EditorTextBrush}"
                                           Margin="0,0,0,10"
                                           Checked="InspectorField_CheckedChanged"
                                           Unchecked="InspectorField_CheckedChanged" />
                                 <TextBlock Text="运行时同时匹配节点名和编号；任一不匹配就停止。"
-                                           Foreground="#7A8797"
+                                           Foreground="{StaticResource StatusMutedBrush}"
                                            TextWrapping="Wrap" />
                             </StackPanel>
 
@@ -1019,7 +1019,7 @@
                             </StackPanel>
 
                             <StackPanel x:Name="CommonInspectorPanel" Visibility="Collapsed">
-                                <TextBlock Text="通用参数" Foreground="#A7B1BF" FontWeight="SemiBold" />
+                                <TextBlock Text="通用参数" Foreground="{StaticResource EditorMutedTextBrush}" FontWeight="SemiBold" />
 
                                 <StackPanel x:Name="CommonKeyChordAddPanel" Visibility="Collapsed" Margin="0,10,0,10">
                                     <TextBlock Text="增加按键" Foreground="White" />
@@ -1103,13 +1103,13 @@
 
                                 <CheckBox x:Name="CommonFlagCheckBox"
                                           Content="布尔值"
-                                          Foreground="#D0D7E2"
+                                          Foreground="{StaticResource EditorTextBrush}"
                                           Margin="0,0,0,10"
                                           Checked="InspectorField_CheckedChanged"
                                           Unchecked="InspectorField_CheckedChanged" />
 
                                 <TextBlock x:Name="CommonHelpTextBlock"
-                                           Foreground="#A7B1BF"
+                                           Foreground="{StaticResource EditorMutedTextBrush}"
                                            TextWrapping="Wrap" />
                             </StackPanel>
                         </StackPanel>

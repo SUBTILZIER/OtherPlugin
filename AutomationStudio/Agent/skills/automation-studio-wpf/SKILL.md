@@ -26,14 +26,15 @@ WPF 可视化节点自动化编辑器，类似 UE4 蓝图。技术栈 C# 12 / .N
 - `HandleEditorSurfaceEvent(...)` 不能在事件结束后把当前全局 `_activeAssetController` 写回 `_activeEditorSession.SurfaceContext`。事件来自非 active surface 时这会污染另一个 session。
 - 全局窗口事件必须优先用 `TryGetActiveEditorSurface()` 或事件来源 surface；启动/无资产/detached 切焦点时没有 active surface 应 no-op，不能抛 `No active editor surface is available.`。
 - 旧 `MainWindow.EditorSurfaceRegions.cs` 已删除。不要恢复 legacy sidebar/canvas/inspector 区域搬移。
-- `DarkContextMenuStyle`、`DarkDropdownListBoxStyle`、`DarkDropdownListBoxItemStyle` 是 `App.xaml` 共享资源；不要在 `MainWindow.xaml` / `EditorSurfaceControl.xaml` 重复定义。
+- `DarkContextMenuStyle`、`DarkDropdownListBoxStyle`、`DarkDropdownListBoxItemStyle` 和 editor surface 常用 brush 是 `App.xaml` 共享资源；不要在 `MainWindow.xaml` / `EditorSurfaceControl.xaml` 重复定义结构色。
 - 关闭 editor session 只 snapshot 回 `ContentAssetViewModel`，不删除内容浏览器资产。删除资产时要关闭所有指向被删 asset id 的 sessions。
 - 保存、退出、编译前用 `CommitInspectorAndSnapshotAllSessions()` / `CommitAllSessionsToAssets()`；工具栏编译用 `GraphCompileService.CompileAsset(...)` 编译当前激活资产内全部图，编译前必须先 snapshot 所有打开 session。
 - `CompileActiveAsset(...)` 成功后必须把 asset 中被清掉的 `IsCompileDirty` 同步回对应 session 图列表，再刷新窗口栏、section badge 和编译按钮；不要等保存才清 UI 黄点。
+- 执行图谱前如果存在任何 `IsCompileDirty` 图，`EnsureCompiledBeforeRun()` 必须自动调用 `CompileAllAssets(...)`；编译成功后继续运行并清 `编译*`/黄点，编译失败才停止。
 - `GraphCompileService` compile 入口复用一次 asset id lookup；新增校验不要在每个 `Validate*` 里重复建索引。
 - 内容浏览器搜索使用 `ContentBrowserIndex` 内的扁平 `ContentAssetSearchEntry` 缓存；资产刷新、移动、重命名后要重建 index，避免搜索路径/名字过期。
 - session dirty/snapshot/compile helper 在 `MainWindow.EditorSessionState.cs`；保持这里集中，不要把多窗口状态路径重新散回 `MainWindow.xaml.cs`。
-- `MainWindow.GraphInputHandlers.cs` 放画布/节点/pin/节点菜单输入，`MainWindow.AssetCommands.cs` 放工具栏资产命令，`MainWindow.ContentBrowserCommands.cs` 放内容浏览器基础 CRUD / 刷新，`MainWindow.InspectorHandlers.cs` 放属性面板事件转发，`MainWindow.LogAndImportHandlers.cs` 放日志/导入入口，`MainWindow.WindowLifecycle.cs` 放关闭流程，`MainWindow.VisualTreeHelpers.cs` 放 visual/focus tree helper；不要回填到 `MainWindow.xaml.cs`。
+- `MainWindow.GraphInputHandlers.cs` 放画布/节点/pin/节点菜单输入，`MainWindow.GraphListHandlers.cs` 放事件图/函数列表，`MainWindow.AssetCommands.cs` 放工具栏资产命令，`MainWindow.ContentBrowserCommands.cs` 放内容浏览器基础 CRUD / 刷新，`MainWindow.InspectorHandlers.cs` 放属性面板事件转发，`MainWindow.LogAndImportHandlers.cs` 放日志/导入入口，`MainWindow.WindowLifecycle.cs` 放关闭流程，`MainWindow.VisualTreeHelpers.cs` 放 visual/focus tree helper；不要回填到 `MainWindow.xaml.cs`。
 - `EditorSurfaceControl` 事件直接进入 `EditorSurfaceContext.HandleEvent(...)`，再通过 typed `EditorSurfaceEvent` 激活 session 并复用剩余 `MainWindow` handler；不要恢复字符串反射 `RouteEditorSurfaceEvent`。
 
 ### 2026-06-09: ToDo 持久化 / Log 复制 / 内容浏览器导航
@@ -74,7 +75,7 @@ WPF 可视化节点自动化编辑器，类似 UE4 蓝图。技术栈 C# 12 / .N
 
 ### 2026-06-05: 内容浏览器 UE 风格交互与验证门禁
 
-- 内容浏览器顶部不再放新增按钮；新增资产统一走右侧空白右键菜单，菜单项只保留 `脚本 / 文件夹 / 函数库`。宏库和宏图已移除，不要恢复。
+- 内容浏览器顶部不再放新增按钮；新增资产统一走右侧空白右键菜单，菜单项只保留 `脚本 / 文件夹 / 函数库`。
 - 函数库内函数默认不出现在其他脚本节点搜索里；只有勾选 `公开到库` (`GraphListItemViewModel.IsPublicToLibrary`) 才显示。`CallableGraphResolver` 是节点菜单、编译同步、运行时查找的统一来源；未公开库项被其他脚本引用时编译失败并保留 dirty。
 - 编译错误路径必须打印内容浏览器完整路径：`content/父文件夹/.../资产/图`。函数库在嵌套文件夹里报错时也不能只显示 `资产/图`。
 - 自定义事件只属于当前脚本事件图：`CustomEvent` 是入口，`CustomEventCall` 是调用，二者用 `CustomEventId` 绑定。节点菜单只在事件图显示 `本脚本事件`；运行时执行事件链后回到调用节点 `exec_out`，递归用 `custom_event:{id}` 拦截。
@@ -509,7 +510,7 @@ Runtime
 - Old `graph-library.json` compatibility:
   - old `Graphs` -> default script event graphs.
   - old `Functions` -> default script private functions.
-  - old `Macros` / `MacroLibrary` -> ignored; macro libraries and macro graphs are removed.
+  - old macro data -> ignored.
 - Function call visibility:
   - scripts can call their own private functions.
   - scripts can call public functions from function libraries.

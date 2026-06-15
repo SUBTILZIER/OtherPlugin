@@ -225,12 +225,7 @@ public partial class MainWindow
 
     private bool EnsureCompiledBeforeRunThemed()
     {
-        CommitInspectorAndSnapshotAllSessions();
-        if (!HasCompileDirtyAssets())
-            return true;
-
-        ThemedDialog.Show(this, "存在未编译修改，请先点击编译。", "需要编译", WpfMessageBoxButton.OK, WpfMessageBoxImage.Warning);
-        return false;
+        return EnsureCompiledBeforeRun();
     }
 
     private void GraphListBox_ThemedKeyDown(GraphListController controller, WpfListBox listBox, WpfKeyEventArgs e)

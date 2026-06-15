@@ -32,6 +32,20 @@
         <SolidColorBrush x:Key="CompileDirtyBorderBrush" Color="#D68A22" />
         <SolidColorBrush x:Key="StatusMutedBrush" Color="#7A8797" />
         <SolidColorBrush x:Key="LogErrorBrush" Color="#FF6B6B" />
+        <SolidColorBrush x:Key="EditorRootBackgroundBrush" Color="#181B20" />
+        <SolidColorBrush x:Key="EditorPanelBackgroundBrush" Color="#20242B" />
+        <SolidColorBrush x:Key="EditorPanelBorderBrush" Color="#303744" />
+        <SolidColorBrush x:Key="EditorPanelStrongBorderBrush" Color="#384150" />
+        <SolidColorBrush x:Key="EditorCanvasBackgroundBrush" Color="#11151A" />
+        <SolidColorBrush x:Key="EditorCanvasGridBackgroundBrush" Color="#171B22" />
+        <SolidColorBrush x:Key="EditorCanvasGridLineBrush" Color="#232931" />
+        <SolidColorBrush x:Key="EditorSectionHeaderBrush" Color="#2E3440" />
+        <SolidColorBrush x:Key="EditorListSelectedBrush" Color="#30445C" />
+        <SolidColorBrush x:Key="EditorListHoverBrush" Color="#2B3542" />
+        <SolidColorBrush x:Key="EditorDirtyBackgroundBrush" Color="#3E2D18" />
+        <SolidColorBrush x:Key="EditorTextBrush" Color="#D0D7E2" />
+        <SolidColorBrush x:Key="EditorTextBrightBrush" Color="#E8EDF5" />
+        <SolidColorBrush x:Key="EditorMutedTextBrush" Color="#A7B1BF" />
 
         <Style x:Key="DarkContextMenuStyle" TargetType="ContextMenu">
             <Setter Property="Background" Value="{StaticResource DropdownBackgroundBrush}" />
