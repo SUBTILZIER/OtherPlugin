@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Shapes;
@@ -456,7 +456,7 @@ public sealed class PinConnectionController
                 return c;
             if (current is FrameworkElement pathElement && pathElement.DataContext is ConnectionPathViewModel path)
                 return path.FindNearestConnection(graphPoint);
-            current = VisualTreeHelper.GetParent(current);
+            current = VisualTreeUtility.GetParent(current);
         }
         return null;
     }
@@ -469,7 +469,7 @@ public sealed class PinConnectionController
             if (current is FrameworkElement { DataContext: ConnectionPathViewModel path })
                 return path;
 
-            current = VisualTreeHelper.GetParent(current);
+            current = VisualTreeUtility.GetParent(current);
         }
 
         return null;

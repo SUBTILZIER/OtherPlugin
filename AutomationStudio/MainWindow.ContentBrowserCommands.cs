@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -659,12 +659,13 @@ public partial class MainWindow
         if (e.OriginalSource is not DependencyObject source)
             return null;
 
-        while (source is not null)
+        DependencyObject? current = source;
+        while (current is not null)
         {
-            if (source is FrameworkElement { DataContext: ContentAssetViewModel item })
+            if (current is FrameworkElement { DataContext: ContentAssetViewModel item })
                 return item;
 
-            source = VisualTreeHelper.GetParent(source);
+            current = GetSafeVisualOrLogicalParent(current);
         }
 
         return null;

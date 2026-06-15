@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Media3D;
 
 namespace AutomationStudioWpf;
 
@@ -14,7 +15,7 @@ public partial class MainWindow
             if (ReferenceEquals(current, ancestor))
                 return true;
 
-            current = VisualTreeHelper.GetParent(current);
+            current = GetSafeVisualOrLogicalParent(current);
         }
 
         return false;
@@ -28,7 +29,7 @@ public partial class MainWindow
             if (current is T)
                 return true;
 
-            current = VisualTreeHelper.GetParent(current);
+            current = GetSafeVisualOrLogicalParent(current);
         }
 
         return false;
@@ -61,9 +62,23 @@ public partial class MainWindow
             if (ReferenceEquals(current, root))
                 return true;
 
-            current = VisualTreeHelper.GetParent(current);
+            current = GetSafeVisualOrLogicalParent(current);
         }
 
         return false;
+    }
+
+    private static DependencyObject? GetSafeVisualOrLogicalParent(DependencyObject current)
+    {
+        if (current is Visual or Visual3D)
+            return VisualTreeHelper.GetParent(current);
+
+        if (current is FrameworkContentElement contentElement)
+            return contentElement.Parent;
+
+        if (current is FrameworkElement element)
+            return element.Parent;
+
+        return LogicalTreeHelper.GetParent(current);
     }
 }

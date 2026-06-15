@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
@@ -353,7 +353,7 @@ public partial class MainWindow
                 pin = dataPin;
                 return true;
             }
-            current = VisualTreeHelper.GetParent(current);
+            current = GetSafeVisualOrLogicalParent(current);
         }
         pin = null;
         return false;
@@ -377,7 +377,7 @@ public partial class MainWindow
                     return true;
             }
 
-            current = VisualTreeHelper.GetParent(current);
+            current = GetSafeVisualOrLogicalParent(current);
         }
 
         return false;
@@ -424,7 +424,7 @@ public partial class MainWindow
         {
             if (current is Border border && border.DataContext is NodeBaseViewModel)
                 lastMatch = border;
-            current = VisualTreeHelper.GetParent(current);
+            current = GetSafeVisualOrLogicalParent(current);
         }
         return lastMatch;
     }

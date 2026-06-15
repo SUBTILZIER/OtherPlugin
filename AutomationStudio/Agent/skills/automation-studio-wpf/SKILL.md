@@ -18,13 +18,14 @@ WPF 可视化节点自动化编辑器，类似 UE4 蓝图。技术栈 C# 12 / .N
 - 每个 session 持有自己的完整 `EditorSurfaceControl`，包含图列表、画布、节点菜单和属性面板；`EditorSurfaceContext` 持有该 session 的 graph list/canvas/drag/inspector/pin/palette/import controllers。
 - `EditorWindowBar` 在工具栏下方，只显示主窗口标签页 session（非 detached）；右键关闭全部/关闭右侧只作用于可见标签页。拖出主窗口会创建 `DetachedEditorWindow`；拖到主窗口内部只激活标签，不创建画布子窗口。
 - 拖动窗口标签时有 `Popup` 跟随预览卡片；越过主窗口边界时提示会变为“释放后成为独立窗口”。
-- 主窗口 tab 和 `DetachedEditorWindow` 都直接 host 对应 session 的 `Surface`；detached 窗口始终显示自己的可编辑 surface，不再显示 remembered graph 只读预览。
+- 主窗口 tab 和 `DetachedEditorWindow` 都直接 host 对应 session 的 `Surface`；detached 窗口始终显示自己的可编辑 surface，不再显示 remembered graph 只读预览。主窗口要保留最后一个 main-tab surface，`EmptyEditorPanel` 只在没有 main tab 时出现。
 - `EditorSurfaceContext.Configure(...)` 必须保持幂等；不要在 surface attach/activate 时重建该 session 的 controller，否则 active graph、列表展开和节点显示会被重置。
 - surface 事件进入 `EditorSurfaceContext.HandleEvent(...)` 后先分类：明确用户交互才提升 active session；`PinAnchorLoaded/LayoutUpdated`、无按键 `MouseMove`、初始化触发的 `TextChanged/SelectionChanged` 只使用所属 context 或直接忽略，不能改变工具栏编译目标。detached 激活不能覆盖 `_lastMainEditorSession`，主窗口应继续显示最近的主窗口 tab。
 - dirty/snapshot 回调必须是 session-scoped：surface controller 通过闭包调用所属 `EditorSessionViewModel` 的 active controller，不要直接用全局 `_activeAssetController` 标脏，否则多资产同开时会把 C 的黄点打到 A。
 - 图/函数切换和新增必须走 `SetSessionActiveGraphController(session, controller)`。只写全局 `_activeAssetController` 不够；session 的 `EditorSurfaceContext.ActiveAssetController` 和 remembered active graph 也必须同步，否则函数库切 tab 后可能 snapshot 空 controller 并回到默认 entry/return。
 - `HandleEditorSurfaceEvent(...)` 不能在事件结束后把当前全局 `_activeAssetController` 写回 `_activeEditorSession.SurfaceContext`。事件来自非 active surface 时这会污染另一个 session。
 - 全局窗口事件必须优先用 `TryGetActiveEditorSurface()` 或事件来源 surface；启动/无资产/detached 切焦点时没有 active surface 应 no-op，不能抛 `No active editor surface is available.`。
+- WPF parent walk 不能直接对任意 `DependencyObject` 调 `VisualTreeHelper.GetParent(...)`；日志 `RichTextBox` 的 `FlowDocument` 不是 `Visual/Visual3D`，会抛异常。用 `VisualTreeUtility.GetParent(...)` 或 `GetSafeVisualOrLogicalParent(...)`。
 - 旧 `MainWindow.EditorSurfaceRegions.cs` 已删除。不要恢复 legacy sidebar/canvas/inspector 区域搬移。
 - `DarkContextMenuStyle`、`DarkDropdownListBoxStyle`、`DarkDropdownListBoxItemStyle` 和 editor surface 常用 brush 是 `App.xaml` 共享资源；不要在 `MainWindow.xaml` / `EditorSurfaceControl.xaml` 重复定义结构色。
 - 关闭 editor session 只 snapshot 回 `ContentAssetViewModel`，不删除内容浏览器资产。删除资产时要关闭所有指向被删 asset id 的 sessions。
@@ -34,7 +35,7 @@ WPF 可视化节点自动化编辑器，类似 UE4 蓝图。技术栈 C# 12 / .N
 - `GraphCompileService` compile 入口复用一次 asset id lookup；新增校验不要在每个 `Validate*` 里重复建索引。
 - 内容浏览器搜索使用 `ContentBrowserIndex` 内的扁平 `ContentAssetSearchEntry` 缓存；资产刷新、移动、重命名后要重建 index，避免搜索路径/名字过期。
 - session dirty/snapshot/compile helper 在 `MainWindow.EditorSessionState.cs`；保持这里集中，不要把多窗口状态路径重新散回 `MainWindow.xaml.cs`。
-- `MainWindow.GraphInputHandlers.cs` 放画布/节点/pin/节点菜单输入，`MainWindow.GraphListHandlers.cs` 放事件图/函数列表，`MainWindow.AssetCommands.cs` 放工具栏资产命令，`MainWindow.ContentBrowserCommands.cs` 放内容浏览器基础 CRUD / 刷新，`MainWindow.InspectorHandlers.cs` 放属性面板事件转发，`MainWindow.LogAndImportHandlers.cs` 放日志/导入入口，`MainWindow.WindowLifecycle.cs` 放关闭流程，`MainWindow.VisualTreeHelpers.cs` 放 visual/focus tree helper；不要回填到 `MainWindow.xaml.cs`。
+- `MainWindow.GraphInputHandlers.cs` 放画布/节点/pin/节点菜单输入，`MainWindow.GraphListHandlers.cs` 放事件图/函数列表，`MainWindow.EditorSurfaceControllers.cs` 放 surface controller 初始化与事件分发，`MainWindow.EditorSessionWorkflow.cs` 放打开/切换/关闭 session 工作流，`MainWindow.AssetCommands.cs` 放工具栏资产命令，`MainWindow.ContentBrowserCommands.cs` 放内容浏览器基础 CRUD / 刷新，`MainWindow.InspectorHandlers.cs` 放属性面板事件转发，`MainWindow.LogAndImportHandlers.cs` 放日志/导入入口，`MainWindow.WindowLifecycle.cs` 放关闭流程，`MainWindow.GraphModelHelpers.cs` 放 graph DTO helper，`MainWindow.VisualTreeHelpers.cs` 放 visual/focus tree helper；不要回填到 `MainWindow.xaml.cs`。
 - `EditorSurfaceControl` 事件直接进入 `EditorSurfaceContext.HandleEvent(...)`，再通过 typed `EditorSurfaceEvent` 激活 session 并复用剩余 `MainWindow` handler；不要恢复字符串反射 `RouteEditorSurfaceEvent`。
 
 ### 2026-06-09: ToDo 持久化 / Log 复制 / 内容浏览器导航

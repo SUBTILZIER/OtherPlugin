@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -407,7 +407,7 @@ public sealed class EditorSurfaceContext
                 pin = dataPin;
                 return true;
             }
-            current = VisualTreeHelper.GetParent(current);
+            current = VisualTreeUtility.GetParent(current);
         }
         pin = null;
         return false;

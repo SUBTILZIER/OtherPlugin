@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.IO;
 using System.Text.Json;
 using System.Windows;
@@ -552,7 +552,7 @@ public sealed class GraphListController
                 return true;
             }
 
-            current = VisualTreeHelper.GetParent(current);
+            current = VisualTreeUtility.GetParent(current);
         }
 
         item = null!;

@@ -104,6 +104,7 @@ public partial class MainWindow
         }
 
         HideMainEditorSurfaceHostOnly();
+        EmptyEditorPanel.Visibility = Visibility.Visible;
     }
 
     private void ShowEditorSurfaceForSession(EditorSessionViewModel? session)
@@ -131,6 +132,7 @@ public partial class MainWindow
     {
         var host = EnsureEditorSurfaceHost();
         _editorSurfaceHostController.AttachToHost(session, host);
+        EmptyEditorPanel.Visibility = Visibility.Collapsed;
     }
 
     private void AttachSessionSurfaceToDetachedWindow(EditorSessionViewModel session, DetachedEditorWindow detachedWindow)

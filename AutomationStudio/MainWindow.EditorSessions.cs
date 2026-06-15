@@ -122,8 +122,13 @@ public partial class MainWindow
                 HandleDetachedEditorPreviewMouseDown);
         }
 
-        if (session.DockMode != EditorDockMode.Detached && ReferenceEquals(session, _activeEditorSession))
-            _lastMainEditorSession = _mainEditorSessions.LastOrDefault(item => !ReferenceEquals(item, session));
+        var fallbackMainSession = _lastMainEditorSession;
+        if (session.DockMode != EditorDockMode.Detached)
+        {
+            fallbackMainSession = _mainEditorSessions.LastOrDefault(item => !ReferenceEquals(item, session));
+            if (ReferenceEquals(session, _activeEditorSession))
+                _lastMainEditorSession = fallbackMainSession;
+        }
 
         session.DockMode = EditorDockMode.Detached;
         if (screenPos is { } pos)
@@ -131,8 +136,19 @@ public partial class MainWindow
             session.DetachedWindow.Left = Math.Max(0, pos.X - session.DetachedWindow.Width / 2);
             session.DetachedWindow.Top = Math.Max(0, pos.Y - 18);
         }
-        if (_lastMainEditorSession is not null)
-            TryShowSessionSurfaceInMainHost(_lastMainEditorSession);
+
+        if (fallbackMainSession is not null &&
+            _editorSessions.Contains(fallbackMainSession) &&
+            fallbackMainSession.DockMode != EditorDockMode.Detached)
+        {
+            ActivateEditorSessionFromMainTab(fallbackMainSession);
+        }
+        else
+        {
+            _lastMainEditorSession = null;
+            HideMainEditorSurfaceHostOnly();
+        }
+
         AttachSessionSurfaceToDetachedWindow(session, session.DetachedWindow);
         if (!session.DetachedWindow.IsVisible)
             session.DetachedWindow.Show();
@@ -279,7 +295,7 @@ public partial class MainWindow
         {
             if (current is T match)
                 return match;
-            current = System.Windows.Media.VisualTreeHelper.GetParent(current);
+            current = VisualTreeUtility.GetParent(current);
         }
         return null;
     }

@@ -20,7 +20,8 @@
 - Logger UI updates batch pending entries into `Logger.Entries` with `RangeObservableCollection.AddRange(...)`; the main log panel and log window append new paragraphs incrementally instead of rebuilding the whole log per entry.
 - Double-clicking a `FunctionCallNodeViewModel` opens the owning script/function-library asset and loads the target function graph by stable id.
 - The editor now keeps one `EditorSessionViewModel` per opened asset. Reopening the same asset focuses the existing session instead of replacing it; the main window bar shows only tab sessions, while detached sessions are managed by their own standalone windows.
-- Each editor session now owns a full `EditorSurfaceControl` with its own graph list, canvas, node palette, and inspector UI. Detached windows host their own session surface directly, so main and detached windows can stay visible side by side without moving a shared `EditorGrid` or falling back to read-only previews.
+- Each editor session now owns a full `EditorSurfaceControl` with its own graph list, canvas, node palette, and inspector UI. Detached windows host their own session surface directly, so main and detached windows can stay visible side by side without moving a shared `EditorGrid` or falling back to read-only previews. Detached activation is lightweight and does not reparent the main host.
+- `EmptyEditorPanel` is only the no-open-asset fallback. When any main-window tab session is visible, the main host stays shown and the empty panel stays hidden.
 - Toolbar compile is active-asset scoped: scripts compile all event/function graphs in that asset, and function libraries compile all functions in that library.
 - Multi-window dirty and compile state is session-scoped: editing or compiling one opened asset updates that session's graph list, window tab, section badges, and compile button without leaking yellow dirty markers to another asset.
 - Graph/function switching is session-scoped through `SetSessionActiveGraphController(...)`, so function-library edits are snapshotted into the owning session before tab switches, callable lookup, compile, run, or save.
@@ -185,6 +186,9 @@ AutomationStudioWpf/
 ├── MainWindow.InspectorHandlers.cs # 属性面板事件转发
 ├── MainWindow.GraphInputHandlers.cs # 画布、节点、pin、节点菜单输入事件
 ├── MainWindow.GraphListHandlers.cs # 事件图/函数列表、分组展开、公开到库入口
+├── MainWindow.EditorSurfaceControllers.cs # surface controller 初始化与事件分发
+├── MainWindow.EditorSessionWorkflow.cs # 资产打开/切换/关闭与 session 提交
+├── MainWindow.GraphModelHelpers.cs # graph/node DTO clone 与入口标题同步 helper
 ├── MainWindow.LogAndImportHandlers.cs # 日志与拖拽导入入口
 ├── MainWindow.VisualTreeHelpers.cs # WPF visual/focus tree helpers
 ├── MainWindow.WindowLifecycle.cs # 窗口关闭与退出流程
@@ -240,6 +244,7 @@ saved/log/Log_2026_05_28_22_11.txt
 - **Optimized**: Content browser lookup/tree/path/search data now goes through internal `ContentBrowserIndex`; log colors are centralized in `LoggingModule.GetLevelBrush(...)`.
 - **Changed**: Content browser base commands and folder/tree refresh logic moved from `MainWindow.xaml.cs` to `MainWindow.ContentBrowserCommands.cs`; inspector event forwarding moved to `MainWindow.InspectorHandlers.cs`; multi-select remains in `MainWindow.ContentBrowserMultiSelect.cs`.
 - **Changed**: Graph/function list handlers moved from `MainWindow.xaml.cs` to `MainWindow.GraphListHandlers.cs`; shared editor surface colors now use `App.xaml` brush resources where possible.
+- **Changed**: Editor surface controller setup, session open/close workflow, and graph DTO helpers moved out of `MainWindow.xaml.cs` into focused partial files.
 
 ### v1.2.9 (2026-06-12)
 - **Fixed**: Function-library sessions now keep their active function controller in the owning `EditorSurfaceContext`, so switching to another asset no longer drops unsaved function nodes or reloads default entry/return graphs.
@@ -252,6 +257,7 @@ saved/log/Log_2026_05_28_22_11.txt
 - **Changed**: Documentation, project skill, agent memory, and CodeGraph were refreshed against current code after the latest `main` pull.
 - **Changed**: Each editor session now owns a complete `EditorSurfaceControl`; detached windows host their own editable surface directly, and inactive detached preview/legacy region moving has been removed from the active path.
 - **Fixed**: Surface activation is now lightweight and per-session controller state is preserved, so main tabs and detached windows no longer steal each other's graph/list/canvas state.
+- **Fixed**: Detaching a session no longer blanks the main host; the main window keeps the last main tab surface, and the empty fallback panel only shows when no main tabs remain.
 - **Changed**: Project skill source is now `AutomationStudio/Agent/skills/automation-studio-wpf/SKILL.md`; the old `.kimi/skills/...` path is deleted.
 
 ### v1.2.7 (2026-06-09)

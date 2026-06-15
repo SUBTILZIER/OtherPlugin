@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Threading;
@@ -484,7 +484,7 @@ public sealed class NodeDragSelectionController
             if (current is FrameworkElement { DataContext: PinViewModel })
                 return true;
 
-            current = System.Windows.Media.VisualTreeHelper.GetParent(current);
+            current = VisualTreeUtility.GetParent(current);
         }
 
         return false;
