@@ -65,7 +65,7 @@ WPF 可视化节点自动化编辑器，类似 UE4 蓝图。技术栈 C# 12 / .N
 - 可见连线绑定 `GraphEditorService.ConnectionPaths`；持久化和运行时仍使用 `GraphEditorService.Connections`。
 - `ConnectionPathViewModel` 只负责把线性 reroute 链聚合成一条可见路径，链顺序来自真实 `Connections` 拓扑，不按点距离重排。
 - 当前可见路径几何由 `ConnectionSplinePlanner` 生成；单段连接是一条 cubic Bezier，多 reroute 链使用按相邻点距离缩放的分段 spline handle。
-- 紧凑或反向 reroute 布局已有 no-loop smoke 回归保护；没有新明确复现前不要重写 `ConnectionSplinePlanner` 线形。
+- 紧凑或反向 reroute 布局当前不复现旧绕圈问题；没有新明确复现前不要重写 `ConnectionSplinePlanner` 线形。本地 smoke 可辅助验证，但不提交。
 - `ConnectionPathViewModel.FindNearestConnection` 用可见 Bezier 曲线采样映射 backing `ConnectionViewModel`，不要退回只按端点直线命中。
 - `GraphEditorService.RunBatchedEdit(...)` 批量连接变更；批量内只标记 `ConnectionPaths` 脏和 `GraphChanged` pending，最外层退出时统一 flush。
 - 运行时查找走 `GraphExecutionPlan` 的 internal lazy `GraphExecutionIndex`；不要改 graph JSON 或 `GraphExecutionPlan(nodes, connections)` 构造形状。
@@ -149,7 +149,7 @@ WPF 可视化节点自动化编辑器，类似 UE4 蓝图。技术栈 C# 12 / .N
 - **Rule**: 不要让新 runtime 节点复用 `ImagePath`、`DelayMs`、`ScrollSpeed` 等不相关字段。旧文件兼容读取可以留在 `NodeSerializer.FromFileModel()`，新 runtime 数据必须语义明确。
 
 #### Architecture update: InspectorController 负责完整属性面板逻辑
-- **Current**: `Interaction/InspectorController*.cs` 负责节点属性加载、字段自动保存、浏览文件、窗口列表刷新、前置输入锁定和灰态；参数面板在 `InspectorController.Parameters.cs`，通用小节点在 `InspectorController.CommonNodes.cs`，ToDo 目标选择入口在 `InspectorController.ToDo.cs`。
+- **Current**: `Interaction/InspectorController*.cs` 负责节点属性加载、字段自动保存、浏览文件、窗口列表刷新、前置输入锁定和灰态；参数面板在 `InspectorController.Parameters.cs`，通用小节点在 `InspectorController.CommonNodes.cs`，找图/窗口/程序/键盘辅助在 `InspectorController.SystemNodes.cs`，字段锁定在 `InspectorController.Locks.cs`，ToDo 目标选择入口在 `InspectorController.ToDo.cs`。
 - **MainWindow rule**: `MainWindow.xaml.cs` 只转发 XAML 事件：`LoadNodeToInspector()`、`ApplyInspectorChanges()`、浏览按钮、窗口模式切换都应调用 controller。
 - **Do not**: 不要再把节点属性 switch、字段锁定规则、文件浏览逻辑写回 `MainWindow.xaml.cs`。
 
@@ -206,7 +206,7 @@ WPF 可视化节点自动化编辑器，类似 UE4 蓝图。技术栈 C# 12 / .N
   - `CanvasPanZoomController`：右键平移、滚轮缩放、F 全览、坐标转换。
   - `NodeDragSelectionController`：节点拖动、框选、多选、复制粘贴、对齐。
   - `PinConnectionController`：拖线、连线、断线、预览线、双击连线插入路由节点。
-  - `InspectorController`：属性面板加载、自动保存、浏览对话框、窗口列表、字段锁定灰态；参数和通用节点面板已拆到 partial。
+  - `InspectorController`：属性面板加载/保存主分发；参数、通用节点、系统节点辅助、字段锁定、ToDo 面板已拆到 partial。
   - `NodePaletteController`：右键节点菜单，条目来自 `NodeRegistry.Definitions`。
   - `LogPanelController`：日志过滤、增量刷新、清空。
   - `GraphImportDropController`：JSON 图谱拖拽导入。

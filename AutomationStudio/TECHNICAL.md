@@ -161,6 +161,7 @@ public class GraphEditorService
 - detached session 激活时只更新全局工具栏/运行/保存目标，不覆盖 `_lastMainEditorSession`；主窗口继续显示最近的主窗口 tab surface。
 - `MainWindow.EditorSurfaceRegions.cs` 和 legacy region reparent hooks 已删除。不要恢复 `AttachLegacyEditorRegionsToSessionSurface()` 的区域搬移逻辑。
 - `MainWindow.GraphInputHandlers.cs` 承接画布、节点、pin、节点菜单和快捷键输入；`MainWindow.AssetCommands.cs` 承接工具栏新建、打开、保存、编译、运行按钮入口；`MainWindow.ContentBrowserCommands.cs` 承接内容浏览器基础命令和目录投影刷新；`MainWindow.InspectorHandlers.cs` 承接属性面板事件转发；`MainWindow.LogAndImportHandlers.cs` 承接日志按钮和拖拽导入入口；`MainWindow.WindowLifecycle.cs` 承接关闭/退出保护；`MainWindow.VisualTreeHelpers.cs` 承接 WPF visual/focus tree helper。不要把这些 handler 重新堆回 `MainWindow.xaml.cs`。
+- `InspectorController.cs` 只保留属性面板 `LoadNode()` / `ApplyChanges()` 主分发和构造注入；参数行在 `InspectorController.Parameters.cs`，通用小节点在 `InspectorController.CommonNodes.cs`，找图/窗口/程序/键盘辅助在 `InspectorController.SystemNodes.cs`，前置输入锁定和灰态在 `InspectorController.Locks.cs`，ToDo 目标选择在 `InspectorController.ToDo.cs`。
 - `DarkContextMenuStyle`、`DarkDropdownListBoxStyle`、`DarkDropdownListBoxItemStyle` 是 `App.xaml` 共享资源；不要在 `MainWindow.xaml` 或 `EditorSurfaceControl.xaml` 复制一份。
 - session 关闭只 snapshot 回 `ContentAssetViewModel` 并移除编辑窗口，不删除资产。删除内容浏览器资产时会关闭所有指向该资产的 session，避免悬空编辑窗口。
 - 保存、退出、编译前使用 `CommitInspectorAndSnapshotAllSessions()` / `CommitAllSessionsToAssets()`，保证多窗口编辑内容参与引用同步和校验。
@@ -577,7 +578,7 @@ Python 参数规则：
 - `PinConnectionController` maps visual `ConnectionPathViewModel` back to backing `ConnectionViewModel` for double-click, Alt-click, and context-menu reroute insertion by sampling the visible Bezier geometry.
 - Delete/Backspace on a selected visible path removes all backing connections in that visual path as one undoable command. Reroute nodes are not deleted automatically.
 - Active visible geometry is `ConnectionSplinePlanner.BuildGeometry(...)`. `ConnectionChain` / `ConnectionChainFinder` and `SplineTangentCalculator` are currently not called by XAML-bound paths.
-- Tight/backward reroute layouts are treated as no-loop regressions in smoke tests; do not change `ConnectionSplinePlanner` without a new concrete repro.
+- Tight/backward reroute layouts currently do not reproduce the old loop issue; do not change `ConnectionSplinePlanner` without a new concrete repro.
 
 #### NodeDefinition metadata
 - `Runtime/NodeDefinition.cs` now exposes `SearchTags`, `InspectorSchemaKey`, `DefaultValues`, and `ValidationHints`.
@@ -594,7 +595,7 @@ Python 参数规则：
   - 切换顺序固定为：`SnapshotActiveAsset()` -> `SetSessionActiveGraphController(session, targetController, remember: false)` -> `targetController.LoadItem(item, snapshotCurrent: false)` -> `SetSessionActiveGraphController(session, targetController)`。
   - 事件图、函数列表项增加 `PreviewMouseLeftButtonDown`，单击即可切换编辑界面。
   - 右键列表项也先激活目标项，再打开菜单，避免重命名/删除走错 controller。
-- **测试**：smoke 用事件图、函数来回切换，断言当前画布节点类型正确，并断言各自 `GraphFileModel.Nodes` 不混入其它图类型。
+- **本地验证建议**：如运行本地 smoke，可用事件图、函数来回切换，断言当前画布节点类型正确，并断言各自 `GraphFileModel.Nodes` 不混入其它图类型。`Tests/CodexSmoke` 不提交。
 - **教训**：所有跨 controller 画布切换，必须先快照旧画布，再更新 owning session 的 active controller，再加载新图。不能让 `Load()` 在 session active controller 还是旧值/空值时触发持久化。
 
 #### UI 调整：内容浏览器默认尺寸
@@ -634,7 +635,7 @@ Python 参数规则：
 - **维护规则**：新节点可以继续用扁平模型，但字段名必须表达真实语义；不要把某节点字段塞到别的节点字段里复用。
 
 #### 变更 1：InspectorController 不再只做灰态锁定
-- **现状**：节点属性面板的加载、自动保存、浏览文件、刷新窗口列表、字段锁定均已下沉到 `Interaction/InspectorController*.cs`；参数面板在 `InspectorController.Parameters.cs`，通用小节点面板在 `InspectorController.CommonNodes.cs`，ToDo 目标选择入口在 `InspectorController.ToDo.cs`。
+- **现状**：节点属性面板的加载、自动保存、浏览文件、刷新窗口列表、字段锁定均已下沉到 `Interaction/InspectorController*.cs`；参数面板在 `InspectorController.Parameters.cs`，通用小节点面板在 `InspectorController.CommonNodes.cs`，找图/窗口/程序/键盘辅助在 `InspectorController.SystemNodes.cs`，字段锁定在 `InspectorController.Locks.cs`，ToDo 目标选择入口在 `InspectorController.ToDo.cs`。
 - **MainWindow 职责**：只保留 XAML 事件转发和窗口装配，不再维护属性面板业务规则。
 - **维护规则**：新增节点属性 UI 后，同步改 `InspectorController.LoadNode()`、`ApplyChanges()`、`RefreshLocks()`，不要把属性逻辑写回 `MainWindow.xaml.cs`。
 

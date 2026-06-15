@@ -31,6 +31,7 @@
         <SolidColorBrush x:Key="CompileDirtyBackgroundBrush" Color="#4B361C" />
         <SolidColorBrush x:Key="CompileDirtyBorderBrush" Color="#D68A22" />
         <SolidColorBrush x:Key="StatusMutedBrush" Color="#7A8797" />
+        <SolidColorBrush x:Key="LogErrorBrush" Color="#FF6B6B" />
 
         <Style x:Key="DarkContextMenuStyle" TargetType="ContextMenu">
             <Setter Property="Background" Value="{StaticResource DropdownBackgroundBrush}" />

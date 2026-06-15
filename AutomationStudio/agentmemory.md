@@ -32,7 +32,7 @@
 - Save/exit/compile must snapshot all open sessions before reading graph data. Toolbar compile is active-asset scoped through `GraphCompileService.CompileAsset(...)`; scripts compile their event/function graphs, function libraries compile their functions.
 - Successful compile must sync cleared graph dirty/compile-dirty state from `ContentAssetViewModel` back into the target session's graph list and refresh window chrome/compile button immediately.
 - `MainWindow.GraphInputHandlers.cs` owns canvas/node/pin/node-palette input handlers. `MainWindow.AssetCommands.cs` owns toolbar new/open/save/compile/run handlers. `MainWindow.ContentBrowserCommands.cs` owns content-browser base CRUD, rename/delete, folder/tree projection, and move/copy dialog logic. `MainWindow.InspectorHandlers.cs` owns inspector event forwarding. `MainWindow.LogAndImportHandlers.cs` owns log/import events. `MainWindow.WindowLifecycle.cs` owns close/exit protection. `MainWindow.VisualTreeHelpers.cs` owns WPF visual/focus tree helpers. Keep these out of `MainWindow.xaml.cs`.
-- `InspectorController.Parameters.cs` owns function/event parameter rows. `InspectorController.CommonNodes.cs` owns generic `CommonNodeViewModel` panel behavior. `InspectorController.cs` remains the main load/apply/lock entry point.
+- `InspectorController.Parameters.cs` owns function/event parameter rows. `InspectorController.CommonNodes.cs` owns generic `CommonNodeViewModel` panel behavior. `InspectorController.SystemNodes.cs` owns find-image/window/program/keyboard helpers. `InspectorController.Locks.cs` owns front-input field locking/gray state. `InspectorController.cs` remains the load/apply dispatch entry point.
 - `GraphCompileService` compile entry points reuse one asset id lookup for validation. Content browser lookup/search/path data now lives in `ContentBrowserIndex` and is rebuilt from `RefreshContentBrowserViews()`.
 - `LoggingModule.GetLevelBrush(...)` is the shared log color source. `LogPanelController` and `LogWindow` should not carry their own per-level brush maps.
 - `PythonAutoInstaller.EnsurePythonAsync(...)` performs the first environment probe on a background thread, caches `PythonEnvironmentResult`, merges concurrent checks with `SemaphoreSlim`, and shows missing-environment dialogs at most once per process.
@@ -69,17 +69,17 @@
 - `GraphEditorService.RunBatchedEdit(...)` batches composed graph edits. Inside a batch, `Connections.CollectionChanged` only marks `ConnectionPaths` dirty, and `GraphChanged` is emitted once after the outermost batch exits.
 - Use `GraphEditorService.RemoveConnections(...)` for deleting a selected visual connection path. `PinConnectionController` wraps reroute insertion in one batch: add reroute node, remove old connection, create two new connections.
 - Runtime lookup uses internal lazy `GraphExecutionIndex` on `GraphExecutionPlan`. Do not change graph JSON or the public `GraphExecutionPlan(nodes, connections)` call shape for lookup optimization.
-- Smoke now covers visible-curve hit mapping, pin state refresh, no-loop reroute regressions, and batched connection edit event counts.
+- `Tests/CodexSmoke` is local-only and untracked. It may contain helpers for visible-curve hit mapping, pin state refresh, reroute regressions, or batched connection edit counts, but those helpers are not committed gates.
 
 ## 2026-06-06 reroute connection rendering
 
 - Visual wiring now binds XAML to `GraphEditorService.ConnectionPaths`; persisted/runtime logic still uses `Connections`.
 - Reroute chains are aggregated by `ConnectionPathViewModel` and shaped by `ConnectionSplinePlanner`; linear reroute chains keep the persisted `Connections` chain order so moving route nodes never reorders the drawn path. Ambiguous reroute branch/merge falls back to individual connection paths.
-- Current `ConnectionSplinePlanner` uses one cubic Bezier for single backing connections and distance-scaled spline handles for aggregated reroute chains. Tight/backward layouts are covered by no-loop smoke regressions; do not rewrite line shape without a new concrete repro.
+- Current `ConnectionSplinePlanner` uses one cubic Bezier for single backing connections and distance-scaled spline handles for aggregated reroute chains. Tight/backward layouts currently do not reproduce the old loop issue; do not rewrite line shape without a new concrete repro.
 - `ConnectionChain`, `ConnectionChainFinder`, `ConnectionSettings`, and `SplineTangentCalculator` are present but not wired into the visible XAML path pipeline.
 - Visible wire double-click/Alt-click must map `ConnectionPathViewModel` back to nearest backing `ConnectionViewModel` by visible-curve hit sampling; `IsGraphBlankSource` must treat `ConnectionPathViewModel` as non-blank or selection will swallow wire double-click.
 - Reroute selection uses a UE-style yellow glow/ring in XAML; keep it visible for click and box selection.
-- Optional repro smoke: set `AUTOMATION_STUDIO_REROUTE_GRAPH_JSON` to a graph file such as `C:/Users/Administrator/Desktop/graph.json`.
+- Optional local reroute repro helpers may use `AUTOMATION_STUDIO_REROUTE_GRAPH_JSON` with a graph file such as `C:/Users/Administrator/Desktop/graph.json`; keep them untracked.
 
 ## 2026-06-06 editor command and wire UX foundation
 
@@ -113,7 +113,7 @@
 - Graph/function list items now activate on single left click through `ActivateGraphListItem(...)`; double-click remains supported but is not required for navigation.
 - Right-click graph/function items also activates the item before opening the context menu so rename/delete target the correct controller.
 - Bottom panel default: content browser and log split 50/50; bottom row height starts at 360 with min 180.
-- Smoke test must cover event/function switching and assert graph models stay event-only/function-only.
+- If local smoke is run for event/function switching, it should assert graph models stay event-only/function-only. Do not commit the smoke project.
 - FunctionLibrary entries have `IsPublicToLibrary` (`公开到库`). `CallableGraphResolver` is the single source for palette, compile sync, and runtime lookup. Other scripts can only use public library functions; old private-library calls fail compile and keep dirty.
 - Compile issue paths must be full content-browser paths: `content/父文件夹/.../资产/图`. This includes function library graphs under nested folders.
 - Custom events are event-graph local: `CustomEventNodeViewModel` + `CustomEventCallNodeViewModel`, bound by `CustomEventId`. Palette lists calls under `本脚本事件` only while editing an event graph. Runtime executes target event chain then returns to caller `exec_out`; recursion key is `custom_event:{id}`.

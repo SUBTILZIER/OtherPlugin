@@ -6,7 +6,7 @@
         Width="900"
         Height="500"
         WindowStartupLocation="CenterOwner"
-        Background="#1E1F22">
+        Background="{StaticResource AppBackgroundBrush}">
     <DockPanel>
         <StackPanel DockPanel.Dock="Top"
                     Orientation="Horizontal"
@@ -14,35 +14,35 @@
                     Background="Transparent">
             <Button Content="复制全部" Click="CopyAll_Click" Margin="0,0,8,0" Padding="12,4" />
             <Button Content="清空" Click="Clear_Click" Padding="12,4" />
-            <Border Margin="8,0,0,0" Background="#2E3440" CornerRadius="3" Height="22" VerticalAlignment="Center">
+            <Border Margin="8,0,0,0" Background="{StaticResource ToolbarButtonBorderBrush}" CornerRadius="3" Height="22" VerticalAlignment="Center">
                 <StackPanel Orientation="Horizontal">
                     <RadioButton x:Name="FilterAllRadio" Content="全部" IsChecked="True"
                                  Checked="FilterRadio_Checked"
                                  Margin="4,0" Padding="6,0" FontSize="11"
-                                 Foreground="#D0D7E2" />
+                                 Foreground="{StaticResource ForegroundPrimaryBrush}" />
                     <RadioButton x:Name="FilterInfoRadio" Content="信息"
                                  Checked="FilterRadio_Checked"
                                  Margin="4,0" Padding="6,0" FontSize="11"
-                                 Foreground="#D0D7E2" />
+                                 Foreground="{StaticResource ForegroundPrimaryBrush}" />
                     <RadioButton x:Name="FilterWarnRadio" Content="警告"
                                  Checked="FilterRadio_Checked"
                                  Margin="4,0" Padding="6,0" FontSize="11"
-                                 Foreground="#FFD700" />
+                                 Foreground="{StaticResource CompileDirtyBorderBrush}" />
                     <RadioButton x:Name="FilterErrorRadio" Content="错误"
                                  Checked="FilterRadio_Checked"
                                  Margin="4,0" Padding="6,0" FontSize="11"
-                                 Foreground="#FF6B6B" />
+                                 Foreground="{StaticResource LogErrorBrush}" />
                 </StackPanel>
             </Border>
             <TextBlock x:Name="LogDirText"
                        Margin="16,0,0,0"
                        VerticalAlignment="Center"
-                       Foreground="#7A8797"
+                       Foreground="{StaticResource StatusMutedBrush}"
                        FontSize="11" />
         </StackPanel>
         <RichTextBox x:Name="LogRichTextBox"
-                     Background="#11151A"
-                     Foreground="#D0D7E2"
+                     Background="{StaticResource AppBackgroundBrush}"
+                     Foreground="{StaticResource ForegroundPrimaryBrush}"
                      BorderThickness="0"
                      Margin="10,0,10,10"
                      FontFamily="Consolas"

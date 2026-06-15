@@ -151,9 +151,11 @@ AutomationStudioWpf/
 │   ├── CanvasPanZoomController.cs  # 平移、缩放、EdgePan
 │   ├── NodeDragSelectionController.cs  # 拖动、框选、复制粘贴、对齐
 │   ├── PinConnectionController.cs  # 连线、断线、路由节点
-│   ├── InspectorController.cs   # 属性面板主入口、专用节点面板、字段锁定
+│   ├── InspectorController.cs   # 属性面板主入口、Load/Apply 主分发
 │   ├── InspectorController.Parameters.cs # 函数/事件参数面板
 │   ├── InspectorController.CommonNodes.cs # 通用小节点面板
+│   ├── InspectorController.SystemNodes.cs # 找图/键盘/窗口/程序启动辅助
+│   ├── InspectorController.Locks.cs # 前置输入锁定与灰态
 │   ├── InspectorController.ToDo.cs # ToDo 目标选择面板逻辑
 │   ├── NodePaletteController.cs # 右键节点菜单
 │   ├── LogPanelController.cs    # 日志过滤、增量刷新
@@ -209,10 +211,10 @@ dotnet build .\AutomationStudioWpf.csproj -o .\bin\CodexBuildCheck
 git diff --check
 dotnet run --project .\AutomationStudioWpf.csproj
 
-# 本地按需 smoke（本机可有，Git 不跟踪）
+# 本地按需 smoke（可选；本机可有，Git 不跟踪）
 dotnet run --project .\Tests\CodexSmoke\AutomationStudioSmoke.csproj --no-restore
 
-# Optional reroute repro smoke（本地-only，仅 reroute 复现需要）
+# Optional reroute repro smoke（本地-only，仅新 reroute 复现需要）
 $env:AUTOMATION_STUDIO_REROUTE_GRAPH_JSON='C:\Users\Administrator\Desktop\graph.json'
 dotnet run --project .\Tests\CodexSmoke\AutomationStudioSmoke.csproj --no-restore
 
@@ -232,7 +234,7 @@ saved/log/Log_2026_05_28_22_11.txt
 ### v1.2.10 (2026-06-12)
 - **Fixed**: Global window handlers now use safe active-surface lookup or no-op when no editor surface exists, avoiding startup/no-session crashes.
 - **Changed**: Main window graph input handlers and asset command handlers were split into focused partial files without changing graph JSON, connection routing, or function-library save semantics.
-- **Changed**: Inspector parameter and common-node panels were split into `InspectorController.Parameters.cs` and `InspectorController.CommonNodes.cs`.
+- **Changed**: Inspector parameter/common/system-node/field-lock helpers were split into focused `InspectorController.*.cs` partials; `InspectorController.cs` keeps load/apply dispatch.
 - **Optimized**: Compile validation reuses a per-run asset lookup, and content browser search caches flattened searchable text/path until the asset browser refreshes.
 - **Optimized**: Content browser lookup/tree/path/search data now goes through internal `ContentBrowserIndex`; log colors are centralized in `LoggingModule.GetLevelBrush(...)`.
 - **Changed**: Content browser base commands and folder/tree refresh logic moved from `MainWindow.xaml.cs` to `MainWindow.ContentBrowserCommands.cs`; inspector event forwarding moved to `MainWindow.InspectorHandlers.cs`; multi-select remains in `MainWindow.ContentBrowserMultiSelect.cs`.
@@ -273,7 +275,7 @@ saved/log/Log_2026_05_28_22_11.txt
 - **Improved**: Visible wire hit-testing now samples the rendered Bezier geometry before mapping back to backing connections.
 - **Improved**: Connection add/remove/reroute edits batch `ConnectionPaths` rebuild and `GraphChanged` notifications through `GraphEditorService.RunBatchedEdit(...)`.
 - **Improved**: Runtime execution/input lookup uses an internal lazy `GraphExecutionIndex` without changing graph JSON or `GraphExecutionPlan` construction.
-- **Added**: Smoke coverage for visible-curve hit mapping, pin connection state refresh, no-loop reroute regressions, and batched connection edits.
+- **Note**: Local-only smoke helpers may be used to check visible-curve hit mapping, pin connection state refresh, reroute regressions, and batched connection edits, but `Tests/CodexSmoke` is not tracked by Git.
 
 ### v1.2.3 (2026-06-08)
 - **Changed**: Audited CodeGraph, project skill, technical documentation, README, and agent memory against current local code.
@@ -285,15 +287,15 @@ saved/log/Log_2026_05_28_22_11.txt
 - **Improved**: Node move UX with 20px grid snapping, arrow-key nudging, Shift fast nudge, and Alt precision movement.
 - **Added**: `NodeDefinition` metadata for search tags, inspector schema key, default values, and validation hints.
 - **Improved**: Node palette search now matches category/type key/kind/tags and shows recent node kinds.
-- **Added**: Smoke coverage for command undo/redo, selected wire deletion, and definition metadata search.
+- **Note**: Local-only smoke helpers may cover command undo/redo, selected wire deletion, and definition metadata search; do not treat them as committed project gates.
 
 ### v1.2.1 (2026-06-06)
-- **Changed**: Reroute-backed wires aggregate into visible paths, with tight/backward layouts covered by no-loop smoke regressions.
+- **Changed**: Reroute-backed wires aggregate into visible paths; tight/backward layouts currently do not reproduce the old loop issue.
 - **Changed**: Visual wire rendering uses `ConnectionPaths`; graph persistence/runtime still use `Connections`.
 - **Changed**: Reroute chain draw order follows the actual connection chain, not distance sorting.
 - **Fixed**: Double-clicking aggregated visual wires inserts a reroute node again.
 - **Improved**: Reroute selection now has a stronger UE-style glow/ring.
-- **Added**: Smoke coverage for reroute chain geometry, movement stability, visual wire hit-testing, and optional external `graph.json` repro.
+- **Note**: Optional local reroute repro helpers can load an external `graph.json`; they remain local-only and untracked.
 
 ### v1.2.0 (2026-06-05)
 - **新增**: 内容浏览器 — 文件夹树 + 瓦片视图，资产拖拽管理
