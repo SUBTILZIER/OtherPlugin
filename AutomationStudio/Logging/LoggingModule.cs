@@ -9,14 +9,18 @@ namespace AutomationStudioWpf.Logging;
 /// </summary>
 public static class LoggingModule
 {
+    private static readonly Media.Brush InfoBrush = CreateFrozenBrush(208, 215, 226);
+    private static readonly Media.Brush WarnBrush = CreateFrozenBrush(255, 215, 0);
+    private static readonly Media.Brush ErrorBrush = CreateFrozenBrush(255, 107, 107);
+
     /// <summary>null = 显示全部 (无)</summary>
     public static LogLevel? FilterLevel { get; set; }
 
     public static Media.Brush GetLevelBrush(LogLevel level) => level switch
     {
-        LogLevel.Warn => new Media.SolidColorBrush(Media.Color.FromRgb(255, 215, 0)),
-        LogLevel.Error => new Media.SolidColorBrush(Media.Color.FromRgb(255, 107, 107)),
-        _ => new Media.SolidColorBrush(Media.Color.FromRgb(208, 215, 226)),              // 默认灰色
+        LogLevel.Warn => WarnBrush,
+        LogLevel.Error => ErrorBrush,
+        _ => InfoBrush,
     };
 
     /// <summary>Filter label for display (WARN/ERROR/INFO)</summary>
@@ -33,5 +37,12 @@ public static class LoggingModule
             return source;
 
         return source.Where(e => e.Level == FilterLevel.Value);
+    }
+
+    private static Media.Brush CreateFrozenBrush(byte r, byte g, byte b)
+    {
+        var brush = new Media.SolidColorBrush(Media.Color.FromRgb(r, g, b));
+        brush.Freeze();
+        return brush;
     }
 }

@@ -13,6 +13,29 @@ public abstract class NodeBaseViewModel : ObservableObject
     public const double PinAreaTopPadding = 8;
     public const double PinAnchorInset = 14;
 
+    private static readonly Brush StartHeaderBrush = FrozenBrush(122, 24, 31);
+    private static readonly Brush CustomEventHeaderBrush = FrozenBrush(150, 36, 44);
+    private static readonly Brush CustomEventCallHeaderBrush = FrozenBrush(114, 38, 48);
+    private static readonly Brush FindImageHeaderBrush = FrozenBrush(34, 102, 143);
+    private static readonly Brush MouseClickHeaderBrush = FrozenBrush(148, 90, 40);
+    private static readonly Brush DelayHeaderBrush = FrozenBrush(94, 58, 153);
+    private static readonly Brush MouseMoveHeaderBrush = FrozenBrush(35, 120, 91);
+    private static readonly Brush KeyboardHeaderBrush = FrozenBrush(200, 130, 60);
+    private static readonly Brush ScrollWheelHeaderBrush = FrozenBrush(160, 110, 180);
+    private static readonly Brush RerouteHeaderBrush = FrozenBrush(244, 244, 244);
+    private static readonly Brush IfHeaderBrush = FrozenBrush(50, 140, 80);
+    private static readonly Brush ForLoopHeaderBrush = FrozenBrush(180, 120, 40);
+    private static readonly Brush WhileLoopHeaderBrush = FrozenBrush(160, 80, 120);
+    private static readonly Brush ToDoHeaderBrush = FrozenBrush(205, 112, 42);
+    private static readonly Brush StartProgramHeaderBrush = FrozenBrush(45, 130, 180);
+    private static readonly Brush PrintLogHeaderBrush = FrozenBrush(60, 170, 100);
+    private static readonly Brush SelectWindowHeaderBrush = FrozenBrush(80, 120, 200);
+    private static readonly Brush FunctionHeaderBrush = FrozenBrush(92, 92, 255);
+    private static readonly Brush DefaultHeaderBrush = FrozenBrush(70, 70, 70);
+    private static readonly Brush HeaderForeground = FrozenBrush(255, 255, 255);
+    private static readonly Brush SelectedBorderBrush = FrozenBrush(255, 215, 96);
+    private static readonly Brush DefaultBorderBrush = FrozenBrush(66, 74, 88);
+
     private string _title = string.Empty;
     private double _x;
     private double _y;
@@ -101,35 +124,32 @@ public abstract class NodeBaseViewModel : ObservableObject
 
     public Brush HeaderBrush => NodeKind switch
     {
-        NodeKind.Start => new SolidColorBrush(Color.FromRgb(122, 24, 31)),
-        NodeKind.CustomEvent => new SolidColorBrush(Color.FromRgb(150, 36, 44)),
-        NodeKind.CustomEventCall => new SolidColorBrush(Color.FromRgb(114, 38, 48)),
-        NodeKind.FindImage => new SolidColorBrush(Color.FromRgb(34, 102, 143)),
-        NodeKind.MouseClick => new SolidColorBrush(Color.FromRgb(148, 90, 40)),
-        NodeKind.Delay => new SolidColorBrush(Color.FromRgb(94, 58, 153)),
-        NodeKind.MouseMove => new SolidColorBrush(Color.FromRgb(35, 120, 91)),
-        NodeKind.Keyboard => new SolidColorBrush(Color.FromRgb(200, 130, 60)),
-        NodeKind.ScrollWheel => new SolidColorBrush(Color.FromRgb(160, 110, 180)),
-        NodeKind.Reroute => new SolidColorBrush(Color.FromRgb(244, 244, 244)),
-        NodeKind.If => new SolidColorBrush(Color.FromRgb(50, 140, 80)),
-        NodeKind.ForLoop => new SolidColorBrush(Color.FromRgb(180, 120, 40)),
-        NodeKind.WhileLoop => new SolidColorBrush(Color.FromRgb(160, 80, 120)),
-        NodeKind.ToDo => new SolidColorBrush(Color.FromRgb(205, 112, 42)),
-        NodeKind.StartProgram => new SolidColorBrush(Color.FromRgb(45, 130, 180)),
-        NodeKind.PrintLog => new SolidColorBrush(Color.FromRgb(60, 170, 100)),
-        NodeKind.SelectWindow => new SolidColorBrush(Color.FromRgb(80, 120, 200)),
-        NodeKind.FunctionEntry or NodeKind.FunctionReturn or NodeKind.FunctionCall => new SolidColorBrush(Color.FromRgb(92, 92, 255)),
-        _ => new SolidColorBrush(Color.FromRgb(70, 70, 70)),
+        NodeKind.Start => StartHeaderBrush,
+        NodeKind.CustomEvent => CustomEventHeaderBrush,
+        NodeKind.CustomEventCall => CustomEventCallHeaderBrush,
+        NodeKind.FindImage => FindImageHeaderBrush,
+        NodeKind.MouseClick => MouseClickHeaderBrush,
+        NodeKind.Delay => DelayHeaderBrush,
+        NodeKind.MouseMove => MouseMoveHeaderBrush,
+        NodeKind.Keyboard => KeyboardHeaderBrush,
+        NodeKind.ScrollWheel => ScrollWheelHeaderBrush,
+        NodeKind.Reroute => RerouteHeaderBrush,
+        NodeKind.If => IfHeaderBrush,
+        NodeKind.ForLoop => ForLoopHeaderBrush,
+        NodeKind.WhileLoop => WhileLoopHeaderBrush,
+        NodeKind.ToDo => ToDoHeaderBrush,
+        NodeKind.StartProgram => StartProgramHeaderBrush,
+        NodeKind.PrintLog => PrintLogHeaderBrush,
+        NodeKind.SelectWindow => SelectWindowHeaderBrush,
+        NodeKind.FunctionEntry or NodeKind.FunctionReturn or NodeKind.FunctionCall => FunctionHeaderBrush,
+        _ => DefaultHeaderBrush,
     };
 
-    public Brush HeaderForegroundBrush => NodeKind switch
-    {
-        _ => new SolidColorBrush(Color.FromRgb(255, 255, 255)),
-    };
+    public Brush HeaderForegroundBrush => HeaderForeground;
 
     public Brush BorderBrush => IsSelected
-        ? new SolidColorBrush(Color.FromRgb(255, 215, 96))
-        : new SolidColorBrush(Color.FromRgb(66, 74, 88));
+        ? SelectedBorderBrush
+        : DefaultBorderBrush;
 
     public abstract void RefreshDescription();
 
@@ -185,5 +205,12 @@ public abstract class NodeBaseViewModel : ObservableObject
         PinViewModel pin = new(this, name, displayName, PinDirection.Output, kind);
         OutputPins.Add(pin);
         return pin;
+    }
+
+    private static Brush FrozenBrush(byte r, byte g, byte b)
+    {
+        var brush = new SolidColorBrush(Color.FromRgb(r, g, b));
+        brush.Freeze();
+        return brush;
     }
 }

@@ -12,6 +12,15 @@ public sealed record ThemedDialogButton(string Text, MessageBoxResult Result, bo
 
 public static class ThemedDialog
 {
+    private static readonly SolidColorBrush WindowForegroundBrush = FrozenBrush(232, 237, 245);
+    private static readonly SolidColorBrush WindowBackgroundBrush = FrozenBrush(27, 32, 40);
+    private static readonly SolidColorBrush WindowBorderBrush = FrozenBrush(64, 76, 94);
+    private static readonly SolidColorBrush BodyForegroundBrush = FrozenBrush(232, 237, 245);
+    private static readonly SolidColorBrush ButtonForegroundBrush = FrozenBrush(232, 237, 245);
+    private static readonly SolidColorBrush PrimaryButtonForegroundBrush = FrozenBrush(12, 16, 22);
+    private static readonly SolidColorBrush ButtonBackgroundBrush = FrozenBrush(36, 43, 53);
+    private static readonly SolidColorBrush ButtonBorderBrush = FrozenBrush(79, 94, 116);
+
     public static MessageBoxResult Show(Window? owner, string message, string title, MessageBoxButton buttons = MessageBoxButton.OK, MessageBoxImage image = MessageBoxImage.None)
     {
         return ShowCustom(owner, message, title, image, BuildButtons(buttons));
@@ -36,13 +45,13 @@ public static class ThemedDialog
             WindowStyle = WindowStyle.None,
             AllowsTransparency = true,
             Background = System.Windows.Media.Brushes.Transparent,
-            Foreground = new SolidColorBrush(WpfColor.FromRgb(232, 237, 245)),
+            Foreground = WindowForegroundBrush,
         };
 
         var root = new Border
         {
-            Background = new SolidColorBrush(WpfColor.FromRgb(27, 32, 40)),
-            BorderBrush = new SolidColorBrush(WpfColor.FromRgb(64, 76, 94)),
+            Background = WindowBackgroundBrush,
+            BorderBrush = WindowBorderBrush,
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(8),
             Padding = new Thickness(18),
@@ -67,7 +76,7 @@ public static class ThemedDialog
         panel.Children.Add(new TextBlock
         {
             Text = message,
-            Foreground = new SolidColorBrush(WpfColor.FromRgb(232, 237, 245)),
+            Foreground = BodyForegroundBrush,
             TextWrapping = TextWrapping.Wrap,
             LineHeight = 20,
             Margin = new Thickness(0, 0, 0, 18),
@@ -90,9 +99,9 @@ public static class ThemedDialog
                 Margin = new Thickness(8, 0, 0, 0),
                 IsDefault = item.IsPrimary,
                 IsCancel = item.Result == MessageBoxResult.Cancel,
-                Foreground = item.IsPrimary ? new SolidColorBrush(WpfColor.FromRgb(12, 16, 22)) : new SolidColorBrush(WpfColor.FromRgb(232, 237, 245)),
-                Background = item.IsPrimary ? new SolidColorBrush(accent) : new SolidColorBrush(WpfColor.FromRgb(36, 43, 53)),
-                BorderBrush = new SolidColorBrush(WpfColor.FromRgb(79, 94, 116)),
+                Foreground = item.IsPrimary ? PrimaryButtonForegroundBrush : ButtonForegroundBrush,
+                Background = item.IsPrimary ? new SolidColorBrush(accent) : ButtonBackgroundBrush,
+                BorderBrush = ButtonBorderBrush,
                 BorderThickness = new Thickness(1),
                 Cursor = System.Windows.Input.Cursors.Hand,
             };
@@ -133,4 +142,11 @@ public static class ThemedDialog
         MessageBoxImage.Information => WpfColor.FromRgb(79, 163, 255),
         _ => WpfColor.FromRgb(167, 177, 191),
     };
+
+    private static SolidColorBrush FrozenBrush(byte r, byte g, byte b)
+    {
+        var brush = new SolidColorBrush(WpfColor.FromRgb(r, g, b));
+        brush.Freeze();
+        return brush;
+    }
 }

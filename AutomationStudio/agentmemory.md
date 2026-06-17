@@ -1,135 +1,59 @@
 # AutomationStudio Agent Memory
 
-## Communication preference
+## 当前偏好
 
-- 用户偏好中文、简洁说明。中间进度说清“在做什么/发现什么/下一步”，少废话。
-- 技术细节保留准确名词、文件名、命令；解释原因时用短句。
-- 不要自动 `git push`。只有用户明确要求推送时才推；推送前必须确认不包含测试功能相关文件夹。
+- 中文、简洁；保留准确文件名/类名/方法名/命令/错误文本。
+- 不自动 `git push`。只有用户明确说推送才推；推送前确认不包含测试功能相关文件夹。
+- 项目 skill 源文件：`AutomationStudio/Agent/skills/automation-studio-wpf/SKILL.md`。旧 `.kimi/skills/...` 不恢复。
 
-## 2026-06-11 docs/codegraph refresh
+## 当前产品边界
 
-- Current project skill source is `AutomationStudio/Agent/skills/automation-studio-wpf/SKILL.md`. The old `.kimi/skills/automation-studio-wpf/SKILL.md` path was removed/moved; do not resurrect it.
-- CodeGraph sync remains a local maintenance gate. Track only ignore/config policy, not db/wal/shm/cache/log generated files.
-- `EditorSurfaceControl`, `EditorSurfaceContext`, and `EditorSurfaceHostController` are on the active path. Each session owns a complete editor surface with graph list, canvas, node palette, and inspector UI; detached windows host that surface directly. The shared `EditorGrid`/legacy region move path is removed from the active code path.
+- 只保留脚本 + 函数库。宏库已废弃；不要恢复 UI、资产类型、运行时、节点菜单或文档功能说明。
+- 旧 `macro_entry` / `macro_output` / `macro_call` 仅作为旧文件 skip guard，保证打开旧文件不崩。
+- `Tests/CodexSmoke` 是本地-only、untracked；不要提交。只有用户明确要求或触碰高风险交互时本地跑。
+- 不改 graph / node / connection JSON schema；不改 `ConnectionSplinePlanner` 线形，除非用户给出新明确复现。
 
-## 2026-06-09 multi editor windows
+## 多窗口 / 函数库高风险规则
 
-- Opened assets are tracked as `EditorSessionViewModel` instances in `MainWindow.EditorSessions`; duplicate open focuses the existing session and keeps its remembered active graph.
-- Each session owns its own `GraphEditorService`, `NodeFactory`, `GraphCommandService`, graph list collections, `EditorSurfaceControl`, and `EditorSurfaceContext` controller set. `MainWindow` mirrors the active context controllers only for remaining legacy handlers.
-- `EditorWindowBar` is under the toolbar and shows only main-window tab sessions (`DockMode != Detached`). Right-click close-all/close-right affect only visible main-window tabs; all-session save/exit still walks `EditorSessions`.
-- Dragging a tab outside the main window detaches it to `DetachedEditorWindow`; dragging inside the main window only activates the tab. Detached windows keep showing their own editable `EditorSurfaceControl`; activation only changes toolbar/global-command target. Detaching one session must leave the main host showing the last non-detached tab surface.
-- `EditorSurfaceContext.Configure(...)` is intentionally idempotent. Do not rebuild per-session controllers on every attach/activate; doing so resets active graph/list expansion and causes main/detached windows to appear polluted.
-- Surface events are classified before dispatch: explicit user interactions promote the session to active; passive layout/binding events such as `PinAnchorLoaded/LayoutUpdated`, mouse move without pressed buttons, and initialization `TextChanged/SelectionChanged` only use the owning context or are ignored. Detached activation must not overwrite `_lastMainEditorSession`; the main host keeps showing the last main-window tab surface, and `EmptyEditorPanel` must stay hidden while that host is populated.
-- Global window handlers must use `TryGetActiveEditorSurface()` or the event source surface unless the command explicitly requires an active editor. Startup/no-asset/detached focus paths should no-op, not throw `No active editor surface is available.`. WPF parent walk over arbitrary `DependencyObject` must use a safe helper, not raw `VisualTreeHelper.GetParent(...)`, because `FlowDocument` / non-Visual content can crash.
-- Surface dirty/snapshot callbacks are bound to the owning `EditorSessionViewModel`. Do not use global `_activeAssetController` as the only dirty target from per-session controllers, or edits in C can mark A dirty.
-- Active graph controller state must be written through `SetSessionActiveGraphController(session, controller)`. It updates the owning `EditorSurfaceContext.ActiveAssetController`, remembered graph id/kind, and only mirrors `_activeAssetController` for the explicit active/operation session.
-- Session dirty/snapshot/compile helpers live in `MainWindow.EditorSessionState.cs`; keep multi-window state routing centralized there.
-- Do not add graph/function items by only assigning `_activeAssetController`. After `GraphListController.AddAndRename(...)` or `LoadItem(...)`, the session context must know the active controller or switching tabs can snapshot nothing and reload the old default function graph.
-- `HandleEditorSurfaceEvent(...)` must not copy the current global `_activeAssetController` back into another session's context after dispatch. That cross-write was a root cause of script/function-library session pollution.
-- Tab dragging shows a following popup preview. Do not reintroduce inactive detached read-only previews or the old "activate this window" placeholder.
-- `MainWindow.EditorSurfaceRegions.cs` and legacy region reparent hooks are deleted. Do not restore legacy region reparenting.
-- Closing a session snapshots to its `ContentAssetViewModel` but does not delete the asset. Deleting content-browser assets must close all sessions targeting deleted asset ids.
-- Save/exit/compile must snapshot all open sessions before reading graph data. Toolbar compile is active-asset scoped through `GraphCompileService.CompileAsset(...)`; scripts compile their event/function graphs, function libraries compile their functions.
-- Successful compile must sync cleared graph dirty/compile-dirty state from `ContentAssetViewModel` back into the target session's graph list and refresh window chrome/compile button immediately.
-- `MainWindow.GraphInputHandlers.cs` owns canvas/node/pin/node-palette input handlers. `MainWindow.GraphListHandlers.cs` owns event/function list handlers, section expansion, and library publish toggles. `MainWindow.EditorSurfaceControllers.cs` owns surface controller setup and typed surface event dispatch. `MainWindow.EditorSessionWorkflow.cs` owns asset open/switch/close workflows and session commits. `MainWindow.AssetCommands.cs` owns toolbar new/open/save/compile/run handlers. `MainWindow.ContentBrowserCommands.cs` owns content-browser base CRUD, rename/delete, folder/tree projection, and move/copy dialog logic. `MainWindow.InspectorHandlers.cs` owns inspector event forwarding. `MainWindow.LogAndImportHandlers.cs` owns log/import events. `MainWindow.WindowLifecycle.cs` owns close/exit protection. `MainWindow.GraphModelHelpers.cs` owns graph DTO helpers. `MainWindow.VisualTreeHelpers.cs` owns WPF visual/focus tree helpers. Keep these out of `MainWindow.xaml.cs`.
-- `InspectorController.Parameters.cs` owns function/event parameter rows. `InspectorController.CommonNodes.cs` owns generic `CommonNodeViewModel` panel behavior. `InspectorController.SystemNodes.cs` owns find-image/window/program/keyboard helpers. `InspectorController.Locks.cs` owns front-input field locking/gray state. `InspectorController.cs` remains the load/apply dispatch entry point.
-- `GraphCompileService` compile entry points reuse one asset id lookup for validation. Content browser lookup/search/path data now lives in `ContentBrowserIndex` and is rebuilt from `RefreshContentBrowserViews()`.
-- `LoggingModule.GetLevelBrush(...)` is the shared log color source. `LogPanelController` and `LogWindow` should not carry their own per-level brush maps.
-- `PythonAutoInstaller.EnsurePythonAsync(...)` performs the first environment probe on a background thread, caches `PythonEnvironmentResult`, merges concurrent checks with `SemaphoreSlim`, and shows missing-environment dialogs at most once per process.
+- 每个打开资产一个 `EditorSessionViewModel`，每个 session 自持 `GraphEditorService`、`NodeFactory`、`GraphCommandService`、`EditorSurfaceControl`、`EditorSurfaceContext`。
+- Detached 窗口直接 host 自己的 `Surface`；激活 detached 只切 toolbar/global-command 目标，不覆盖 `_lastMainEditorSession`，不搬主窗口 surface。
+- Surface 事件必须分类：明确用户交互才提升 active session；layout/binding/mouse move 这类被动事件不能切 active。
+- 全局窗口事件用 `TryGetActiveEditorSurface()` 或事件来源 surface；无 surface 就 no-op。WPF parent walk 用安全 helper，避免 `FlowDocument` 崩溃。
+- 当前图 controller 必须通过 `SetSessionActiveGraphController(session, controller)` 写入。不要只改 `_activeAssetController`。
+- 切换事件图/函数顺序：snapshot 旧图 -> 设置目标 controller -> `LoadItem(..., snapshotCurrent: false)` -> remember。
+- `GraphListController.Load()` 会 persist；如果 owning session controller 仍是旧图/空，可能把函数图写错或重载默认 entry/return。
+- 保存、退出、编译、运行、函数调用解析前必须 commit/snapshot 所有打开 session。
+- Toolbar 编译是 active-asset scoped；成功后要同步清目标 session 的 compile dirty、黄点、窗口栏、section badge、编译按钮。
 
-## 2026-06-08 ToDo jump and reusable node numbers
+## ToDo / 连线 / 内容浏览器
 
-- Non-reroute nodes now have visible reusable per-graph `NodeNumber`: event `N###`, function `Fun###`. `GraphEditorService` assigns the smallest free number, so deleting a node frees that number for future nodes.
-- `ToDoNodeViewModel` jumps inside the current graph by matching both `TargetNodeTitle` and `TargetNodeNumber`; `TargetNodeId` is only a maintenance reference for editor-side auto-sync when the target title/number changes.
-- `ToDo.ReturnAfterTarget == false` is Goto mode and skips `ToDo.exec_out`; `true` executes the target chain and then continues from `ToDo.exec_out`.
-- Return-after-target execution stops before re-entering the source ToDo (`stopBeforeNodeId = sourceToDo.Id`) and then continues from source `exec_out`. This legal return path must not be documented or validated as a recursion error.
-- The ToDo inspector has a search box plus result list. Search filters by node title or node number; selecting a result fills both target fields.
-- Runtime/validation must reject empty target, missing target, duplicate target, and direct self-jump. Reused number alone is not enough; title must also match.
+- ToDo 静态目标用 `TargetNodeTitle + TargetNodeNumber` 双键；`TargetNodeId` 只用于编辑器维护引用。选择下拉项后立刻写 VM 并 snapshot。
+- `target_title` / `target_number` 输入 pin 是运行时 override，不能清静态下拉值。
+- Return-after-target 模式目标链自然回到源 ToDo 时停止子链并返回源 `exec_out`，不是递归错误；直接自跳仍非法。
+- 可见线走 `ConnectionPaths`，持久化/runtime 走 `Connections`。可见线命中用 Bezier 采样找 backing connection，不退回端点直线。
+- 组合连接编辑用 `RunBatchedEdit(...)`；批量内只标脏，最外层 flush。
+- 内容浏览器刷新/搜索/定位复用 `ContentBrowserIndex`。资产新增、删除、重命名、移动后重建 index。
+- 函数调用节点双击按 stable `FunctionId` 跳转目标资产/函数图，不按显示名。
 
-## 2026-06-08 ToDo persistence and log copy
+## UI / 主题 / 日志
 
-- Before compile/save/run, apply inspector fields and snapshot open sessions so active and detached assets are refreshed before graph data is read.
-- `InspectorController.ToDoTargetSelected()` must immediately write `TargetNodeTitle`, `TargetNodeNumber`, and `TargetNodeId` to the selected `ToDoNodeViewModel`, refresh description, mark dirty, then snapshot the active graph.
-- `GraphCompileService.EnsureGraphToDoTargets()` repairs old ToDo data that has only `TargetNodeId` by filling title/number from the referenced same-graph node before validation.
-- Connected ToDo `target_title` / `target_number` pins are runtime overrides. They must not clear the persisted static dropdown target.
-- Main log panel is a read-only `RichTextBox`. `Window_PreviewKeyDown` must pass through any `TextBoxBase` focus, and `LogPanelController` owns `Ctrl+A`/`Ctrl+C` command bindings for selecting/copying filtered log text.
-- `Logger.Write(...)` batches UI dispatch for pending entries and flushes them into `Logger.Entries` through `RangeObservableCollection.AddRange(...)` as one collection add event. Main log panel and `LogWindow` append newly added log entries incrementally. Filter changes and reset/clear still rebuild the `FlowDocument`; do not restore per-entry dispatcher calls, per-entry `Entries.Add(...)`, or full `Refresh()` rebuilds.
+- 共享暗色资源在 `App.xaml`；不要在窗口/surface 重复结构色。
+- 节点 header、pin、日志级别、编译按钮、弹窗常用 brush 使用静态冻结 brush。
+- 日志面板是只读 `RichTextBox`；全局快捷键必须对 `TextBoxBase` 放行。日志过滤 RadioButton checked dot 必须可见。
+- XAML 初始化期事件可能早于 controller 创建；事件入口要容忍 null。
 
-## 2026-06-09 UE-style browser/search/navigation work
+## 验证门禁
 
-- Current content browser has recursive fuzzy search installed dynamically by `MainWindow.NavigationFeatures.cs`. Search scope is the current folder plus descendants; root searches all content assets. Tokens match name/display/kind/path by contains or subsequence, case-insensitive.
-- Search results replace `ContentVisibleItems`; double-click keeps normal behavior: folders enter, scripts/function libraries open.
-- Content browser refresh/search uses `ContentBrowserIndex` for `assetById`, `childrenByParent`, `folderChildrenByParent`, paths, and search entries. Rebuild it through `RefreshContentBrowserViews()` after asset add/rename/move/delete; avoid per-item full scans of `ContentBrowserItems` in tree/search hot paths.
-- `Ctrl+B` locate is implemented. With a selected content asset it clears search, enters the asset's real parent folder, selects and scrolls to that asset. Without a selected browser asset, it locates the currently opened asset.
-- Function call nodes double-click navigate by stable `FunctionId`. `OpenCallableGraph(...)` commits inspector edits and snapshots all sessions, finds the owning script/function-library asset, opens it if needed, then loads the target `GraphListItemViewModel`.
-- Content browser base commands live in `MainWindow.ContentBrowserCommands.cs`; enhanced interactions live in `MainWindow.ContentBrowserMultiSelect.cs`: multi-select, box select, Ctrl+C/Ctrl+V asset copy/paste, multi-delete, drag preview, and move/copy drop. Themed variants are installed by `MainWindow.ThemedDialogOverrides.cs`.
+```powershell
+dotnet build .\AutomationStudioWpf.csproj -o .\bin\CodexBuildCheck
+git diff --check -- AutomationStudio
+codegraph.cmd sync
+```
 
-## 2026-06-08 connection batching and runtime lookup
+UI/XAML/启动路径改动追加短启动探测：
 
-- `GraphEditorService.RunBatchedEdit(...)` batches composed graph edits. Inside a batch, `Connections.CollectionChanged` only marks `ConnectionPaths` dirty, and `GraphChanged` is emitted once after the outermost batch exits.
-- Use `GraphEditorService.RemoveConnections(...)` for deleting a selected visual connection path. `PinConnectionController` wraps reroute insertion in one batch: add reroute node, remove old connection, create two new connections.
-- Runtime lookup uses internal lazy `GraphExecutionIndex` on `GraphExecutionPlan`. Do not change graph JSON or the public `GraphExecutionPlan(nodes, connections)` call shape for lookup optimization.
-- `Tests/CodexSmoke` is local-only and untracked. It may contain helpers for visible-curve hit mapping, pin state refresh, reroute regressions, or batched connection edit counts, but those helpers are not committed gates.
+```powershell
+dotnet run --project .\AutomationStudioWpf.csproj --no-build
+```
 
-## 2026-06-06 reroute connection rendering
-
-- Visual wiring now binds XAML to `GraphEditorService.ConnectionPaths`; persisted/runtime logic still uses `Connections`.
-- Reroute chains are aggregated by `ConnectionPathViewModel` and shaped by `ConnectionSplinePlanner`; linear reroute chains keep the persisted `Connections` chain order so moving route nodes never reorders the drawn path. Ambiguous reroute branch/merge falls back to individual connection paths.
-- Current `ConnectionSplinePlanner` uses one cubic Bezier for single backing connections and distance-scaled spline handles for aggregated reroute chains. Tight/backward layouts currently do not reproduce the old loop issue; do not rewrite line shape without a new concrete repro.
-- `ConnectionChain`, `ConnectionChainFinder`, `ConnectionSettings`, and `SplineTangentCalculator` are present but not wired into the visible XAML path pipeline.
-- Visible wire double-click/Alt-click must map `ConnectionPathViewModel` back to nearest backing `ConnectionViewModel` by visible-curve hit sampling; `IsGraphBlankSource` must treat `ConnectionPathViewModel` as non-blank or selection will swallow wire double-click.
-- Reroute selection uses a UE-style yellow glow/ring in XAML; keep it visible for click and box selection.
-- Optional local reroute repro helpers may use `AUTOMATION_STUDIO_REROUTE_GRAPH_JSON` with a graph file such as `C:/Users/Administrator/Desktop/graph.json`; keep them untracked.
-
-## 2026-06-06 editor command and wire UX foundation
-
-- `GraphCommandService` is snapshot-based Undo/Redo for graph edits. It captures `GraphFileModel` before/after a command and restores through `GraphEditorService.LoadFromModel(...)`.
-- Always capture the active `GraphAssetKind`; function undo must not restore as event graphs. Clear command history when switching content assets or graph/function items.
-- Use `Execute(...)` for direct mutations and `RecordApplied(...)` for continuous interactions that already moved nodes. Node drag records one command at drag end.
-- Visible wire selection lives on `ConnectionPathViewModel.IsSelected`; Delete/Backspace removes all backing connections in the selected visual path as one undoable command, but reroute nodes remain.
-- `NodeDefinition` now has `SearchTags`, `InspectorSchemaKey`, `DefaultValues`, and `ValidationHints`; palette search uses display/category/type key/kind/tags and shows recent node kinds.
-- Node movement snaps to the 20px grid by default; Alt keeps precision movement.
-
-## 2026-06-08 local docs/codegraph audit
-
-- User requested CodeGraph, project skill, TECHNICAL, README, and agentmemory audit/update against current local code. Do not push unless the user explicitly asks in the same task.
-- Track `.codegraph/.gitignore`; do not commit CodeGraph db/wal/shm/log/cache files.
-- Current project skill lives under `AutomationStudio/Agent/skills/automation-studio-wpf/SKILL.md`; the old `.kimi/skills/automation-studio-wpf/SKILL.md` path is deleted.
-- Before push, run build, `git diff --check`, WPF startup probe, and `codegraph.cmd sync`. Run smoke only locally when the touched area needs it or the user explicitly asks.
-
-## 2026-06-05 graph isolation fix
-
-- Content browser current UX: header has title only; asset creation is only through blank right-click menu with `脚本 / 文件夹 / 函数库`.
-- Content browser context menu uses one shared menu and toggles visibility in `ContentBrowserContextMenu_Opened`: blank area shows create items; asset right-click shows only rename/delete. Do not put eventful `ContextMenu` objects inside `ListBoxItem.Style Setter`; that caused a startup `IStyleConnector` cast crash.
-- Folder tree UX: single-click row enters folder; arrow button only expands/collapses. `HasFolderChildren` counts child folders only. `TreeIndent` controls pixel indentation; `TreeDisplayName` is plain name, no leading spaces.
-- Folder tree arrow uses `ContentFolderToggleIconStyle`. Keep default `Path.Data` in style setter so `DataTrigger` can switch expanded state to the down triangle.
-- Content browser layout: `ContentTreeColumn` default width 180, min 120, max 420; `ContentBrowserTreeSplitter` separates tree and tile grid; tile grid stays in column 2 and wraps with horizontal scrolling disabled.
-- Verification gates now include startup crash probe: build, `git diff --check`, run `dotnet run --project .\AutomationStudioWpf.csproj` only long enough to confirm the window starts, then `codegraph.cmd sync`. Do not wait 20s; early exit, WPF startup exception, or `Unhandled exception` is failure and requires collecting stdout/stderr/stack output first.
-- `Tests/CodexSmoke` is local-only regression smoke. Git must ignore it; do not push smoke folders unless the user explicitly asks to make them tracked.
-
-- Event graph / function share one current canvas per editor session, not one global app-wide canvas. Data stays isolated in separate `GraphListItemViewModel.Graph` models and in each session's own `GraphEditorService`.
-- Critical rule: before loading a graph from another section, first `SnapshotActiveAsset()`, then call `SetSessionActiveGraphController(session, targetController, remember: false)`, then `LoadItem(..., snapshotCurrent: false)`, then call `SetSessionActiveGraphController(session, targetController)`.
-- Do not call `GraphListController.Load()` while the owning session's `EditorSurfaceContext.ActiveAssetController` still points at the old controller. `Load()` persists library; if the session active controller is stale or null, later snapshot/compile can use the wrong graph or reload a default function graph.
-- Graph/function list items now activate on single left click through `ActivateGraphListItem(...)`; double-click remains supported but is not required for navigation.
-- Right-click graph/function items also activates the item before opening the context menu so rename/delete target the correct controller.
-- Bottom panel default: content browser and log split 50/50; bottom row height starts at 360 with min 180.
-- If local smoke is run for event/function switching, it should assert graph models stay event-only/function-only. Do not commit the smoke project.
-- FunctionLibrary entries have `IsPublicToLibrary` (`公开到库`). `CallableGraphResolver` is the single source for palette, compile sync, and runtime lookup. Other scripts can only use public library functions; old private-library calls fail compile and keep dirty.
-- Compile issue paths must be full content-browser paths: `content/父文件夹/.../资产/图`. This includes function library graphs under nested folders.
-- Custom events are event-graph local: `CustomEventNodeViewModel` + `CustomEventCallNodeViewModel`, bound by `CustomEventId`. Palette lists calls under `本脚本事件` only while editing an event graph. Runtime executes target event chain then returns to caller `exec_out`; recursion key is `custom_event:{id}`.
-- Pin wiring UX: dragging from either input or output pin to blank canvas opens the node palette. The next created node auto-connects its first compatible opposite pin. `TryGetPinAtPosition` also has an expanded near-hit radius for easier pin drops.
-- Parameter defaults: `GraphParameterDefinition.DefaultValue` persists through file/runtime models. Function/custom event entry defaults are used when call inputs are unconnected; function return defaults are used when return inputs are unconnected.
-
-## 2026-06-04 recovery state
-
-- Content browser source of truth is `ContentBrowserItems`; left folder tree binds `ContentFolderItems`; right tile grid binds `ContentVisibleItems`. Folder/tree and search projection refreshes use `RangeObservableCollection.ReplaceAll(...)` so large folders do not emit one collection-change event per asset.
-- Folder tree uses `HasFolderChildren` for `>` so empty folders do not show an expander. Current-folder filtering uses `_currentContentFolderId`.
-- Folder commands use `_contentFolderSelectionActive`; do not let folder `Delete` / `F2` / context menu fall back to stale selected asset tiles.
-- Graph sidebar has two independent controllers: event graphs and functions. Empty sections collapse; add expands; delete-last clears canvas through `GraphEditorService.ClearGraph()`.
-- Section collapsed state is runtime-only per content asset. `*SectionHasState` distinguishes explicit collapsed state from default auto-expand.
-- New graph/function list items start `IsCompileDirty = true`. `MarkLogicDirty()` sets compile dirty; `MarkLayoutDirty()` only sets save dirty.
-- Compile sync updates function call nodes, clears graph compile dirty, and only marks assets changed by call-reference sync as save dirty.
-- Save may prompt compile for any dirty graph. Run auto-compiles any compile-dirty graph via `CompileAllAssets(...)`; it continues only if compile succeeds and UI dirty badges are cleared.
-- Shared dark context menu/dropdown styles and editor surface structure brushes live in `App.xaml`; content browser/tree, graph lists, and editor surfaces should reuse those resources instead of duplicating hex colors.
-- Isolated tests can set `AUTOMATION_STUDIO_LIBRARY_DIR`; default library path remains `%APPDATA%/AutomationStudioWpf`.
-- Verification gates: `dotnet build .\AutomationStudioWpf.csproj -o .\bin\CodexBuildCheck`, `git diff --check`, launch crash probe `dotnet run --project .\AutomationStudioWpf.csproj` without fixed 20s wait, then `codegraph.cmd sync`. Run smoke only locally when needed for the touched area or explicitly requested.
+完整历史和细节看 `TECHNICAL.md`；执行规则看项目 skill。

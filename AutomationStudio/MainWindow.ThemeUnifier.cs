@@ -289,7 +289,7 @@ public partial class MainWindow
             if (current is T typed)
                 return typed;
 
-            current = WpfVisualTreeHelper.GetParent(current);
+            current = GetSafeVisualOrLogicalParent(current);
         }
 
         return null;
@@ -303,7 +303,7 @@ public partial class MainWindow
             if (current is WpfBorder border)
                 return border;
 
-            current = WpfVisualTreeHelper.GetParent(current);
+            current = GetSafeVisualOrLogicalParent(current);
         }
 
         return null;
@@ -317,7 +317,7 @@ public partial class MainWindow
             if (current is WpfPanel panel)
                 return panel;
 
-            current = WpfVisualTreeHelper.GetParent(current);
+            current = GetSafeVisualOrLogicalParent(current);
         }
 
         return null;

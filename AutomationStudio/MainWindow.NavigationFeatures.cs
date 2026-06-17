@@ -499,7 +499,7 @@ public partial class MainWindow
             if (current is FrameworkElement { DataContext: T value })
                 return value;
 
-            current = WpfVisualTreeHelper.GetParent(current);
+            current = GetSafeVisualOrLogicalParent(current);
         }
 
         return null;

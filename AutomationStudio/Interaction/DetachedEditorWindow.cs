@@ -11,6 +11,14 @@ namespace AutomationStudioWpf.Interaction;
 
 public sealed class DetachedEditorWindow : Window
 {
+    private static readonly SolidColorBrush WindowBackgroundBrush = FrozenBrush(17, 21, 26);
+    private static readonly SolidColorBrush ToolbarBackgroundBrush = FrozenBrush(32, 36, 43);
+    private static readonly SolidColorBrush ButtonPrimaryForegroundBrush = FrozenBrush(12, 16, 22);
+    private static readonly SolidColorBrush ButtonForegroundBrush = FrozenBrush(232, 237, 245);
+    private static readonly SolidColorBrush ButtonBackgroundBrush = FrozenBrush(36, 43, 53);
+    private static readonly SolidColorBrush ButtonBorderBrush = FrozenBrush(79, 94, 116);
+    private static readonly SolidColorBrush TitleForegroundBrush = FrozenBrush(232, 237, 245);
+
     private readonly EditorSessionViewModel _session;
     private readonly Action<EditorSessionViewModel> _activateRequested;
     private readonly Action<EditorSessionViewModel> _dockRequested;
@@ -44,7 +52,7 @@ public sealed class DetachedEditorWindow : Window
         WindowStartupLocation = WindowStartupLocation.Manual;
         Left = owner.Left + 90;
         Top = owner.Top + 90;
-        Background = new SolidColorBrush(WpfColor.FromRgb(17, 21, 26));
+        Background = WindowBackgroundBrush;
 
         Content = CreateContent();
         PreviewMouseDown += DetachedEditorWindow_PreviewMouseDown;
@@ -97,7 +105,7 @@ public sealed class DetachedEditorWindow : Window
         var bar = new DockPanel
         {
             Height = 34,
-            Background = new SolidColorBrush(WpfColor.FromRgb(32, 36, 43)),
+            Background = ToolbarBackgroundBrush,
             LastChildFill = true,
         };
 
@@ -116,7 +124,7 @@ public sealed class DetachedEditorWindow : Window
         DockPanel.SetDock(activateButton, Dock.Right);
         bar.Children.Add(activateButton);
 
-        _titleText.Foreground = WpfBrushes.White;
+        _titleText.Foreground = TitleForegroundBrush;
         _titleText.FontWeight = FontWeights.SemiBold;
         _titleText.VerticalAlignment = VerticalAlignment.Center;
         _titleText.Margin = new Thickness(10, 0, 0, 0);
@@ -131,6 +139,9 @@ public sealed class DetachedEditorWindow : Window
         Margin = new Thickness(4),
         Padding = new Thickness(8, 2, 8, 2),
         MinWidth = 74,
+        Foreground = ButtonForegroundBrush,
+        Background = ButtonBackgroundBrush,
+        BorderBrush = ButtonBorderBrush,
     };
 
     private void DetachedEditorWindow_Closing(object? sender, CancelEventArgs e)
@@ -145,5 +156,12 @@ public sealed class DetachedEditorWindow : Window
     private void DetachedEditorWindow_PreviewMouseDown(object sender, MouseButtonEventArgs e)
     {
         _previewMouseDownRequested(_session, e);
+    }
+
+    private static SolidColorBrush FrozenBrush(byte r, byte g, byte b)
+    {
+        var brush = new SolidColorBrush(WpfColor.FromRgb(r, g, b));
+        brush.Freeze();
+        return brush;
     }
 }

@@ -769,7 +769,7 @@ public partial class MainWindow
             if (ReferenceEquals(current, root))
                 return true;
 
-            current = WpfVisualTreeHelper.GetParent(current);
+            current = GetSafeVisualOrLogicalParent(current);
         }
 
         return false;

@@ -120,6 +120,59 @@
             </Setter>
         </Style>
 
+        <Style TargetType="RadioButton">
+            <Setter Property="Foreground" Value="{StaticResource ForegroundPrimaryBrush}" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="{StaticResource StatusMutedBrush}" />
+            <Setter Property="Padding" Value="4,0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type RadioButton}">
+                        <Border Background="{TemplateBinding Background}"
+                                Padding="{TemplateBinding Padding}"
+                                SnapsToDevicePixels="True">
+                            <DockPanel LastChildFill="True">
+                                <Grid Width="12"
+                                      Height="12"
+                                      Margin="0,0,5,0"
+                                      VerticalAlignment="Center">
+                                    <Ellipse x:Name="OuterRing"
+                                             Stroke="{TemplateBinding BorderBrush}"
+                                             StrokeThickness="1.2"
+                                             Fill="{StaticResource DropdownBackgroundBrush}" />
+                                    <Ellipse x:Name="CheckedDot"
+                                             Width="6"
+                                             Height="6"
+                                             Fill="{StaticResource ForegroundPrimaryBrush}"
+                                             HorizontalAlignment="Center"
+                                             VerticalAlignment="Center"
+                                             Visibility="Collapsed" />
+                                </Grid>
+                                <ContentPresenter HorizontalAlignment="Left"
+                                                  VerticalAlignment="Center"
+                                                  RecognizesAccessKey="True"
+                                                  TextElement.Foreground="{TemplateBinding Foreground}" />
+                            </DockPanel>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="OuterRing" Property="Stroke" Value="{StaticResource AccentHoverBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="OuterRing" Property="Stroke" Value="{StaticResource ForegroundPrimaryBrush}" />
+                                <Setter TargetName="CheckedDot" Property="Visibility" Value="Visible" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.55" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <Style TargetType="TextBox">
             <Setter Property="Foreground" Value="{StaticResource ForegroundPrimaryBrush}" />
             <Setter Property="Background" Value="{StaticResource InputBackgroundBrush}" />

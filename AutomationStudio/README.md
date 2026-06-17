@@ -19,12 +19,9 @@
 - Content browser folder/tree and search projections batch-refresh `ContentFolderItems` / `ContentVisibleItems` with `RangeObservableCollection.ReplaceAll(...)`, avoiding per-asset UI collection-change storms in large folders.
 - Logger UI updates batch pending entries into `Logger.Entries` with `RangeObservableCollection.AddRange(...)`; the main log panel and log window append new paragraphs incrementally instead of rebuilding the whole log per entry.
 - Double-clicking a `FunctionCallNodeViewModel` opens the owning script/function-library asset and loads the target function graph by stable id.
-- The editor now keeps one `EditorSessionViewModel` per opened asset. Reopening the same asset focuses the existing session instead of replacing it; the main window bar shows only tab sessions, while detached sessions are managed by their own standalone windows.
-- Each editor session now owns a full `EditorSurfaceControl` with its own graph list, canvas, node palette, and inspector UI. Detached windows host their own session surface directly, so main and detached windows can stay visible side by side without moving a shared `EditorGrid` or falling back to read-only previews. Detached activation is lightweight and does not reparent the main host.
-- `EmptyEditorPanel` is only the no-open-asset fallback. When any main-window tab session is visible, the main host stays shown and the empty panel stays hidden.
+- The editor keeps one `EditorSessionViewModel` and one full `EditorSurfaceControl` per opened asset. Detached windows host their own editable surface directly; the main window keeps the last visible tab surface and only shows `EmptyEditorPanel` when no main tab remains.
 - Toolbar compile is active-asset scoped: scripts compile all event/function graphs in that asset, and function libraries compile all functions in that library.
-- Multi-window dirty and compile state is session-scoped: editing or compiling one opened asset updates that session's graph list, window tab, section badges, and compile button without leaking yellow dirty markers to another asset.
-- Graph/function switching is session-scoped through `SetSessionActiveGraphController(...)`, so function-library edits are snapshotted into the owning session before tab switches, callable lookup, compile, run, or save.
+- Multi-window dirty, compile, and graph/controller state is session-scoped through `SetSessionActiveGraphController(...)`, so one asset cannot leak yellow dirty markers or snapshots into another.
 - Reroute nodes use centered anchors and a UE-style yellow selection glow/ring for click and box selection feedback.
 - `GraphCommandService` records graph-edit snapshots for Undo/Redo. Ctrl+Z undoes graph edits; Ctrl+Y or Ctrl+Shift+Z redoes them.
 - Visible wires can be selected, highlighted, deleted with Delete/Backspace, or edited through the wire context menu.
@@ -216,12 +213,7 @@ dotnet build .\AutomationStudioWpf.csproj -o .\bin\CodexBuildCheck
 git diff --check
 dotnet run --project .\AutomationStudioWpf.csproj
 
-# 本地按需 smoke（可选；本机可有，Git 不跟踪）
-dotnet run --project .\Tests\CodexSmoke\AutomationStudioSmoke.csproj --no-restore
-
-# Optional reroute repro smoke（本地-only，仅新 reroute 复现需要）
-$env:AUTOMATION_STUDIO_REROUTE_GRAPH_JSON='C:\Users\Administrator\Desktop\graph.json'
-dotnet run --project .\Tests\CodexSmoke\AutomationStudioSmoke.csproj --no-restore
+# Tests/CodexSmoke 是本地-only，可按需保留，但 Git 不跟踪、不提交
 
 # CodeGraph sync
 & 'C:\Users\Administrator\nodejs\node-v20.18.1-win-x64\codegraph.cmd' sync
@@ -249,7 +241,6 @@ saved/log/Log_2026_05_28_22_11.txt
 ### v1.2.9 (2026-06-12)
 - **Fixed**: Function-library sessions now keep their active function controller in the owning `EditorSurfaceContext`, so switching to another asset no longer drops unsaved function nodes or reloads default entry/return graphs.
 - **Fixed**: Active-asset compile/run checks now resolve the current graph controller from the active editor session, avoiding stale global `_activeAssetController` state in multi-window workflows.
-- **Changed**: `Tests/CodexSmoke` is a local-only regression helper and is ignored by Git; do not commit smoke files.
 - **Changed**: Session dirty/snapshot/compile helpers moved to `MainWindow.EditorSessionState.cs`; ToDo inspector and editor-surface inspector event forwarding now live in small partial files.
 - **Changed**: Dark context menu and dropdown list styles are shared from `App.xaml`, not duplicated per window/surface.
 
@@ -283,7 +274,6 @@ saved/log/Log_2026_05_28_22_11.txt
 - **Improved**: Visible wire hit-testing now samples the rendered Bezier geometry before mapping back to backing connections.
 - **Improved**: Connection add/remove/reroute edits batch `ConnectionPaths` rebuild and `GraphChanged` notifications through `GraphEditorService.RunBatchedEdit(...)`.
 - **Improved**: Runtime execution/input lookup uses an internal lazy `GraphExecutionIndex` without changing graph JSON or `GraphExecutionPlan` construction.
-- **Note**: Local-only smoke helpers may be used to check visible-curve hit mapping, pin connection state refresh, reroute regressions, and batched connection edits, but `Tests/CodexSmoke` is not tracked by Git.
 
 ### v1.2.3 (2026-06-08)
 - **Changed**: Audited CodeGraph, project skill, technical documentation, README, and agent memory against current local code.
@@ -295,7 +285,6 @@ saved/log/Log_2026_05_28_22_11.txt
 - **Improved**: Node move UX with 20px grid snapping, arrow-key nudging, Shift fast nudge, and Alt precision movement.
 - **Added**: `NodeDefinition` metadata for search tags, inspector schema key, default values, and validation hints.
 - **Improved**: Node palette search now matches category/type key/kind/tags and shows recent node kinds.
-- **Note**: Local-only smoke helpers may cover command undo/redo, selected wire deletion, and definition metadata search; do not treat them as committed project gates.
 
 ### v1.2.1 (2026-06-06)
 - **Changed**: Reroute-backed wires aggregate into visible paths; tight/backward layouts currently do not reproduce the old loop issue.

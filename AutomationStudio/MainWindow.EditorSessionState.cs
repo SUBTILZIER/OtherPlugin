@@ -11,6 +11,11 @@ namespace AutomationStudioWpf;
 
 public partial class MainWindow
 {
+    private static readonly SolidColorBrush CompileButtonNormalBackgroundBrush = FrozenBrush(32, 36, 43);
+    private static readonly SolidColorBrush CompileButtonNormalBorderBrush = FrozenBrush(46, 52, 64);
+    private static readonly SolidColorBrush CompileButtonDirtyBackgroundBrush = FrozenBrush(75, 54, 28);
+    private static readonly SolidColorBrush CompileButtonDirtyBorderBrush = FrozenBrush(214, 138, 34);
+
     private void OnGraphChanged()
     {
         _editorService.UpdatePinConnectionStates();
@@ -328,11 +333,7 @@ public partial class MainWindow
         bool dirty = ActiveContentAssetHasCompileDirtyGraphs();
         CompileButtonText.Text = dirty ? "编译*" : "编译";
         CompileDirtyIcon.Visibility = dirty ? Visibility.Visible : Visibility.Collapsed;
-        CompileGraphButton.Background = dirty
-            ? new SolidColorBrush(System.Windows.Media.Color.FromRgb(75, 54, 28))
-            : new SolidColorBrush(System.Windows.Media.Color.FromRgb(32, 36, 43));
-        CompileGraphButton.BorderBrush = dirty
-            ? new SolidColorBrush(System.Windows.Media.Color.FromRgb(214, 138, 34))
-            : new SolidColorBrush(System.Windows.Media.Color.FromRgb(46, 52, 64));
+        CompileGraphButton.Background = dirty ? CompileButtonDirtyBackgroundBrush : CompileButtonNormalBackgroundBrush;
+        CompileGraphButton.BorderBrush = dirty ? CompileButtonDirtyBorderBrush : CompileButtonNormalBorderBrush;
     }
 }

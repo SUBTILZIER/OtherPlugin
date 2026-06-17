@@ -165,6 +165,7 @@ public class GraphEditorService
 - `MainWindow.GraphInputHandlers.cs` 承接画布、节点、pin、节点菜单和快捷键输入；`MainWindow.GraphListHandlers.cs` 承接事件图/函数列表、分组展开和公开到库入口；`MainWindow.EditorSurfaceControllers.cs` 承接 surface controller 初始化、active surface lookup 和 typed surface event dispatch；`MainWindow.EditorSessionWorkflow.cs` 承接资产打开/切换/关闭、session 提交和 callable 解析入口；`MainWindow.AssetCommands.cs` 承接工具栏新建、打开、保存、编译、运行按钮入口；`MainWindow.ContentBrowserCommands.cs` 承接内容浏览器基础命令和目录投影刷新；`MainWindow.InspectorHandlers.cs` 承接属性面板事件转发；`MainWindow.LogAndImportHandlers.cs` 承接日志按钮和拖拽导入入口；`MainWindow.WindowLifecycle.cs` 承接关闭/退出保护；`MainWindow.GraphModelHelpers.cs` 承接 graph/node DTO clone 与入口标题 helper；`MainWindow.VisualTreeHelpers.cs` 承接 WPF visual/focus tree helper。不要把这些 handler 重新堆回 `MainWindow.xaml.cs`。
 - `InspectorController.cs` 只保留属性面板 `LoadNode()` / `ApplyChanges()` 主分发和构造注入；参数行在 `InspectorController.Parameters.cs`，通用小节点在 `InspectorController.CommonNodes.cs`，找图/窗口/程序/键盘辅助在 `InspectorController.SystemNodes.cs`，前置输入锁定和灰态在 `InspectorController.Locks.cs`，ToDo 目标选择在 `InspectorController.ToDo.cs`。
 - `DarkContextMenuStyle`、`DarkDropdownListBoxStyle`、`DarkDropdownListBoxItemStyle` 和 editor surface 常用 brush 是 `App.xaml` 共享资源；不要在 `MainWindow.xaml` 或 `EditorSurfaceControl.xaml` 复制结构色。
+- 节点 header、pin、日志级别、编译按钮和弹窗常用 brush 使用静态冻结 brush 复用；不要在高频 getter / 日志追加 / dirty 刷新里反复 `new SolidColorBrush(...)`。
 - session 关闭只 snapshot 回 `ContentAssetViewModel` 并移除编辑窗口，不删除资产。删除内容浏览器资产时会关闭所有指向该资产的 session，避免悬空编辑窗口。
 - 保存、退出、编译前使用 `CommitInspectorAndSnapshotAllSessions()` / `CommitAllSessionsToAssets()`，保证多窗口编辑内容参与引用同步和校验。
 - 工具栏编译是 active-asset scoped，走 `GraphCompileService.CompileAsset(...)`：脚本会编译该资产内事件图和函数；函数库会编译该库内全部函数。`GraphCompileService.CompileGraph(...)` 仍保留为 current-graph scoped 内部能力，但工具栏不使用它。
@@ -371,6 +372,7 @@ static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int x, int 
 - 主窗口日志显示控件是只读 `RichTextBox`；`LogPanelController.HandleEntriesChanged(...)` 对新增日志增量追加段落，切过滤器/Reset 时才由 `Refresh()` 重建带颜色的 `FlowDocument`。
 - `LogPanelController` 显式绑定 `ApplicationCommands.Copy` 和 `ApplicationCommands.SelectAll`：`Ctrl+C` 复制当前选中文本，`Ctrl+A` 全选当前过滤后的日志文本。
 - `MainWindow.Window_PreviewKeyDown` 对 `TextBoxBase` 焦点直接放行，避免日志 `RichTextBox` 焦点内的 `Ctrl+C` / `Ctrl+A` 被全局节点复制快捷键截获。
+- 日志过滤 `RadioButton` 使用 `App.xaml` 全局暗色模板，`IsChecked=true` 时必须显示中心白点，避免过滤生效但用户看不出当前选项。
 
 ## 关键技术决策
 
@@ -536,32 +538,21 @@ Python 参数规则：
 - 函数返回参数：返回节点对应输入未连接时，调用节点输出使用返回参数默认值。
 - Float/Vector3D/Vector4D/ImageAsset/String 目前仍映射为 `String` pin；默认值按字符串传递，例如 `23.0f`。Boolean 默认值解析为 bool，Vector2D 默认值可写 `x,y`。
 
-#### 验证门禁
-- `Tests/CodexSmoke` 是本地-only 回归辅助，Git 不跟踪、不提交；需要时可在本机保留，但不要把 smoke 当主线门禁或 PR 内容。
-- Smoke 不是完整测试框架。只在明确触碰对应高风险交互，或用户明确要求时本地运行；如果单次执行明显变慢，要优先拆小或删除低价值断言。
-- 默认完成前执行：
-  - `dotnet build .\AutomationStudioWpf.csproj -o .\bin\CodexBuildCheck`
-  - `git diff --check`
-  - `dotnet run --project .\AutomationStudioWpf.csproj` 做短启动探测，能正常拉起窗口即可
-  - `codegraph.cmd sync`
-- 只有改到对应高风险交互、需要锁回归，或用户明确要求时才本地跑 broad smoke / optional reroute repro smoke。
-
-- 启动验证不再固定等待 20 秒；只确认能正常启动。若进程快速退出、输出 `Unhandled exception` 或 WPF 初始化异常，必须收集终端输出/异常栈并先修。
-- 不要自动 `git push`。只有用户明确要求推送时才推；推送前确认不包含测试功能相关文件夹。
-
-### 2026-06-11: CodeGraph / docs / skill refresh
-
-- Current project skill source of truth is `AutomationStudio/Agent/skills/automation-studio-wpf/SKILL.md`. The old `.kimi/skills/automation-studio-wpf/SKILL.md` path is deleted and must not be restored.
-- CodeGraph sync is part of the final gate. Commit only ignore/config policy; database, wal/shm, cache, dirty markers, and logs stay local.
-- README, TECHNICAL, `agentmemory.md`, and project skill must describe the active code path accurately: multi-window sessions are real, each session owns a complete `EditorSurfaceControl`, and detached windows host editable surfaces directly. Do not document inactive detached preview or legacy region moving as active behavior.
-- Do not describe git push as allowed unless the user explicitly requests push in the current task.
-
-### 2026-06-08: CodeGraph / docs / skill refresh
+### 验证 / 文档门禁
 
 - CodeGraph sync is part of the final gate. Commit `.codegraph/.gitignore` so database, wal/shm, cache, and logs stay local.
 - Project skill source of truth in this local project is `AutomationStudio/Agent/skills/automation-studio-wpf/SKILL.md`; the old `.kimi/skills/automation-studio-wpf/SKILL.md` tree is gone.
 - README, TECHNICAL, `agentmemory.md`, and project skill should mention durable graph-editor rules: `ConnectionPaths` for visuals, `Connections` for persistence/runtime, batched connection edits, command-stack boundaries, and wire/reroute UX.
 - Do not describe git push as allowed unless the user explicitly requests push in the current task.
+
+- `Tests/CodexSmoke` 是本地-only 回归辅助，Git 不跟踪、不提交；只在高风险交互或用户明确要求时本地运行。
+- 完成前默认执行：
+  - `dotnet build .\AutomationStudioWpf.csproj -o .\bin\CodexBuildCheck`
+  - `git diff --check`
+  - `dotnet run --project .\AutomationStudioWpf.csproj` 做短启动探测
+  - `codegraph.cmd sync`
+- 启动验证不再固定等待 20 秒；只确认能正常启动。若进程快速退出、输出 `Unhandled exception` 或 WPF 初始化异常，先收集终端输出/异常栈再修。
+- 不要自动 `git push`。只有用户明确要求推送时才推。
 
 #### Batched graph edits and runtime index
 - `GraphEditorService.RunBatchedEdit(...)` defers `ConnectionPaths` rebuild and `GraphChanged` until the outermost batch exits; use it for composed connection mutations.
@@ -598,7 +589,7 @@ Python 参数规则：
   - 切换顺序固定为：`SnapshotActiveAsset()` -> `SetSessionActiveGraphController(session, targetController, remember: false)` -> `targetController.LoadItem(item, snapshotCurrent: false)` -> `SetSessionActiveGraphController(session, targetController)`。
   - 事件图、函数列表项增加 `PreviewMouseLeftButtonDown`，单击即可切换编辑界面。
   - 右键列表项也先激活目标项，再打开菜单，避免重命名/删除走错 controller。
-- **本地验证建议**：如运行本地 smoke，可用事件图、函数来回切换，断言当前画布节点类型正确，并断言各自 `GraphFileModel.Nodes` 不混入其它图类型。`Tests/CodexSmoke` 不提交。
+- **本地验证建议**：可用事件图、函数来回切换，确认当前画布节点类型正确，并确认各自 `GraphFileModel.Nodes` 不混入其它图类型。
 - **教训**：所有跨 controller 画布切换，必须先快照旧画布，再更新 owning session 的 active controller，再加载新图。不能让 `Load()` 在 session active controller 还是旧值/空值时触发持久化。
 
 #### UI 调整：内容浏览器默认尺寸
@@ -699,7 +690,6 @@ Python 参数规则：
   - `NodePaletteController`
   - `LogPanelController`
   - `GraphImportDropController`
-- **当前 partial**：`MainWindow.GraphInputHandlers.cs` 放画布输入；`MainWindow.GraphListHandlers.cs` 放事件图/函数列表；`MainWindow.EditorSurfaceControllers.cs` 放 surface controller 初始化与事件分发；`MainWindow.EditorSessionWorkflow.cs` 放打开/切换/关闭 session 工作流；`MainWindow.AssetCommands.cs` 放工具栏资产命令；`MainWindow.ContentBrowserCommands.cs` 放内容浏览器基础命令和目录刷新；`MainWindow.InspectorHandlers.cs` 放属性面板事件转发；`MainWindow.LogAndImportHandlers.cs` 放日志/拖拽导入入口；`MainWindow.WindowLifecycle.cs` 放关闭流程；`MainWindow.EditorSessionState.cs` 放 session dirty/snapshot/compile 状态；`MainWindow.GraphModelHelpers.cs` 放 graph DTO helper。
 #### 当前识字/OCR 状态
 - 当前软件不包含识字/OCR 节点。
 - 当前软件不依赖 EasyOCR，也不做 EasyOCR 自动安装。
@@ -719,10 +709,6 @@ Python 参数规则：
 - **变更**：顶部工具栏已去掉 `删除所选节点`、`清除待连接引脚`。
 - **保留行为**：`Delete` 仍删除选中节点；`Esc` 仍取消连线或取消执行。
 - **教训**：WPF XAML 的 `Click="..."` 如果残留，编译期会失败；删按钮时一起删 handler。
-
-#### 当前验证状态
-- `dotnet build .\AutomationStudioWpf.csproj`：0 warning / 0 error。
-- CodeGraph 已同步，PowerShell 若拦截 `codegraph.ps1`，使用 `codegraph.cmd sync`。
 
 ### 2026-05-30: 键盘模拟在游戏窗口无效——从 keybd_event 到 SendInput 扫描码
 
@@ -811,11 +797,6 @@ Python 参数规则：
 - **现象**：`NewGraph()` 会创建开始节点，但 `LoadFromModel()` 不会兜底补开始节点
 - **风险**：UI 看起来能编辑，执行时才报“没有开始节点”
 - **修复方向**：加载模型后检查 `StartNodeViewModel` 是否存在；不存在则自动补一个默认开始节点，并同步 `NodeFactory` 序号
-
-#### 当前审计状态
-- `dotnet build AutomationStudioWpf.csproj` 已验证通过：0 warning / 0 error
-- CodeGraph 当前可用；本轮 `codegraph.cmd sync` 已成功。若 PowerShell 策略拦截 `.ps1`，继续优先使用 `codegraph.cmd sync`。
-- `.git/index.lock` 存在；提交前应确认没有 Git/Rider 进程占用，再清理锁文件
 
 ### 2026-05-29: ComboBox disabled text not gray unlike TextBox
 
@@ -1005,7 +986,7 @@ dotnet publish -c Release -r win-x64 \
 - New graph/function list items start with `IsCompileDirty = true`; compile clears graph dirty flags only after signature/call-node sync and validation succeed.
 - Function library rows persist `IsPublicToLibrary`; only public rows appear in node search, compile sync, and runtime lookup from other scripts.
 - `CustomEvent` stores `CustomEventId`; call nodes serialize it separately from `FunctionId`. Do not reuse function ids for events.
-- `GraphLibraryService` defaults to `%APPDATA%/AutomationStudioWpf`, but tooling may set `AUTOMATION_STUDIO_LIBRARY_DIR` for isolated smoke tests.
+- `GraphLibraryService` defaults to `%APPDATA%/AutomationStudioWpf`, but tooling may set `AUTOMATION_STUDIO_LIBRARY_DIR` for isolated local validation.
 - Compile only clears graph compile flags when validation succeeds, and marks only assets changed by call-reference sync as save dirty.
 - `Window_PreviewKeyDown` routes `Delete` / `F2` to focused graph/content list, while text boxes keep normal editing behavior.
 - Content tree commands track `_contentFolderSelectionActive` so folder right-click/`Delete`/`F2` cannot act on a stale tile selection.
