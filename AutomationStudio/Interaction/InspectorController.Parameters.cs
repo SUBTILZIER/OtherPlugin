@@ -171,8 +171,8 @@ public sealed partial class InspectorController
             GraphParameterType.Vector2D => CreateVectorValueEditor(parameter, 2),
             GraphParameterType.Vector3D => CreateVectorValueEditor(parameter, 3),
             GraphParameterType.Vector4D => CreateVectorValueEditor(parameter, 4),
-            GraphParameterType.Float => CreateTextValueEditor(parameter, reload, numeric: true),
-            _ => CreateTextValueEditor(parameter, reload, numeric: false),
+            GraphParameterType.Float => CreateTextValueEditor(parameter, reload, multiline: false, numeric: true),
+            _ => CreateTextValueEditor(parameter, reload, multiline: true, numeric: false),
         };
     }
 
@@ -191,7 +191,11 @@ public sealed partial class InspectorController
         return comboBox;
     }
 
-    private UIElement CreateTextValueEditor(GraphParameterDefinition parameter, Action? reload, bool numeric)
+    private UIElement CreateTextValueEditor(
+        GraphParameterDefinition parameter,
+        Action? reload,
+        bool multiline,
+        bool numeric)
     {
         var textBox = new WpfTextBox
         {
@@ -199,6 +203,7 @@ public sealed partial class InspectorController
             Margin = new Thickness(0, 0, 4, 0),
             ToolTip = numeric ? "数值默认值" : "默认值",
         };
+        ConfigureFreeTextBox(textBox, multiline);
         textBox.TextChanged += (_, _) =>
         {
             if (_isLoading) return;

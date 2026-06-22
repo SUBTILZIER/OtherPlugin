@@ -8,6 +8,7 @@ public partial class MainWindow
 {
     private void Window_Closing(object? sender, CancelEventArgs e)
     {
+        _mousePickController.Stop();
         _executionController.ReleaseAllKeys();
         if (_isClosing) return;
 
@@ -40,5 +41,7 @@ public partial class MainWindow
             session.DetachedWindow?.CloseFromOwner();
             session.DetachedWindow = null;
         }
+
+        _mousePickController.Dispose();
     }
 }

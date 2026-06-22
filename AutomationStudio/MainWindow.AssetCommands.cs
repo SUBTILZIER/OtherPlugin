@@ -44,6 +44,11 @@ public partial class MainWindow
         CompileActiveAsset(showPrompt: false);
     }
 
+    private void MousePick_Click(object sender, RoutedEventArgs e)
+    {
+        _mousePickController.Toggle();
+    }
+
     private async void RunGraph_Click(object sender, RoutedEventArgs e)
     {
         if (!EnsureCompiledBeforeRun())

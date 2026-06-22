@@ -132,6 +132,7 @@ public sealed partial class InspectorController
     private readonly WpfTextBox _commonNumber4Box;
     private readonly WpfCheckBox _commonFlagCheckBox;
     private readonly TextBlock _commonHelpTextBlock;
+    private StackPanel? _commonVariadicDefaultsPanel;
 
     private bool _isLoading;
 
@@ -372,6 +373,8 @@ public sealed partial class InspectorController
             _toDoInspectorPanel,
             _commonInspectorPanel,
         ];
+
+        ConfigureStaticFreeTextEditors();
     }
 
     public void LoadNode(NodeBaseViewModel? node)
@@ -390,7 +393,7 @@ public sealed partial class InspectorController
             }
 
             _nodeTitleTextBox.Text = node.Title;
-            _nodeNumberTextBlock.Text = string.IsNullOrWhiteSpace(node.NodeNumber) ? "未分配" : node.NodeNumber;
+            _nodeNumberTextBlock.Text = NodeNumberLabel(node);
             _hintTextBlock.Text = $"当前选中：{node.Title}";
             HideAllPanels();
 
@@ -700,7 +703,7 @@ public sealed partial class InspectorController
         string filter = _toDoSearchBox.Text.Trim();
         var selectedToDo = _editorService.Nodes.FirstOrDefault(node => node.IsSelected) as ToDoNodeViewModel;
         var options = _editorService.Nodes
-            .Where(node => node.NodeKind != NodeKind.Reroute)
+            .Where(node => NodeTraits.IsToDoTarget(node.NodeKind))
             .Where(node => !ReferenceEquals(node, selectedToDo))
             .Where(node => string.IsNullOrWhiteSpace(filter) ||
                            node.Title.Contains(filter, StringComparison.OrdinalIgnoreCase) ||
@@ -724,7 +727,7 @@ public sealed partial class InspectorController
 
         var matches = _editorService.Nodes
             .Where(node => !ReferenceEquals(node, source))
-            .Where(node => node.NodeKind != NodeKind.Reroute)
+            .Where(node => NodeTraits.IsToDoTarget(node.NodeKind))
             .Where(node => string.Equals(node.Title, title, StringComparison.Ordinal) &&
                            string.Equals(node.NodeNumber, number, StringComparison.OrdinalIgnoreCase))
             .Take(2)
@@ -741,6 +744,16 @@ public sealed partial class InspectorController
         }
 
         return start < nodeNumber.Length && int.TryParse(nodeNumber[start..], out int ordinal) ? ordinal : int.MaxValue;
+    }
+
+    private static string NodeNumberLabel(NodeBaseViewModel node)
+    {
+        if (NodeTraits.ShouldAssignNodeNumber(node.NodeKind))
+            return string.IsNullOrWhiteSpace(node.NodeNumber) ? "未分配" : node.NodeNumber;
+
+        return node.NodeKind == NodeKind.Reroute
+            ? "无编号（路由点）"
+            : "无编号（纯运算节点）";
     }
 
     private void HideAllPanels()

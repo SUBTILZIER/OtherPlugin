@@ -221,13 +221,13 @@ public partial class MainWindow
             {
                 RunWithSurfaceContext(targetSession, () =>
                 {
-                    targetController.ReloadItemWithoutPersist(active);
+                    RunWithoutAutoFitOnGraphLoad(() => targetController.ReloadItemWithoutPersist(active));
                     targetCommandService.Clear();
                 });
             }
             else
             {
-                targetController.ReloadItemWithoutPersist(active);
+                RunWithoutAutoFitOnGraphLoad(() => targetController.ReloadItemWithoutPersist(active));
                 targetCommandService.Clear();
             }
         }
@@ -256,7 +256,7 @@ public partial class MainWindow
 
         if (_activeAssetController?.ActiveItem is { } active)
         {
-            _activeAssetController.ReloadItemWithoutPersist(active);
+            RunWithoutAutoFitOnGraphLoad(() => _activeAssetController.ReloadItemWithoutPersist(active));
             _graphCommandService.Clear();
         }
         PersistAssetLibrary();

@@ -33,6 +33,7 @@ public sealed class NodeFactory
             NodeKind.ForLoop => CreateForLoopNode(),
             NodeKind.WhileLoop => CreateWhileLoopNode(),
             NodeKind.ToDo => CreateToDoNode(),
+            NodeKind.MultiThread => CreateMultiThreadNode(),
             NodeKind.MouseDoubleClick => CreateCommonNode(NodeKind.MouseDoubleClick, "mouse_double_click", "鼠标双击"),
             NodeKind.GetMousePosition => CreateCommonNode(NodeKind.GetMousePosition, "get_mouse_position", "获取鼠标位置"),
             NodeKind.KeyChord => CreateCommonNode(NodeKind.KeyChord, "key_chord", "组合键"),
@@ -101,6 +102,9 @@ public sealed class NodeFactory
 
     public ToDoNodeViewModel CreateToDoNode(double offsetX = 0, double offsetY = 0) =>
         new(CreateNodeId()) { Title = "ToDo跳转", X = 440 + offsetX, Y = 340 + offsetY };
+
+    public MultiThreadNodeViewModel CreateMultiThreadNode(double offsetX = 0, double offsetY = 0) =>
+        new(CreateNodeId()) { X = 520 + offsetX, Y = 360 + offsetY };
 
     public RerouteNodeViewModel CreateRerouteNode(PinKind kind, double x, double y) =>
         new(CreateNodeId(), kind) { Title = string.Empty, X = x, Y = y };

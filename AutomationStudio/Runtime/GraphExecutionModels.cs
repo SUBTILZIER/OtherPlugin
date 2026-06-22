@@ -28,7 +28,7 @@ internal sealed class GraphExecutionIndex
         foreach (var node in nodes)
         {
             _nodesById.TryAdd(node.Id, node);
-            if (!string.IsNullOrWhiteSpace(node.NodeNumber))
+            if (NodeTraits.ShouldAssignNodeNumber(node.NodeKind) && !string.IsNullOrWhiteSpace(node.NodeNumber))
             {
                 _nodesByNumber.TryAdd(node.NodeNumber, node);
                 var key = new NodeTitleNumberKey(node.Title, node.NodeNumber);
@@ -199,6 +199,12 @@ public sealed record GraphRuntimeNode(
 
     public bool Flag { get; init; }
 
+    public int VariadicInputCount { get; init; } = 2;
+
+    public IReadOnlyDictionary<string, string> VariadicInputDefaults { get; init; } = new Dictionary<string, string>();
+
+    public int ThreadOutputCount { get; init; } = 2;
+
     public string? FunctionId { get; init; }
 
     public string? CustomEventId { get; init; }
@@ -290,6 +296,12 @@ public sealed record GraphRuntimeNode(
             ReturnAfterTarget = returnAfterTarget,
         };
 
+    public static GraphRuntimeNode ForMultiThread(string id, string title, int threadOutputCount) =>
+        new(id, title, NodeKind.MultiThread, null, 0, PressReleaseMode.Press, MouseButton.Left, 0, 0, 0, null, ScrollWheelAction.ScrollForward, 120, 100, 1000, 0, false, PinKind.Execution, ProgramStartFailureAction.None, 0, null)
+        {
+            ThreadOutputCount = Math.Max(2, threadOutputCount),
+        };
+
     public static GraphRuntimeNode ForPrintLog(string id, string title, string message) =>
         new(id, title, NodeKind.PrintLog, null, 0, PressReleaseMode.Press, MouseButton.Left,
             0, 0, 0, null, ScrollWheelAction.ScrollForward, 0, 100, 1000,
@@ -324,7 +336,9 @@ public sealed record GraphRuntimeNode(
         double number2,
         double number3,
         double number4,
-        bool flag) =>
+        bool flag,
+        int variadicInputCount = 2,
+        IReadOnlyDictionary<string, string>? variadicInputDefaults = null) =>
         new(id, title, kind, null, 0, PressReleaseMode.Press, MouseButton.Left,
             0, 0, 0, null, ScrollWheelAction.ScrollForward, 120, 100, 1000,
             0, false, PinKind.Execution, ProgramStartFailureAction.None, 0, null)
@@ -337,6 +351,8 @@ public sealed record GraphRuntimeNode(
             Number3 = number3,
             Number4 = number4,
             Flag = flag,
+            VariadicInputCount = Math.Max(2, variadicInputCount),
+            VariadicInputDefaults = variadicInputDefaults?.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal) ?? new Dictionary<string, string>(),
         };
 
     public static GraphRuntimeNode ForAssetNode(

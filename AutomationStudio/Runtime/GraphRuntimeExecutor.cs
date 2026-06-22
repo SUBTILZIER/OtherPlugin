@@ -17,6 +17,7 @@ public sealed class GraphRuntimeExecutor
 
     private readonly RuntimeAdapters _adapters;
     private readonly NodeRegistry _nodeRegistry;
+    private readonly object _globalDeviceGate = new();
 
     public GraphRuntimeExecutor()
         : this(new RuntimeAdapters(), NodeRegistry.CreateDefault())
@@ -44,7 +45,7 @@ public sealed class GraphRuntimeExecutor
             return new GraphExecutionResult(false, "执行失败：图中没有开始节点。", false);
         }
 
-        var context = new RuntimeContext();
+        var context = CreateRuntimeContext();
         var state = new RuntimeExecutionState();
         GraphExecutionResult result = ExecuteChain(plan, startNode.Id, "exec_out", context, baseDirectory, assets, state, ct, out _);
 
@@ -196,21 +197,34 @@ public sealed class GraphRuntimeExecutor
         RuntimeExecutionState state,
         CancellationToken ct)
     {
-        return node.NodeKind switch
+        try
         {
-            NodeKind.Start => NodeExecutionResult.Ok(string.Empty, "exec_out"),
-            NodeKind.Reroute => NodeExecutionResult.Ok(string.Empty, node.RoutedKind == PinKind.Execution ? "out" : null),
-            NodeKind.If => ExecuteIfNode(plan, node, context),
-            NodeKind.ForLoop => ExecuteForLoopNode(plan, node, context, baseDirectory, assets, state, ct),
-            NodeKind.WhileLoop => ExecuteWhileLoopNode(plan, node, context, baseDirectory, assets, state, ct),
-            NodeKind.ToDo => ExecuteToDoNode(plan, node, context),
-            NodeKind.FunctionEntry => NodeExecutionResult.Ok(string.Empty, "exec_out"),
-            NodeKind.FunctionReturn => NodeExecutionResult.Ok(string.Empty, null),
-            NodeKind.FunctionCall => ExecuteFunctionCall(plan, node, context, baseDirectory, assets, state, ct),
-            NodeKind.CustomEvent => NodeExecutionResult.Ok(string.Empty, "exec_out"),
-            NodeKind.CustomEventCall => ExecuteCustomEventCall(plan, node, context, baseDirectory, assets, state, ct),
-            _ => ExecuteRegisteredNode(plan, node, context, baseDirectory, assets, ct),
-        };
+            return node.NodeKind switch
+            {
+                NodeKind.Start => NodeExecutionResult.Ok(string.Empty, "exec_out"),
+                NodeKind.Reroute => NodeExecutionResult.Ok(string.Empty, node.RoutedKind == PinKind.Execution ? "out" : null),
+                NodeKind.If => ExecuteIfNode(plan, node, context),
+                NodeKind.ForLoop => ExecuteForLoopNode(plan, node, context, baseDirectory, assets, state, ct),
+                NodeKind.WhileLoop => ExecuteWhileLoopNode(plan, node, context, baseDirectory, assets, state, ct),
+                NodeKind.ToDo => ExecuteToDoNode(plan, node, context),
+                NodeKind.MultiThread => ExecuteMultiThreadNode(plan, node, context, baseDirectory, assets, state, ct),
+                NodeKind.FunctionEntry => NodeExecutionResult.Ok(string.Empty, "exec_out"),
+                NodeKind.FunctionReturn => NodeExecutionResult.Ok(string.Empty, null),
+                NodeKind.FunctionCall => ExecuteFunctionCall(plan, node, context, baseDirectory, assets, state, ct),
+                NodeKind.CustomEvent => NodeExecutionResult.Ok(string.Empty, "exec_out"),
+                NodeKind.CustomEventCall => ExecuteCustomEventCall(plan, node, context, baseDirectory, assets, state, ct),
+                _ => ExecuteRegisteredNode(plan, node, context, baseDirectory, assets, ct),
+            };
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (PureNodeEvaluationException ex)
+        {
+            Logger.Error(ex.Message);
+            return NodeExecutionResult.Fatal(ex.Message);
+        }
     }
 
     private static NodeExecutionResult ExecuteToDoNode(GraphExecutionPlan plan, GraphRuntimeNode node, RuntimeContext context)
@@ -232,7 +246,7 @@ public sealed class GraphRuntimeExecutor
 
         var matches = plan.Index
             .FindNodesByTitleAndNumber(targetTitle, targetNumber)
-            .Where(candidate => candidate.NodeKind != NodeKind.Reroute)
+            .Where(candidate => NodeTraits.IsToDoTarget(candidate.NodeKind))
             .ToList();
         if (matches.Count == 0)
             return NodeExecutionResult.Fatal($"ToDo 跳转失败：找不到目标 {targetTitle} {targetNumber}。");
@@ -245,6 +259,105 @@ public sealed class GraphRuntimeExecutor
             ? $"ToDo 跳转：{node.Title} -> {targetTitle} {targetNumber}，完成后返回。"
             : $"ToDo 跳转：{node.Title} -> {targetTitle} {targetNumber}。");
         return NodeExecutionResult.Jump($"ToDo 跳转：{targetTitle} {targetNumber}", matches[0].Id, node.ReturnAfterTarget);
+    }
+
+    private NodeExecutionResult ExecuteMultiThreadNode(
+        GraphExecutionPlan plan,
+        GraphRuntimeNode node,
+        RuntimeContext context,
+        string baseDirectory,
+        RuntimeAssetLibrary assets,
+        RuntimeExecutionState state,
+        CancellationToken ct)
+    {
+        int threadCount = Math.Max(MultiThreadNodeViewModel.MinimumThreadOutputCount, node.ThreadOutputCount);
+        var connectedBranches = Enumerable.Range(1, threadCount)
+            .Select(ordinal => new
+            {
+                Ordinal = ordinal,
+                PinName = MultiThreadNodeViewModel.ThreadOutputPinName(ordinal),
+                Label = MultiThreadNodeViewModel.ThreadOutputPinLabel(ordinal),
+            })
+            .Where(branch => plan.Index.GetExecutionConnection(node.Id, branch.PinName) is not null)
+            .ToList();
+
+        if (connectedBranches.Count == 0)
+        {
+            Logger.Info($"多线程无连接分支：{NodeLogLabel(node)}，直接进入全部完成。");
+            return NodeExecutionResult.Ok("多线程无连接分支。", MultiThreadNodeViewModel.CompletedPinName);
+        }
+
+        Logger.Info($"多线程开始：{NodeLogLabel(node)}，连接分支 {connectedBranches.Count}/{threadCount}。");
+        var tasks = connectedBranches
+            .Select(branch => Task.Run(
+                () => ExecuteMultiThreadBranch(plan, node, branch.PinName, branch.Label, context, baseDirectory, assets, state.CreateBranchState(), ct),
+                ct))
+            .ToArray();
+
+        try
+        {
+            Task.WaitAll(tasks, ct);
+        }
+        catch (AggregateException ex)
+        {
+            Exception inner = ex.Flatten().InnerExceptions.FirstOrDefault(exception => exception is not OperationCanceledException)
+                ?? ex.Flatten().InnerExceptions.FirstOrDefault()
+                ?? ex;
+            if (inner is OperationCanceledException)
+                throw inner;
+
+            string message = $"多线程执行失败：{NodeLogLabel(node)}：{inner.Message}";
+            Logger.Error(message);
+            return NodeExecutionResult.Fatal(message);
+        }
+
+        foreach (var task in tasks)
+        {
+            GraphExecutionResult result = task.Result;
+            if (!result.ContinueExecution)
+            {
+                string message = $"多线程分支失败：{NodeLogLabel(node)}：{result.Message}";
+                Logger.Error(message);
+                return NodeExecutionResult.Fatal(message);
+            }
+        }
+
+        Logger.Info($"多线程全部完成：{NodeLogLabel(node)}。");
+        return NodeExecutionResult.Ok("多线程全部完成。", MultiThreadNodeViewModel.CompletedPinName);
+    }
+
+    private GraphExecutionResult ExecuteMultiThreadBranch(
+        GraphExecutionPlan plan,
+        GraphRuntimeNode node,
+        string pinName,
+        string label,
+        RuntimeContext context,
+        string baseDirectory,
+        RuntimeAssetLibrary assets,
+        RuntimeExecutionState branchState,
+        CancellationToken ct)
+    {
+        Logger.Info($"多线程 {NodeLogLabel(node)} / {label} 开始。");
+        try
+        {
+            GraphExecutionResult result = ExecuteChain(plan, node.Id, pinName, context, baseDirectory, assets, branchState, ct, out _);
+            if (result.ContinueExecution)
+                Logger.Info($"多线程 {NodeLogLabel(node)} / {label} 完成。");
+            else
+                Logger.Error($"多线程 {NodeLogLabel(node)} / {label} 失败：{result.Message}");
+
+            return result;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            string message = $"多线程 {NodeLogLabel(node)} / {label} 异常：{ex.Message}";
+            Logger.Error(message);
+            return new GraphExecutionResult(false, message, false);
+        }
     }
 
     private NodeExecutionResult ExecuteRegisteredNode(
@@ -263,7 +376,17 @@ public sealed class GraphRuntimeExecutor
 
         try
         {
-            return executor.Execute(new NodeExecutionRequest(plan, node, context, baseDirectory, _adapters, ct));
+            var request = new NodeExecutionRequest(plan, node, context, baseDirectory, _adapters, ct);
+            if (RequiresGlobalDeviceLock(node.NodeKind))
+            {
+                lock (_globalDeviceGate)
+                {
+                    ct.ThrowIfCancellationRequested();
+                    return executor.Execute(request);
+                }
+            }
+
+            return executor.Execute(request);
         }
         catch (OperationCanceledException)
         {
@@ -276,6 +399,20 @@ public sealed class GraphRuntimeExecutor
             return NodeExecutionResult.Fatal($"执行失败：{node.Title}：{ex.Message}");
         }
     }
+
+    private static bool RequiresGlobalDeviceLock(NodeKind kind) => kind is
+        NodeKind.MouseClick or
+        NodeKind.MouseMove or
+        NodeKind.MouseDoubleClick or
+        NodeKind.ScrollWheel or
+        NodeKind.Keyboard or
+        NodeKind.KeyChord or
+        NodeKind.StartProgram or
+        NodeKind.SelectWindow or
+        NodeKind.WaitWindow or
+        NodeKind.CloseWindow or
+        NodeKind.WindowExists or
+        NodeKind.GetForegroundWindow;
 
     private static NodeExecutionResult ExecuteIfNode(GraphExecutionPlan plan, GraphRuntimeNode node, RuntimeContext context)
     {
@@ -391,7 +528,7 @@ public sealed class GraphRuntimeExecutor
             if (entry is null || ret is null)
                 return NodeExecutionResult.Fatal($"函数结构无效：{callNode.Title}");
 
-            var childContext = new RuntimeContext();
+            var childContext = CreateRuntimeContext();
             CopyCallInputsToEntry(callerPlan, callNode, callerContext, entry, childContext);
             var result = ExecuteChain(functionPlan, entry.Id, "exec_out", childContext, baseDirectory, assets, state, ct, out _);
             if (!result.ContinueExecution)
@@ -454,6 +591,7 @@ public sealed class GraphRuntimeExecutor
         foreach (var input in callerPlan.Index.GetNonExecutionInputs(callNode.Id))
         {
             connectedPins.Add(input.TargetPinName);
+            callerContext.TryResolveStringInput(callerPlan, callNode, input.TargetPinName, out _, out _);
             if (callerContext.TryGetRaw(input.SourceNodeId, input.SourcePinName, out object value))
                 childContext.Set(entryNode.Id, input.TargetPinName, value);
         }
@@ -473,6 +611,7 @@ public sealed class GraphRuntimeExecutor
         foreach (var input in assetPlan.Index.GetNonExecutionInputs(returnNode.Id))
         {
             connectedPins.Add(input.TargetPinName);
+            childContext.TryResolveStringInput(assetPlan, returnNode, input.TargetPinName, out _, out _);
             if (childContext.TryGetRaw(input.SourceNodeId, input.SourcePinName, out object value))
                 callerContext.Set(callNode.Id, input.TargetPinName, value);
         }
@@ -538,10 +677,183 @@ public sealed class GraphRuntimeExecutor
     private static string MakeToDoReturnJumpKey(GraphExecutionPlan plan, string sourceNodeId, string targetNodeId) =>
         $"{RuntimeHelpers.GetHashCode(plan)}:{sourceNodeId}->{targetNodeId}";
 
+    private static string NodeLogLabel(GraphRuntimeNode node)
+    {
+        return string.IsNullOrWhiteSpace(node.NodeNumber)
+            ? node.Title
+            : $"{node.Title} {node.NodeNumber}";
+    }
+
+    private RuntimeContext CreateRuntimeContext()
+    {
+        return new RuntimeContext
+        {
+            PureNodeResolver = EvaluatePureNode,
+        };
+    }
+
+    private bool EvaluatePureNode(GraphExecutionPlan plan, GraphRuntimeNode node, RuntimeContext context)
+    {
+        return node.NodeKind switch
+        {
+            NodeKind.Compare => EvaluateComparePure(plan, node, context),
+            NodeKind.BooleanAnd => EvaluateBooleanPure(plan, node, context, "and"),
+            NodeKind.BooleanOr => EvaluateBooleanPure(plan, node, context, "or"),
+            NodeKind.BooleanNot => EvaluateBooleanPure(plan, node, context, "not"),
+            NodeKind.StringConcat => EvaluateStringConcatPure(plan, node, context),
+            _ => false,
+        };
+    }
+
+    private static bool EvaluateComparePure(GraphExecutionPlan plan, GraphRuntimeNode node, RuntimeContext context)
+    {
+        string left = context.ResolveStringInput(plan, node, "left", node.Text);
+        string right = context.ResolveStringInput(plan, node, "right", node.Text2);
+        string op = string.IsNullOrWhiteSpace(node.Text3) ? "Equal" : node.Text3;
+        context.Set(node.Id, "result", CompareValues(left, right, op));
+        return true;
+    }
+
+    private static bool EvaluateBooleanPure(GraphExecutionPlan plan, GraphRuntimeNode node, RuntimeContext context, string mode)
+    {
+        bool value = node.Flag;
+        if (context.TryResolveBoolInput(plan, node, "value", out bool inputValue))
+            value = inputValue;
+
+        bool result = mode switch
+        {
+            "and" => ResolveVariadicBoolInputs(plan, node, context, andMode: true),
+            "or" => ResolveVariadicBoolInputs(plan, node, context, andMode: false),
+            "not" => !value,
+            _ => false,
+        };
+        context.Set(node.Id, "result", result);
+        return true;
+    }
+
+    private static bool EvaluateStringConcatPure(GraphExecutionPlan plan, GraphRuntimeNode node, RuntimeContext context)
+    {
+        var values = new List<string>();
+        foreach (var pinName in GetVariadicInputNames(node))
+        {
+            string fallback = GetVariadicStringDefault(node, pinName);
+            if (context.TryResolveStringInput(plan, node, pinName, out string input, out bool hasConnection))
+            {
+                values.Add(input);
+            }
+            else if (hasConnection)
+            {
+                throw new PureNodeEvaluationException($"纯运算节点输入无值：{node.Title}.{pinName}");
+            }
+            else
+            {
+                values.Add(fallback);
+            }
+        }
+
+        context.Set(node.Id, "value", string.Concat(values));
+        return true;
+    }
+
+    private static bool ResolveVariadicBoolInputs(
+        GraphExecutionPlan plan,
+        GraphRuntimeNode node,
+        RuntimeContext context,
+        bool andMode)
+    {
+        bool result = andMode;
+        foreach (var pinName in GetVariadicInputNames(node))
+        {
+            bool fallback = GetVariadicBoolDefault(node, pinName);
+            bool value;
+            if (context.TryResolveBoolInput(plan, node, pinName, out bool input, out bool hasConnection))
+            {
+                value = input;
+            }
+            else if (hasConnection)
+            {
+                throw new PureNodeEvaluationException($"纯运算节点输入无值：{node.Title}.{pinName}");
+            }
+            else
+            {
+                value = fallback;
+            }
+            result = andMode ? result && value : result || value;
+        }
+
+        return result;
+    }
+
+    private static IEnumerable<string> GetVariadicInputNames(GraphRuntimeNode node)
+    {
+        int count = Math.Max(2, node.VariadicInputCount);
+        for (int i = 1; i <= count; i++)
+            yield return CommonNodeViewModel.VariadicInputName(i);
+    }
+
+    private static string GetVariadicStringDefault(GraphRuntimeNode node, string pinName)
+    {
+        if (node.VariadicInputDefaults.TryGetValue(pinName, out string? value))
+            return value;
+
+        return pinName switch
+        {
+            "left" => node.Text ?? string.Empty,
+            "right" => node.Text2 ?? string.Empty,
+            _ => string.Empty,
+        };
+    }
+
+    private static bool GetVariadicBoolDefault(GraphRuntimeNode node, string pinName)
+    {
+        if (node.VariadicInputDefaults.TryGetValue(pinName, out string? value))
+            return bool.TryParse(value, out bool parsedDefault) && parsedDefault;
+
+        return pinName switch
+        {
+            "left" => node.Flag,
+            "right" => bool.TryParse(node.Text, out bool parsed) && parsed,
+            _ => false,
+        };
+    }
+
+    private static bool CompareValues(string left, string right, string op)
+    {
+        if (double.TryParse(left, out double leftNumber) && double.TryParse(right, out double rightNumber))
+        {
+            return op.ToLowerInvariant() switch
+            {
+                "greaterthan" or ">" => leftNumber > rightNumber,
+                "lessthan" or "<" => leftNumber < rightNumber,
+                "greaterorequal" or ">=" => leftNumber >= rightNumber,
+                "lessorequal" or "<=" => leftNumber <= rightNumber,
+                "notequal" or "!=" => Math.Abs(leftNumber - rightNumber) > double.Epsilon,
+                _ => Math.Abs(leftNumber - rightNumber) <= double.Epsilon,
+            };
+        }
+
+        return op.ToLowerInvariant() switch
+        {
+            "contains" => left.Contains(right, StringComparison.OrdinalIgnoreCase),
+            "notequal" or "!=" => !string.Equals(left, right, StringComparison.OrdinalIgnoreCase),
+            _ => string.Equals(left, right, StringComparison.OrdinalIgnoreCase),
+        };
+    }
+
     private sealed class RuntimeExecutionState
     {
         public HashSet<string> CallStack { get; } = new(StringComparer.Ordinal);
 
         public HashSet<string> ActiveToDoReturnJumps { get; } = new(StringComparer.Ordinal);
+
+        public RuntimeExecutionState CreateBranchState()
+        {
+            var state = new RuntimeExecutionState();
+            foreach (string key in CallStack)
+                state.CallStack.Add(key);
+            foreach (string key in ActiveToDoReturnJumps)
+                state.ActiveToDoReturnJumps.Add(key);
+            return state;
+        }
     }
 }

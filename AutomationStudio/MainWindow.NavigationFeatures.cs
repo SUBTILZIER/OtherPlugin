@@ -36,6 +36,7 @@ public partial class MainWindow
     private bool _navigationFeaturesInstalled;
     private bool _autoFitGraphQueued;
     private bool _autoFitRenderingAttached;
+    private bool _suppressAutoFitOnGraphLoad;
     private bool _assetCompileButtonStateQueued;
     private ObservableCollection<GraphListItemViewModel>? _attachedGraphListItems;
     private ObservableCollection<GraphListItemViewModel>? _attachedFunctionListItems;
@@ -70,10 +71,24 @@ public partial class MainWindow
 
     private void NavigationFeatures_GraphChanged()
     {
-        if (_activeAssetController?.IsLoadingGraph == true)
+        if (!_suppressAutoFitOnGraphLoad && _activeAssetController?.IsLoadingGraph == true)
             ScheduleFitActiveGraphToView();
 
         QueueAssetCompileButtonStateUpdate();
+    }
+
+    private void RunWithoutAutoFitOnGraphLoad(Action action)
+    {
+        bool previous = _suppressAutoFitOnGraphLoad;
+        _suppressAutoFitOnGraphLoad = true;
+        try
+        {
+            action();
+        }
+        finally
+        {
+            _suppressAutoFitOnGraphLoad = previous;
+        }
     }
 
     private void GraphCollections_AssetCompileStateChanged(object? sender, NotifyCollectionChangedEventArgs e)
@@ -455,7 +470,6 @@ public partial class MainWindow
         listBox.ScrollIntoView(target.Graph);
         listBox.Focus();
         UpdateGraphSectionVisibility();
-        ScheduleFitActiveGraphToView();
         QueueAssetCompileButtonStateUpdate();
 
         SetStatus($"已跳转到函数：{GetContentAssetPath(target.Asset)}/{target.Graph.Name}");

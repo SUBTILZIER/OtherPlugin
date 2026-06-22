@@ -1,6 +1,6 @@
 # AutomationStudioWpf
 
-## Current Notes (2026-06-11)
+## Current Notes (2026-06-22)
 
 - 2026-06-11: CodeGraph, project skill, technical docs, README, and agent memory were audited against the current local code. CodeGraph generated database/cache/log files remain local and ignored.
 - Visual wires bind to `GraphEditorService.ConnectionPaths`; persisted graph data and runtime execution still use `GraphEditorService.Connections`.
@@ -14,34 +14,36 @@
 - `ToDo` jumps within the current graph by matching both target node title and node number. The inspector has a search box plus result list, and an option to return to `ToDo.exec_out` after the target chain finishes.
 - `ToDo` direct self-jump is invalid. Return-after-target mode executes the target chain with `stopBeforeNodeId` set to the source ToDo, so a target chain that naturally reaches the same ToDo returns to the source `exec_out` instead of looping.
 - ToDo inspector selections are committed into the active `GraphFileModel` before compile/save/run. Static dropdown targets persist as `TargetNodeTitle` / `TargetNodeNumber` / `TargetNodeId`; connected `target_title` / `target_number` pins can still override at runtime.
-- The main log panel is a read-only `RichTextBox`: drag-select text freely, `Ctrl+A` selects the filtered log text, and `Ctrl+C` copies selected text without triggering graph-node copy.
+- The main log panel is a read-only `RichTextBox`: drag-select text freely, `Ctrl+A` selects the filtered log text, and `Ctrl+C` copies selected text without triggering graph-node copy. Multi-line entries keep visual prefix alignment, while copied text stays raw.
 - Current content browser supports folder tree, current-folder tiles, multi-select, box select, drag move/copy, copy/paste, rename/delete, double-click asset open, recursive fuzzy search under the current folder, and `Ctrl+B` locate-to-real-folder.
 - Content browser folder/tree and search projections batch-refresh `ContentFolderItems` / `ContentVisibleItems` with `RangeObservableCollection.ReplaceAll(...)`, avoiding per-asset UI collection-change storms in large folders.
 - Logger UI updates batch pending entries into `Logger.Entries` with `RangeObservableCollection.AddRange(...)`; the main log panel and log window append new paragraphs incrementally instead of rebuilding the whole log per entry.
 - Double-clicking a `FunctionCallNodeViewModel` opens the owning script/function-library asset and loads the target function graph by stable id.
 - The editor keeps one `EditorSessionViewModel` and one full `EditorSurfaceControl` per opened asset. Detached windows host their own editable surface directly; the main window keeps the last visible tab surface and only shows `EmptyEditorPanel` when no main tab remains.
-- Toolbar compile is active-asset scoped: scripts compile all event/function graphs in that asset, and function libraries compile all functions in that library.
+- Toolbar compile is active-asset scoped: scripts compile all event/function graphs in that asset, and function libraries compile all functions in that library. `执行图谱` enters a running state and blocks repeat clicks until finish/fail/cancel restores it.
 - Multi-window dirty, compile, and graph/controller state is session-scoped through `SetSessionActiveGraphController(...)`, so one asset cannot leak yellow dirty markers or snapshots into another.
 - Reroute nodes use centered anchors and a UE-style yellow selection glow/ring for click and box selection feedback.
 - `GraphCommandService` records graph-edit snapshots for Undo/Redo. Ctrl+Z undoes graph edits; Ctrl+Y or Ctrl+Shift+Z redoes them.
 - Visible wires can be selected, highlighted, deleted with Delete/Backspace, or edited through the wire context menu.
 - Node palette search now matches display name, category, type key, `NodeKind`, and generated `NodeDefinition.SearchTags`; recent created node kinds appear first.
 - Node dragging and arrow-key nudging snap to the 20px grid by default; hold Alt for 1px precision movement.
+- `多线程` is an execution node with dynamic `线程N` outputs and a distinct `全部完成` output. Connected branches run in parallel; `全部完成` runs after all branches finish. Mouse/keyboard/window nodes are serialized by a global runtime lock when used inside parallel branches.
 
 UE4 风格的 WPF 蓝图节点编辑器 — 用于桌面自动化脚本编排。
 
 ## 功能
 
 - **节点式编程**: 拖拽节点，连线构建自动化流程
-- **多种节点类型**: 鼠标点击/移动/双击、键盘/组合键、滚轮、延迟、找图(OpenCV)、条件分支、循环、窗口操作、截图、弹窗、找图等待、布尔/字符串逻辑、比较
+- **多种节点类型**: 鼠标点击/移动/双击、键盘/组合键、滚轮、延迟、找图(OpenCV)、条件分支、循环、多线程、窗口操作、截图、弹窗、找图等待、布尔/字符串逻辑、比较
 - **Python 图像识别**: 通过 Python OpenCV `TM_CCOEFF_NORMED` 模板匹配找图
 - **资产系统**: 脚本、函数库 — 支持公开到库、私有函数、自定义事件
 - **内容浏览器**: 文件夹树 + 瓦片视图，支持递归模糊搜索、多选、框选、复制粘贴、拖拽移动/复制到文件夹、`Ctrl+B` 定位
 - **多编辑窗口**: 工具栏下方窗口栏管理主窗口标签页，支持切换、关闭、关闭右侧、关闭所有、拖出为独立窗口；独立窗口不再占用主窗口标签
+- **鼠标拾取**: 顶部工具栏可进入全屏拾取模式，鼠标移动时显示坐标和屏幕颜色，支持复制坐标或颜色；复制后自动退出
 - **多格式兼容**: 支持鼠标左键/右键/侧键、键盘按键、滚轮方向
-- **日志系统**: 内嵌日志面板 + 独立日志窗口，分级过滤(INFO/WARN/ERROR)，增量刷新、自动文件持久化，支持复制
+- **日志系统**: 内嵌日志面板 + 独立日志窗口，分级过滤(INFO/WARN/ERROR)，增量刷新、自动文件持久化，支持复制，多行日志视觉对齐
 - **蓝图编辑器体验**: 框选、组拖动、复制粘贴、对齐、缩放平移、路由节点、边缘自动平移(EdgePan)、快捷键
-- **自动环境检测**: 首次执行前后台检测并缓存 Python 环境结果，提供安装指引
+- **自动环境检测**: 首次执行前后台检测并缓存 Python 环境结果，提供安装指引；找图脚本对 Windows 中文路径做了兼容处理
 - **执行前校验**: 检查节点可达性、参数缺失、连线唯一性、循环/坏图
 - **ToDo 跳转**: 用节点名 + 编号在同图内跳转，可选目标执行完后返回
 
@@ -52,8 +54,9 @@ UE4 风格的 WPF 蓝图节点编辑器 — 用于桌面自动化脚本编排。
 3. 右键画布打开节点菜单添加节点
 4. 拖拽输出引脚到输入引脚连线
 5. 右侧属性面板编辑节点参数
-6. 点击"执行图谱"运行；如有未编译图会先自动编译，失败才停止执行
+6. 点击"执行图谱"运行；如有未编译图会先自动编译，失败才停止执行；运行中按钮会显示执行中并防止重复点击
 7. 按 Esc 停止执行
+8. 点击"鼠标拾取"可查看/复制当前屏幕坐标与颜色；左键弹复制选项，复制后退出，取消继续拾取，右键退出
 
 ## 快捷键
 
@@ -67,7 +70,7 @@ UE4 风格的 WPF 蓝图节点编辑器 — 用于桌面自动化脚本编排。
 | Q | 横向对齐(居中对齐Y) |
 | Shift+Alt+S | 纵向对齐(居中对齐X) |
 | F | 缩放到节点全览 |
-| Esc | 取消连线 / 停止执行 |
+| Esc | 取消连线 / 停止执行 / 退出鼠标拾取 |
 | Alt+点击连线 | 断开连接 |
 | 双击连线 | 生成路由节点 |
 | 右键拖动>3px | 平移画布 |

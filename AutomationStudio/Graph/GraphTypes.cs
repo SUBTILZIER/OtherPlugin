@@ -39,6 +39,7 @@ public enum NodeKind
     FunctionCall,
     CustomEvent,
     CustomEventCall,
+    MultiThread,
 }
 
 public enum GraphAssetKind
@@ -70,6 +71,12 @@ public enum PinKind
     Boolean,
     Vector2D,
     String,
+}
+
+public enum ExecutionPinRole
+{
+    Normal,
+    Completion,
 }
 
 public enum MouseButton

@@ -27,6 +27,7 @@ public abstract class NodeBaseViewModel : ObservableObject
     private static readonly Brush ForLoopHeaderBrush = FrozenBrush(180, 120, 40);
     private static readonly Brush WhileLoopHeaderBrush = FrozenBrush(160, 80, 120);
     private static readonly Brush ToDoHeaderBrush = FrozenBrush(205, 112, 42);
+    private static readonly Brush MultiThreadHeaderBrush = FrozenBrush(38, 132, 150);
     private static readonly Brush StartProgramHeaderBrush = FrozenBrush(45, 130, 180);
     private static readonly Brush PrintLogHeaderBrush = FrozenBrush(60, 170, 100);
     private static readonly Brush SelectWindowHeaderBrush = FrozenBrush(80, 120, 200);
@@ -64,6 +65,18 @@ public abstract class NodeBaseViewModel : ObservableObject
     }
 
     public bool HasNodeNumber => !string.IsNullOrWhiteSpace(NodeNumber);
+
+    public virtual bool CanAddDynamicPin => CanAddVariadicInput;
+
+    public virtual bool CanRemoveDynamicPin => CanRemoveVariadicInput;
+
+    public virtual string AddDynamicPinToolTip => "添加输入";
+
+    public virtual string RemoveDynamicPinToolTip => "删除最后一个输入";
+
+    public virtual bool CanAddVariadicInput => false;
+
+    public virtual bool CanRemoveVariadicInput => false;
 
     public abstract NodeKind NodeKind { get; }
 
@@ -138,6 +151,7 @@ public abstract class NodeBaseViewModel : ObservableObject
         NodeKind.ForLoop => ForLoopHeaderBrush,
         NodeKind.WhileLoop => WhileLoopHeaderBrush,
         NodeKind.ToDo => ToDoHeaderBrush,
+        NodeKind.MultiThread => MultiThreadHeaderBrush,
         NodeKind.StartProgram => StartProgramHeaderBrush,
         NodeKind.PrintLog => PrintLogHeaderBrush,
         NodeKind.SelectWindow => SelectWindowHeaderBrush,
@@ -152,6 +166,16 @@ public abstract class NodeBaseViewModel : ObservableObject
         : DefaultBorderBrush;
 
     public abstract void RefreshDescription();
+
+    public virtual bool AddVariadicInput() => false;
+
+    public virtual bool RemoveLastVariadicInput() => false;
+
+    public virtual bool AddDynamicPin() => AddVariadicInput();
+
+    public virtual string? GetLastDynamicPinName() => null;
+
+    public virtual bool RemoveLastDynamicPin() => RemoveLastVariadicInput();
 
     public virtual Point GetPinAnchor(PinViewModel pin)
     {
@@ -205,6 +229,20 @@ public abstract class NodeBaseViewModel : ObservableObject
         PinViewModel pin = new(this, name, displayName, PinDirection.Output, kind);
         OutputPins.Add(pin);
         return pin;
+    }
+
+    protected PinViewModel AddOutput(string name, string displayName, PinKind kind, ExecutionPinRole executionRole)
+    {
+        PinViewModel pin = new(this, name, displayName, PinDirection.Output, kind, executionRole);
+        OutputPins.Add(pin);
+        return pin;
+    }
+
+    protected void RemoveOutput(string name)
+    {
+        var pin = OutputPins.FirstOrDefault(p => p.Name == name);
+        if (pin is not null)
+            OutputPins.Remove(pin);
     }
 
     private static Brush FrozenBrush(byte r, byte g, byte b)

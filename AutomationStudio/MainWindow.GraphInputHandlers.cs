@@ -9,6 +9,7 @@ using AutomationStudioWpf.Interaction;
 using WpfKeyEventArgs = System.Windows.Input.KeyEventArgs;
 using WpfMouseEventArgs = System.Windows.Input.MouseEventArgs;
 using WpfPoint = System.Windows.Point;
+using WpfButton = System.Windows.Controls.Button;
 using WpfTextBox = System.Windows.Controls.TextBox;
 using WpfTextBoxBase = System.Windows.Controls.Primitives.TextBoxBase;
 
@@ -23,6 +24,9 @@ public partial class MainWindow
 
     private void NodeHeader_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
+        if (FindAncestor<WpfButton>(e.OriginalSource as DependencyObject) is not null)
+            return;
+
         _nodeDragSelectionController.BeginNodeDrag(sender, e, _pinConnectionController.IsConnecting);
     }
 
@@ -34,6 +38,48 @@ public partial class MainWindow
     private void NodeHeader_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
         _nodeDragSelectionController.EndNodeDrag(sender);
+    }
+
+    private void CommonVariadicAddButton_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is not NodeBaseViewModel node ||
+            !node.AddDynamicPin())
+        {
+            return;
+        }
+
+        _editorService.UpdatePinConnectionStates();
+        _editorService.RebindConnectionsToCurrentPins();
+        node.RefreshDescription();
+        LoadNodeToInspector(node);
+        MarkActiveAssetDirty();
+        SetStatus($"已添加动态引脚：{node.Title}");
+        e.Handled = true;
+    }
+
+    private void CommonVariadicRemoveButton_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is not NodeBaseViewModel node ||
+            !node.CanRemoveDynamicPin)
+        {
+            return;
+        }
+
+        string? pinName = node.GetLastDynamicPinName();
+        if (pinName is null)
+            return;
+        if (node.FindPin(pinName) is { } pin)
+            _editorService.ClearConnectionsForPin(pin);
+        if (!node.RemoveLastDynamicPin())
+            return;
+
+        _editorService.UpdatePinConnectionStates();
+        _editorService.RebindConnectionsToCurrentPins();
+        node.RefreshDescription();
+        LoadNodeToInspector(node);
+        MarkActiveAssetDirty();
+        SetStatus($"已删除动态引脚：{node.Title}");
+        e.Handled = true;
     }
 
     private void GraphViewport_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -230,7 +276,9 @@ public partial class MainWindow
     {
         if (e.Key == Key.Escape)
         {
-            if (_executionController.IsRunning)
+            if (_mousePickController.IsActive)
+                _mousePickController.Stop("已退出鼠标拾取。");
+            else if (_executionController.IsRunning)
                 _executionController.Cancel();
             else if (_pinConnectionController.IsConnecting)
                 _pinConnectionController.Cancel("已取消连线。");

@@ -35,6 +35,7 @@ public sealed class GraphValidator
         ValidateConnectionEndpoints(plan, issues);
         ValidateConnectionTypes(plan, issues);
         ValidateConnectionMultiplicity(plan, issues);
+        ValidateMultiThreadNodes(plan, issues);
         ValidateExecutionReachability(plan, issues);
         ValidateToDoTargets(plan, issues);
         ValidateRequiredParameters(plan, issues);
@@ -60,7 +61,7 @@ public sealed class GraphValidator
     private static void ValidateNodeNumbers(GraphExecutionPlan plan, List<GraphValidationIssue> issues)
     {
         foreach (var group in plan.Nodes
-                     .Where(node => node.NodeKind != NodeKind.Reroute && !string.IsNullOrWhiteSpace(node.NodeNumber))
+                     .Where(node => NodeTraits.ShouldAssignNodeNumber(node.NodeKind) && !string.IsNullOrWhiteSpace(node.NodeNumber))
                      .GroupBy(node => node.NodeNumber, StringComparer.OrdinalIgnoreCase)
                      .Where(group => group.Count() > 1))
         {
@@ -116,6 +117,15 @@ public sealed class GraphValidator
             issues.Add(Error($"数据输入引脚存在多条入线：{group.Key.TargetNodeId}.{group.Key.TargetPinName}。"));
     }
 
+    private static void ValidateMultiThreadNodes(GraphExecutionPlan plan, List<GraphValidationIssue> issues)
+    {
+        foreach (var node in plan.Nodes.Where(node => node.NodeKind == NodeKind.MultiThread))
+        {
+            if (node.ThreadOutputCount < MultiThreadNodeViewModel.MinimumThreadOutputCount)
+                issues.Add(Error($"多线程节点输出数量无效：{node.Title}。至少需要 {MultiThreadNodeViewModel.MinimumThreadOutputCount} 个线程输出。"));
+        }
+    }
+
     private static void ValidateExecutionReachability(GraphExecutionPlan plan, List<GraphValidationIssue> issues)
     {
         GraphRuntimeNode? start = plan.Nodes.SingleOrDefault(node => node.NodeKind == NodeKind.Start);
@@ -159,15 +169,7 @@ public sealed class GraphValidator
             }
         }
 
-        foreach (var node in plan.Nodes)
-        {
-            if (reachable.Contains(node.Id))
-                continue;
-            if (node.NodeKind == NodeKind.Reroute && node.RoutedKind != PinKind.Execution)
-                continue;
-
-            issues.Add(Warning($"节点未接入开始执行链：{node.Title}（{node.Id}）。执行图谱时不会运行该节点。"));
-        }
+        // Isolated nodes are valid scratch/backup nodes on the canvas; do not log them as warnings.
     }
 
     private static void ValidateToDoTargets(GraphExecutionPlan plan, List<GraphValidationIssue> issues)
@@ -314,7 +316,7 @@ public sealed class GraphValidator
 
         return plan.Index
             .FindNodesByTitleAndNumber(targetKey.Value.Title, targetKey.Value.NodeNumber)
-            .Where(candidate => candidate.NodeKind != NodeKind.Reroute)
+            .Where(candidate => NodeTraits.IsToDoTarget(candidate.NodeKind))
             .ToList();
     }
 
@@ -328,7 +330,7 @@ public sealed class GraphValidator
 
         if (!string.IsNullOrWhiteSpace(node.TargetNodeId) &&
             plan.Index.GetNode(node.TargetNodeId!) is { } target &&
-            target.NodeKind != NodeKind.Reroute &&
+            NodeTraits.IsToDoTarget(target.NodeKind) &&
             target.Id != node.Id &&
             !string.IsNullOrWhiteSpace(target.Title) &&
             !string.IsNullOrWhiteSpace(target.NodeNumber))

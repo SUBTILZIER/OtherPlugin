@@ -12,14 +12,23 @@ public sealed class PinViewModel : ObservableObject
     private bool _hasConnection;
     private Point _anchorPoint;
 
-    public PinViewModel(NodeBaseViewModel owner, string name, string displayName, PinDirection direction, PinKind kind)
+    public PinViewModel(
+        NodeBaseViewModel owner,
+        string name,
+        string displayName,
+        PinDirection direction,
+        PinKind kind,
+        ExecutionPinRole executionRole = ExecutionPinRole.Normal)
     {
         Owner = owner;
         Name = name;
         DisplayName = displayName;
         Direction = direction;
         Kind = kind;
-        PinBrush = PinBrushes.ForKind(kind);
+        ExecutionRole = executionRole;
+        PinBrush = executionRole == ExecutionPinRole.Completion
+            ? PinBrushes.CompletionExecution
+            : PinBrushes.ForKind(kind);
     }
 
     public NodeBaseViewModel Owner { get; }
@@ -27,6 +36,7 @@ public sealed class PinViewModel : ObservableObject
     public string DisplayName { get; }
     public PinDirection Direction { get; }
     public PinKind Kind { get; }
+    public ExecutionPinRole ExecutionRole { get; }
     public Brush PinBrush { get; }
 
     public bool IsExecution => Kind == PinKind.Execution;

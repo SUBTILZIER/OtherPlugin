@@ -17,6 +17,7 @@ WPF 可视化节点自动化编辑器，类似 UE 蓝图。技术栈：C# 12 / .
 - 只保留脚本 (`Script`) + 函数库 (`FunctionLibrary`)。
 - 宏库已废弃；不要恢复 UI、资产类型、运行时、节点菜单、文档功能说明。
 - 旧 `macro_entry` / `macro_output` / `macro_call` 只允许作为旧文件 skip guard，打开旧文件不崩即可。
+- `GraphValidator` 不再把孤立节点写成 warning；只有真正影响执行的校验问题才进 log。
 - 不改 graph / node / connection JSON schema，除非用户明确要求。
 - 不改 `ConnectionSplinePlanner` 线形，除非有新明确复现。
 
@@ -75,6 +76,7 @@ WPF 可视化节点自动化编辑器，类似 UE 蓝图。技术栈：C# 12 / .
 - 新节点至少更新：`GraphTypes.NodeKind`、ViewModel、`NodeFactory`、`NodeSerializer`、executor、`NodeRegistry.CreateDefaultDefinitions()`。
 - 新 runtime 字段要语义明确；不要复用不相关 DTO 字段。
 - `NodeRegistry.Definitions` 是节点菜单来源；不要在 `MainWindow` 手写节点列表。
+- `多线程` 是结构节点：`MultiThreadNodeViewModel` 保存动态 `线程N` 输出数量，`GraphRuntimeExecutor` 并行执行连接分支，全部完成后走 `exec_completed`；鼠标/键盘/窗口类节点在并行分支中走全局设备锁。
 - 函数库函数默认不可被其它脚本搜索/调用；只有 `IsPublicToLibrary` 勾选后才公开。
 - `CallableGraphResolver` 是 palette、compile sync、runtime lookup 统一来源。
 - 运行时递归用 call stack key 拦截；合法循环由 For/While 自己控制。
@@ -86,7 +88,10 @@ WPF 可视化节点自动化编辑器，类似 UE 蓝图。技术栈：C# 12 / .
 - 日志面板是只读 `RichTextBox`。全局快捷键必须对 `TextBoxBase` 放行，避免 `Ctrl+C` 被节点复制截获。
 - `LogPanelController` / `LogWindow` 追加日志要增量处理；过滤/清空才全量刷新。
 - 日志过滤 `RadioButton` checked dot 必须可见，避免用户不知道当前过滤级别。
+- 日志多行内容在 UI 上做对齐显示，但复制文本保持原样；`ExecutionController` 运行中会禁用执行按钮并改成 `执行中...`，防重复点击。
 - XAML 初始化期事件要容忍 controller/service 为空，尤其 `Checked`、`SelectionChanged`、`TextChanged`、`Loaded`、`LayoutUpdated`。
+- 鼠标拾取是 editor 工具，不是 runtime 节点；只在鼠标坐标变化时采样/更新，浮窗和复制选择窗要 clamp 到当前屏幕工作区内；复制坐标/颜色后退出，取消继续；退出、窗口关闭、异常路径必须 unhook、释放 DC、关 overlay。
+- 找图节点的 Python 桥接用 `np.fromfile(...) + cv2.imdecode(...)` 处理中文路径；不要再回退到 `cv2.imread(...)`。
 
 ## 文件职责
 

@@ -19,6 +19,8 @@ public sealed class ExecutionController
     private readonly Action<string> _setStatus;
 
     private CancellationTokenSource? _executionCts;
+    private object? _runButtonOriginalContent;
+    private object? _runButtonOriginalToolTip;
 
     public ExecutionController(
         Window owner,
@@ -42,14 +44,14 @@ public sealed class ExecutionController
     {
         if (_executionCts is not null)
         {
-            _setStatus("已有图谱正在执行。");
+            _setStatus("脚本正在运行，不能重复执行。");
             return;
         }
 
         try
         {
-            _runButton.IsEnabled = false;
             _executionCts = new CancellationTokenSource();
+            SetRunButtonRunning();
 
             var plan = _editorService.BuildExecutionPlan();
             var assetLibrary = new RuntimeAssetLibrary(
@@ -88,8 +90,26 @@ public sealed class ExecutionController
         {
             ReleaseAllKeys();
             _executionCts = null;
-            _runButton.IsEnabled = true;
+            RestoreRunButton();
         }
+    }
+
+    private void SetRunButtonRunning()
+    {
+        _runButtonOriginalContent = _runButton.Content;
+        _runButtonOriginalToolTip = _runButton.ToolTip;
+        _runButton.Content = "执行中...";
+        _runButton.ToolTip = "脚本正在运行，无法重复执行。按 Esc 可取消。";
+        _runButton.IsEnabled = false;
+    }
+
+    private void RestoreRunButton()
+    {
+        _runButton.Content = _runButtonOriginalContent ?? "执行图谱";
+        _runButton.ToolTip = _runButtonOriginalToolTip;
+        _runButton.IsEnabled = true;
+        _runButtonOriginalContent = null;
+        _runButtonOriginalToolTip = null;
     }
 
     private static GraphExecutionPlan BuildPlanFromModel(GraphFileModel graph)

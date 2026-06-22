@@ -90,16 +90,15 @@ public sealed class FindImageNodeExecutor : INodeExecutor
             TimeSpan.FromSeconds(30),
             request.CancellationToken);
 
-        if (!string.IsNullOrWhiteSpace(result.Stderr))
-            Logger.Warn($"找图 Python stderr: {result.Stderr}");
-        if (!string.IsNullOrWhiteSpace(result.Stdout))
-            Logger.Info($"找图 Python stdout: {result.Stdout}");
-
         if (!result.Success)
         {
             request.Context.Set(node.Id, "result", false);
-            Logger.Error($"找图失败：{result.Message}");
-            return NodeExecutionResult.Fatal($"执行失败：{result.Message}");
+            string detail = ExtractPythonError(result.Stdout);
+            string message = string.IsNullOrWhiteSpace(detail)
+                ? result.Message
+                : detail;
+            Logger.Error($"找图失败：{message}");
+            return NodeExecutionResult.Fatal($"执行失败：{message}");
         }
 
         try
@@ -135,5 +134,23 @@ public sealed class FindImageNodeExecutor : INodeExecutor
             return string.Empty;
 
         return Path.IsPathRooted(path) ? path : Path.GetFullPath(Path.Combine(baseDirectory, path));
+    }
+
+    private static string ExtractPythonError(string stdout)
+    {
+        if (string.IsNullOrWhiteSpace(stdout))
+            return string.Empty;
+
+        try
+        {
+            using JsonDocument doc = JsonDocument.Parse(stdout);
+            return doc.RootElement.TryGetProperty("error", out JsonElement error)
+                ? error.GetString() ?? string.Empty
+                : string.Empty;
+        }
+        catch (JsonException)
+        {
+            return string.Empty;
+        }
     }
 }

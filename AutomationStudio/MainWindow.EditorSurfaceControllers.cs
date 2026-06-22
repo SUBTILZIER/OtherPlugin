@@ -43,6 +43,7 @@ public partial class MainWindow
     private void InitializeControllers()
     {
         RebuildEditorControllers();
+        _mousePickController = new MousePickController(this, SetStatus);
 
         _logPanelController = new LogPanelController(
             LogRichTextBox,
@@ -470,6 +471,8 @@ public partial class MainWindow
             case EditorSurfaceEvent.NodeHeaderPreviewMouseLeftButtonDown: NodeHeader_PreviewMouseLeftButtonDown(sender, (MouseButtonEventArgs)e); break;
             case EditorSurfaceEvent.NodeHeaderPreviewMouseMove: NodeHeader_PreviewMouseMove(sender, (WpfMouseEventArgs)e); break;
             case EditorSurfaceEvent.NodeHeaderPreviewMouseLeftButtonUp: NodeHeader_PreviewMouseLeftButtonUp(sender, (MouseButtonEventArgs)e); break;
+            case EditorSurfaceEvent.CommonVariadicAddButtonClick: CommonVariadicAddButton_Click(sender, (RoutedEventArgs)e); break;
+            case EditorSurfaceEvent.CommonVariadicRemoveButtonClick: CommonVariadicRemoveButton_Click(sender, (RoutedEventArgs)e); break;
             case EditorSurfaceEvent.GraphViewportPreviewMouseLeftButtonDown: GraphViewport_PreviewMouseLeftButtonDown(sender, (MouseButtonEventArgs)e); break;
             case EditorSurfaceEvent.GraphViewportPreviewMouseMove: GraphViewport_PreviewMouseMove(sender, (WpfMouseEventArgs)e); break;
             case EditorSurfaceEvent.GraphViewportPreviewMouseLeftButtonUp: GraphViewport_PreviewMouseLeftButtonUp(sender, (MouseButtonEventArgs)e); break;

@@ -1,7 +1,7 @@
 using System.Collections.Specialized;
 using System.Windows;
 using System.Windows.Documents;
-using System.Windows.Media;
+using AutomationStudioWpf.Interaction;
 using AutomationStudioWpf.Logging;
 
 namespace AutomationStudioWpf;
@@ -50,13 +50,7 @@ public partial class LogWindow : Window
             FontSize = LogRichTextBox.FontSize,
         };
         foreach (var entry in filtered)
-        {
-            document.Blocks.Add(new Paragraph(new Run(entry.DisplayText))
-            {
-                Margin = new Thickness(0),
-                Foreground = LoggingModule.GetLevelBrush(entry.Level),
-            });
-        }
+            document.Blocks.Add(LogEntryDocumentRenderer.CreateBlock(entry, LogRichTextBox));
 
         LogRichTextBox.Document = document;
         if (filtered.Count > 0)
@@ -67,11 +61,7 @@ public partial class LogWindow : Window
     {
         if (LogRichTextBox is null) return;
 
-        LogRichTextBox.Document.Blocks.Add(new Paragraph(new Run(entry.DisplayText))
-        {
-            Margin = new Thickness(0),
-            Foreground = LoggingModule.GetLevelBrush(entry.Level),
-        });
+        LogRichTextBox.Document.Blocks.Add(LogEntryDocumentRenderer.CreateBlock(entry, LogRichTextBox));
     }
 
     private void FilterRadio_Checked(object sender, RoutedEventArgs e)

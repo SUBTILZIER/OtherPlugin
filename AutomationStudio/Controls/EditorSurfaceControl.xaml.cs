@@ -55,6 +55,8 @@ public partial class EditorSurfaceControl : WpfUserControl
     private void NodeHeader_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e) => Forward(EditorSurfaceEvent.NodeHeaderPreviewMouseLeftButtonDown, sender, e);
     private void NodeHeader_PreviewMouseMove(object sender, WpfMouseEventArgs e) => Forward(EditorSurfaceEvent.NodeHeaderPreviewMouseMove, sender, e);
     private void NodeHeader_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e) => Forward(EditorSurfaceEvent.NodeHeaderPreviewMouseLeftButtonUp, sender, e);
+    private void CommonVariadicAddButton_Click(object sender, RoutedEventArgs e) => Forward(EditorSurfaceEvent.CommonVariadicAddButtonClick, sender, e);
+    private void CommonVariadicRemoveButton_Click(object sender, RoutedEventArgs e) => Forward(EditorSurfaceEvent.CommonVariadicRemoveButtonClick, sender, e);
     private void GraphViewport_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e) => Forward(EditorSurfaceEvent.GraphViewportPreviewMouseLeftButtonDown, sender, e);
     private void GraphViewport_PreviewMouseMove(object sender, WpfMouseEventArgs e) => Forward(EditorSurfaceEvent.GraphViewportPreviewMouseMove, sender, e);
     private void GraphViewport_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e) => Forward(EditorSurfaceEvent.GraphViewportPreviewMouseLeftButtonUp, sender, e);

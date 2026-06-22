@@ -188,7 +188,7 @@ public sealed class GraphCompileService
 
         foreach (var node in graph.Nodes)
         {
-            if (IsRerouteNode(node))
+            if (!ShouldAssignNodeNumber(node))
             {
                 if (!string.IsNullOrWhiteSpace(node.NodeNumber))
                 {
@@ -228,13 +228,16 @@ public sealed class GraphCompileService
     private static bool IsRerouteNode(NodeFileModel node) =>
         string.Equals(node.NodeTypeKey, "reroute", StringComparison.OrdinalIgnoreCase);
 
+    private static bool ShouldAssignNodeNumber(NodeFileModel node) =>
+        NodeKindFromTypeKey(node.NodeTypeKey) is { } kind && NodeTraits.ShouldAssignNodeNumber(kind);
+
     private static bool IsToDoNode(NodeFileModel node) =>
         string.Equals(node.NodeTypeKey, "todo", StringComparison.OrdinalIgnoreCase);
 
     private static bool EnsureGraphToDoTargets(GraphFileModel graph)
     {
         var nodesById = graph.Nodes
-            .Where(node => !IsRerouteNode(node))
+            .Where(ShouldAssignNodeNumber)
             .Where(node => !string.IsNullOrWhiteSpace(node.Id))
             .GroupBy(node => node.Id, StringComparer.Ordinal)
             .Where(group => group.Count() == 1)
@@ -395,7 +398,7 @@ public sealed class GraphCompileService
         IEnumerable<NodeBaseViewModel> nodes,
         List<GraphValidationIssue> issues)
     {
-        var numberedNodes = nodes.Where(node => node.NodeKind != NodeKind.Reroute).ToList();
+        var numberedNodes = nodes.Where(node => NodeTraits.ShouldAssignNodeNumber(node.NodeKind)).ToList();
         foreach (var group in numberedNodes
                      .Where(node => !string.IsNullOrWhiteSpace(node.NodeNumber))
                      .GroupBy(node => node.NodeNumber, StringComparer.OrdinalIgnoreCase)
@@ -503,7 +506,7 @@ public sealed class GraphCompileService
         List<GraphValidationIssue> issues)
     {
         var candidates = nodes
-            .Where(node => node.NodeKind != NodeKind.Reroute)
+            .Where(node => NodeTraits.IsToDoTarget(node.NodeKind))
             .ToList();
         foreach (var toDo in candidates.OfType<ToDoNodeViewModel>())
         {
@@ -536,6 +539,48 @@ public sealed class GraphCompileService
 
     private static bool IsInputConnected(IReadOnlyList<ConnectionFileModel> connections, string nodeId, string pinName) =>
         connections.Any(connection => connection.TargetNodeId == nodeId && connection.TargetPinName == pinName);
+
+    private static NodeKind? NodeKindFromTypeKey(string? typeKey) => typeKey switch
+    {
+        "start" => NodeKind.Start,
+        "find_image" => NodeKind.FindImage,
+        "mouse_click" or "mouse_left_click" => NodeKind.MouseClick,
+        "delay" => NodeKind.Delay,
+        "mouse_move" => NodeKind.MouseMove,
+        "keyboard" => NodeKind.Keyboard,
+        "scroll_wheel" => NodeKind.ScrollWheel,
+        "reroute" => NodeKind.Reroute,
+        "if" => NodeKind.If,
+        "for_loop" => NodeKind.ForLoop,
+        "while_loop" => NodeKind.WhileLoop,
+        "todo" => NodeKind.ToDo,
+        "multi_thread" => NodeKind.MultiThread,
+        "start_program" => NodeKind.StartProgram,
+        "print_log" => NodeKind.PrintLog,
+        "select_window" => NodeKind.SelectWindow,
+        "mouse_double_click" => NodeKind.MouseDoubleClick,
+        "get_mouse_position" => NodeKind.GetMousePosition,
+        "key_chord" => NodeKind.KeyChord,
+        "wait_image" => NodeKind.WaitImage,
+        "wait_image_disappear" => NodeKind.WaitImageDisappear,
+        "compare" => NodeKind.Compare,
+        "boolean_and" => NodeKind.BooleanAnd,
+        "boolean_or" => NodeKind.BooleanOr,
+        "boolean_not" => NodeKind.BooleanNot,
+        "string_concat" => NodeKind.StringConcat,
+        "wait_window" => NodeKind.WaitWindow,
+        "close_window" => NodeKind.CloseWindow,
+        "window_exists" => NodeKind.WindowExists,
+        "get_foreground_window" => NodeKind.GetForegroundWindow,
+        "save_screenshot" => NodeKind.SaveScreenshot,
+        "show_message" => NodeKind.ShowMessage,
+        "function_entry" => NodeKind.FunctionEntry,
+        "function_return" => NodeKind.FunctionReturn,
+        "function_call" => NodeKind.FunctionCall,
+        "custom_event" => NodeKind.CustomEvent,
+        "custom_event_call" => NodeKind.CustomEventCall,
+        _ => null,
+    };
 
     private static GraphValidationIssue Error(string graphName, string message) =>
         new(GraphValidationSeverity.Error, $"{graphName}: {message}");

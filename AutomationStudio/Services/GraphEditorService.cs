@@ -492,7 +492,7 @@ public sealed class GraphEditorService
     }
 
     private static bool ShouldAssignNumber(NodeBaseViewModel node) =>
-        node.NodeKind != NodeKind.Reroute;
+        NodeTraits.ShouldAssignNodeNumber(node.NodeKind);
 
     private static string NodeNumberPrefix(GraphAssetKind kind) => kind switch
     {

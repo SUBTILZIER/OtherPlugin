@@ -1,4 +1,5 @@
 using System.Drawing;
+using System.Threading;
 using AutomationStudioWpf.Graph;
 
 namespace AutomationStudioWpf.Runtime;
@@ -9,19 +10,37 @@ namespace AutomationStudioWpf.Runtime;
 /// </summary>
 public sealed class RuntimeContext
 {
+    private readonly object _gate = new();
     private readonly Dictionary<string, object> _values = [];
+    private readonly ThreadLocal<HashSet<string>> _activePureNodes = new(() => new HashSet<string>(StringComparer.Ordinal));
 
-    public void Set(string nodeId, string pinName, object value) => _values[MakeKey(nodeId, pinName)] = value;
+    internal Func<GraphExecutionPlan, GraphRuntimeNode, RuntimeContext, bool>? PureNodeResolver { get; set; }
 
-    public bool TryGetRaw(string nodeId, string pinName, out object value) =>
-        _values.TryGetValue(MakeKey(nodeId, pinName), out value!);
+    public void Set(string nodeId, string pinName, object value)
+    {
+        lock (_gate)
+        {
+            _values[MakeKey(nodeId, pinName)] = value;
+        }
+    }
+
+    public bool TryGetRaw(string nodeId, string pinName, out object value)
+    {
+        lock (_gate)
+        {
+            return _values.TryGetValue(MakeKey(nodeId, pinName), out value!);
+        }
+    }
 
     public bool TryGet<T>(string nodeId, string pinName, out T value)
     {
-        if (_values.TryGetValue(MakeKey(nodeId, pinName), out object? raw) && raw is T typed)
+        lock (_gate)
         {
-            value = typed;
-            return true;
+            if (_values.TryGetValue(MakeKey(nodeId, pinName), out object? raw) && raw is T typed)
+            {
+                value = typed;
+                return true;
+            }
         }
 
         value = default!;
@@ -37,6 +56,7 @@ public sealed class RuntimeContext
     {
         GraphRuntimeConnection? connection = FindInputConnection(plan, node, pinName, PinKind.Vector2D);
         hasConnection = connection is not null;
+        EnsurePureSourceEvaluated(plan, connection);
         if (connection is not null && TryGet(connection.SourceNodeId, connection.SourcePinName, out point))
             return true;
 
@@ -47,6 +67,7 @@ public sealed class RuntimeContext
     public bool TryResolveBoolInput(GraphExecutionPlan plan, GraphRuntimeNode node, string pinName, out bool value)
     {
         GraphRuntimeConnection? connection = FindInputConnection(plan, node, pinName, PinKind.Boolean);
+        EnsurePureSourceEvaluated(plan, connection);
         if (connection is not null && TryGet(connection.SourceNodeId, connection.SourcePinName, out value))
             return true;
 
@@ -58,6 +79,7 @@ public sealed class RuntimeContext
     {
         GraphRuntimeConnection? connection = FindInputConnection(plan, node, pinName, PinKind.Boolean);
         hasConnection = connection is not null;
+        EnsurePureSourceEvaluated(plan, connection);
         if (connection is not null && TryGet(connection.SourceNodeId, connection.SourcePinName, out value))
             return true;
 
@@ -81,7 +103,18 @@ public sealed class RuntimeContext
         GraphRuntimeConnection? connection = plan.Index.GetInputConnection(node.Id, pinName);
 
         hasConnection = connection is not null;
-        if (connection is not null && _values.TryGetValue(MakeKey(connection.SourceNodeId, connection.SourcePinName), out object? raw))
+        EnsurePureSourceEvaluated(plan, connection);
+        object? raw = null;
+        bool hasValue = false;
+        if (connection is not null)
+        {
+            lock (_gate)
+            {
+                hasValue = _values.TryGetValue(MakeKey(connection.SourceNodeId, connection.SourcePinName), out raw);
+            }
+        }
+
+        if (hasValue)
         {
             value = FormatValue(raw);
             return true;
@@ -106,6 +139,29 @@ public sealed class RuntimeContext
         PinKind sourceKind)
     {
         return plan.Index.GetInputConnection(node.Id, pinName, sourceKind);
+    }
+
+    private void EnsurePureSourceEvaluated(GraphExecutionPlan plan, GraphRuntimeConnection? connection)
+    {
+        if (connection is null || TryGetRaw(connection.SourceNodeId, connection.SourcePinName, out _))
+            return;
+        if (PureNodeResolver is null || plan.Index.GetNode(connection.SourceNodeId) is not { } sourceNode)
+            return;
+        if (!NodeTraits.IsPure(sourceNode.NodeKind))
+            return;
+        HashSet<string> activePureNodes = _activePureNodes.Value!;
+        if (!activePureNodes.Add(sourceNode.Id))
+            throw new PureNodeEvaluationException($"纯运算节点存在数据环路：{sourceNode.Title}。");
+
+        try
+        {
+            if (!PureNodeResolver(plan, sourceNode, this))
+                throw new PureNodeEvaluationException($"纯运算节点求值失败：{sourceNode.Title}。");
+        }
+        finally
+        {
+            activePureNodes.Remove(sourceNode.Id);
+        }
     }
 
     private static string MakeKey(string nodeId, string pinName) => $"{nodeId}:{pinName}";

@@ -40,6 +40,10 @@
 - 共享暗色资源在 `App.xaml`；不要在窗口/surface 重复结构色。
 - 节点 header、pin、日志级别、编译按钮、弹窗常用 brush 使用静态冻结 brush。
 - 日志面板是只读 `RichTextBox`；全局快捷键必须对 `TextBoxBase` 放行。日志过滤 RadioButton checked dot 必须可见。
+- 日志多行内容按 UI 视觉做续行对齐，但复制文本保持原样；执行按钮在运行中会变成 `执行中...` 并禁用，避免重复点击。
+- 鼠标拾取是 editor 工具，使用全局 mouse hook；只在坐标变化时采样/更新，浮窗和复制选择窗 clamp 到当前屏幕工作区；复制坐标/颜色后退出，取消继续；退出、窗口关闭、异常路径必须清 hook、DC、overlay。
+- `多线程` 节点有动态 `exec_thread_N` 输出和特殊色 `exec_completed` 输出；运行时并行跑连接分支，全部完成后才走完成输出。鼠标/键盘/窗口类节点在并行分支中必须串行化，避免抢全局设备。
+- 找图 Python 桥接用 `np.fromfile(...) + cv2.imdecode(...)`，不要再用 `cv2.imread(...)` 读中文路径。
 - XAML 初始化期事件可能早于 controller 创建；事件入口要容忍 null。
 
 ## 验证门禁

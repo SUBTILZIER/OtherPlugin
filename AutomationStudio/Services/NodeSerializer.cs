@@ -16,7 +16,7 @@ public static class NodeSerializer
             Id = node.Id,
             NodeTypeKey = node.NodeTypeKey,
             Title = node.Title,
-            NodeNumber = node.NodeNumber,
+            NodeNumber = NodeTraits.ShouldAssignNodeNumber(node.NodeKind) ? node.NodeNumber : string.Empty,
             X = node.X,
             Y = node.Y,
         };
@@ -114,6 +114,14 @@ public static class NodeSerializer
                 file.Number3 = commonNode.Number3;
                 file.Number4 = commonNode.Number4;
                 file.Flag = commonNode.Flag;
+                file.VariadicInputCount = commonNode.CanAddVariadicInput ? commonNode.VariadicInputCount : 0;
+                file.VariadicInputDefaults = commonNode.CanAddVariadicInput
+                    ? commonNode.VariadicInputDefaults.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal)
+                    : null;
+                break;
+
+            case MultiThreadNodeViewModel multiThreadNode:
+                file.ThreadOutputCount = multiThreadNode.ThreadOutputCount;
                 break;
 
             case ParameterNodeBaseViewModel parameterNode:
@@ -263,6 +271,15 @@ public static class NodeSerializer
                 ReturnAfterTarget = file.ReturnAfterTarget,
             },
 
+            "multi_thread" => new MultiThreadNodeViewModel(file.Id)
+            {
+                Title = string.IsNullOrWhiteSpace(file.Title) ? "多线程" : file.Title,
+                NodeNumber = file.NodeNumber,
+                X = file.X,
+                Y = file.Y,
+                ThreadOutputCount = file.ThreadOutputCount > 0 ? file.ThreadOutputCount : MultiThreadNodeViewModel.MinimumThreadOutputCount,
+            },
+
             "delay" => new DelayNodeViewModel(file.Id)
             {
                 Title = file.Title,
@@ -324,7 +341,7 @@ public static class NodeSerializer
 
         if (node is not null)
         {
-            node.NodeNumber = file.NodeNumber;
+            node.NodeNumber = NodeTraits.ShouldAssignNodeNumber(node.NodeKind) ? file.NodeNumber : string.Empty;
             node.RefreshDescription();
         }
 
@@ -398,6 +415,11 @@ public static class NodeSerializer
                 toDoNode.TargetNodeId,
                 toDoNode.ReturnAfterTarget),
 
+            MultiThreadNodeViewModel multiThreadNode => GraphRuntimeNode.ForMultiThread(
+                multiThreadNode.Id,
+                multiThreadNode.Title,
+                multiThreadNode.ThreadOutputCount),
+
             PrintLogNodeViewModel printNode => GraphRuntimeNode.ForPrintLog(printNode.Id, printNode.Title, printNode.Message),
 
             SelectWindowNodeViewModel selectWindowNode => GraphRuntimeNode.ForSelectWindow(
@@ -414,7 +436,9 @@ public static class NodeSerializer
                 commonNode.Number2,
                 commonNode.Number3,
                 commonNode.Number4,
-                commonNode.Flag),
+                commonNode.Flag,
+                commonNode.VariadicInputCount,
+                commonNode.VariadicInputDefaults),
 
             FunctionEntryNodeViewModel functionEntry => GraphRuntimeNode.ForAssetNode(functionEntry.Id, functionEntry.Title, functionEntry.NodeKind, functionEntry.Parameters),
             FunctionReturnNodeViewModel functionReturn => GraphRuntimeNode.ForAssetNode(functionReturn.Id, functionReturn.Title, functionReturn.NodeKind, functionReturn.Parameters),
@@ -425,7 +449,7 @@ public static class NodeSerializer
             _ => throw new InvalidOperationException($"不支持执行的节点类型: {node.GetType().Name}"),
         };
 
-        return runtime with { NodeNumber = node.NodeNumber };
+        return runtime with { NodeNumber = NodeTraits.ShouldAssignNodeNumber(node.NodeKind) ? node.NodeNumber : string.Empty };
     }
 
     private static RerouteNodeViewModel CreateRerouteFromFile(NodeFileModel file)
@@ -459,6 +483,11 @@ public static class NodeSerializer
             Number4 = file.Number4,
             Flag = file.Flag,
         };
+        if (node.CanAddVariadicInput)
+        {
+            node.VariadicInputCount = file.VariadicInputCount > 0 ? file.VariadicInputCount : 2;
+            node.LoadVariadicInputDefaults(file.VariadicInputDefaults);
+        }
         return node;
     }
 

@@ -16,6 +16,8 @@ public sealed class CommonNodeViewModel : NodeBaseViewModel
     private double _number3;
     private double _number4;
     private bool _flag;
+    private int _variadicInputCount = 2;
+    private readonly Dictionary<string, string> _variadicInputDefaults = new(StringComparer.Ordinal);
 
     public CommonNodeViewModel(string id, NodeKind nodeKind, string typeKey, string title)
         : base(id, title)
@@ -29,6 +31,30 @@ public sealed class CommonNodeViewModel : NodeBaseViewModel
     public override NodeKind NodeKind { get; }
 
     public override string NodeTypeKey { get; }
+
+    public override bool CanAddVariadicInput => NodeKind is NodeKind.BooleanAnd or NodeKind.BooleanOr or NodeKind.StringConcat;
+
+    public override bool CanRemoveVariadicInput => CanAddVariadicInput && VariadicInputCount > 2;
+
+    public IReadOnlyDictionary<string, string> VariadicInputDefaults => _variadicInputDefaults;
+
+    public int VariadicInputCount
+    {
+        get => _variadicInputCount;
+        set
+        {
+            int next = Math.Max(2, value);
+            if (SetProperty(ref _variadicInputCount, next))
+            {
+                TrimVariadicDefaults();
+                EnsureVariadicDefaults();
+                SyncVariadicPins();
+                RefreshDescription();
+                OnPropertyChanged(nameof(CanRemoveVariadicInput));
+                OnPropertyChanged(nameof(CanRemoveDynamicPin));
+            }
+        }
+    }
 
     public string Text
     {
@@ -123,10 +149,10 @@ public sealed class CommonNodeViewModel : NodeBaseViewModel
             NodeKind.WaitImage => $"源：{ImageSourceLabel()}\n目标：{InputLabel("image_path", ImageLabel())}\n超时 {TimeoutLabel}",
             NodeKind.WaitImageDisappear => $"源：{ImageSourceLabel()}\n目标：{InputLabel("image_path", ImageLabel())}\n超时 {TimeoutLabel}",
             NodeKind.Compare => $"{InputLabel("left", Text)} {OperatorLabel()} {InputLabel("right", Text2)}",
-            NodeKind.BooleanAnd => $"{InputLabel("left", Flag.ToString())} AND {InputLabel("right", Text)}",
-            NodeKind.BooleanOr => $"{InputLabel("left", Flag.ToString())} OR {InputLabel("right", Text)}",
+            NodeKind.BooleanAnd => BuildVariadicDescription("AND", Flag.ToString(), Text),
+            NodeKind.BooleanOr => BuildVariadicDescription("OR", Flag.ToString(), Text),
             NodeKind.BooleanNot => $"NOT {InputLabel("value", Flag.ToString())}",
-            NodeKind.StringConcat => $"{InputLabel("left", Text)} + {InputLabel("right", Text2)}",
+            NodeKind.StringConcat => BuildVariadicDescription("+", Text, Text2),
             NodeKind.WaitWindow => $"{InputLabel("process_name", Text)} / 超时 {TimeoutLabel}",
             NodeKind.CloseWindow => InputLabel("process_name", Text),
             NodeKind.WindowExists => InputLabel("process_name", Text),
@@ -145,8 +171,11 @@ public sealed class CommonNodeViewModel : NodeBaseViewModel
 
     private void ConfigurePins()
     {
-        AddInput("exec_in", "执行输入", PinKind.Execution);
-        AddOutput("exec_out", "执行输出", PinKind.Execution);
+        if (NodeTraits.HasExecutionPins(NodeKind))
+        {
+            AddInput("exec_in", "执行输入", PinKind.Execution);
+            AddOutput("exec_out", "执行输出", PinKind.Execution);
+        }
 
         switch (NodeKind)
         {
@@ -180,8 +209,7 @@ public sealed class CommonNodeViewModel : NodeBaseViewModel
                 break;
             case NodeKind.BooleanAnd:
             case NodeKind.BooleanOr:
-                AddInput("left", "左值", PinKind.Boolean);
-                AddInput("right", "右值", PinKind.Boolean);
+                SyncVariadicPins();
                 AddOutput("result", "结果", PinKind.Boolean);
                 break;
             case NodeKind.BooleanNot:
@@ -189,8 +217,7 @@ public sealed class CommonNodeViewModel : NodeBaseViewModel
                 AddOutput("result", "结果", PinKind.Boolean);
                 break;
             case NodeKind.StringConcat:
-                AddInput("left", "左文本", PinKind.String);
-                AddInput("right", "右文本", PinKind.String);
+                SyncVariadicPins();
                 AddOutput("value", "结果", PinKind.String);
                 break;
             case NodeKind.WaitWindow:
@@ -214,6 +241,26 @@ public sealed class CommonNodeViewModel : NodeBaseViewModel
                 AddOutput("result", "结果", PinKind.Boolean);
                 break;
         }
+    }
+
+    public override bool AddVariadicInput()
+    {
+        if (!CanAddVariadicInput)
+            return false;
+
+        VariadicInputCount++;
+        return true;
+    }
+
+    public override bool RemoveLastVariadicInput()
+    {
+        if (!CanRemoveVariadicInput)
+            return false;
+
+        string pinName = VariadicInputName(VariadicInputCount);
+        _variadicInputDefaults.Remove(pinName);
+        VariadicInputCount--;
+        return true;
     }
 
     private string ImageLabel() => string.IsNullOrWhiteSpace(Text) ? "未设置图片" : Path.GetFileName(Text);
@@ -253,6 +300,29 @@ public sealed class CommonNodeViewModel : NodeBaseViewModel
         }
     }
 
+    public void SyncVariadicPins()
+    {
+        if (!CanAddVariadicInput)
+            return;
+
+        EnsureVariadicDefaults();
+        PinKind kind = NodeKind is NodeKind.BooleanAnd or NodeKind.BooleanOr
+            ? PinKind.Boolean
+            : PinKind.String;
+        for (int i = InputPins.Count - 1; i >= 0; i--)
+        {
+            if (IsVariadicInputName(InputPins[i].Name))
+                InputPins.RemoveAt(i);
+        }
+
+        for (int i = 1; i <= VariadicInputCount; i++)
+        {
+            AddInput(VariadicInputName(i), VariadicInputLabel(i), kind);
+        }
+
+        OnPropertyChanged(nameof(Height));
+    }
+
     private string ScreenshotLabel()
     {
         string mode = string.IsNullOrWhiteSpace(Text2) ? "Auto" : Text2;
@@ -280,6 +350,143 @@ public sealed class CommonNodeViewModel : NodeBaseViewModel
             ? "前置输入"
             : fallback;
     }
+
+    private string BuildVariadicDescription(string separator, string firstFallback, string secondFallback)
+    {
+        var labels = new List<string>();
+        for (int i = 1; i <= VariadicInputCount; i++)
+        {
+            string pinName = VariadicInputName(i);
+            string fallback = GetVariadicInputDefault(pinName);
+            if (NodeKind == NodeKind.StringConcat && i > 2 && string.IsNullOrWhiteSpace(fallback))
+                fallback = "未设置";
+            labels.Add(InputLabel(pinName, fallback));
+        }
+
+        string joined = string.Join($" {separator} ", labels);
+        return string.IsNullOrWhiteSpace(joined) ? "未设置" : joined;
+    }
+
+    public string GetVariadicInputDefault(string pinName)
+    {
+        EnsureVariadicDefaults();
+        if (_variadicInputDefaults.TryGetValue(pinName, out string? value))
+            return value;
+
+        return GetLegacyVariadicDefault(pinName);
+    }
+
+    public void SetVariadicInputDefault(string pinName, string value)
+    {
+        if (!CanAddVariadicInput || !IsVariadicInputName(pinName))
+            return;
+
+        string normalized = NodeKind is NodeKind.BooleanAnd or NodeKind.BooleanOr
+            ? (bool.TryParse(value, out bool parsed) && parsed ? "True" : "False")
+            : value;
+
+        _variadicInputDefaults[pinName] = normalized;
+        MirrorLegacyVariadicDefault(pinName, normalized);
+        RefreshDescription();
+    }
+
+    public void LoadVariadicInputDefaults(IReadOnlyDictionary<string, string>? defaults)
+    {
+        _variadicInputDefaults.Clear();
+        if (defaults is not null)
+        {
+            foreach (var (key, value) in defaults)
+            {
+                if (IsVariadicInputName(key))
+                    _variadicInputDefaults[key] = value;
+            }
+        }
+
+        EnsureVariadicDefaults();
+        RefreshDescription();
+    }
+
+    private void EnsureVariadicDefaults()
+    {
+        if (!CanAddVariadicInput)
+            return;
+
+        for (int i = 1; i <= VariadicInputCount; i++)
+        {
+            string pinName = VariadicInputName(i);
+            if (!_variadicInputDefaults.ContainsKey(pinName))
+                _variadicInputDefaults[pinName] = GetLegacyVariadicDefault(pinName);
+        }
+    }
+
+    private void TrimVariadicDefaults()
+    {
+        if (!CanAddVariadicInput)
+            return;
+
+        var validNames = Enumerable.Range(1, VariadicInputCount)
+            .Select(VariadicInputName)
+            .ToHashSet(StringComparer.Ordinal);
+        foreach (string key in _variadicInputDefaults.Keys.Where(key => !validNames.Contains(key)).ToList())
+            _variadicInputDefaults.Remove(key);
+    }
+
+    private string GetLegacyVariadicDefault(string pinName)
+    {
+        if (NodeKind is NodeKind.BooleanAnd or NodeKind.BooleanOr)
+        {
+            return pinName switch
+            {
+                "left" => Flag ? "True" : "False",
+                "right" => bool.TryParse(Text, out bool parsed) && parsed ? "True" : "False",
+                _ => "False",
+            };
+        }
+
+        return pinName switch
+        {
+            "left" => Text,
+            "right" => Text2,
+            _ => string.Empty,
+        };
+    }
+
+    private void MirrorLegacyVariadicDefault(string pinName, string value)
+    {
+        if (NodeKind is NodeKind.BooleanAnd or NodeKind.BooleanOr)
+        {
+            bool parsed = bool.TryParse(value, out bool boolValue) && boolValue;
+            if (pinName == "left")
+                Flag = parsed;
+            else if (pinName == "right")
+                Text = parsed ? "True" : "False";
+            return;
+        }
+
+        if (pinName == "left")
+            Text = value;
+        else if (pinName == "right")
+            Text2 = value;
+    }
+
+    public static string VariadicInputName(int ordinal) => ordinal switch
+    {
+        1 => "left",
+        2 => "right",
+        _ => $"value_{ordinal}",
+    };
+
+    public string VariadicInputLabel(int ordinal)
+    {
+        if (NodeKind is NodeKind.BooleanAnd or NodeKind.BooleanOr)
+            return $"布尔{ordinal}";
+
+        return $"文本{ordinal}";
+    }
+
+    private static bool IsVariadicInputName(string name) =>
+        name is "left" or "right" ||
+        (name.StartsWith("value_", StringComparison.Ordinal) && int.TryParse(name[6..], out _));
 
     private string OperatorLabel() => string.IsNullOrWhiteSpace(Text3) ? "Equal" : Text3;
 

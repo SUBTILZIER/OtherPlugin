@@ -23,6 +23,8 @@ internal enum EditorSurfaceEvent
     NodeHeaderPreviewMouseLeftButtonDown,
     NodeHeaderPreviewMouseMove,
     NodeHeaderPreviewMouseLeftButtonUp,
+    CommonVariadicAddButtonClick,
+    CommonVariadicRemoveButtonClick,
     GraphViewportPreviewMouseLeftButtonDown,
     GraphViewportPreviewMouseMove,
     GraphViewportPreviewMouseLeftButtonUp,

@@ -132,6 +132,7 @@
                     </Border>
                 </StackPanel>
             </Button>
+            <Button x:Name="MousePickButton" Content="鼠标拾取" Margin="2" Padding="10,4" Click="MousePick_Click" />
             <Button x:Name="RunGraphButton" Content="执行图谱" Margin="2" Padding="10,4" Click="RunGraph_Click" />
         </ToolBar>
 

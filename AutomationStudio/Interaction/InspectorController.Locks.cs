@@ -77,15 +77,13 @@ public sealed partial class InspectorController
                 break;
             case NodeKind.BooleanAnd:
             case NodeKind.BooleanOr:
-                LockCheckBox(_commonFlagCheckBox, IsInputPinConnected(node, "left"), node.Flag, "左值");
-                LockTextBox(_commonTextBox, IsInputPinConnected(node, "right"), node.Text);
+                RebuildVariadicDefaultRows(node);
                 break;
             case NodeKind.BooleanNot:
                 LockCheckBox(_commonFlagCheckBox, IsInputPinConnected(node, "value"), node.Flag, "输入值");
                 break;
             case NodeKind.StringConcat:
-                LockTextBox(_commonTextBox, IsInputPinConnected(node, "left"), node.Text);
-                LockTextBox(_commonText2Box, IsInputPinConnected(node, "right"), node.Text2);
+                RebuildVariadicDefaultRows(node);
                 break;
             case NodeKind.WaitWindow:
             case NodeKind.CloseWindow:

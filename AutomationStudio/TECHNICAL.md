@@ -38,6 +38,12 @@ Runtime / Nodes / Adapters
     └─ Adapters                  ← 鼠标、键盘、窗口、进程、Python 能力封装
 ```
 
+### 2026-06-22：运行态 / 日志 / 找图补充
+
+- `ExecutionController` 在执行开始时把按钮切到 `执行中...` 并禁用，执行结束、失败、取消或校验失败后统一恢复，避免重复点击触发多次运行。
+- 日志面板和独立日志窗口共用 `LogEntryDocumentRenderer`；UI 视觉上按 `prefix + message` 做多行对齐，但复制文本保持原始内容，不补缩进空格。
+- `FindImageNodeExecutor` 不再把 Python 原始 stderr/stdout 整段刷进日志；`Python/find_image.py` 通过 `np.fromfile(...) + cv2.imdecode(...)` 读取模板/截图，避免 Windows 中文路径失效。
+
 ### 整体架构
 
 ```
@@ -166,6 +172,7 @@ public class GraphEditorService
 - `InspectorController.cs` 只保留属性面板 `LoadNode()` / `ApplyChanges()` 主分发和构造注入；参数行在 `InspectorController.Parameters.cs`，通用小节点在 `InspectorController.CommonNodes.cs`，找图/窗口/程序/键盘辅助在 `InspectorController.SystemNodes.cs`，前置输入锁定和灰态在 `InspectorController.Locks.cs`，ToDo 目标选择在 `InspectorController.ToDo.cs`。
 - `DarkContextMenuStyle`、`DarkDropdownListBoxStyle`、`DarkDropdownListBoxItemStyle` 和 editor surface 常用 brush 是 `App.xaml` 共享资源；不要在 `MainWindow.xaml` 或 `EditorSurfaceControl.xaml` 复制结构色。
 - 节点 header、pin、日志级别、编译按钮和弹窗常用 brush 使用静态冻结 brush 复用；不要在高频 getter / 日志追加 / dirty 刷新里反复 `new SolidColorBrush(...)`。
+- 顶部工具栏的鼠标拾取是编辑器工具，不是运行时节点能力：`MousePickController` 使用 `WH_MOUSE_LL` 全局 mouse hook，`MousePickOverlayWindow` 显示跟随浮窗，`MousePickChoiceWindow` 是非模态复制选择窗，`ScreenPixelSampler` 用 `GetCursorPos` / `GetDC` / `GetPixel` 采样屏幕像素。拾取只在鼠标坐标变化时采样/更新，静止时复用上一帧；浮窗和选择窗必须按当前显示器工作区自适应位置。复制坐标/颜色后退出拾取，取消则继续；拾取结束、窗口关闭或 `Esc` 必须 unhook、释放 DC、关闭 overlay。
 - session 关闭只 snapshot 回 `ContentAssetViewModel` 并移除编辑窗口，不删除资产。删除内容浏览器资产时会关闭所有指向该资产的 session，避免悬空编辑窗口。
 - 保存、退出、编译前使用 `CommitInspectorAndSnapshotAllSessions()` / `CommitAllSessionsToAssets()`，保证多窗口编辑内容参与引用同步和校验。
 - 工具栏编译是 active-asset scoped，走 `GraphCompileService.CompileAsset(...)`：脚本会编译该资产内事件图和函数；函数库会编译该库内全部函数。`GraphCompileService.CompileGraph(...)` 仍保留为 current-graph scoped 内部能力，但工具栏不使用它。
@@ -204,7 +211,7 @@ public class NodeFactory
 统一管理节点定义和执行器注册：
 - `Definitions`：节点菜单分类、显示名、引脚定义、搜索标签和属性面板 schema key。
 - `TryGetExecutor`：Runtime 对普通能力节点按 `NodeKind` 找到对应 `INodeExecutor`。
-- `GraphRuntimeExecutor` 仍直接处理结构节点：`Start`、`Reroute`、`If`、`ForLoop`、`WhileLoop`、函数/自定义事件入口与调用节点。
+- `GraphRuntimeExecutor` 仍直接处理结构节点：`Start`、`Reroute`、`If`、`ForLoop`、`WhileLoop`、`MultiThread`、函数/自定义事件入口与调用节点。
 - 右键节点菜单由 `NodePaletteController` 读取 `NodeRegistry.Definitions` 生成，禁止再在 `MainWindow` 手写菜单列表。
 
 新增节点时至少更新：
@@ -298,6 +305,13 @@ ExecuteChain() → ExecuteNode() → NodeRegistry → INodeExecutor → Adapter
 - `ToDo` 节点通过 `NodeExecutionResult.Jump(...)` 改变执行位置；`ReturnAfterJump` 为 true 时，目标链结束后继续 `ToDo.exec_out`。
 - Return-after-target 的目标链由 `ExecuteReturnJump(...)` 调用 `ExecuteFromNode(..., stopBeforeNodeId: sourceToDo.Id)` 执行。目标链如果自然走回源 ToDo，会在执行源 ToDo 前停下并返回，然后继续源 ToDo 的 `exec_out`；这不是编译错误，也不是递归。
 - 真正的 ToDo 返回递归由 `ActiveToDoReturnJumps` 和 `MaxNestedToDoReturnJumps` 防护；重复的 source-target return jump 或超过 256 层嵌套会 `FatalStop`。
+
+#### 多线程节点
+- `MultiThreadNodeViewModel` 是结构节点，有 `exec_in`、动态 `exec_thread_N` 输出和特殊色 `exec_completed` 输出；`ThreadOutputCount` 保存到 `NodeFileModel` / `GraphRuntimeNode`。
+- `+/-` 按钮走 `NodeBaseViewModel` 通用 dynamic pin API；删除最后一个线程输出前先清掉对应连接，最少保留 2 个线程输出。
+- `GraphRuntimeExecutor.ExecuteMultiThreadNode(...)` 为每个已连接 `exec_thread_N` 启动 branch task；未连接线程输出视为立即完成。任一分支失败则节点 `FatalStop`，全部成功后继续 `exec_completed`。
+- 分支共享 `RuntimeContext` 输出缓存；`RuntimeContext` 写读加锁，纯节点求值栈用 thread-local，避免并行分支互相误报数据环路。
+- 鼠标、键盘、窗口类节点使用 runtime 全局设备锁串行执行；Delay、日志、找图、纯运算等仍可并行。
 
 重要安全规则：
 - 输入 pin 未连接：可以使用节点本地属性。
@@ -473,7 +487,7 @@ public sealed class MyNodeViewModel : NodeBaseViewModel
 
 3. **实现序列化**（NodeSerializer.cs）
 
-4. **实现执行逻辑**：在对应 `Nodes/<分类>/` 下实现 `INodeExecutor`，不要修改 `GraphRuntimeExecutor` 的节点执行 switch
+4. **实现执行逻辑**：普通能力节点在对应 `Nodes/<分类>/` 下实现 `INodeExecutor`；结构控制流节点才改 `GraphRuntimeExecutor`
 
 5. **注册节点**：在 `NodeRegistry.CreateDefault()` 注册 executor，在 `CreateDefaultDefinitions()` 注册显示名、分类、引脚
 
@@ -640,7 +654,8 @@ Python 参数规则：
 - **安全规则**：启用区域但宽高无效时记 `Warn` 并继续，不当成致命错误。
 
 #### 变更 3：GraphValidator 增加执行前警告
-- **新增检查**：开始执行链不可达节点、找图路径空、找图区宽高无效、鼠标坐标缺省、键盘按键空、延迟值无效、启动程序路径空、选中窗口进程名空。
+- **检查范围**：找图路径空、找图区宽高无效、鼠标坐标缺省、键盘按键空、延迟值无效、启动程序路径空、选中窗口进程名空。
+- **不警告孤立节点**：未接入开始执行链的节点允许作为画布临时备用节点存在，不写入 log warning，避免污染运行日志。
 - **分级**：这些都是 `Warning`，用于执行前提示；只有无开始节点、多开始节点、重复 ID、坏连线、非法类型才是 `Error`。
 - **目的**：提前暴露“不会执行/会跳过”的问题，但不阻断可退化流程。
 
@@ -728,7 +743,7 @@ Python 参数规则：
 #### 问题 1：C#→Python 命令行传中文全部损坏
 - **现象**：`find_image.py` 收到中文路径 `'征神之路.png'` 变成乱码 `'寰佺涔嬭矾.png'`
 - **根因**：`ProcessStartInfo.Arguments` 通过 Windows 命令行传参，中文被系统编码破坏
-- **修复**：改用 JSON 临时文件通信
+- **修复**：改用 JSON 临时文件通信；Python 侧读取图片必须用 `np.fromfile(path, dtype=np.uint8)` + `cv2.imdecode(...)`，不要用 `cv2.imread(path)`，否则 Windows 中文路径仍可能读图失败
 - **教训**：**永远不要通过命令行参数传递中文**。C#→Python 通信统一用 JSON 临时文件 + `new UTF8Encoding(false)`（无 BOM）
 
 #### 问题 2：C# 写的 JSON 文件 Python 报 BOM 错误

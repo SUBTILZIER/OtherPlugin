@@ -68,6 +68,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private PinConnectionController _pinConnectionController = null!;
     private LogPanelController _logPanelController = null!;
     private GraphImportDropController _graphImportDropController = null!;
+    private MousePickController _mousePickController = null!;
     private ContentAssetViewModel? _activeContentAsset;
     private string? _currentContentFolderId;
     private Point _contentDragStartPoint;

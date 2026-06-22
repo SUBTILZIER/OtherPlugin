@@ -2,7 +2,6 @@ using System.Collections.Specialized;
 using AutomationStudioWpf.Logging;
 using System.Windows.Documents;
 using System.Windows.Input;
-using System.Windows.Media;
 using WpfRichTextBox = System.Windows.Controls.RichTextBox;
 using WpfRadioButton = System.Windows.Controls.RadioButton;
 
@@ -42,14 +41,7 @@ public sealed class LogPanelController
         };
 
         foreach (var entry in filtered)
-        {
-            var paragraph = new Paragraph(new Run(entry.DisplayText))
-            {
-                Margin = new System.Windows.Thickness(0),
-                Foreground = LoggingModule.GetLevelBrush(entry.Level),
-            };
-            document.Blocks.Add(paragraph);
-        }
+            document.Blocks.Add(LogEntryDocumentRenderer.CreateBlock(entry, _logTextBox));
 
         _logTextBox.Document = document;
         if (filtered.Count > 0)
@@ -121,11 +113,7 @@ public sealed class LogPanelController
 
     private void AppendEntry(LogEntry entry)
     {
-        _logTextBox.Document.Blocks.Add(new Paragraph(new Run(entry.DisplayText))
-        {
-            Margin = new System.Windows.Thickness(0),
-            Foreground = LoggingModule.GetLevelBrush(entry.Level),
-        });
+        _logTextBox.Document.Blocks.Add(LogEntryDocumentRenderer.CreateBlock(entry, _logTextBox));
     }
 
     private static bool MatchesFilter(LogEntry entry) =>

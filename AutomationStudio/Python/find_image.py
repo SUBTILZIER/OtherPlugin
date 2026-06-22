@@ -6,6 +6,14 @@ import cv2
 from PIL import ImageGrab
 
 
+def read_image(path: str):
+    """Read image paths through numpy so Windows Unicode paths work with OpenCV."""
+    data = np.fromfile(path, dtype=np.uint8)
+    if data.size == 0:
+        return None
+    return cv2.imdecode(data, cv2.IMREAD_COLOR)
+
+
 def find_template(screen: np.ndarray, template: np.ndarray, threshold: float, offset_x: int = 0, offset_y: int = 0) -> dict:
     """Run OpenCV template matching and return result."""
     result = cv2.matchTemplate(screen, template, cv2.TM_CCOEFF_NORMED)
@@ -61,13 +69,13 @@ def main():
     threshold = max(0.0, min(1.0, threshold_pct / 100.0))
 
     try:
-        template = cv2.imread(template_path, cv2.IMREAD_COLOR)
+        template = read_image(template_path)
         if template is None:
             print(json.dumps({"found": False, "error": f"Cannot read template: {template_path}"}))
             sys.exit(1)
 
         if str(source_mode).lower() == "manualimage":
-            screen = cv2.imread(source_image_path, cv2.IMREAD_COLOR)
+            screen = read_image(source_image_path)
             if screen is None:
                 print(json.dumps({"found": False, "error": f"Cannot read source image: {source_image_path}"}))
                 sys.exit(1)

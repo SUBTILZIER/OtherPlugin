@@ -70,6 +70,7 @@ public sealed class NodeRegistry
             Definition(NodeKind.ForLoop, "for_loop", "For循环", "核心", [InExec(), InBool("end_condition", "结束条件"), OutExec("exec_loop_body", "循环体"), OutExec("exec_completed", "完成")]),
             Definition(NodeKind.WhileLoop, "while_loop", "While循环", "核心", [InExec(), InBool("condition", "退出条件"), OutExec("exec_loop_body", "循环体"), OutExec("exec_completed", "完成")]),
             Definition(NodeKind.ToDo, "todo", "ToDo跳转", "核心", [InExec(), InString("target_title", "节点名"), InString("target_number", "编号"), OutExec()]),
+            Definition(NodeKind.MultiThread, "multi_thread", "多线程", "核心", [InExec(), OutExec("exec_thread_1", "线程1"), OutExec("exec_thread_2", "线程2"), OutExec("exec_completed", "全部完成")]),
             Definition(NodeKind.Reroute, "reroute", "转接点", "核心", []),
 
             Definition(NodeKind.MouseClick, "mouse_click", "鼠标点击", "输入/鼠标", [InExec(), InVector("position", "点击位置"), OutExec(), OutBool("result", "结果")]),
@@ -92,11 +93,11 @@ public sealed class NodeRegistry
             Definition(NodeKind.WaitImage, "wait_image", "等待图片", "插件/图像识别", [InExec(), InString("source_image_path", "查找源"), InString("image_path", "查找目标"), OutExec(), OutBool("result", "结果"), OutVector("center", "中心点"), OutString("image_path", "查找目标")]),
             Definition(NodeKind.WaitImageDisappear, "wait_image_disappear", "图片消失", "插件/图像识别", [InExec(), InString("source_image_path", "查找源"), InString("image_path", "查找目标"), OutExec(), OutBool("result", "结果")]),
 
-            Definition(NodeKind.Compare, "compare", "比较", "逻辑/判断", [InExec(), InString("left", "左值"), InString("right", "右值"), OutExec(), OutBool("result", "结果")]),
-            Definition(NodeKind.BooleanAnd, "boolean_and", "布尔与", "逻辑/布尔", [InExec(), InBool("left", "左值"), InBool("right", "右值"), OutExec(), OutBool("result", "结果")]),
-            Definition(NodeKind.BooleanOr, "boolean_or", "布尔或", "逻辑/布尔", [InExec(), InBool("left", "左值"), InBool("right", "右值"), OutExec(), OutBool("result", "结果")]),
-            Definition(NodeKind.BooleanNot, "boolean_not", "布尔非", "逻辑/布尔", [InExec(), InBool("value", "输入"), OutExec(), OutBool("result", "结果")]),
-            Definition(NodeKind.StringConcat, "string_concat", "字符串拼接", "逻辑/字符串", [InExec(), InString("left", "左文本"), InString("right", "右文本"), OutExec(), OutString("value", "结果")]),
+            Definition(NodeKind.Compare, "compare", "比较", "逻辑/判断", [InString("left", "左值"), InString("right", "右值"), OutBool("result", "结果")]),
+            Definition(NodeKind.BooleanAnd, "boolean_and", "布尔与", "逻辑/布尔", [InBool("left", "布尔1"), InBool("right", "布尔2"), OutBool("result", "结果")]),
+            Definition(NodeKind.BooleanOr, "boolean_or", "布尔或", "逻辑/布尔", [InBool("left", "布尔1"), InBool("right", "布尔2"), OutBool("result", "结果")]),
+            Definition(NodeKind.BooleanNot, "boolean_not", "布尔非", "逻辑/布尔", [InBool("value", "输入"), OutBool("result", "结果")]),
+            Definition(NodeKind.StringConcat, "string_concat", "字符串拼接", "逻辑/字符串", [InString("left", "文本1"), InString("right", "文本2"), OutString("value", "结果")]),
 
             Definition(NodeKind.PrintLog, "print_log", "打印log", "调试", [InExec(), InString("message", "消息"), OutExec()]),
             Definition(NodeKind.SaveScreenshot, "save_screenshot", "截图", "插件/图像识别", [InExec(), InString("path", "保存路径"), OutExec(), OutString("image_path", "图像路径")]),

@@ -123,6 +123,13 @@ public sealed class NodeFileModel
 
     public bool Flag { get; set; }
 
+    public int VariadicInputCount { get; set; }
+
+    public Dictionary<string, string>? VariadicInputDefaults { get; set; }
+
+    // MultiThread node dynamic execution outputs.
+    public int ThreadOutputCount { get; set; }
+
     // Function and custom event nodes.
     public string? FunctionId { get; set; }
 
