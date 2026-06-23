@@ -14,7 +14,7 @@
 - `ToDo` jumps within the current graph by matching both target node title and node number. The inspector has a search box plus result list, and an option to return to `ToDo.exec_out` after the target chain finishes.
 - `ToDo` direct self-jump is invalid. Return-after-target mode executes the target chain with `stopBeforeNodeId` set to the source ToDo, so a target chain that naturally reaches the same ToDo returns to the source `exec_out` instead of looping.
 - ToDo inspector selections are committed into the active `GraphFileModel` before compile/save/run. Static dropdown targets persist as `TargetNodeTitle` / `TargetNodeNumber` / `TargetNodeId`; connected `target_title` / `target_number` pins can still override at runtime.
-- The main log panel is a read-only `RichTextBox`: drag-select text freely, `Ctrl+A` selects the filtered log text, and `Ctrl+C` copies selected text without triggering graph-node copy. Multi-line entries keep visual prefix alignment, while copied text stays raw.
+- The main log panel is a read-only `RichTextBox`: drag-select text freely, `Ctrl+A` selects the filtered log text, and `Ctrl+C` copies selected text without triggering graph-node copy. Runtime execution logs are grouped per node with second-level timestamps; multi-line entries keep visual prefix alignment, while copied text stays raw.
 - Current content browser supports folder tree, current-folder tiles, multi-select, box select, drag move/copy, copy/paste, rename/delete, double-click asset open, recursive fuzzy search under the current folder, and `Ctrl+B` locate-to-real-folder.
 - Content browser folder/tree and search projections batch-refresh `ContentFolderItems` / `ContentVisibleItems` with `RangeObservableCollection.ReplaceAll(...)`, avoiding per-asset UI collection-change storms in large folders.
 - Logger UI updates batch pending entries into `Logger.Entries` with `RangeObservableCollection.AddRange(...)`; the main log panel and log window append new paragraphs incrementally instead of rebuilding the whole log per entry.
@@ -22,10 +22,13 @@
 - The editor keeps one `EditorSessionViewModel` and one full `EditorSurfaceControl` per opened asset. Detached windows host their own editable surface directly; the main window keeps the last visible tab surface and only shows `EmptyEditorPanel` when no main tab remains.
 - Toolbar compile is active-asset scoped: scripts compile all event/function graphs in that asset, and function libraries compile all functions in that library. `执行图谱` enters a running state and blocks repeat clicks until finish/fail/cancel restores it.
 - Multi-window dirty, compile, and graph/controller state is session-scoped through `SetSessionActiveGraphController(...)`, so one asset cannot leak yellow dirty markers or snapshots into another.
+- Toolbar `显示最终代码` opens a read-only pseudo-code preview for the current active graph snapshot. It expands resolvable function/custom-event bodies, follows static data inputs and function return outputs, and uses recursion/depth guards without changing runtime, JSON, or dirty state.
 - Reroute nodes use centered anchors and a UE-style yellow selection glow/ring for click and box selection feedback.
 - `GraphCommandService` records graph-edit snapshots for Undo/Redo. Ctrl+Z undoes graph edits; Ctrl+Y or Ctrl+Shift+Z redoes them.
 - Visible wires can be selected, highlighted, deleted with Delete/Backspace, or edited through the wire context menu.
 - Node palette search now matches display name, category, type key, `NodeKind`, and generated `NodeDefinition.SearchTags`; recent created node kinds appear first.
+- Node display names are user-facing and concise: the start node shows `开始运行`, and default node titles omit the redundant `节点` suffix, such as `延迟`, `找图`, `分支`.
+- Function-library calls keep the palette grouped by library asset name, but the node title on the canvas shows only the function name, such as `函数233`, not `函数库1/函数233`.
 - Node dragging and arrow-key nudging snap to the 20px grid by default; hold Alt for 1px precision movement.
 - `多线程` is an execution node with dynamic `线程N` outputs and a distinct `全部完成` output. Connected branches run in parallel; `全部完成` runs after all branches finish. Mouse/keyboard/window nodes are serialized by a global runtime lock when used inside parallel branches.
 
@@ -86,6 +89,7 @@ UE4 风格的 WPF 蓝图节点编辑器 — 用于桌面自动化脚本编排。
 ### 函数库 (FunctionLibrary)
 - 全局库，库内函数勾选"公开到库"后才对其他脚本可见
 - 脚本只能调用本脚本私有项 + 已公开的库项
+- 节点菜单按函数库资产名分组显示公开函数；添加到画布后的调用节点只显示函数名，不显示库名前缀
 
 ### 内容浏览器
 - 左侧文件夹树，右侧瓦片视图

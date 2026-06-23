@@ -49,6 +49,11 @@ public partial class MainWindow
         _mousePickController.Toggle();
     }
 
+    private void ShowFinalCode_Click(object sender, RoutedEventArgs e)
+    {
+        ShowFinalCodePreview();
+    }
+
     private async void RunGraph_Click(object sender, RoutedEventArgs e)
     {
         if (!EnsureCompiledBeforeRun())

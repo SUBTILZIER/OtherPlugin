@@ -17,6 +17,7 @@ internal static class ScreenPixelSampler
 
     public static void Begin()
     {
+        End();
         _screenDc = GetDC(IntPtr.Zero);
     }
 

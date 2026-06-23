@@ -81,7 +81,7 @@ public partial class LogWindow : Window
     private void CopyAll_Click(object sender, RoutedEventArgs e)
     {
         string text = string.Join(Environment.NewLine, LoggingModule.Filter(Logger.Entries).Select(e => e.DisplayText));
-        System.Windows.Clipboard.SetText(text);
+        ClipboardHelper.TrySetText(text);
     }
 
     private void Clear_Click(object sender, RoutedEventArgs e)

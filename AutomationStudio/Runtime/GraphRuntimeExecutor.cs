@@ -1,4 +1,6 @@
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using System.Text;
 using AutomationStudioWpf.Adapters;
 using AutomationStudioWpf.Graph;
 using AutomationStudioWpf.Logging;
@@ -45,7 +47,7 @@ public sealed class GraphRuntimeExecutor
             return new GraphExecutionResult(false, "执行失败：图中没有开始节点。", false);
         }
 
-        var context = CreateRuntimeContext();
+        using var context = CreateRuntimeContext();
         var state = new RuntimeExecutionState();
         GraphExecutionResult result = ExecuteChain(plan, startNode.Id, "exec_out", context, baseDirectory, assets, state, ct, out _);
 
@@ -197,9 +199,16 @@ public sealed class GraphRuntimeExecutor
         RuntimeExecutionState state,
         CancellationToken ct)
     {
+        bool shouldLog = ShouldLogExecutionNode(node);
+        var stopwatch = Stopwatch.StartNew();
+        IReadOnlyDictionary<string, object> outputsBefore = shouldLog
+            ? context.GetNodeOutputs(node.Id)
+            : new Dictionary<string, object>();
+        using var capture = Logger.BeginCapture();
+        NodeExecutionResult? result = null;
         try
         {
-            return node.NodeKind switch
+            result = node.NodeKind switch
             {
                 NodeKind.Start => NodeExecutionResult.Ok(string.Empty, "exec_out"),
                 NodeKind.Reroute => NodeExecutionResult.Ok(string.Empty, node.RoutedKind == PinKind.Execution ? "out" : null),
@@ -215,6 +224,7 @@ public sealed class GraphRuntimeExecutor
                 NodeKind.CustomEventCall => ExecuteCustomEventCall(plan, node, context, baseDirectory, assets, state, ct),
                 _ => ExecuteRegisteredNode(plan, node, context, baseDirectory, assets, ct),
             };
+            return result;
         }
         catch (OperationCanceledException)
         {
@@ -222,8 +232,16 @@ public sealed class GraphRuntimeExecutor
         }
         catch (PureNodeEvaluationException ex)
         {
-            Logger.Error(ex.Message);
-            return NodeExecutionResult.Fatal(ex.Message);
+            result = NodeExecutionResult.Fatal(ex.Message);
+            return result;
+        }
+        finally
+        {
+            stopwatch.Stop();
+            if (result is not null)
+                StoreStandardExecutionOutputs(node, result, context);
+            if (shouldLog && result is not null)
+                WriteStructuredNodeLog(node, result, context, outputsBefore, stopwatch.Elapsed, capture.Entries);
         }
     }
 
@@ -528,7 +546,7 @@ public sealed class GraphRuntimeExecutor
             if (entry is null || ret is null)
                 return NodeExecutionResult.Fatal($"函数结构无效：{callNode.Title}");
 
-            var childContext = CreateRuntimeContext();
+            using var childContext = CreateRuntimeContext();
             CopyCallInputsToEntry(callerPlan, callNode, callerContext, entry, childContext);
             var result = ExecuteChain(functionPlan, entry.Id, "exec_out", childContext, baseDirectory, assets, state, ct, out _);
             if (!result.ContinueExecution)
@@ -590,13 +608,13 @@ public sealed class GraphRuntimeExecutor
         var connectedPins = new HashSet<string>(StringComparer.Ordinal);
         foreach (var input in callerPlan.Index.GetNonExecutionInputs(callNode.Id))
         {
-            connectedPins.Add(input.TargetPinName);
-            callerContext.TryResolveStringInput(callerPlan, callNode, input.TargetPinName, out _, out _);
-            if (callerContext.TryGetRaw(input.SourceNodeId, input.SourcePinName, out object value))
-                childContext.Set(entryNode.Id, input.TargetPinName, value);
+            string entryPinName = MapParameterPin(input.TargetPinName, callNode.Parameters, entryNode.Parameters, connectedPins);
+            connectedPins.Add(entryPinName);
+            if (callerContext.TryResolveConnectionRaw(callerPlan, input, out object value))
+                childContext.Set(entryNode.Id, entryPinName, value);
         }
 
-        ApplyParameterDefaults(callNode, childContext, entryNode.Id, connectedPins);
+        ApplyCallParameterDefaults(callNode, entryNode, childContext, connectedPins);
         ApplyParameterDefaults(entryNode, childContext, entryNode.Id, connectedPins);
     }
 
@@ -611,12 +629,52 @@ public sealed class GraphRuntimeExecutor
         foreach (var input in assetPlan.Index.GetNonExecutionInputs(returnNode.Id))
         {
             connectedPins.Add(input.TargetPinName);
-            childContext.TryResolveStringInput(assetPlan, returnNode, input.TargetPinName, out _, out _);
-            if (childContext.TryGetRaw(input.SourceNodeId, input.SourcePinName, out object value))
-                callerContext.Set(callNode.Id, input.TargetPinName, value);
+            string callOutputPinName = MapParameterPin(input.TargetPinName, returnNode.Parameters, callNode.OutputParameters, null);
+            if (childContext.TryResolveConnectionRaw(assetPlan, input, out object value))
+                callerContext.Set(callNode.Id, callOutputPinName, value);
         }
 
-        ApplyParameterDefaults(returnNode, callerContext, callNode.Id, connectedPins);
+        ApplyReturnDefaults(returnNode, callNode, callerContext, connectedPins);
+    }
+
+    private static string MapParameterPin(
+        string sourcePinName,
+        IReadOnlyList<GraphRuntimeParameter> sourceParameters,
+        IReadOnlyList<GraphRuntimeParameter> targetParameters,
+        ISet<string>? alreadyMappedTargetPins)
+    {
+        if (targetParameters.Any(parameter => string.Equals(parameter.Id, sourcePinName, StringComparison.Ordinal)) &&
+            alreadyMappedTargetPins?.Contains(sourcePinName) != true)
+            return sourcePinName;
+
+        GraphRuntimeParameter? source = sourceParameters.FirstOrDefault(parameter => string.Equals(parameter.Id, sourcePinName, StringComparison.Ordinal));
+        if (source is not null)
+        {
+            GraphRuntimeParameter? byName = targetParameters.FirstOrDefault(parameter =>
+                string.Equals(parameter.Name, source.Name, StringComparison.OrdinalIgnoreCase) &&
+                alreadyMappedTargetPins?.Contains(parameter.Id) != true);
+            if (byName is not null)
+                return byName.Id;
+        }
+
+        int sourceIndex = source is null ? -1 : GetParameterIndex(sourceParameters, source);
+        if (sourceIndex >= 0 && sourceIndex < targetParameters.Count &&
+            alreadyMappedTargetPins?.Contains(targetParameters[sourceIndex].Id) != true)
+            return targetParameters[sourceIndex].Id;
+
+        return sourcePinName;
+    }
+
+    private static int GetParameterIndex(IReadOnlyList<GraphRuntimeParameter> parameters, GraphRuntimeParameter target)
+    {
+        for (int i = 0; i < parameters.Count; i++)
+        {
+            if (ReferenceEquals(parameters[i], target) ||
+                string.Equals(parameters[i].Id, target.Id, StringComparison.Ordinal))
+                return i;
+        }
+
+        return -1;
     }
 
     private static void ApplyParameterDefaults(
@@ -633,6 +691,45 @@ public sealed class GraphRuntimeExecutor
                 continue;
 
             context.Set(targetNodeId, parameter.Id, ConvertParameterDefault(parameter));
+        }
+    }
+
+    private static void ApplyCallParameterDefaults(
+        GraphRuntimeNode callNode,
+        GraphRuntimeNode entryNode,
+        RuntimeContext childContext,
+        ISet<string> connectedEntryPins)
+    {
+        var mappedPins = new HashSet<string>(connectedEntryPins, StringComparer.Ordinal);
+        foreach (var callParameter in callNode.Parameters)
+        {
+            string entryPinName = MapParameterPin(callParameter.Id, callNode.Parameters, entryNode.Parameters, mappedPins);
+            if (connectedEntryPins.Contains(entryPinName) || childContext.TryGetRaw(entryNode.Id, entryPinName, out _))
+                continue;
+
+            childContext.Set(entryNode.Id, entryPinName, ConvertParameterDefault(callParameter));
+            mappedPins.Add(entryPinName);
+        }
+    }
+
+    private static void ApplyReturnDefaults(
+        GraphRuntimeNode returnNode,
+        GraphRuntimeNode callNode,
+        RuntimeContext callerContext,
+        ISet<string> connectedReturnPins)
+    {
+        foreach (var returnParameter in returnNode.Parameters)
+        {
+            if (connectedReturnPins.Contains(returnParameter.Id))
+                continue;
+
+            string callOutputPinName = MapParameterPin(returnParameter.Id, returnNode.Parameters, callNode.OutputParameters, null);
+            if (callerContext.TryGetRaw(callNode.Id, callOutputPinName, out _))
+                continue;
+
+            var callDefault = callNode.OutputParameters.FirstOrDefault(parameter =>
+                string.Equals(parameter.Id, callOutputPinName, StringComparison.Ordinal));
+            callerContext.Set(callNode.Id, callOutputPinName, ConvertParameterDefault(callDefault ?? returnParameter));
         }
     }
 
@@ -677,6 +774,121 @@ public sealed class GraphRuntimeExecutor
     private static string MakeToDoReturnJumpKey(GraphExecutionPlan plan, string sourceNodeId, string targetNodeId) =>
         $"{RuntimeHelpers.GetHashCode(plan)}:{sourceNodeId}->{targetNodeId}";
 
+    private static bool ShouldLogExecutionNode(GraphRuntimeNode node) =>
+        node.NodeKind is not NodeKind.Start and
+        not NodeKind.Reroute and
+        not NodeKind.FunctionEntry and
+        not NodeKind.CustomEvent;
+
+    private void StoreStandardExecutionOutputs(GraphRuntimeNode node, NodeExecutionResult result, RuntimeContext context)
+    {
+        context.Set(node.Id, "__executed", true);
+        context.Set(node.Id, "__status", result.Status.ToString());
+        context.Set(node.Id, "__success", result.Status == NodeExecutionStatus.Success);
+        context.Set(node.Id, "__message", result.Message);
+        context.Set(node.Id, "__next_pin", result.NextPinName ?? string.Empty);
+
+        if (HasOutputPin(node.NodeKind, "result") && !context.TryGetRaw(node.Id, "result", out _))
+            context.Set(node.Id, "result", result.Status == NodeExecutionStatus.Success);
+    }
+
+    private bool HasOutputPin(NodeKind nodeKind, string pinName)
+    {
+        return _nodeRegistry.TryGetDefinition(nodeKind, out INodeDefinition definition) &&
+               definition.Pins.Any(pin =>
+                   pin.Direction == PinDirection.Output &&
+                   pin.Kind != PinKind.Execution &&
+                   string.Equals(pin.Name, pinName, StringComparison.Ordinal));
+    }
+
+    private static void WriteStructuredNodeLog(
+        GraphRuntimeNode node,
+        NodeExecutionResult result,
+        RuntimeContext context,
+        IReadOnlyDictionary<string, object> outputsBefore,
+        TimeSpan elapsed,
+        IReadOnlyList<LogEntry> capturedEntries)
+    {
+        LogLevel level = ResolveNodeLogLevel(result, capturedEntries);
+        string status = result.Status switch
+        {
+            NodeExecutionStatus.FatalStop => "失败",
+            NodeExecutionStatus.WarnButContinue => "警告",
+            _ => capturedEntries.Any(entry => entry.Level == LogLevel.Warn) ? "警告" : "成功",
+        };
+
+        string returnText = FormatReturnResult(result, context.GetNodeOutputs(node.Id), outputsBefore);
+        var builder = new StringBuilder();
+        builder.AppendLine("执行节点");
+        builder.AppendLine($"名称：{NodeLogLabel(node)}");
+        builder.AppendLine($"耗时：{FormatElapsed(elapsed)}");
+        builder.AppendLine($"结果：{status}");
+        builder.AppendLine($"返回结果：{returnText}");
+
+        var details = BuildCapturedDetails(capturedEntries, result).ToList();
+        if (details.Count > 0)
+        {
+            builder.AppendLine("详情：");
+            foreach (string detail in details)
+                builder.AppendLine($"- {detail}");
+        }
+
+        builder.AppendLine();
+        Logger.WriteDirect(level, builder.ToString().TrimEnd('\r', '\n') + Environment.NewLine);
+    }
+
+    private static LogLevel ResolveNodeLogLevel(NodeExecutionResult result, IReadOnlyList<LogEntry> capturedEntries)
+    {
+        if (result.Status == NodeExecutionStatus.FatalStop || capturedEntries.Any(entry => entry.Level == LogLevel.Error))
+            return LogLevel.Error;
+        if (result.Status == NodeExecutionStatus.WarnButContinue || capturedEntries.Any(entry => entry.Level == LogLevel.Warn))
+            return LogLevel.Warn;
+
+        return LogLevel.Info;
+    }
+
+    private static string FormatReturnResult(
+        NodeExecutionResult result,
+        IReadOnlyDictionary<string, object> outputsAfter,
+        IReadOnlyDictionary<string, object> outputsBefore)
+    {
+        var changedOutputs = outputsAfter
+            .Where(pair => !IsInternalRuntimeOutput(pair.Key))
+            .Where(pair => !outputsBefore.TryGetValue(pair.Key, out object? before) || !Equals(before, pair.Value))
+            .Select(pair => $"{pair.Key}={RuntimeContext.FormatValue(pair.Value)}")
+            .ToList();
+        if (changedOutputs.Count > 0)
+            return string.Join("; ", changedOutputs);
+
+        return string.IsNullOrWhiteSpace(result.Message) ? "-" : result.Message;
+    }
+
+    private static bool IsInternalRuntimeOutput(string pinName) =>
+        pinName.StartsWith("__", StringComparison.Ordinal);
+
+    private static IEnumerable<string> BuildCapturedDetails(IReadOnlyList<LogEntry> capturedEntries, NodeExecutionResult result)
+    {
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (LogEntry entry in capturedEntries)
+        {
+            if (result.Status == NodeExecutionStatus.Success && entry.Level == LogLevel.Info)
+                continue;
+
+            string message = (entry.Message ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(message))
+                continue;
+            if (string.Equals(message, result.Message, StringComparison.Ordinal))
+                continue;
+            if (seen.Add(message))
+                yield return message;
+        }
+    }
+
+    private static string FormatElapsed(TimeSpan elapsed) =>
+        elapsed.TotalSeconds >= 1
+            ? $"{elapsed.TotalSeconds:0.00}s"
+            : $"{elapsed.TotalMilliseconds:0}ms";
+
     private static string NodeLogLabel(GraphRuntimeNode node)
     {
         return string.IsNullOrWhiteSpace(node.NodeNumber)
@@ -694,7 +906,7 @@ public sealed class GraphRuntimeExecutor
 
     private bool EvaluatePureNode(GraphExecutionPlan plan, GraphRuntimeNode node, RuntimeContext context)
     {
-        return node.NodeKind switch
+        bool evaluated = node.NodeKind switch
         {
             NodeKind.Compare => EvaluateComparePure(plan, node, context),
             NodeKind.BooleanAnd => EvaluateBooleanPure(plan, node, context, "and"),
@@ -703,6 +915,19 @@ public sealed class GraphRuntimeExecutor
             NodeKind.StringConcat => EvaluateStringConcatPure(plan, node, context),
             _ => false,
         };
+        if (evaluated)
+            StorePureEvaluationOutputs(node, context);
+
+        return evaluated;
+    }
+
+    private static void StorePureEvaluationOutputs(GraphRuntimeNode node, RuntimeContext context)
+    {
+        context.Set(node.Id, "__executed", true);
+        context.Set(node.Id, "__status", "PureEvaluated");
+        context.Set(node.Id, "__success", true);
+        context.Set(node.Id, "__message", "纯运算完成。");
+        context.Set(node.Id, "__next_pin", string.Empty);
     }
 
     private static bool EvaluateComparePure(GraphExecutionPlan plan, GraphRuntimeNode node, RuntimeContext context)

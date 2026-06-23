@@ -24,8 +24,7 @@ internal static class LogEntryDocumentRenderer
 
         if (lines.Length > 1)
         {
-            string continuationPrefix = prefix + GetMessageContinuationPrefix(lines[0]);
-            double indent = MeasureTextWidth(continuationPrefix, owner);
+            double indent = MeasureTextWidth(prefix, owner);
             if (indent > 0)
             {
                 paragraph.Margin = new Thickness(indent, 0, 0, 0);
@@ -46,18 +45,6 @@ internal static class LogEntryDocumentRenderer
 
     private static string NormalizeLineEndings(string text) =>
         text.Replace("\r\n", "\n").Replace('\r', '\n');
-
-    private static string GetMessageContinuationPrefix(string firstMessageLine)
-    {
-        int chineseColon = firstMessageLine.LastIndexOf('：');
-        if (chineseColon >= 0)
-            return firstMessageLine[..(chineseColon + 1)];
-
-        int asciiColon = firstMessageLine.LastIndexOf(": ", StringComparison.Ordinal);
-        return asciiColon >= 0
-            ? firstMessageLine[..(asciiColon + 2)]
-            : string.Empty;
-    }
 
     private static double MeasureTextWidth(string text, WpfRichTextBox owner)
     {

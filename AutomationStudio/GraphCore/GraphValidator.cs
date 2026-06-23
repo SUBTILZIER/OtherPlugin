@@ -206,9 +206,9 @@ public sealed class GraphValidator
             {
                 case NodeKind.FindImage:
                     if (!IsInputConnected(plan, node.Id, "image_path") && string.IsNullOrWhiteSpace(node.ImagePath))
-                        issues.Add(Warning($"找图节点未设置图片路径：{node.Title}。运行时会跳过并继续。"));
+                        issues.Add(Warning($"找图未设置图片路径：{node.Title}。运行时会跳过并继续。"));
                     if (node.UseFindImageRegion && (node.FindImageRegionWidth <= 0 || node.FindImageRegionHeight <= 0))
-                        issues.Add(Warning($"找图节点区域宽高无效：{node.Title}。运行时会跳过并继续。"));
+                        issues.Add(Warning($"找图区域宽高无效：{node.Title}。运行时会跳过并继续。"));
                     break;
                 case NodeKind.MouseClick:
                     WarnIfMissingPoint(plan, issues, node, "position", node.PositionX, node.PositionY, "鼠标点击");
@@ -220,16 +220,16 @@ public sealed class GraphValidator
                     WarnIfMissingPoint(plan, issues, node, "position", node.Number, node.Number2, "鼠标双击");
                     break;
                 case NodeKind.Delay when node.DelayMs <= 0:
-                    issues.Add(Warning($"延迟节点时长无效：{node.Title}。运行时会使用默认时长。"));
+                    issues.Add(Warning($"延迟时长无效：{node.Title}。运行时会使用默认时长。"));
                     break;
                 case NodeKind.Keyboard when string.IsNullOrWhiteSpace(node.Key):
-                    issues.Add(Warning($"键盘节点未设置按键：{node.Title}。运行时会跳过并继续。"));
+                    issues.Add(Warning($"键盘未设置按键：{node.Title}。运行时会跳过并继续。"));
                     break;
                 case NodeKind.KeyChord when string.IsNullOrWhiteSpace(node.Text):
-                    issues.Add(Warning($"组合键节点未设置按键组合：{node.Title}。运行时会跳过并继续。"));
+                    issues.Add(Warning($"组合键未设置按键组合：{node.Title}。运行时会跳过并继续。"));
                     break;
                 case NodeKind.StartProgram when string.IsNullOrWhiteSpace(node.ProgramPath):
-                    issues.Add(Warning($"启动程序节点未设置程序路径：{node.Title}。运行时会跳过并继续。"));
+                    issues.Add(Warning($"启动程序未设置程序路径：{node.Title}。运行时会跳过并继续。"));
                     break;
                 case NodeKind.SelectWindow:
                     WarnIfMissingString(plan, issues, node, "process_name", node.ProcessName, "选中窗口");

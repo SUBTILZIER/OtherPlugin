@@ -12,7 +12,7 @@ public sealed class KeyboardNodeExecutor : INodeExecutor
     {
         string key = string.IsNullOrWhiteSpace(request.Node.Key) ? "A" : request.Node.Key;
         if (string.IsNullOrWhiteSpace(request.Node.Key))
-            Logger.Warn("键盘节点：未设置按键，将使用默认值 A。");
+            Logger.Warn("键盘：未设置按键，将使用默认值 A。");
 
         Logger.Info($"键盘：{key} {request.Node.OperationMode}");
         request.Adapters.Keyboard.ExecuteKey(key, request.Node.OperationMode);
@@ -20,4 +20,3 @@ public sealed class KeyboardNodeExecutor : INodeExecutor
         return NodeExecutionResult.Ok($"键盘{key}{request.Node.OperationMode}");
     }
 }
-

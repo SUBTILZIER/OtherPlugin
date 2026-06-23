@@ -64,7 +64,7 @@ public sealed class NodeRegistry
     {
         return
         [
-            Definition(NodeKind.Start, "start", "事件开始运行", "核心", [OutExec("exec_out", "执行输出")]),
+            Definition(NodeKind.Start, "start", "开始运行", "核心", [OutExec("exec_out", "执行输出")]),
             Definition(NodeKind.Delay, "delay", "延迟", "核心", [InExec(), OutExec()]),
             Definition(NodeKind.If, "if", "分支", "核心", [InExec(), InBool("condition", "条件"), OutExec("exec_true", "True"), OutExec("exec_false", "False")]),
             Definition(NodeKind.ForLoop, "for_loop", "For循环", "核心", [InExec(), InBool("end_condition", "结束条件"), OutExec("exec_loop_body", "循环体"), OutExec("exec_completed", "完成")]),

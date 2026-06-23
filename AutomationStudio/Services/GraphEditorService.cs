@@ -174,7 +174,7 @@ public sealed class GraphEditorService
 
             var startNode = new StartNodeViewModel(id)
             {
-                Title = "事件开始运行",
+                Title = "开始运行",
                 X = 80,
                 Y = 210,
             };
@@ -676,7 +676,7 @@ public sealed class GraphEditorService
     {
         return new StartNodeViewModel("node_001")
         {
-            Title = "事件开始运行",
+            Title = "开始运行",
             X = 80,
             Y = 210,
         };

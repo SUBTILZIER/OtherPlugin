@@ -119,6 +119,7 @@ public sealed record RuntimeAssetLibrary(
 
 public sealed record GraphRuntimeParameter(
     string Id,
+    string Name,
     GraphParameterType Type,
     string DefaultValue);
 
@@ -220,6 +221,8 @@ public sealed record GraphRuntimeNode(
     public bool ReturnAfterTarget { get; init; }
 
     public IReadOnlyList<GraphRuntimeParameter> Parameters { get; init; } = [];
+
+    public IReadOnlyList<GraphRuntimeParameter> OutputParameters { get; init; } = [];
 
     public static GraphRuntimeNode ForStart(string id, string title) =>
         new(id, title, NodeKind.Start, null, 0, PressReleaseMode.Press, MouseButton.Left, 0, 0, 0, null, ScrollWheelAction.ScrollForward, 120, 100, 1000, 0, false, PinKind.Execution, ProgramStartFailureAction.None, 0, null);
@@ -369,11 +372,13 @@ public sealed record GraphRuntimeNode(
         string id,
         string title,
         string functionId,
-        IEnumerable<GraphParameterDefinition>? parameters = null) =>
+        IEnumerable<GraphParameterDefinition>? parameters = null,
+        IEnumerable<GraphParameterDefinition>? outputParameters = null) =>
         new(id, title, NodeKind.FunctionCall, null, 0, PressReleaseMode.Press, MouseButton.Left, 0, 0, 0, null, ScrollWheelAction.ScrollForward, 120, 100, 1000, 0, false, PinKind.Execution, ProgramStartFailureAction.None, 0, null)
         {
             FunctionId = functionId,
             Parameters = ToRuntimeParameters(parameters),
+            OutputParameters = ToRuntimeParameters(outputParameters),
         };
 
     public static GraphRuntimeNode ForCustomEvent(
@@ -400,7 +405,7 @@ public sealed record GraphRuntimeNode(
 
     private static IReadOnlyList<GraphRuntimeParameter> ToRuntimeParameters(IEnumerable<GraphParameterDefinition>? parameters) =>
         parameters?
-            .Select(parameter => new GraphRuntimeParameter(parameter.Id, parameter.Type, parameter.DefaultValue))
+            .Select(parameter => new GraphRuntimeParameter(parameter.Id, parameter.Name, parameter.Type, parameter.DefaultValue))
             .ToList()
         ?? [];
 }

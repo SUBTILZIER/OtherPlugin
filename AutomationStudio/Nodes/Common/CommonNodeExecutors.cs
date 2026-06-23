@@ -222,7 +222,9 @@ public sealed class CommonNodeExecutor(NodeKind nodeKind) : INodeExecutor
             return WarnResult(request, "窗口是否存在：进程名输入已连接，但上游没有输出。继续执行。");
 
         var result = request.Adapters.Window.WindowExists(processName);
-        SetWindowResult(request, result);
+        request.Context.Set(request.Node.Id, "result", result.Success);
+        request.Context.Set(request.Node.Id, "process_name", result.ProcessName);
+        Logger.Info(result.Message);
         return NodeExecutionResult.Ok(result.Message);
     }
 

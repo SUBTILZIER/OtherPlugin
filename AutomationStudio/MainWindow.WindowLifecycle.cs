@@ -36,6 +36,8 @@ public partial class MainWindow
             return;
 
         _isClosing = true;
+        _finalCodePreviewWindow?.Close();
+        _finalCodePreviewWindow = null;
         foreach (var session in _editorSessions.ToList())
         {
             session.DetachedWindow?.CloseFromOwner();

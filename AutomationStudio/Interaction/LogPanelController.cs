@@ -96,7 +96,7 @@ public sealed class LogPanelController
             {
                 string text = _logTextBox.Selection.Text;
                 if (!string.IsNullOrEmpty(text))
-                    System.Windows.Clipboard.SetText(text);
+                    ClipboardHelper.TrySetText(text);
                 e.Handled = true;
             },
             (_, e) => e.CanExecute = !_logTextBox.Selection.IsEmpty));

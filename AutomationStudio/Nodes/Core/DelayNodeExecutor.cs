@@ -12,7 +12,7 @@ public sealed class DelayNodeExecutor : INodeExecutor
     {
         int delayMs = request.Node.DelayMs > 0 ? request.Node.DelayMs : 500;
         if (request.Node.DelayMs <= 0)
-            Logger.Warn($"延迟节点：延迟时间无效 ({request.Node.DelayMs}ms)，将使用默认值 500ms。");
+            Logger.Warn($"延迟：延迟时间无效 ({request.Node.DelayMs}ms)，将使用默认值 500ms。");
 
         Logger.Info($"延迟：{delayMs}ms");
         Thread.Sleep(delayMs);
@@ -20,4 +20,3 @@ public sealed class DelayNodeExecutor : INodeExecutor
         return NodeExecutionResult.Ok($"延迟完成：{delayMs}ms");
     }
 }
-

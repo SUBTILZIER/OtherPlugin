@@ -41,7 +41,13 @@ Runtime / Nodes / Adapters
 ### 2026-06-22：运行态 / 日志 / 找图补充
 
 - `ExecutionController` 在执行开始时把按钮切到 `执行中...` 并禁用，执行结束、失败、取消或校验失败后统一恢复，避免重复点击触发多次运行。
-- 日志面板和独立日志窗口共用 `LogEntryDocumentRenderer`；UI 视觉上按 `prefix + message` 做多行对齐，但复制文本保持原始内容，不补缩进空格。
+- `RuntimeContext` 是运行时输入解析唯一入口：按目标 pin 找连接，先求值纯节点，再读取上游 raw 输出；字符串、布尔、坐标、函数参数和函数返回都走该底层 resolver，避免“已连接但误报上游没有输出”。
+- 每个执行节点结束后，`GraphRuntimeExecutor` 会把标准执行记录写入 `RuntimeContext` 临时缓冲区：`__executed`、`__status`、`__success`、`__message`、`__next_pin`；有 `result` 输出 pin 但 executor 未写时会兜底写入。纯运算节点按需求值成功后也写入同一缓冲。`__*` 内部键不显示在结构化日志返回结果里。
+- 数据 `Reroute` 对 runtime 输入解析是透明节点：raw resolver 会沿数据转接点继续追溯上游真实输出，支持上上游/更远上游通过 reroute 供值。
+- 执行日志由 `GraphRuntimeExecutor.ExecuteNode(...)` 统一捕获节点内部细碎日志，并输出“执行节点 / 名称 / 耗时 / 结果 / 返回结果 / 详情”块；`Logger.Timestamp` 只保留 `HH:mm:ss`。
+- 日志面板和独立日志窗口共用 `LogEntryDocumentRenderer`；UI 视觉上按 `[时间] [LEVEL] ` 前缀宽度做多行对齐，但复制文本保持原始内容，不补缩进空格。
+- 日志复制和鼠标拾取复制都走 `ClipboardHelper.TrySetText(...)`，遇到 `CLIPBRD_E_CANT_OPEN` 只重试/提示，不允许崩溃进程。
+- 查询节点的 `False` 是业务结果，不是执行警告；例如 `WindowExists` 不存在、`FindImage` 未命中时写 `result=False` 且日志级别保持 INFO，只有配置错误、路径无效或执行失败才 WARN/ERROR。
 - `FindImageNodeExecutor` 不再把 Python 原始 stderr/stdout 整段刷进日志；`Python/find_image.py` 通过 `np.fromfile(...) + cv2.imdecode(...)` 读取模板/截图，避免 Windows 中文路径失效。
 
 ### 整体架构
@@ -206,6 +212,7 @@ public class NodeFactory
     // ...
 }
 ```
+- 默认节点标题是用户可见 UI，不是 schema。`Start` 显示 `开始运行`；常规节点默认标题不要带冗余 `节点` 后缀，例如 `延迟`、`找图`、`分支`。
 
 #### NodeRegistry
 统一管理节点定义和执行器注册：
@@ -966,11 +973,13 @@ dotnet publish -c Release -r win-x64 \
 
 ### 调用范围
 - `CallableGraphResolver` 是函数可调用项的唯一来源，节点菜单、编译同步、运行时都必须走它。
+- `CallableGraphItem.Name` 是画布函数调用节点标题；跨资产函数库调用也只放函数名。`CallableGraphItem.GroupName` 负责节点菜单分组，外部函数库用库资产名分组，避免画布标题显示 `函数库/函数名`。
+- `显示最终代码` 只读预览基于当前 active graph snapshot 生成 pseudo-code。它只读，不改 runtime / JSON / dirty；可解析的 `FunctionCall` / `CustomEventCall` 默认展开函数或事件体，并静态追踪前置输入、函数入口参数和函数返回输出；带递归、深度和行数保护，无法解析时才保留符号调用注释。
 - 脚本内只能调用本脚本私有函数，以及函数库中已勾选 `公开到库` 的函数。
 - 函数库内部可以调用本库私有项；其他脚本不能搜索、编译同步或运行未公开库项。
 - 编译错误路径必须用内容浏览器完整路径：`content/父文件夹/.../资产/图`。函数库在文件夹内时报错也必须带完整层级。
-- 右键节点菜单按 `本脚本函数`、`函数库` 分组。
-- 库函数显示为 `库名/函数名`，运行时仍用稳定 ID，不靠名字解析。
+- 右键节点菜单按 `本脚本函数`、`本函数库` 或具体函数库资产名分组。
+- 库函数节点标题只显示函数名；运行时和双击跳转仍用稳定 `FunctionId`，不靠名字解析。
 - 自定义事件显示在节点菜单 `本脚本事件` 分组，只能在当前脚本事件图内调用，不跨脚本/函数库。
 
 ### 重要坑点

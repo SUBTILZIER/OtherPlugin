@@ -14,12 +14,20 @@ public sealed class FindImageNodeExecutor : INodeExecutor
     public NodeExecutionResult Execute(NodeExecutionRequest request)
     {
         GraphRuntimeNode node = request.Node;
-        string rawImagePath = request.Context.ResolveStringInput(request.Plan, node, "image_path", node.ImagePath);
-        if (request.Context.HasInputConnection(request.Plan, node, "image_path") && string.IsNullOrWhiteSpace(rawImagePath))
+        string rawImagePath;
+        if (request.Context.TryResolveStringInput(request.Plan, node, "image_path", out string resolvedImagePath, out bool hasImageConnection))
+        {
+            rawImagePath = resolvedImagePath;
+        }
+        else if (hasImageConnection)
         {
             request.Context.Set(node.Id, "result", false);
             Logger.Warn("找图警告：查找目标输入已连接，但上游没有输出。继续执行。");
             return NodeExecutionResult.Warn($"找图未执行：{node.Title} 上游查找目标为空");
+        }
+        else
+        {
+            rawImagePath = node.ImagePath ?? string.Empty;
         }
 
         if (string.IsNullOrWhiteSpace(rawImagePath))
@@ -38,14 +46,20 @@ public sealed class FindImageNodeExecutor : INodeExecutor
             return NodeExecutionResult.Warn($"找图未执行：{Path.GetFileName(imagePath)} 不存在");
         }
 
-        string rawSourcePath = request.Context.ResolveStringInput(request.Plan, node, "source_image_path", node.SourceImagePath);
-        if (node.ImageSearchSourceMode == ImageSearchSourceMode.ManualImage &&
-            request.Context.HasInputConnection(request.Plan, node, "source_image_path") &&
-            string.IsNullOrWhiteSpace(rawSourcePath))
+        string rawSourcePath;
+        if (request.Context.TryResolveStringInput(request.Plan, node, "source_image_path", out string resolvedSourcePath, out bool hasSourceConnection))
+        {
+            rawSourcePath = resolvedSourcePath;
+        }
+        else if (node.ImageSearchSourceMode == ImageSearchSourceMode.ManualImage && hasSourceConnection)
         {
             request.Context.Set(node.Id, "result", false);
             Logger.Warn("找图警告：查找源输入已连接，但上游没有输出。继续执行。");
             return NodeExecutionResult.Warn($"找图未执行：{node.Title} 上游查找源为空");
+        }
+        else
+        {
+            rawSourcePath = node.SourceImagePath ?? string.Empty;
         }
 
         string sourcePath = node.ImageSearchSourceMode == ImageSearchSourceMode.ManualImage
@@ -117,8 +131,8 @@ public sealed class FindImageNodeExecutor : INodeExecutor
                 return NodeExecutionResult.Ok($"找图成功：{node.Title} -> ({cx},{cy})");
             }
 
-            Logger.Warn($"找图未命中：{Path.GetFileName(imagePath)}。继续执行。");
-            return NodeExecutionResult.Warn($"未找到图像：{Path.GetFileName(imagePath)}，继续执行");
+            Logger.Info($"找图未命中：{Path.GetFileName(imagePath)}。继续执行。");
+            return NodeExecutionResult.Ok($"未找到图像：{Path.GetFileName(imagePath)}，继续执行");
         }
         catch (JsonException ex)
         {

@@ -24,7 +24,7 @@ public sealed class CallableGraphResolver
         {
             result.AddRange(library.Functions
                 .Where(function => function.IsPublicToLibrary)
-                .Select(function => new CallableGraphItem(function.Id, $"{library.Name}/{function.Name}", "函数库", function.Graph)));
+                .Select(function => new CallableGraphItem(function.Id, function.Name, library.Name, function.Graph)));
         }
 
         return Deduplicate(result);

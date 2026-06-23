@@ -62,22 +62,22 @@ public sealed class NodeFactory
     }
 
     public StartNodeViewModel CreateStartNode(double x = 80, double y = 210) =>
-        new(CreateNodeId()) { Title = "事件开始运行", X = x, Y = y };
+        new(CreateNodeId()) { Title = "开始运行", X = x, Y = y };
 
     public FindImageNodeViewModel CreateFindImageNode(double offsetX = 0, double offsetY = 0) =>
-        new(CreateNodeId()) { Title = "找图节点", X = 260 + offsetX, Y = 180 + offsetY };
+        new(CreateNodeId()) { Title = "找图", X = 260 + offsetX, Y = 180 + offsetY };
 
     public MouseClickNodeViewModel CreateMouseClickNode(double offsetX = 0, double offsetY = 0) =>
-        new(CreateNodeId()) { Title = "鼠标点击节点", X = 320 + offsetX, Y = 220 + offsetY };
+        new(CreateNodeId()) { Title = "鼠标点击", X = 320 + offsetX, Y = 220 + offsetY };
 
     public MouseMoveNodeViewModel CreateMouseMoveNode(double offsetX = 0, double offsetY = 0) =>
-        new(CreateNodeId()) { Title = "鼠标移动节点", X = 420 + offsetX, Y = 300 + offsetY };
+        new(CreateNodeId()) { Title = "鼠标移动", X = 420 + offsetX, Y = 300 + offsetY };
 
     public KeyboardNodeViewModel CreateKeyboardNode(double offsetX = 0, double offsetY = 0) =>
-        new(CreateNodeId()) { Title = "键盘节点", X = 340 + offsetX, Y = 240 + offsetY };
+        new(CreateNodeId()) { Title = "键盘", X = 340 + offsetX, Y = 240 + offsetY };
 
     public ScrollWheelNodeViewModel CreateScrollWheelNode(double offsetX = 0, double offsetY = 0) =>
-        new(CreateNodeId()) { Title = "鼠标滚轮节点", X = 360 + offsetX, Y = 260 + offsetY };
+        new(CreateNodeId()) { Title = "鼠标滚轮", X = 360 + offsetX, Y = 260 + offsetY };
 
     public StartProgramNodeViewModel CreateStartProgramNode(double offsetX = 0, double offsetY = 0) =>
         new(CreateNodeId()) { Title = "启动程序", X = 440 + offsetX, Y = 340 + offsetY };
@@ -89,13 +89,13 @@ public sealed class NodeFactory
         new(CreateNodeId()) { Title = "选中窗口", X = 480 + offsetX, Y = 380 + offsetY };
 
     public DelayNodeViewModel CreateDelayNode(double offsetX = 0, double offsetY = 0) =>
-        new(CreateNodeId()) { Title = "延迟节点", X = 360 + offsetX, Y = 260 + offsetY };
+        new(CreateNodeId()) { Title = "延迟", X = 360 + offsetX, Y = 260 + offsetY };
 
     public IfNodeViewModel CreateIfNode(double offsetX = 0, double offsetY = 0) =>
-        new(CreateNodeId()) { Title = "分支节点", X = 380 + offsetX, Y = 280 + offsetY };
+        new(CreateNodeId()) { Title = "分支", X = 380 + offsetX, Y = 280 + offsetY };
 
     public ForLoopNodeViewModel CreateForLoopNode(double offsetX = 0, double offsetY = 0) =>
-        new(CreateNodeId()) { Title = "For循环节点", X = 400 + offsetX, Y = 300 + offsetY };
+        new(CreateNodeId()) { Title = "For循环", X = 400 + offsetX, Y = 300 + offsetY };
 
     public WhileLoopNodeViewModel CreateWhileLoopNode(double offsetX = 0, double offsetY = 0) =>
         new(CreateNodeId()) { Title = "While循环", X = 420 + offsetX, Y = 320 + offsetY };

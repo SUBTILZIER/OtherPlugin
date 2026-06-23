@@ -128,14 +128,14 @@ internal sealed class MousePickController : IDisposable
         {
             if (result == MessageBoxResult.Yes)
             {
-                System.Windows.Clipboard.SetText(sample.CoordinateText);
+                ClipboardHelper.TrySetText(sample.CoordinateText);
                 Stop($"已复制坐标并退出鼠标拾取：{sample.CoordinateText}");
                 return;
             }
 
             if (result == MessageBoxResult.No)
             {
-                System.Windows.Clipboard.SetText(sample.HexText);
+                ClipboardHelper.TrySetText(sample.HexText);
                 Stop($"已复制颜色并退出鼠标拾取：{sample.HexText}");
                 return;
             }

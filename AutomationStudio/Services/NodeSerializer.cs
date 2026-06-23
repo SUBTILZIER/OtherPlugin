@@ -341,6 +341,9 @@ public static class NodeSerializer
 
         if (node is not null)
         {
+            node.Title = NormalizeLegacyDefaultTitle(node.NodeKind, node.Title);
+            if (node is ToDoNodeViewModel toDoNode)
+                toDoNode.TargetNodeTitle = NormalizeLegacyDefaultTitle(null, toDoNode.TargetNodeTitle);
             node.NodeNumber = NodeTraits.ShouldAssignNodeNumber(node.NodeKind) ? file.NodeNumber : string.Empty;
             node.RefreshDescription();
         }
@@ -442,7 +445,7 @@ public static class NodeSerializer
 
             FunctionEntryNodeViewModel functionEntry => GraphRuntimeNode.ForAssetNode(functionEntry.Id, functionEntry.Title, functionEntry.NodeKind, functionEntry.Parameters),
             FunctionReturnNodeViewModel functionReturn => GraphRuntimeNode.ForAssetNode(functionReturn.Id, functionReturn.Title, functionReturn.NodeKind, functionReturn.Parameters),
-            FunctionCallNodeViewModel functionCall => GraphRuntimeNode.ForFunctionCall(functionCall.Id, functionCall.Title, functionCall.FunctionId, functionCall.InputParameters),
+            FunctionCallNodeViewModel functionCall => GraphRuntimeNode.ForFunctionCall(functionCall.Id, functionCall.Title, functionCall.FunctionId, functionCall.InputParameters, functionCall.OutputParameters),
             CustomEventNodeViewModel customEvent => GraphRuntimeNode.ForCustomEvent(customEvent.Id, customEvent.Title, customEvent.CustomEventId, customEvent.Parameters),
             CustomEventCallNodeViewModel customEventCall => GraphRuntimeNode.ForCustomEventCall(customEventCall.Id, customEventCall.Title, customEventCall.CustomEventId, customEventCall.InputParameters),
 
@@ -506,7 +509,7 @@ public static class NodeSerializer
 
     private static FunctionCallNodeViewModel CreateFunctionCallFromFile(NodeFileModel file)
     {
-        var node = new FunctionCallNodeViewModel(file.Id, file.FunctionId ?? string.Empty, string.IsNullOrWhiteSpace(file.Title) ? "调用函数" : file.Title)
+        var node = new FunctionCallNodeViewModel(file.Id, file.FunctionId ?? string.Empty, NormalizeCallableTitle(file.Title, "调用函数"))
         {
             X = file.X,
             Y = file.Y,
@@ -524,6 +527,38 @@ public static class NodeSerializer
         };
         node.ConfigurePins(file.InputParameters.Select(FromParameterFile));
         return node;
+    }
+
+    private static string NormalizeCallableTitle(string? title, string fallbackTitle)
+    {
+        if (string.IsNullOrWhiteSpace(title))
+            return fallbackTitle;
+
+        int slashIndex = title.LastIndexOf('/');
+        return slashIndex >= 0 && slashIndex < title.Length - 1
+            ? title[(slashIndex + 1)..]
+            : title;
+    }
+
+    private static string NormalizeLegacyDefaultTitle(NodeKind? kind, string? title)
+    {
+        if (string.IsNullOrWhiteSpace(title))
+            return string.Empty;
+
+        return title switch
+        {
+            "事件开始运行" => "开始运行",
+            "找图节点" => "找图",
+            "鼠标点击节点" => "鼠标点击",
+            "鼠标移动节点" => "鼠标移动",
+            "键盘节点" => "键盘",
+            "鼠标滚轮节点" => "鼠标滚轮",
+            "延迟节点" => "延迟",
+            "分支节点" => "分支",
+            "For循环节点" => "For循环",
+            _ when kind == NodeKind.FunctionCall => NormalizeCallableTitle(title, "调用函数"),
+            _ => title,
+        };
     }
 
     private static GraphParameterFileModel ToParameterFile(GraphParameterDefinition parameter) => new()
