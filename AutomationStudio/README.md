@@ -1,6 +1,6 @@
 # AutomationStudioWpf
 
-## Current Notes (2026-06-22)
+## Current Notes (2026-06-26)
 
 - 2026-06-11: CodeGraph, project skill, technical docs, README, and agent memory were audited against the current local code. CodeGraph generated database/cache/log files remain local and ignored.
 - Visual wires bind to `GraphEditorService.ConnectionPaths`; persisted graph data and runtime execution still use `GraphEditorService.Connections`.
@@ -31,6 +31,9 @@
 - Function-library calls keep the palette grouped by library asset name, but the node title on the canvas shows only the function name, such as `函数233`, not `函数库1/函数233`.
 - Node dragging and arrow-key nudging snap to the 20px grid by default; hold Alt for 1px precision movement.
 - `多线程` is an execution node with dynamic `线程N` outputs and a distinct `全部完成` output. Connected branches run in parallel; `全部完成` runs after all branches finish. Mouse/keyboard/window nodes are serialized by a global runtime lock when used inside parallel branches.
+- `ScriptHotkeyService` registers global low-level keyboard and mouse hooks (WH_KEYBOARD_LL / WH_MOUSE_LL) so scripts can be started or stopped by external hotkeys without the editor window being focused.
+- `ScriptRunManager` manages script run lifecycle: compile → execute with optional retry count, loop count, and fixed loop delay. It enforces single-instance-per-asset, reports running status to the toolbar, and handles hotkey dispatch.
+- `ScriptPropertiesWindow` is a themed dark WPF dialog for configuring per-script run settings (hotkey chord, retry/loop counts, fixed delay). Hotkey conflicts are validated before save.
 
 UE4 风格的 WPF 蓝图节点编辑器 — 用于桌面自动化脚本编排。
 
@@ -49,6 +52,8 @@ UE4 风格的 WPF 蓝图节点编辑器 — 用于桌面自动化脚本编排。
 - **自动环境检测**: 首次执行前后台检测并缓存 Python 环境结果，提供安装指引；找图脚本对 Windows 中文路径做了兼容处理
 - **执行前校验**: 检查节点可达性、参数缺失、连线唯一性、循环/坏图
 - **ToDo 跳转**: 用节点名 + 编号在同图内跳转，可选目标执行完后返回
+- **全局热键启动**: 右键脚本资产 → 属性，配置键盘/鼠标快捷键；无需编辑器前置即可启动/停止脚本
+- **执行控制**: 支持设置重试次数、循环次数、固定循环间隔；运行状态实时显示；热键冲突校验
 
 ## 使用
 
@@ -60,6 +65,8 @@ UE4 风格的 WPF 蓝图节点编辑器 — 用于桌面自动化脚本编排。
 6. 点击"执行图谱"运行；如有未编译图会先自动编译，失败才停止执行；运行中按钮会显示执行中并防止重复点击
 7. 按 Esc 停止执行
 8. 点击"鼠标拾取"可查看/复制当前屏幕坐标与颜色；左键弹复制选项，复制后退出，取消继续拾取，右键退出
+9. 右键脚本资产 → 属性，可配置全局热键、重试次数、循环执行等运行参数
+10. 配置热键后，无需编辑器前置即可通过热键启动/停止对应脚本
 
 ## 快捷键
 
@@ -163,6 +170,9 @@ AutomationStudioWpf/
 │   ├── InspectorController.Locks.cs # 前置输入锁定与灰态
 │   ├── InspectorController.ToDo.cs # ToDo 目标选择面板逻辑
 │   ├── NodePaletteController.cs # 右键节点菜单
+│   ├── ScriptHotkeyService.cs   # 全局热键服务 (WH_KEYBOARD_LL/WH_MOUSE_LL)
+│   ├── ScriptRunManager.cs      # 脚本运行生命周期管理
+│   ├── ScriptPropertiesWindow.cs # 脚本运行属性配置窗口
 │   ├── LogPanelController.cs    # 日志过滤、增量刷新
 │   └── GraphImportDropController.cs  # JSON 图谱拖拽导入
 ├── Logging/                     # 日志模块
@@ -196,6 +206,7 @@ AutomationStudioWpf/
 ├── MainWindow.LogAndImportHandlers.cs # 日志与拖拽导入入口
 ├── MainWindow.VisualTreeHelpers.cs # WPF visual/focus tree helpers
 ├── MainWindow.WindowLifecycle.cs # 窗口关闭与退出流程
+├── MainWindow.ScriptRunSettings.cs # 脚本属性窗口入口与热键分发
 ├── MainWindow.EditorSessions.cs # 多窗口标签/独立窗口交互
 ├── MainWindow.EditorSessionState.cs # session dirty/snapshot/compile 目标状态
 ├── MainWindow.EditorSurfaceHost.cs # surface 宿主
@@ -234,6 +245,15 @@ saved/log/Log_2026_05_28_22_11.txt
 ```
 
 ## 最近更新
+
+### v1.2.11 (2026-06-26)
+- **Added**: Global hotkey service (`ScriptHotkeyService`) with low-level keyboard/mouse hooks — start or stop scripts without focusing the editor window.
+- **Added**: Per-script run settings window (`ScriptPropertiesWindow`) for configuring hotkey chords, retry counts, loop counts, and fixed loop delay.
+- **Added**: Script run lifecycle manager (`ScriptRunManager`) with single-instance enforcement, toolbar status reporting, and hotkey conflict validation.
+- **Added**: Inspector controller split into focused partial files: `InspectorController.Parameters.cs`, `InspectorController.CommonNodes.cs`.
+- **Added**: MainWindow partials: `MainWindow.AssetCommands.cs`, `MainWindow.GraphInputHandlers.cs`, `MainWindow.ScriptRunSettings.cs`.
+- **Changed**: Runtime logs improved; node display names refined for clarity.
+- **Changed**: Editor/runtime flows stabilized and UI resources polished after multi-window session refactor.
 
 ### v1.2.10 (2026-06-12)
 - **Fixed**: Global window handlers now use safe active-surface lookup or no-op when no editor surface exists, avoiding startup/no-session crashes.
