@@ -19,12 +19,35 @@ public sealed class GraphListItemViewModel : ObservableObject
 
     public GraphAssetKind Kind { get; init; } = GraphAssetKind.EventGraph;
 
+    public GraphEntryRole EntryRole
+    {
+        get => Graph.EntryRole ?? GraphEntryRole.MainEvent;
+        set
+        {
+            if (Kind != GraphAssetKind.EventGraph)
+            {
+                if (Graph.EntryRole is null)
+                    return;
+
+                Graph.EntryRole = null;
+                OnPropertyChanged();
+                return;
+            }
+
+            if (Graph.EntryRole == value)
+                return;
+
+            Graph.EntryRole = value;
+            OnPropertyChanged();
+        }
+    }
+
     public string Name
     {
         get => _name;
         set
         {
-            if (SetProperty(ref _name, string.IsNullOrWhiteSpace(value) ? "Unnamed" : value))
+            if (SetProperty(ref _name, value ?? string.Empty))
                 OnPropertyChanged(nameof(DisplayName));
         }
     }
@@ -76,6 +99,90 @@ public enum ContentAssetKind
     FunctionLibrary,
 }
 
+public enum ScriptLoopMode
+{
+    Count,
+    UntilStopped,
+    Duration,
+}
+
+public enum ScriptHotkeyInputKind
+{
+    Keyboard,
+    Mouse,
+}
+
+public sealed class ScriptHotkeySettings
+{
+    public ScriptHotkeyInputKind InputKind { get; set; } = ScriptHotkeyInputKind.Keyboard;
+
+    public string Key { get; set; } = string.Empty;
+
+    public int PressCount { get; set; } = 1;
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool IsConfigured => !string.IsNullOrWhiteSpace(Key) && PressCount > 0;
+
+    public ScriptHotkeySettings Clone() => new()
+    {
+        InputKind = InputKind,
+        Key = Key,
+        PressCount = PressCount,
+    };
+
+    public override string ToString()
+    {
+        if (!IsConfigured)
+            return "未设置";
+
+        string prefix = InputKind == ScriptHotkeyInputKind.Mouse ? "鼠标" : "键盘";
+        return PressCount <= 1 ? $"{prefix} {Key}" : $"{prefix} {Key} x{PressCount}";
+    }
+}
+
+public sealed class ScriptRunSettings
+{
+    public ScriptLoopMode LoopMode { get; set; } = ScriptLoopMode.Count;
+
+    public int LoopCount { get; set; } = 1;
+
+    public int DurationHours { get; set; }
+
+    public int DurationMinutes { get; set; }
+
+    public int DurationSeconds { get; set; }
+
+    public bool PreventDuplicateRun { get; set; } = true;
+
+    public ScriptHotkeySettings StartHotkey { get; set; } = new();
+
+    public ScriptHotkeySettings StopHotkey { get; set; } = new();
+
+    public ScriptRunSettings Clone() => new()
+    {
+        LoopMode = LoopMode,
+        LoopCount = LoopCount,
+        DurationHours = DurationHours,
+        DurationMinutes = DurationMinutes,
+        DurationSeconds = DurationSeconds,
+        PreventDuplicateRun = PreventDuplicateRun,
+        StartHotkey = StartHotkey?.Clone() ?? new ScriptHotkeySettings(),
+        StopHotkey = StopHotkey?.Clone() ?? new ScriptHotkeySettings(),
+    };
+
+    public void Normalize()
+    {
+        LoopCount = Math.Max(1, LoopCount);
+        DurationHours = Math.Clamp(DurationHours, 0, 999);
+        DurationMinutes = Math.Clamp(DurationMinutes, 0, 59);
+        DurationSeconds = Math.Clamp(DurationSeconds, 0, 59);
+        StartHotkey ??= new ScriptHotkeySettings();
+        StopHotkey ??= new ScriptHotkeySettings();
+        StartHotkey.PressCount = Math.Max(1, StartHotkey.PressCount);
+        StopHotkey.PressCount = Math.Max(1, StopHotkey.PressCount);
+    }
+}
+
 public sealed class ContentAssetViewModel : ObservableObject
 {
     private string _name = string.Empty;
@@ -107,7 +214,10 @@ public sealed class ContentAssetViewModel : ObservableObject
         get => _name;
         set
         {
-            if (SetProperty(ref _name, string.IsNullOrWhiteSpace(value) ? "Unnamed Asset" : value))
+            if (string.IsNullOrWhiteSpace(value))
+                return;
+
+            if (SetProperty(ref _name, value))
             {
                 OnPropertyChanged(nameof(DisplayName));
                 OnPropertyChanged(nameof(TreeDisplayName));
@@ -120,6 +230,8 @@ public sealed class ContentAssetViewModel : ObservableObject
     public ObservableCollection<GraphListItemViewModel> EventGraphs { get; set; } = [];
 
     public ObservableCollection<GraphListItemViewModel> Functions { get; set; } = [];
+
+    public ScriptRunSettings RunSettings { get; set; } = new();
 
     public bool IsEditing
     {
@@ -143,7 +255,7 @@ public sealed class ContentAssetViewModel : ObservableObject
     [System.Text.Json.Serialization.JsonIgnore]
     public string RenameText
     {
-        get => string.IsNullOrEmpty(_renameText) ? Name : _renameText;
+        get => _renameText;
         set => SetProperty(ref _renameText, value ?? string.Empty);
     }
 
@@ -366,20 +478,35 @@ public sealed class GraphLibraryService
     public static ObservableCollection<GraphListItemViewModel> ToViewModels(GraphLibraryState state)
     {
         return new ObservableCollection<GraphListItemViewModel>(
-            ToViewModels(state.Graphs, GraphAssetKind.EventGraph, "Unnamed Event Graph"));
+            ToEventGraphViewModels(state.Graphs, "Unnamed Event Graph"));
     }
 
     public static ObservableCollection<GraphListItemViewModel> ToFunctionViewModels(GraphLibraryState state) =>
         new(ToViewModels(state.Functions, GraphAssetKind.Function, "Unnamed Function"));
 
     private static IEnumerable<GraphLibraryItem> ToItems(IEnumerable<GraphListItemViewModel> items) =>
-        items.Select(item => new GraphLibraryItem
+        items.Select(item =>
         {
-            Id = item.Id,
-            Name = item.Name,
-            Graph = item.Graph,
-            IsPublicToLibrary = item.IsPublicToLibrary,
+            if (item.Kind == GraphAssetKind.EventGraph)
+                item.Graph.EntryRole = item.EntryRole;
+            return new GraphLibraryItem
+            {
+                Id = item.Id,
+                Name = item.Name,
+                Graph = item.Graph,
+                EntryRole = item.Kind == GraphAssetKind.EventGraph ? item.EntryRole : null,
+                IsPublicToLibrary = item.IsPublicToLibrary,
+            };
         });
+
+    private static IEnumerable<GraphLibraryItem> ToEventItems(IEnumerable<GraphListItemViewModel> items)
+    {
+        var list = items.ToList();
+        NormalizeEventGraphRoles(list);
+        foreach (var item in list.Where(item => item.EntryRole == GraphEntryRole.AuxiliaryEvent))
+            RemoveStartNodes(item.Graph);
+        return ToItems(list);
+    }
 
     private static ContentAssetModel ToContentAssetModel(ContentAssetViewModel asset) => new()
     {
@@ -387,32 +514,138 @@ public sealed class GraphLibraryService
         ParentFolderId = asset.ParentFolderId,
         Kind = asset.Kind,
         Name = asset.Name,
-        EventGraphs = ToItems(asset.EventGraphs).ToList(),
+        EventGraphs = ToEventItems(asset.EventGraphs).ToList(),
         Functions = ToItems(asset.Functions).ToList(),
+        RunSettings = asset.Kind == ContentAssetKind.Script
+            ? asset.RunSettings?.Clone() ?? new ScriptRunSettings()
+            : null,
     };
 
-    private static ContentAssetViewModel ToContentAssetViewModel(ContentAssetModel asset) => new()
+    private static ContentAssetViewModel ToContentAssetViewModel(ContentAssetModel asset)
     {
-        Id = string.IsNullOrWhiteSpace(asset.Id) ? Guid.NewGuid().ToString("N") : asset.Id,
-        ParentFolderId = asset.ParentFolderId,
-        Kind = asset.Kind,
-        Name = string.IsNullOrWhiteSpace(asset.Name) ? "Unnamed Asset" : asset.Name,
-        EventGraphs = new ObservableCollection<GraphListItemViewModel>(ToViewModels(asset.EventGraphs, GraphAssetKind.EventGraph, "Unnamed Event Graph")),
-        Functions = new ObservableCollection<GraphListItemViewModel>(ToViewModels(asset.Functions, GraphAssetKind.Function, "Unnamed Function")),
-    };
+        var viewModel = new ContentAssetViewModel
+        {
+            Id = string.IsNullOrWhiteSpace(asset.Id) ? Guid.NewGuid().ToString("N") : asset.Id,
+            ParentFolderId = asset.ParentFolderId,
+            Kind = asset.Kind,
+            Name = string.IsNullOrWhiteSpace(asset.Name) ? "Unnamed Asset" : asset.Name,
+            EventGraphs = new ObservableCollection<GraphListItemViewModel>(ToEventGraphViewModels(asset.EventGraphs, "Unnamed Event Graph")),
+            Functions = new ObservableCollection<GraphListItemViewModel>(ToViewModels(asset.Functions, GraphAssetKind.Function, "Unnamed Function")),
+            RunSettings = asset.RunSettings?.Clone() ?? new ScriptRunSettings(),
+        };
+        viewModel.RunSettings.Normalize();
+        return viewModel;
+    }
+
+    private static IEnumerable<GraphListItemViewModel> ToEventGraphViewModels(
+        IEnumerable<GraphLibraryItem> items,
+        string fallbackName)
+    {
+        var result = new List<GraphListItemViewModel>();
+        int index = 0;
+        bool mainAssigned = false;
+        foreach (var item in items)
+        {
+            var viewModel = ToViewModel(item, GraphAssetKind.EventGraph, fallbackName);
+            GraphEntryRole role;
+            if (item.EntryRole.HasValue)
+            {
+                role = item.EntryRole.Value;
+            }
+            else if (viewModel.Graph.EntryRole.HasValue)
+            {
+                role = viewModel.Graph.EntryRole.Value;
+            }
+            else
+            {
+                role = index == 0 ? GraphEntryRole.MainEvent : GraphEntryRole.AuxiliaryEvent;
+            }
+
+            if (role == GraphEntryRole.MainEvent && mainAssigned)
+                role = GraphEntryRole.AuxiliaryEvent;
+
+            viewModel.EntryRole = role;
+            viewModel.Graph.EntryRole = role;
+            if (role == GraphEntryRole.MainEvent)
+                mainAssigned = true;
+            index++;
+            result.Add(viewModel);
+        }
+
+        if (!mainAssigned && result.Count > 0)
+        {
+            result[0].EntryRole = GraphEntryRole.MainEvent;
+            result[0].Graph.EntryRole = GraphEntryRole.MainEvent;
+        }
+
+        return result;
+    }
+
+    public static void NormalizeEventGraphRoles(IEnumerable<GraphListItemViewModel> items)
+    {
+        bool mainAssigned = false;
+        GraphListItemViewModel? first = null;
+        foreach (var item in items.Where(item => item.Kind == GraphAssetKind.EventGraph))
+        {
+            first ??= item;
+            var role = item.EntryRole;
+            if (role == GraphEntryRole.MainEvent)
+            {
+                if (mainAssigned)
+                    role = GraphEntryRole.AuxiliaryEvent;
+                else
+                    mainAssigned = true;
+            }
+
+            item.EntryRole = role;
+            item.Graph.EntryRole = role;
+        }
+
+        if (!mainAssigned && first is not null)
+        {
+            first.EntryRole = GraphEntryRole.MainEvent;
+            first.Graph.EntryRole = GraphEntryRole.MainEvent;
+        }
+    }
 
     private static IEnumerable<GraphListItemViewModel> ToViewModels(
         IEnumerable<GraphLibraryItem> items,
         GraphAssetKind kind,
         string fallbackName) =>
-        items.Select(item => new GraphListItemViewModel
+        items.Select(item => ToViewModel(item, kind, fallbackName));
+
+    private static GraphListItemViewModel ToViewModel(GraphLibraryItem item, GraphAssetKind kind, string fallbackName)
+    {
+        var graph = item.Graph ?? new GraphFileModel();
+        graph.AssetKind = kind;
+        if (kind == GraphAssetKind.Function)
+            graph.EntryRole = null;
+        else if (item.EntryRole.HasValue)
+            graph.EntryRole = item.EntryRole.Value;
+        return new GraphListItemViewModel
         {
             Id = string.IsNullOrWhiteSpace(item.Id) ? Guid.NewGuid().ToString("N") : item.Id,
             Kind = kind,
             Name = string.IsNullOrWhiteSpace(item.Name) ? fallbackName : item.Name,
-            Graph = item.Graph ?? new GraphFileModel(),
+            Graph = graph,
             IsPublicToLibrary = item.IsPublicToLibrary,
-        });
+        };
+    }
+
+    private static void RemoveStartNodes(GraphFileModel graph)
+    {
+        var startNodeIds = graph.Nodes
+            .Where(node => node.NodeTypeKey == "start")
+            .Select(node => node.Id)
+            .ToHashSet(StringComparer.Ordinal);
+        if (startNodeIds.Count == 0)
+            return;
+
+        graph.Nodes.RemoveAll(node => startNodeIds.Contains(node.Id));
+        graph.Connections.RemoveAll(conn =>
+            startNodeIds.Contains(conn.SourceNodeId) ||
+            startNodeIds.Contains(conn.TargetNodeId));
+    }
 }
 
 public sealed class GraphLibraryState
@@ -437,6 +670,8 @@ public sealed class GraphLibraryItem
 
     public GraphFileModel Graph { get; set; } = new();
 
+    public GraphEntryRole? EntryRole { get; set; }
+
     public bool IsPublicToLibrary { get; set; }
 }
 
@@ -454,4 +689,5 @@ public sealed class ContentAssetModel
 
     public List<GraphLibraryItem> Functions { get; set; } = [];
 
+    public ScriptRunSettings? RunSettings { get; set; }
 }

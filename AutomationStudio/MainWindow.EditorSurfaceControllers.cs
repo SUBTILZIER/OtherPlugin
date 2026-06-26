@@ -44,6 +44,12 @@ public partial class MainWindow
     {
         RebuildEditorControllers();
         _mousePickController = new MousePickController(this, SetStatus);
+        _scriptHotkeyService = new ScriptHotkeyService(this, HandleScriptHotkey);
+        _scriptRunManager = new ScriptRunManager(
+            CompileScriptAssetForRunAsync,
+            GetRuntimeCallableFunctionsForAsset,
+            (asset, functions, ct) => _executionController.RunScriptAssetOnceAsync(asset, functions, ct),
+            SetStatus);
 
         _logPanelController = new LogPanelController(
             LogRichTextBox,

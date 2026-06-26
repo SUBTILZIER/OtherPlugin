@@ -94,6 +94,37 @@ public sealed class ExecutionController
         }
     }
 
+    public async Task<GraphExecutionResult> RunScriptAssetOnceAsync(
+        ContentAssetViewModel asset,
+        IEnumerable<CallableGraphItem> functions,
+        CancellationToken externalCancellationToken)
+    {
+        if (asset.Kind != ContentAssetKind.Script)
+            return new GraphExecutionResult(false, "只能执行脚本资产。", false);
+
+        var mainGraph = asset.EventGraphs.FirstOrDefault(item => item.EntryRole == GraphEntryRole.MainEvent)
+                        ?? asset.EventGraphs.FirstOrDefault();
+        if (mainGraph is null)
+            return new GraphExecutionResult(false, "脚本没有主事件图。", false);
+
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(externalCancellationToken);
+        var plan = BuildPlanFromModel(mainGraph.Graph);
+        var assetLibrary = new RuntimeAssetLibrary(
+            functions.ToDictionary(item => item.Id, item => BuildPlanFromModel(item.Graph)));
+        var baseDirectory = Environment.CurrentDirectory;
+        if (!Validate(plan))
+            return new GraphExecutionResult(false, "图谱校验失败，执行已取消。", false);
+
+        if (plan.Nodes.Any(n => n.NodeKind is NodeKind.FindImage or NodeKind.WaitImage or NodeKind.WaitImageDisappear))
+        {
+            bool pythonReady = await PythonAutoInstaller.EnsurePythonAsync(new Progress<string>(_setStatus));
+            if (!pythonReady)
+                return new GraphExecutionResult(false, "Python 环境未就绪，执行已取消。", false);
+        }
+
+        return await Task.Run(() => _runtimeExecutor.Execute(plan, baseDirectory, assetLibrary, linkedCts.Token), linkedCts.Token);
+    }
+
     private void SetRunButtonRunning()
     {
         _runButtonOriginalContent = _runButton.Content;

@@ -140,6 +140,8 @@ public partial class MainWindow
     private void PersistAssetLibrary()
     {
         _graphLibraryService.SaveContentLibrary(ContentBrowserItems, _activeContentAsset?.Id);
+        if (_scriptHotkeyService is not null)
+            RefreshScriptHotkeys();
     }
 
     private void SaveAllAssets()

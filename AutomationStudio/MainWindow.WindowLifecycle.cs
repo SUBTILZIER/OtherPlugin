@@ -9,6 +9,7 @@ public partial class MainWindow
     private void Window_Closing(object? sender, CancelEventArgs e)
     {
         _mousePickController.Stop();
+        _scriptRunManager.StopAll();
         _executionController.ReleaseAllKeys();
         if (_isClosing) return;
 
@@ -45,5 +46,7 @@ public partial class MainWindow
         }
 
         _mousePickController.Dispose();
+        _scriptRunManager.Dispose();
+        _scriptHotkeyService.Dispose();
     }
 }

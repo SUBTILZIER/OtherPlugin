@@ -161,6 +161,15 @@ public partial class MainWindow
         try
         {
             string newName = ((textBox?.Text ?? item.RenameText) ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(newName))
+            {
+                item.RenameError = string.Empty;
+                item.IsEditing = false;
+                RefreshContentBrowserViews();
+                SetStatus("名称不能为空，已保留原名称。");
+                return true;
+            }
+
             if (!ValidateContentAssetRenameInput(item, newName, showEmptyError: true))
             {
                 SetStatus(item.RenameError);
@@ -180,7 +189,6 @@ public partial class MainWindow
             }
 
             item.RenameError = string.Empty;
-            item.RenameText = newName;
 
             if (!string.Equals(item.Name, newName, StringComparison.Ordinal))
             {
@@ -191,6 +199,7 @@ public partial class MainWindow
             }
 
             item.IsEditing = false;
+            item.RenameText = item.Name;
             if (textBox is not null)
                 UpdateContentAssetRenameErrorVisual(textBox);
             RefreshContentBrowserViews();

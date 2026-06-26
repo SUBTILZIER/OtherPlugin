@@ -169,6 +169,7 @@ public partial class MainWindow
 
     private void Window_ClosingThemed(object? sender, System.ComponentModel.CancelEventArgs e)
     {
+        _scriptRunManager.StopAll();
         _executionController.ReleaseAllKeys();
         if (_isClosing) return;
 
@@ -199,6 +200,8 @@ public partial class MainWindow
             return;
 
         _isClosing = true;
+        _scriptRunManager.Dispose();
+        _scriptHotkeyService.Dispose();
     }
 
     private bool EnsureCompiledBeforeSaveThemed()

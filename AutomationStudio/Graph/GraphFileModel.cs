@@ -10,6 +10,8 @@ public sealed class GraphFileModel
 
     public GraphAssetKind AssetKind { get; set; } = GraphAssetKind.EventGraph;
 
+    public GraphEntryRole? EntryRole { get; set; }
+
     public List<NodeFileModel> Nodes { get; set; } = [];
 
     public List<ConnectionFileModel> Connections { get; set; } = [];

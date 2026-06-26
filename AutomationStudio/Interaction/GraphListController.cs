@@ -142,6 +142,8 @@ public sealed class GraphListController
         foreach (var item in items)
             _items.Add(item);
 
+        if (_kind == GraphAssetKind.EventGraph)
+            GraphLibraryService.NormalizeEventGraphRoles(_items);
         ClearActive();
         RefreshSectionExpansion();
     }
@@ -239,10 +241,14 @@ public sealed class GraphListController
             ? Path.GetFileNameWithoutExtension(path)
             : graph.Name;
 
+        var entryRole = GetDefaultEntryRoleForImportedGraph(graph);
+        graph.EntryRole = graph.AssetKind == GraphAssetKind.EventGraph ? entryRole : null;
         var item = new GraphListItemViewModel
         {
             Name = name,
+            Kind = graph.AssetKind,
             Graph = graph,
+            EntryRole = entryRole,
             IsDirty = true,
         };
 
@@ -311,16 +317,31 @@ public sealed class GraphListController
 
         bool deletingActive = ReferenceEquals(SelectedItem, _activeItem);
         int oldIndex = _items.IndexOf(SelectedItem);
+        bool deletingMainEvent = _kind == GraphAssetKind.EventGraph &&
+                                 SelectedItem.EntryRole == GraphEntryRole.MainEvent;
         _items.Remove(SelectedItem);
 
         if (_items.Count == 0)
         {
-            ClearActive();
-            _editorService.ClearGraph();
-            RefreshSectionExpansion();
+            if (_kind == GraphAssetKind.EventGraph)
+            {
+                var item = AddDefaultItem(CreateUniqueName(), loadImmediately: true, snapshotCurrent: false);
+                item.EntryRole = GraphEntryRole.MainEvent;
+                item.Graph.EntryRole = GraphEntryRole.MainEvent;
+                deletingActive = false;
+            }
+            else
+            {
+                ClearActive();
+                _editorService.ClearGraph();
+                RefreshSectionExpansion();
+            }
         }
         else
         {
+            if (deletingMainEvent)
+                PromoteFirstEventGraphToMain();
+
             var next = _items[Math.Clamp(oldIndex, 0, _items.Count - 1)];
             _graphListBox.SelectedItem = next;
             if (deletingActive)
@@ -357,8 +378,12 @@ public sealed class GraphListController
         if (_isLoadingGraph || _activeItem is null)
             return;
 
-        _activeItem.Graph = _editorService.ExportGraphModel(_activeItem.Name, _kind);
+        if (_activeItem.EntryRole == GraphEntryRole.AuxiliaryEvent)
+            _editorService.RemoveStartNodes();
+
+        _activeItem.Graph = _editorService.ExportGraphModel(_activeItem.Name, _kind, GetEntryRoleForItem(_activeItem));
         _activeItem.Graph.Name = _activeItem.Name;
+        _activeItem.Graph.EntryRole = GetEntryRoleForItem(_activeItem);
     }
 
     public void MarkDirty() => MarkLogicDirty();
@@ -414,11 +439,13 @@ public sealed class GraphListController
             SnapshotActive();
 
         string name = string.IsNullOrWhiteSpace(fixedName) ? CreateUniqueName() : fixedName;
+        var entryRole = GetNewItemEntryRole();
         var item = new GraphListItemViewModel
         {
             Name = name,
             Kind = _kind,
-            Graph = CreateDefaultGraphModel(name),
+            Graph = CreateDefaultGraphModel(name, entryRole),
+            EntryRole = entryRole ?? GraphEntryRole.MainEvent,
             IsDirty = true,
             IsCompileDirty = true,
         };
@@ -446,6 +473,8 @@ public sealed class GraphListController
         _isLoadingGraph = true;
         try
         {
+            if (_kind == GraphAssetKind.EventGraph)
+                item.Graph.EntryRole = item.EntryRole;
             _editorService.LoadFromModel(item.Graph);
             _syncNodeFactorySequence();
             _activeItem = item;
@@ -470,18 +499,27 @@ public sealed class GraphListController
         return name;
     }
 
-    private GraphFileModel CreateDefaultGraphModel(string name)
+    private GraphFileModel CreateDefaultGraphModel(string name, GraphEntryRole? entryRole)
     {
         _isLoadingGraph = true;
         try
         {
             if (_kind == GraphAssetKind.Function)
+            {
                 _editorService.NewFunctionGraph();
+                entryRole = null;
+            }
+            else if (entryRole == GraphEntryRole.AuxiliaryEvent)
+            {
+                _editorService.NewAuxiliaryEventGraph();
+            }
             else
-                _editorService.NewGraph();
+            {
+                _editorService.NewMainEventGraph();
+            }
             _syncNodeFactorySequence();
             ApplyEntryNodeTitle(_editorService.Nodes, name);
-            return _editorService.ExportGraphModel(name, _kind);
+            return _editorService.ExportGraphModel(name, _kind, entryRole);
         }
         finally
         {
@@ -497,6 +535,8 @@ public sealed class GraphListController
         _isLoadingGraph = true;
         try
         {
+            if (_kind == GraphAssetKind.EventGraph)
+                item.Graph.EntryRole = item.EntryRole;
             _editorService.LoadFromModel(item.Graph);
             _syncNodeFactorySequence();
             _activeItem = item;
@@ -528,7 +568,14 @@ public sealed class GraphListController
 
     private void CommitRename(GraphListItemViewModel item)
     {
-        item.Name = string.IsNullOrWhiteSpace(item.Name) ? $"未命名{_displayName}" : item.Name.Trim();
+        if (string.IsNullOrWhiteSpace(item.Name))
+        {
+            item.Name = string.IsNullOrWhiteSpace(item.Graph.Name) ? $"未命名{_displayName}" : item.Graph.Name;
+            item.IsEditing = false;
+            return;
+        }
+
+        item.Name = item.Name.Trim();
         item.Graph.Name = item.Name;
         ApplyEntryNodeTitle(item.Graph, item.Name);
         if (ReferenceEquals(item, _activeItem))
@@ -583,6 +630,70 @@ public sealed class GraphListController
 
         foreach (var node in graph.Nodes.Where(node => node.NodeTypeKey == entryKey))
             node.Title = $"{graphName}开始";
+    }
+
+    private GraphEntryRole? GetNewItemEntryRole()
+    {
+        if (_kind != GraphAssetKind.EventGraph)
+            return null;
+
+        return _items.Any(item => item.EntryRole == GraphEntryRole.MainEvent)
+            ? GraphEntryRole.AuxiliaryEvent
+            : GraphEntryRole.MainEvent;
+    }
+
+    private GraphEntryRole? GetEntryRoleForItem(GraphListItemViewModel item) =>
+        _kind == GraphAssetKind.EventGraph ? item.EntryRole : null;
+
+    private GraphEntryRole GetDefaultEntryRoleForImportedGraph(GraphFileModel graph)
+    {
+        if (graph.AssetKind != GraphAssetKind.EventGraph)
+            return GraphEntryRole.MainEvent;
+
+        return _items.Any(item => item.EntryRole == GraphEntryRole.MainEvent)
+            ? GraphEntryRole.AuxiliaryEvent
+            : graph.EntryRole ?? GraphEntryRole.MainEvent;
+    }
+
+    private void PromoteFirstEventGraphToMain()
+    {
+        if (_kind != GraphAssetKind.EventGraph || _items.Count == 0)
+            return;
+
+        foreach (var item in _items)
+            item.EntryRole = GraphEntryRole.AuxiliaryEvent;
+
+        var promoted = _items[0];
+        promoted.EntryRole = GraphEntryRole.MainEvent;
+        promoted.Graph.EntryRole = GraphEntryRole.MainEvent;
+        if (promoted.Graph.Nodes.All(node => node.NodeTypeKey != "start"))
+        {
+            string id = CreateUniqueNodeId(promoted.Graph);
+            promoted.Graph.Nodes.Insert(0, new NodeFileModel
+            {
+                Id = id,
+                NodeTypeKey = "start",
+                Title = "开始运行",
+                NodeNumber = "N001",
+                X = 80,
+                Y = 210,
+            });
+            promoted.IsDirty = true;
+            promoted.IsCompileDirty = true;
+        }
+    }
+
+    private static string CreateUniqueNodeId(GraphFileModel graph)
+    {
+        var ids = graph.Nodes.Select(node => node.Id).ToHashSet(StringComparer.Ordinal);
+        for (int i = 1; i < 10000; i++)
+        {
+            string id = $"node_{i:000}";
+            if (!ids.Contains(id))
+                return id;
+        }
+
+        return $"node_{Guid.NewGuid():N}";
     }
 
     private static T? FindVisualChild<T>(DependencyObject parent) where T : DependencyObject

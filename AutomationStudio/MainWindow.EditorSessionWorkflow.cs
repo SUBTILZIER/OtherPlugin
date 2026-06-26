@@ -17,6 +17,7 @@ public partial class MainWindow
 
         _currentContentFolderId = null;
         RefreshContentBrowserViews();
+        RefreshScriptHotkeys();
         if (_editorSessions.Count == 0)
             ClearEditorSurface();
     }

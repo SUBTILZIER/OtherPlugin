@@ -73,7 +73,8 @@ public sealed class GraphCompileService
     {
         var assetList = assets.ToList();
         var changedAssetIds = new HashSet<string>(StringComparer.Ordinal);
-        bool changed = EnsureGraphNodeNumbers(item.Graph, item.Kind);
+        bool changed = EnsureAuxiliaryEventGraph(item);
+        changed |= EnsureGraphNodeNumbers(item.Graph, item.Kind);
         changed |= EnsureGraphToDoTargets(item.Graph);
         if (changed)
             changedAssetIds.Add(owner.Id);
@@ -148,7 +149,8 @@ public sealed class GraphCompileService
         {
             foreach (var item in asset.EventGraphs.Concat(asset.Functions))
             {
-                bool changed = EnsureGraphNodeNumbers(item.Graph, item.Kind);
+                bool changed = EnsureAuxiliaryEventGraph(item);
+                changed |= EnsureGraphNodeNumbers(item.Graph, item.Kind);
                 changed |= EnsureGraphToDoTargets(item.Graph);
                 if (changed)
                     changedAssetIds.Add(asset.Id);
@@ -163,7 +165,8 @@ public sealed class GraphCompileService
         var changedAssetIds = new HashSet<string>(StringComparer.Ordinal);
         foreach (var item in GetCompilableGraphs(asset))
         {
-            bool changed = EnsureGraphNodeNumbers(item.Graph, item.Kind);
+            bool changed = EnsureAuxiliaryEventGraph(item);
+            changed |= EnsureGraphNodeNumbers(item.Graph, item.Kind);
             changed |= EnsureGraphToDoTargets(item.Graph);
             if (changed)
                 changedAssetIds.Add(asset.Id);
@@ -223,6 +226,28 @@ public sealed class GraphCompileService
         }
 
         return changed;
+    }
+
+    private static bool EnsureAuxiliaryEventGraph(GraphListItemViewModel item)
+    {
+        if (item.Kind != GraphAssetKind.EventGraph ||
+            item.EntryRole != GraphEntryRole.AuxiliaryEvent)
+        {
+            return false;
+        }
+
+        var startNodeIds = item.Graph.Nodes
+            .Where(node => string.Equals(node.NodeTypeKey, "start", StringComparison.OrdinalIgnoreCase))
+            .Select(node => node.Id)
+            .ToHashSet(StringComparer.Ordinal);
+        if (startNodeIds.Count == 0)
+            return false;
+
+        item.Graph.Nodes.RemoveAll(node => startNodeIds.Contains(node.Id));
+        item.Graph.Connections.RemoveAll(connection =>
+            startNodeIds.Contains(connection.SourceNodeId) ||
+            startNodeIds.Contains(connection.TargetNodeId));
+        return true;
     }
 
     private static bool IsRerouteNode(NodeFileModel node) =>
@@ -336,6 +361,7 @@ public sealed class GraphCompileService
         GraphListItemViewModel item,
         List<GraphValidationIssue> issues)
     {
+        EnsureAuxiliaryEventGraph(item);
         EnsureGraphNodeNumbers(item.Graph, item.Kind);
         EnsureGraphToDoTargets(item.Graph);
         string graphName = $"{BuildContentPath(owner, assetsById)}/{item.Name}";
@@ -363,7 +389,7 @@ public sealed class GraphCompileService
             nodesById[fileNode.Id] = node;
         }
 
-        ValidateGraphEntrypoints(graphName, item.Kind, nodesById.Values, issues);
+        ValidateGraphEntrypoints(graphName, item.Kind, item.EntryRole, nodesById.Values, issues);
         ValidateNodeNumbers(graphName, nodesById.Values, issues);
         ValidateConnections(graphName, item.Graph.Connections, nodesById, issues);
         ValidateToDoTargets(graphName, item.Graph.Connections, nodesById.Values, issues);
@@ -373,6 +399,7 @@ public sealed class GraphCompileService
     private static void ValidateGraphEntrypoints(
         string graphName,
         GraphAssetKind kind,
+        GraphEntryRole entryRole,
         IEnumerable<NodeBaseViewModel> nodes,
         List<GraphValidationIssue> issues)
     {
@@ -381,6 +408,9 @@ public sealed class GraphCompileService
         switch (kind)
         {
             case GraphAssetKind.EventGraph:
+                if (entryRole == GraphEntryRole.AuxiliaryEvent)
+                    break;
+
                 if (Count(NodeKind.Start) != 1)
                     issues.Add(Error(graphName, "事件图必须有且只有一个开始节点。"));
                 break;

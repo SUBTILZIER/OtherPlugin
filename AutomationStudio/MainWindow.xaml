@@ -363,7 +363,7 @@
                                                         </Style>
                                                     </TextBlock.Style>
                                                 </TextBlock>
-                                                <TextBox Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}"
+                                                <TextBox Text="{Binding RenameText, UpdateSourceTrigger=PropertyChanged}"
                                                          KeyDown="ContentAssetNameTextBox_KeyDown"
                                                          LostFocus="ContentAssetNameTextBox_LostFocus"
                                                          Style="{StaticResource ContentRenameTextBoxStyle}" />
@@ -448,7 +448,7 @@
                                                 </Style>
                                             </TextBlock.Style>
                                         </TextBlock>
-                                        <TextBox Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}"
+                                        <TextBox Text="{Binding RenameText, UpdateSourceTrigger=PropertyChanged}"
                                                  KeyDown="ContentAssetNameTextBox_KeyDown"
                                                  LostFocus="ContentAssetNameTextBox_LostFocus"
                                                  Style="{StaticResource ContentRenameTextBoxStyle}" />
@@ -457,9 +457,11 @@
                             </ListBox.ItemTemplate>
                             <ListBox.ContextMenu>
                                 <ContextMenu Style="{StaticResource DarkContextMenuStyle}"
-                                             Opened="ContentBrowserContextMenu_Opened">
+                                             Opened="ContentBrowserContextMenu_Opened"
+                                             Closed="ContentBrowserContextMenu_Closed">
                                     <MenuItem x:Name="ContentBrowserRenameMenuItem" Header="重命名" Click="RenameContentAssetMenuItem_Click" />
                                     <MenuItem x:Name="ContentBrowserDeleteMenuItem" Header="删除" Click="DeleteContentAssetMenuItem_Click" />
+                                    <MenuItem x:Name="ContentBrowserPropertiesMenuItem" Header="属性" Click="ContentAssetPropertiesMenuItem_Click" />
                                     <Separator x:Name="ContentBrowserAssetMenuSeparator" />
                                     <MenuItem x:Name="ContentBrowserNewScriptMenuItem" Header="脚本" Click="NewScriptAsset_Click" />
                                     <MenuItem x:Name="ContentBrowserNewFolderMenuItem" Header="文件夹" Click="NewContentFolder_Click" />

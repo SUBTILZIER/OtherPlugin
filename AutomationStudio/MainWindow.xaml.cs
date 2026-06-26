@@ -69,12 +69,15 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private LogPanelController _logPanelController = null!;
     private GraphImportDropController _graphImportDropController = null!;
     private MousePickController _mousePickController = null!;
+    private ScriptHotkeyService _scriptHotkeyService = null!;
+    private ScriptRunManager _scriptRunManager = null!;
     private FinalCodePreviewWindow? _finalCodePreviewWindow;
     private ContentAssetViewModel? _activeContentAsset;
     private string? _currentContentFolderId;
     private Point _contentDragStartPoint;
     private bool _contentFolderSelectionActive;
     private bool _contentBrowserContextTargetsAsset;
+    private ContentAssetViewModel? _contentBrowserContextTargetAsset;
     private bool _suppressGraphChangedDirty;
     private bool _isCommittingContentAssetRename;
     private readonly ContentAssetViewModel _rootContentFolder = new()

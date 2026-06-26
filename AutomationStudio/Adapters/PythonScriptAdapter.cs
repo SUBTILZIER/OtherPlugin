@@ -49,7 +49,7 @@ public sealed class PythonScriptAdapter : IPythonScriptAdapter
             }
 
             string stdout = outputTask.GetAwaiter().GetResult();
-            string stderr = errorTask.GetAwaiter().GetResult();
+            string stderr = FilterBenignPythonStderr(errorTask.GetAwaiter().GetResult());
             bool success = process.ExitCode == 0;
             return new PythonScriptResult(success, process.ExitCode, stdout, stderr, success ? "Python 脚本执行完成。" : $"Python 脚本退出码 {process.ExitCode}");
         }
@@ -88,5 +88,16 @@ public sealed class PythonScriptAdapter : IPythonScriptAdapter
 
         return "python";
     }
-}
 
+    private static string FilterBenignPythonStderr(string stderr)
+    {
+        if (string.IsNullOrWhiteSpace(stderr))
+            return string.Empty;
+
+        var lines = stderr
+            .Split(["\r\n", "\n"], StringSplitOptions.None)
+            .Where(line => !line.Contains("libpng warning: iCCP: known incorrect sRGB profile", StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+        return string.Join(Environment.NewLine, lines).Trim();
+    }
+}

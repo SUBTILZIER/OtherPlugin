@@ -96,14 +96,16 @@ public partial class MainWindow
     {
         _contentFolderSelectionActive = false;
         _contentBrowserContextTargetsAsset = true;
-        if (sender is ListBoxItem { DataContext: ContentAssetViewModel item })
-            ContentBrowserListBox.SelectedItem = item;
+        _contentBrowserContextTargetAsset = sender is ListBoxItem { DataContext: ContentAssetViewModel item } ? item : null;
+        if (_contentBrowserContextTargetAsset is not null)
+            ContentBrowserListBox.SelectedItem = _contentBrowserContextTargetAsset;
     }
 
     private void ContentBrowserListBox_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
     {
         _contentFolderSelectionActive = false;
         _contentBrowserContextTargetsAsset = GetContentAssetFromMouseEvent(e) is not null;
+        _contentBrowserContextTargetAsset = GetContentAssetFromMouseEvent(e);
         if (!_contentBrowserContextTargetsAsset)
         {
             ContentBrowserListBox.SelectedItem = null;
@@ -114,16 +116,25 @@ public partial class MainWindow
 
     private void ContentBrowserContextMenu_Opened(object sender, RoutedEventArgs e)
     {
-        var assetVisibility = _contentBrowserContextTargetsAsset ? Visibility.Visible : Visibility.Collapsed;
-        var newVisibility = _contentBrowserContextTargetsAsset ? Visibility.Collapsed : Visibility.Visible;
+        var selected = _contentBrowserContextTargetAsset ?? GetSelectedContentAsset();
+        var assetVisibility = selected is not null ? Visibility.Visible : Visibility.Collapsed;
+        var newVisibility = selected is not null ? Visibility.Collapsed : Visibility.Visible;
 
         ContentBrowserRenameMenuItem.Visibility = assetVisibility;
         ContentBrowserDeleteMenuItem.Visibility = assetVisibility;
+        ContentBrowserPropertiesMenuItem.Visibility =
+            selected?.Kind == ContentAssetKind.Script ? Visibility.Visible : Visibility.Collapsed;
         ContentBrowserAssetMenuSeparator.Visibility = assetVisibility;
         ContentBrowserNewScriptMenuItem.Visibility = newVisibility;
         ContentBrowserNewFolderMenuItem.Visibility = newVisibility;
         ContentBrowserNewLibraryMenuSeparator.Visibility = newVisibility;
         ContentBrowserNewFunctionLibraryMenuItem.Visibility = newVisibility;
+    }
+
+    private void ContentBrowserContextMenu_Closed(object sender, RoutedEventArgs e)
+    {
+        _contentBrowserContextTargetAsset = null;
+        _contentBrowserContextTargetsAsset = false;
     }
 
     private void ContentFolder_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
@@ -133,6 +144,7 @@ public partial class MainWindow
             ContentFolderListBox.SelectedItem = item;
             ContentBrowserListBox.SelectedItem = null;
             _contentFolderSelectionActive = true;
+            _contentBrowserContextTargetAsset = item;
             if (!ReferenceEquals(item, _rootContentFolder))
                 ContentFolderListBox.Focus();
         }
@@ -181,26 +193,32 @@ public partial class MainWindow
 
     private void DeleteContentAssetMenuItem_Click(object sender, RoutedEventArgs e) => DeleteSelectedContentAsset();
 
+    private void ContentAssetPropertiesMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        ShowSelectedScriptProperties();
+        _contentBrowserContextTargetsAsset = false;
+    }
+
     private void ContentAssetNameTextBox_KeyDown(object sender, KeyEventArgs e)
     {
-        if (sender is not TextBox { DataContext: ContentAssetViewModel item }) return;
+        if (sender is not TextBox { DataContext: ContentAssetViewModel item } textBox) return;
 
         if (e.Key == Key.Enter)
         {
-            CommitContentAssetRename(item);
+            TryCommitContentAssetRenameValidated(item, textBox, keepFocusOnError: true);
             e.Handled = true;
         }
         else if (e.Key == Key.Escape)
         {
-            item.IsEditing = false;
+            CancelContentAssetRenameValidated(item, textBox);
             e.Handled = true;
         }
     }
 
     private void ContentAssetNameTextBox_LostFocus(object sender, RoutedEventArgs e)
     {
-        if (sender is TextBox { DataContext: ContentAssetViewModel item })
-            CommitContentAssetRename(item);
+        if (sender is TextBox { DataContext: ContentAssetViewModel item } textBox)
+            TryCommitContentAssetRenameValidated(item, textBox, keepFocusOnError: true);
     }
 
     private void ContentBrowserArea_PreviewMouseDown(object sender, MouseButtonEventArgs e)
@@ -236,6 +254,8 @@ public partial class MainWindow
             Name = name,
             IsDirty = true,
         };
+        if (asset.Kind == ContentAssetKind.Script)
+            asset.RunSettings.Normalize();
 
         return asset;
     }
@@ -393,8 +413,10 @@ public partial class MainWindow
 
     private void StartRenameSelectedContentAsset()
     {
-        if (GetSelectedContentAsset() is ContentAssetViewModel item)
+        if ((_contentBrowserContextTargetAsset ?? GetSelectedContentAsset()) is ContentAssetViewModel item)
         {
+            _contentBrowserContextTargetAsset = null;
+            _contentBrowserContextTargetsAsset = false;
             item.IsEditing = true;
             FocusContentRenameTextBox(item);
         }
@@ -402,30 +424,44 @@ public partial class MainWindow
 
     private void CommitContentAssetRename(ContentAssetViewModel item)
     {
-        if (_isCommittingContentAssetRename)
-            return;
-
-        _isCommittingContentAssetRename = true;
-        try
+        string newName = item.RenameText.Trim();
+        if (string.IsNullOrWhiteSpace(newName))
         {
-            string baseName = string.IsNullOrWhiteSpace(item.Name) ? "未命名资产" : item.Name.Trim();
-            item.Name = MakeUniqueContentName(baseName, item.ParentFolderId, item);
+            item.RenameError = string.Empty;
             item.IsEditing = false;
-            item.IsDirty = true;
-            RefreshContentBrowserViews();
-            PersistAssetLibrary();
+            SetStatus("名称不能为空，已保留原名称。");
+            return;
         }
-        finally
+
+        if (HasSameLevelContentName(newName, item.ParentFolderId, item))
         {
-            _isCommittingContentAssetRename = false;
+            item.RenameError = "同层级已存在同名资产。";
+            item.IsEditing = true;
+            SetStatus(item.RenameError);
+            return;
         }
+
+        item.RenameError = string.Empty;
+        if (!string.Equals(item.Name, newName, StringComparison.Ordinal))
+        {
+            item.Name = newName;
+            item.IsDirty = true;
+            PersistAssetLibrary();
+            SetStatus($"已重命名资产：{newName}");
+        }
+
+        item.IsEditing = false;
+        item.RenameText = item.Name;
+        RefreshContentBrowserViews();
     }
 
     private void DeleteSelectedContentAsset()
     {
-        if (GetSelectedContentAsset() is not ContentAssetViewModel item)
+        if ((_contentBrowserContextTargetAsset ?? GetSelectedContentAsset()) is not ContentAssetViewModel item)
             return;
 
+        _contentBrowserContextTargetAsset = null;
+        _contentBrowserContextTargetsAsset = false;
         var result = WpfMessageBox.Show(this, $"是否删除：{item.Name}？", "删除资产", MessageBoxButton.YesNo, MessageBoxImage.Question);
         if (result != MessageBoxResult.Yes)
             return;
@@ -561,6 +597,7 @@ public partial class MainWindow
     {
         var clone = CreateContentAsset(source.Kind, CreateUniqueContentName($"{source.Name}_Copy", targetFolderId));
         clone.ParentFolderId = targetFolderId;
+        clone.RunSettings = source.RunSettings.Clone();
         clone.EventGraphs = new ObservableCollection<GraphListItemViewModel>(source.EventGraphs.Select(CloneGraphItem));
         clone.Functions = new ObservableCollection<GraphListItemViewModel>(source.Functions.Select(CloneGraphItem));
         return clone;
@@ -574,6 +611,7 @@ public partial class MainWindow
         {
             Name = source.Graph.Name,
             AssetKind = source.Graph.AssetKind,
+            EntryRole = source.Kind == GraphAssetKind.EventGraph ? source.EntryRole : null,
             Nodes = source.Graph.Nodes.Select(CloneNodeFile).ToList(),
             Connections = source.Graph.Connections.Select(conn => new ConnectionFileModel
             {
@@ -583,6 +621,7 @@ public partial class MainWindow
                 TargetPinName = conn.TargetPinName,
             }).ToList(),
         },
+        EntryRole = source.Kind == GraphAssetKind.EventGraph ? source.EntryRole : GraphEntryRole.MainEvent,
         IsDirty = true,
         IsCompileDirty = true,
         IsPublicToLibrary = source.IsPublicToLibrary,

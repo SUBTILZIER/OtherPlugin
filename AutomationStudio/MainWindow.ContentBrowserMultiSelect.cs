@@ -155,6 +155,7 @@ public partial class MainWindow
         var asset = GetContentVisibleAssetFromSource(source);
         if (asset is not null)
         {
+            _contentBrowserContextTargetAsset = asset;
             if (!ContentBrowserListBox.SelectedItems.Contains(asset))
             {
                 ContentBrowserListBox.SelectedItems.Clear();
@@ -171,6 +172,7 @@ public partial class MainWindow
         ContentBrowserListBox.SelectedItem = null;
         _contentRangeAnchor = null;
         _contentBrowserContextTargetsAsset = false;
+        _contentBrowserContextTargetAsset = null;
         e.Handled = true;
     }
 
@@ -251,12 +253,19 @@ public partial class MainWindow
 
     private void ContentBrowserContextMenu_EnhancedOpened(object sender, WpfRoutedEventArgs e)
     {
-        int selectedCount = GetSelectedContentAssetList().Count;
+        var contextTarget = _contentBrowserContextTargetAsset;
+        var selectedAssets = GetSelectedContentAssetList();
+        int selectedCount = contextTarget is not null ? 1 : selectedAssets.Count;
         bool hasSelection = selectedCount > 0;
         bool canRename = selectedCount == 1;
+        var selectedAsset = contextTarget ?? selectedAssets.FirstOrDefault();
 
         ContentBrowserRenameMenuItem.Visibility = canRename ? WpfVisibility.Visible : WpfVisibility.Collapsed;
         ContentBrowserDeleteMenuItem.Visibility = hasSelection ? WpfVisibility.Visible : WpfVisibility.Collapsed;
+        ContentBrowserPropertiesMenuItem.Visibility =
+            canRename && selectedAsset?.Kind == ContentAssetKind.Script
+                ? WpfVisibility.Visible
+                : WpfVisibility.Collapsed;
         ContentBrowserAssetMenuSeparator.Visibility = hasSelection ? WpfVisibility.Visible : WpfVisibility.Collapsed;
 
         var newVisibility = hasSelection ? WpfVisibility.Collapsed : WpfVisibility.Visible;
@@ -274,7 +283,10 @@ public partial class MainWindow
 
     private void RenameSelectedContentAssetMenuItem_Click(object sender, WpfRoutedEventArgs e)
     {
-        StartRenameSelectedContentAssetEnhanced();
+        if (_contentBrowserContextTargetAsset is not null)
+            StartRenameSelectedContentAsset();
+        else
+            StartRenameSelectedContentAssetEnhanced();
         e.Handled = true;
     }
 

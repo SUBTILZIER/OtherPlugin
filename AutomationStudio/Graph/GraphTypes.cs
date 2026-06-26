@@ -48,6 +48,12 @@ public enum GraphAssetKind
     Function,
 }
 
+public enum GraphEntryRole
+{
+    MainEvent,
+    AuxiliaryEvent,
+}
+
 public enum GraphParameterType
 {
     Boolean,

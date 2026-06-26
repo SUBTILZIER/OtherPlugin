@@ -57,7 +57,9 @@ public sealed class GraphEditorService
         }
     }
 
-    public void NewGraph()
+    public void NewGraph() => NewMainEventGraph();
+
+    public void NewMainEventGraph()
     {
         CurrentAssetKind = GraphAssetKind.EventGraph;
         ClearNodesAndConnections();
@@ -68,6 +70,16 @@ public sealed class GraphEditorService
 
         RaiseGraphChanged();
         StatusChanged?.Invoke("已新建图谱，并创建开始节点。");
+    }
+
+    public void NewAuxiliaryEventGraph()
+    {
+        CurrentAssetKind = GraphAssetKind.EventGraph;
+        ClearNodesAndConnections();
+        CurrentGraphPath = null;
+
+        RaiseGraphChanged();
+        StatusChanged?.Invoke("已新建空白事件图。");
     }
 
     public void NewFunctionGraph()
@@ -115,14 +127,19 @@ public sealed class GraphEditorService
         StatusChanged?.Invoke($"图谱已保存：{Path.GetFileName(path)}");
     }
 
-    public GraphFileModel ExportGraphModel(string name, GraphAssetKind kind = GraphAssetKind.EventGraph)
+    public GraphFileModel ExportGraphModel(
+        string name,
+        GraphAssetKind kind = GraphAssetKind.EventGraph,
+        GraphEntryRole? entryRole = null)
     {
         CurrentAssetKind = kind;
         EnsureNodeNumbers(kind);
+        entryRole ??= kind == GraphAssetKind.EventGraph ? GraphEntryRole.MainEvent : null;
         return new GraphFileModel
         {
             Name = name,
             AssetKind = kind,
+            EntryRole = entryRole,
             Nodes = Nodes.Select(NodeSerializer.ToFileModel).ToList(),
             Connections = Connections.Select(c => new ConnectionFileModel
             {
@@ -164,7 +181,19 @@ public sealed class GraphEditorService
             nodesById[node.Id] = node;
         }
 
-        if (file.AssetKind == GraphAssetKind.EventGraph && Nodes.All(node => node.NodeKind != NodeKind.Start))
+        bool isAuxiliaryEvent = file.AssetKind == GraphAssetKind.EventGraph &&
+                                file.EntryRole == GraphEntryRole.AuxiliaryEvent;
+        var removedAuxiliaryStartIds = new HashSet<string>(StringComparer.Ordinal);
+        if (isAuxiliaryEvent)
+        {
+            foreach (var startNode in Nodes.Where(node => node.NodeKind == NodeKind.Start).ToList())
+            {
+                removedAuxiliaryStartIds.Add(startNode.Id);
+                Nodes.Remove(startNode);
+                nodesById.Remove(startNode.Id);
+            }
+        }
+        else if (file.AssetKind == GraphAssetKind.EventGraph && Nodes.All(node => node.NodeKind != NodeKind.Start))
         {
             string id = nodesById.ContainsKey("node_001") ? $"node_{nodesById.Count + 1:000}" : "node_001";
             while (nodesById.ContainsKey(id))
@@ -188,6 +217,12 @@ public sealed class GraphEditorService
 
         foreach (var connFile in file.Connections)
         {
+            if (removedAuxiliaryStartIds.Contains(connFile.SourceNodeId) ||
+                removedAuxiliaryStartIds.Contains(connFile.TargetNodeId))
+            {
+                continue;
+            }
+
             if (!nodesById.TryGetValue(connFile.SourceNodeId, out var sourceNode) ||
                 !nodesById.TryGetValue(connFile.TargetNodeId, out var targetNode))
             {
@@ -211,6 +246,29 @@ public sealed class GraphEditorService
     {
         ClearNodesAndConnections();
         RaiseGraphChanged();
+    }
+
+    public void RemoveStartNodes()
+    {
+        var starts = Nodes.Where(node => node.NodeKind == NodeKind.Start).ToList();
+        if (starts.Count == 0)
+            return;
+
+        var startIds = starts.Select(node => node.Id).ToHashSet(StringComparer.Ordinal);
+        RunBatchedEdit(() =>
+        {
+            foreach (var connection in Connections
+                         .Where(connection => startIds.Contains(connection.SourcePin.Owner.Id) ||
+                                              startIds.Contains(connection.TargetPin.Owner.Id))
+                         .ToList())
+            {
+                Connections.Remove(connection);
+                connection.Dispose();
+            }
+
+            foreach (var start in starts)
+                Nodes.Remove(start);
+        });
     }
 
     public GraphExecutionPlan BuildExecutionPlan()
