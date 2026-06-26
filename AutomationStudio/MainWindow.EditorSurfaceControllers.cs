@@ -50,6 +50,7 @@ public partial class MainWindow
             GetRuntimeCallableFunctionsForAsset,
             (asset, functions, ct) => _executionController.RunScriptAssetOnceAsync(asset, functions, ct),
             SetStatus);
+        _scriptRunManager.RunningStateChanged += OnScriptRunningStateChanged;
 
         _logPanelController = new LogPanelController(
             LogRichTextBox,
@@ -71,6 +72,7 @@ public partial class MainWindow
                 RunGraphButton,
                 GetRuntimeCallableFunctions,
                 SetStatus);
+            _executionController.ExecutionStateChanged += OnExecutionStateChanged;
 
             ApplyEditorSurfaceContext(activeContext);
             return;

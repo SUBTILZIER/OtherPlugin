@@ -18,11 +18,7 @@ public sealed class ExecutionController
     private readonly Func<IEnumerable<CallableGraphItem>> _getFunctions;
     private readonly Action<string> _setStatus;
 
-    private CancellationTokenSource? _executionCts;
-    private object? _runButtonOriginalContent;
-    private object? _runButtonOriginalToolTip;
-
-    public ExecutionController(
+    private CancellationTokenSource? _executionCts;public ExecutionController(
         Window owner,
         GraphEditorService editorService,
         GraphRuntimeExecutor runtimeExecutor,
@@ -127,20 +123,12 @@ public sealed class ExecutionController
 
     private void SetRunButtonRunning()
     {
-        _runButtonOriginalContent = _runButton.Content;
-        _runButtonOriginalToolTip = _runButton.ToolTip;
-        _runButton.Content = "执行中...";
-        _runButton.ToolTip = "脚本正在运行，无法重复执行。按 Esc 可取消。";
-        _runButton.IsEnabled = false;
+        ExecutionStateChanged?.Invoke(true);
     }
 
     private void RestoreRunButton()
     {
-        _runButton.Content = _runButtonOriginalContent ?? "执行图谱";
-        _runButton.ToolTip = _runButtonOriginalToolTip;
-        _runButton.IsEnabled = true;
-        _runButtonOriginalContent = null;
-        _runButtonOriginalToolTip = null;
+        ExecutionStateChanged?.Invoke(false);
     }
 
     private static GraphExecutionPlan BuildPlanFromModel(GraphFileModel graph)
@@ -175,6 +163,7 @@ public sealed class ExecutionController
 
     public void ReleaseAllKeys() => _runtimeExecutor.ReleaseAllKeys();
 
+    public Action<bool>? ExecutionStateChanged;
     public bool IsRunning => _executionCts is not null;
 
     public void Cancel()

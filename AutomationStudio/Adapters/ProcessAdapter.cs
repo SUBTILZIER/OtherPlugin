@@ -1,3 +1,4 @@
+using AutomationStudioWpf.Logging;
 using System.Diagnostics;
 using System.IO;
 using AutomationStudioWpf.Graph;
@@ -26,6 +27,8 @@ public sealed class ProcessAdapter : IProcessAdapter
         {
             ct.ThrowIfCancellationRequested();
 
+            Logger.Info($"启动程序尝试 #{attempt + 1}/{attempts}：{processName}，超时={waitTimeoutMs}ms");
+
             var psi = new ProcessStartInfo(programPath)
             {
                 UseShellExecute = true,
@@ -40,6 +43,8 @@ public sealed class ProcessAdapter : IProcessAdapter
                 int sleepMs = Math.Min(1000, waitTimeoutMs - waited);
                 Thread.Sleep(sleepMs);
                 waited += sleepMs;
+
+                Logger.Info($"启动程序等待 #{attempt + 1}：已等待 {waited}ms / {waitTimeoutMs}ms");
 
                 try
                 {

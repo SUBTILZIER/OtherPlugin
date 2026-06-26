@@ -49,6 +49,42 @@
 - 找图 Python 桥接用 `np.fromfile(...) + cv2.imdecode(...)`，不要再用 `cv2.imread(...)` 读中文路径。
 - XAML 初始化期事件可能早于 controller 创建；事件入口要容忍 null。
 
+
+## 2026-06-27：热键 / 托盘 / 工具栏
+
+### 热键系统
+- `ScriptHotkeyService` 用 WH_KEYBOARD_LL/WH_MOUSE_LL；WM_MOUSEWHEEL→WheelForward/WheelBackward。
+- 每个绑定独立 `TriggerWindowMs`（默认1000ms），非全局共享。
+- 热键窗体 `ScriptHotkeyCaptureWindow` 必须用 `_captured` bool 防 WPF 重入导致双重 DialogResult。
+- 热键行 UI 格式：`按键[Badge] 修改 按下次数[] 清空`；未设置显示"无"。
+- 所有属性控件有中文 ToolTip。
+
+### 托盘
+- `NotifyIcon` 在 `WindowLifecycle.cs`，图标 Resources/2.png。
+- `Window_ClosingThemed` 处理关闭：首次三选后记忆；`_alwaysMinimizeToTray` 绕过后继弹窗。
+- 退出必须 `Application.Current.Shutdown()` + `Environment.Exit(0)` 彻底杀进程。
+- 右键只弹菜单，不恢复窗口；左键恢复。
+
+### 工具栏执行状态
+- `IsExecuting` 是 MainWindow DP；XAML DataTrigger 驱动按钮样式。
+- `ExecutionController.ExecutionStateChanged` + `ScriptRunManager.RunningStateChanged` 合并更新。
+- StopExecutionButton 调用 `_scriptRunManager.StopAll()` + `_executionController.Cancel()`（=Esc）。
+- `SetRunButtonRunning/RestoreRunButton` 只发事件，不直接改按钮（防 Style 冲突）。
+- 停止按钮必须终止两种执行路径（热键触发 + 工具栏触发）。
+
+### 鼠标中键
+- MouseButton 枚举有 Middle；XAML combo、VM、executor、Win32 adapter 全部支持。
+
+### 提示音
+- Console.Beep(800,150) 启动 / (400,300) 停止；只在热键路径播放。
+
+### 日志
+- Logger.Write() 先写文件+入队 UI，再进 capture scope；BeginCapture 不吞日志。
+
+### 文件编码
+- 所有 .cs/.xaml 必须是 UTF-8 without BOM。PowerShell `Set-Content` 在 PS 5.1 会写 ANSI 损坏中文。
+- 用 `[System.IO.File]::WriteAllText(path, content, UTF8Encoding(false))` 写入。
+
 ## 验证门禁
 
 ```powershell

@@ -2,6 +2,7 @@ using System.Drawing;
 using System.Runtime.InteropServices;
 using System.Threading;
 using AutomationStudioWpf.Graph;
+using AutomationStudioWpf.Logging;
 using MouseButton = AutomationStudioWpf.Graph.MouseButton;
 
 namespace AutomationStudioWpf.Adapters;
@@ -62,6 +63,9 @@ public sealed class Win32MouseAdapter : IMouseAdapter
             {
                 int delta = action == ScrollWheelAction.ScrollForward ? speed : -speed;
                 int elapsed = 0;
+                int lastLog = 0;
+                string direction = action == ScrollWheelAction.ScrollForward ? "前滚" : "后滚";
+                Logger.Info($"滚轮开始：{direction}，速度={speed}，间隔={intervalMs}ms，持续={durationMs}ms");
 
                 while (durationMs == 0 || elapsed < durationMs)
                 {
@@ -70,7 +74,13 @@ public sealed class Win32MouseAdapter : IMouseAdapter
                     Thread.Sleep(intervalMs);
                     if (durationMs > 0)
                         elapsed += intervalMs;
+                    if (elapsed - lastLog >= 500 || (durationMs > 0 && elapsed >= durationMs))
+                    {
+                        Logger.Info($"滚轮滚动中：{direction}，已滚动 {elapsed}ms / {durationMs}ms");
+                        lastLog = elapsed;
+                    }
                 }
+                Logger.Info($"滚轮完成：{direction}，总耗时 {elapsed}ms");
                 break;
             }
         }
@@ -82,6 +92,7 @@ public sealed class Win32MouseAdapter : IMouseAdapter
         {
             MouseButton.Left => (MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP, 0),
             MouseButton.Right => (MOUSEEVENTF_RIGHTDOWN, MOUSEEVENTF_RIGHTUP, 0),
+            MouseButton.Middle => (MOUSEEVENTF_MIDDLEDOWN, MOUSEEVENTF_MIDDLEUP, 0),
             MouseButton.XButton1 => (MOUSEEVENTF_XDOWN, MOUSEEVENTF_XUP, XBUTTON1),
             MouseButton.XButton2 => (MOUSEEVENTF_XDOWN, MOUSEEVENTF_XUP, XBUTTON2),
             _ => (MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP, 0),

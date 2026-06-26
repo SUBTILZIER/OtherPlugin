@@ -11,6 +11,8 @@ internal sealed class ScriptRunManager : IDisposable
     private readonly Action<string> _setStatus;
     private readonly Dictionary<string, ScriptRunState> _running = new(StringComparer.Ordinal);
     private bool _disposed;
+    public event Action? RunningStateChanged;
+    public bool IsAnyRunning => _running.Count > 0;
 
     public ScriptRunManager(
         Func<ContentAssetViewModel, CancellationToken, Task<bool>> compileScript,
@@ -56,6 +58,7 @@ internal sealed class ScriptRunManager : IDisposable
         var cts = new CancellationTokenSource();
         var state = new ScriptRunState(asset, cts);
         _running[asset.Id] = state;
+        RunningStateChanged?.Invoke();
         var runTask = RunLoopAsync(asset, settings, cts.Token);
         state.RunningTask = runTask;
 
@@ -77,6 +80,7 @@ internal sealed class ScriptRunManager : IDisposable
         {
             if (_running.TryGetValue(asset.Id, out var current) && ReferenceEquals(current, state))
                 _running.Remove(asset.Id);
+                RunningStateChanged?.Invoke();
             cts.Dispose();
         }
     }
@@ -92,6 +96,7 @@ internal sealed class ScriptRunManager : IDisposable
 
     public void StopAll()
     {
+        RunningStateChanged?.Invoke();
         foreach (var state in _running.Values.ToList())
             state.Cancellation.Cancel();
     }

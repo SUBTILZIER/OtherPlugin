@@ -46,6 +46,8 @@ public sealed class ScriptPropertiesWindow : Window
     private readonly TextBlock _stopHotkeyText = new();
     private readonly TextBox _startPressCountBox = CreateTextBox("1", 52);
     private readonly TextBox _stopPressCountBox = CreateTextBox("1", 52);
+    private readonly TextBox _startTriggerWindowBox = CreateTextBox("1000", 64);
+    private readonly TextBox _stopTriggerWindowBox = CreateTextBox("1000", 64);
     private readonly TextBlock _errorText = new();
 
     public ScriptPropertiesWindow(Window owner, string assetName, ScriptRunSettings settings)
@@ -54,7 +56,7 @@ public sealed class ScriptPropertiesWindow : Window
         Title = $"脚本属性 - {assetName}";
         Width = 660;
         MinWidth = 620;
-        Height = 520;
+        Height = 580;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         Background = WindowBackgroundBrush;
         Foreground = Brushes.White;
@@ -117,6 +119,20 @@ public sealed class ScriptPropertiesWindow : Window
         var panel = new StackPanel();
         root.Children.Add(panel);
 
+        // ---- ToolTips ----
+        _countRadio.ToolTip = "按设定次数重复执行脚本";
+        _untilStoppedRadio.ToolTip = "持续运行直到按下终止键为止";
+        _durationRadio.ToolTip = "运行指定时长后自动停止";
+        _loopCountBox.ToolTip = "脚本执行的循环次数";
+        _hoursBox.ToolTip = "循环时长 - 小时";
+        _minutesBox.ToolTip = "循环时长 - 分钟";
+        _secondsBox.ToolTip = "循环时长 - 秒";
+        _preventDuplicateCheck.ToolTip = "运行中再次触发启动热键时将忽略此次触发";
+        _startPressCountBox.ToolTip = "在触发时间阈值内累计按下次数，达到此次数后触发";
+        _stopPressCountBox.ToolTip = "在触发时间阈值内累计按下次数，达到此次数后触发";
+        _startTriggerWindowBox.ToolTip = "按下热键的判定时间窗，在此时间内累计按下次数（毫秒）";
+        _stopTriggerWindowBox.ToolTip = "按下热键的判定时间窗，在此时间内累计按下次数（毫秒）";
+
         panel.Children.Add(Section("运行设置",
             Row(_countRadio, _loopCountBox, Label("次")),
             Row(_untilStoppedRadio),
@@ -124,15 +140,10 @@ public sealed class ScriptPropertiesWindow : Window
             _preventDuplicateCheck));
 
         panel.Children.Add(Section("热键",
-            HotkeyRow("启动热键", _settings.StartHotkey, _startHotkeyText, _startPressCountBox, () => CaptureHotkey(_settings.StartHotkey, _startHotkeyText)),
-            HotkeyRow("终止热键", _settings.StopHotkey, _stopHotkeyText, _stopPressCountBox, () => CaptureHotkey(_settings.StopHotkey, _stopHotkeyText)),
-            new TextBlock
-            {
-                Text = "按键可选键盘或鼠标键。按下次数在 600ms 时间窗内累计。",
-                Margin = new Thickness(2, 4, 0, 0),
-                Foreground = MutedTextBrush,
-                FontSize = 11,
-            }));
+            HotkeyRow("启动热键", _settings.StartHotkey, _startHotkeyText, _startPressCountBox, _startTriggerWindowBox,
+                () => CaptureHotkey(_settings.StartHotkey, _startHotkeyText)),
+            HotkeyRow("终止热键", _settings.StopHotkey, _stopHotkeyText, _stopPressCountBox, _stopTriggerWindowBox,
+                () => CaptureHotkey(_settings.StopHotkey, _stopHotkeyText))));
 
         _errorText.Foreground = Brushes.OrangeRed;
         _errorText.Margin = new Thickness(0, 10, 0, 0);
@@ -152,6 +163,8 @@ public sealed class ScriptPropertiesWindow : Window
         _preventDuplicateCheck.IsChecked = _settings.PreventDuplicateRun;
         _startPressCountBox.Text = Math.Max(1, _settings.StartHotkey.PressCount).ToString();
         _stopPressCountBox.Text = Math.Max(1, _settings.StopHotkey.PressCount).ToString();
+        _startTriggerWindowBox.Text = _settings.StartHotkey.TriggerWindowMs.ToString();
+        _stopTriggerWindowBox.Text = _settings.StopHotkey.TriggerWindowMs.ToString();
         RefreshHotkeyText(_settings.StartHotkey, _startHotkeyText);
         RefreshHotkeyText(_settings.StopHotkey, _stopHotkeyText);
     }
@@ -171,6 +184,8 @@ public sealed class ScriptPropertiesWindow : Window
         _settings.PreventDuplicateRun = _preventDuplicateCheck.IsChecked == true;
         _settings.StartHotkey.PressCount = ParseInt(_startPressCountBox.Text, 1);
         _settings.StopHotkey.PressCount = ParseInt(_stopPressCountBox.Text, 1);
+        _settings.StartHotkey.TriggerWindowMs = ParseInt(_startTriggerWindowBox.Text, 1000);
+        _settings.StopHotkey.TriggerWindowMs = ParseInt(_stopTriggerWindowBox.Text, 1000);
         _settings.Normalize();
 
         if (_settings.LoopMode == ScriptLoopMode.Duration &&
@@ -178,7 +193,7 @@ public sealed class ScriptPropertiesWindow : Window
             _settings.DurationMinutes == 0 &&
             _settings.DurationSeconds == 0)
         {
-            _errorText.Text = "循环时长必须大于 0。";
+            _errorText.Text = "循环时长不能为 0";
             return;
         }
 
@@ -186,7 +201,7 @@ public sealed class ScriptPropertiesWindow : Window
             _settings.StopHotkey.IsConfigured &&
             ScriptHotkeyService.SameHotkey(_settings.StartHotkey, _settings.StopHotkey))
         {
-            _errorText.Text = "启动热键和终止热键不能相同。";
+            _errorText.Text = "启动热键与终止热键不能相同";
             return;
         }
 
@@ -205,8 +220,15 @@ public sealed class ScriptPropertiesWindow : Window
         RefreshHotkeyText(target, label);
     }
 
-    private static void RefreshHotkeyText(ScriptHotkeySettings settings, TextBlock label) =>
-        label.Text = settings.ToString();
+    private static void RefreshHotkeyText(ScriptHotkeySettings settings, TextBlock label)
+    {
+        if (!settings.IsConfigured)
+        {
+            label.Text = "无";
+            return;
+        }
+        label.Text = settings.Key;
+    }
 
     private static int ParseInt(string text, int fallback) =>
         int.TryParse(text, out var value) ? value : fallback;
@@ -215,7 +237,7 @@ public sealed class ScriptPropertiesWindow : Window
     {
         Text = text,
         Width = width,
-        Margin = new Thickness(6, 0, 6, 0),
+        Margin = new Thickness(4, 0, 4, 0),
         Background = InputBrush,
         Foreground = Brushes.White,
         BorderBrush = InputBorderBrush,
@@ -223,14 +245,19 @@ public sealed class ScriptPropertiesWindow : Window
         VerticalContentAlignment = VerticalAlignment.Center,
     };
 
-    private static TextBlock Label(string text, bool bold = false) => new()
+    private static TextBlock Label(string text, bool bold = false, double? width = null)
     {
-        Text = text,
-        FontWeight = bold ? FontWeights.SemiBold : FontWeights.Normal,
-        Margin = new Thickness(0, 3, 6, 3),
-        VerticalAlignment = VerticalAlignment.Center,
-        Foreground = MutedTextBrush,
-    };
+        var tb = new TextBlock
+        {
+            Text = text,
+            FontWeight = bold ? FontWeights.SemiBold : FontWeights.Normal,
+            Margin = new Thickness(0, 3, 4, 3),
+            VerticalAlignment = VerticalAlignment.Center,
+            Foreground = MutedTextBrush,
+        };
+        if (width.HasValue) tb.Width = width.Value;
+        return tb;
+    }
 
     private static Border Section(string text, params UIElement[] children)
     {
@@ -277,10 +304,12 @@ public sealed class ScriptPropertiesWindow : Window
         ScriptHotkeySettings settings,
         TextBlock label,
         TextBox pressCountBox,
+        TextBox triggerWindowBox,
         Action capture)
     {
-        label.Width = 168;
+        label.Width = 130;
         label.VerticalAlignment = VerticalAlignment.Center;
+        label.Foreground = Brushes.White;
         var keyBadge = new Border
         {
             Background = InputBrush,
@@ -288,36 +317,55 @@ public sealed class ScriptPropertiesWindow : Window
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(8),
             Padding = new Thickness(10, 6, 10, 6),
-            MinWidth = 170,
+            MinWidth = 110,
             Child = label,
         };
 
-        var change = CreateButton("修改", 72);
+        var change = CreateButton("修改", 58);
         change.Click += (_, _) => capture();
-        var clear = CreateButton("清空", 62);
+        var clear = CreateButton("清空", 50);
         clear.Click += (_, _) =>
         {
             settings.Key = string.Empty;
             settings.PressCount = 1;
-            label.Text = "未设置";
+            settings.TriggerWindowMs = 1000;
+            label.Text = "无";
             pressCountBox.Text = "1";
+            triggerWindowBox.Text = "1000";
         };
 
-        return Row(
+        var headerRow = Row(
             Label(title, true),
-            Label("按键"),
+            Label("按键", width: 32),
             keyBadge,
-            Label("按下次数"),
-            pressCountBox,
             change,
+            Label("按下次数", width: 56),
+            pressCountBox,
             clear);
+
+        var thresholdRow = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Margin = new Thickness(0, 2, 0, 6),
+        };
+        var thresholdLabel = Label("触发时间阈值");
+        var msLabel = Label("ms");
+        triggerWindowBox.ToolTip = "在此时间窗内累计按下次数，达到目标次数后触发（毫秒）";
+        thresholdRow.Children.Add(thresholdLabel);
+        thresholdRow.Children.Add(triggerWindowBox);
+        thresholdRow.Children.Add(msLabel);
+
+        var wrapper = new StackPanel();
+        wrapper.Children.Add(headerRow);
+        wrapper.Children.Add(thresholdRow);
+        return wrapper;
     }
 
     private static Button CreateButton(string text, double width) => new()
     {
         Content = text,
         Width = width,
-        Margin = new Thickness(6, 0, 0, 0),
+        Margin = new Thickness(4, 0, 0, 0),
         Padding = new Thickness(8, 4, 8, 4),
         Background = AccentBrush,
         Foreground = Brushes.White,
@@ -337,6 +385,7 @@ public sealed class ScriptPropertiesWindow : Window
 internal sealed class ScriptHotkeyCaptureWindow : Window
 {
     public ScriptHotkeySettings? Result { get; private set; }
+    private bool _captured;
 
     public ScriptHotkeyCaptureWindow(Window owner)
     {
@@ -349,16 +398,19 @@ internal sealed class ScriptHotkeyCaptureWindow : Window
         Foreground = Brushes.White;
         Content = new TextBlock
         {
-            Text = "按下键盘键或鼠标键作为热键。\nEsc 取消。\n按下次数在属性窗口里设置。",
+            Text = "按下键盘键或鼠标键作为热键。\n支持鼠标滚轮前滚/后滚。\nEsc 取消。",
             Margin = new Thickness(18),
             TextWrapping = TextWrapping.Wrap,
         };
         KeyDown += CaptureKeyDown;
         MouseDown += CaptureMouseDown;
+        MouseWheel += CaptureMouseWheel;
     }
 
     private void CaptureKeyDown(object sender, KeyEventArgs e)
     {
+        if (_captured) return;
+        _captured = true;
         if (e.Key == Key.Escape)
         {
             DialogResult = false;
@@ -377,10 +429,25 @@ internal sealed class ScriptHotkeyCaptureWindow : Window
 
     private void CaptureMouseDown(object sender, MouseButtonEventArgs e)
     {
+        if (_captured) return;
+        _captured = true;
         Result = new ScriptHotkeySettings
         {
             InputKind = ScriptHotkeyInputKind.Mouse,
             Key = e.ChangedButton.ToString(),
+            PressCount = 1,
+        };
+        DialogResult = true;
+    }
+
+    private void CaptureMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        if (_captured) return;
+        _captured = true;
+        Result = new ScriptHotkeySettings
+        {
+            InputKind = ScriptHotkeyInputKind.Mouse,
+            Key = e.Delta > 0 ? "WheelForward" : "WheelBackward",
             PressCount = 1,
         };
         DialogResult = true;

@@ -50,6 +50,52 @@ Runtime / Nodes / Adapters
 - 查询节点的 `False` 是业务结果，不是执行警告；例如 `WindowExists` 不存在、`FindImage` 未命中时写 `result=False` 且日志级别保持 INFO，只有配置错误、路径无效或执行失败才 WARN/ERROR。
 - `FindImageNodeExecutor` 不再把 Python 原始 stderr/stdout 整段刷进日志；`Python/find_image.py` 通过 `np.fromfile(...) + cv2.imdecode(...)` 读取模板/截图，避免 Windows 中文路径失效。
 
+
+## 2026-06-27：热键系统 / 托盘 / 工具栏执行状态
+
+### 全局热键服务 (`ScriptHotkeyService`)
+- `WH_KEYBOARD_LL` / `WH_MOUSE_LL` 全局低层级钩子，不依赖窗口焦点。
+- 支持键盘按键、鼠标按钮（左/右/中/侧键X1X2）、鼠标滚轮（WM_MOUSEWHEEL，delta>0→WheelForward，delta<0→WheelBackward）。
+- 每个绑定独立 `TriggerWindowMs`（100-10000ms），在时间窗内累计按下次数，达到 `PressCount` 后触发。
+- `ToMatchKey` 为三元组 (InputKind, Key, PressCount)；时间窗不参与匹配键，独立使用。
+
+### 热键属性窗 (`ScriptPropertiesWindow`)
+- 热键行格式：`Label("启动热键") Label("按键") [keyBadge] 修改 按下次数[TextBox] 清空`
+- 按键未设置显示"无"；热键区下方"触发时间阈值"输入框（ms）。
+- 所有控件带中文 ToolTip 解释。
+- `ScriptHotkeyCaptureWindow` 支持键盘、鼠标按钮、鼠标滚轮捕获；`_captured` 防双重 `DialogResult`。
+
+### 脚本运行管理 (`ScriptRunManager`)
+- `IsAnyRunning` 属性 + `RunningStateChanged` 事件，供 UI 绑定执行状态。
+- `StartAsync` 入口处理重复启动（PreventDuplicateRun 忽略 / 否则取消旧任务重启）。
+- `StopAll()` 遍历取消所有运行中的 CancellationTokenSource。
+
+### 托盘最小化 (`MainWindow.WindowLifecycle` + `ThemedDialogOverrides`)
+- `NotifyIcon`（`System.Windows.Forms`）在系统托盘显示图标。
+- 左键单击恢复窗口；右键弹出 ContextMenuStrip（"打开面板" / "退出程序"）。
+- `Window_ClosingThemed` 三选对话框：首次选"是"后 `_alwaysMinimizeToTray=true`，后续直接最小化。
+- 退出时 `Application.Current.Shutdown()` + `Environment.Exit(0)` 确保进程完全结束。
+
+### 工具栏执行状态 (`MainWindow.xaml` + `ExecutionController`)
+- `IsExecuting` 依赖属性绑定到 Window DataContext。
+- XAML DataTrigger：执行时 RunGraphButton 变 "⏳ 执行中..."、蓝色加粗、禁用；StopExecutionButton 红色显示。
+- `ExecutionController.ExecutionStateChanged` 回调 + `ScriptRunManager.RunningStateChanged` 事件合并驱动。
+- `SetRunButtonRunning/RestoreRunButton` 只发事件，不直接操作按钮（避免与 Style 冲突）。
+
+### 鼠标中键支持
+- `GraphTypes.MouseButton` 枚举新增 `Middle`。
+- `EditorSurfaceControl.xaml` MouseButtonComboBox 新增"中键"项。
+- `MouseClickNodeViewModel.RefreshDescription` → Middle→"中键"。
+- `MouseNodeExecutors.MouseClickNodeExecutor` → Middle→"中键"。
+- `Win32MouseAdapter.GetMouseEventFlags` Middle case 使用已有常量 `MOUSEEVENTF_MIDDLEDOWN/UP`。
+
+### 提示音
+- `HandleScriptHotkey` 中：Start→`Console.Beep(800, 150)`，Stop→`Console.Beep(400, 300)`。
+
+### 日志捕获修复 (`Logger.cs`)
+- `Write()` 方法：日志先写文件 + 入队 UI，再进 capture scope，确保 `BeginCapture()` 期间日志面板仍实时显示。
+
+
 ### 整体架构
 
 ```

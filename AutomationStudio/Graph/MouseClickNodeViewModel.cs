@@ -58,6 +58,7 @@ public sealed class MouseClickNodeViewModel : InputNodeBase
         {
             MouseButton.Left => "左键",
             MouseButton.Right => "右键",
+            MouseButton.Middle => "中键",
             MouseButton.XButton1 => "侧键1",
             MouseButton.XButton2 => "侧键2",
             _ => "左键",

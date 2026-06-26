@@ -46,10 +46,12 @@ public partial class MainWindow
 
         if (trigger.Action == ScriptHotkeyAction.Stop)
         {
+            Console.Beep(400, 300);
             _scriptRunManager.Stop(trigger.Asset);
             return;
         }
 
+        Console.Beep(800, 150);
         _ = _scriptRunManager.StartAsync(trigger.Asset);
     }
 

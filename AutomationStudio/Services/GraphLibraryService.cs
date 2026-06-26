@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.IO;
 using System.Text.Json;
 using System.Windows;
@@ -120,6 +120,8 @@ public sealed class ScriptHotkeySettings
 
     public int PressCount { get; set; } = 1;
 
+    public int TriggerWindowMs { get; set; } = 1000;
+
     [System.Text.Json.Serialization.JsonIgnore]
     public bool IsConfigured => !string.IsNullOrWhiteSpace(Key) && PressCount > 0;
 
@@ -128,6 +130,7 @@ public sealed class ScriptHotkeySettings
         InputKind = InputKind,
         Key = Key,
         PressCount = PressCount,
+        TriggerWindowMs = TriggerWindowMs,
     };
 
     public override string ToString()
@@ -180,6 +183,8 @@ public sealed class ScriptRunSettings
         StopHotkey ??= new ScriptHotkeySettings();
         StartHotkey.PressCount = Math.Max(1, StartHotkey.PressCount);
         StopHotkey.PressCount = Math.Max(1, StopHotkey.PressCount);
+        StartHotkey.TriggerWindowMs = Math.Clamp(StartHotkey.TriggerWindowMs, 100, 10000);
+        StopHotkey.TriggerWindowMs = Math.Clamp(StopHotkey.TriggerWindowMs, 100, 10000);
     }
 }
 

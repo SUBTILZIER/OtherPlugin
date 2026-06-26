@@ -1,4 +1,4 @@
-﻿<Window x:Class="AutomationStudioWpf.MainWindow"
+<Window x:Class="AutomationStudioWpf.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -134,7 +134,35 @@
             </Button>
             <Button Content="显示最终代码" Margin="2" Padding="10,4" Click="ShowFinalCode_Click" />
             <Button x:Name="MousePickButton" Content="鼠标拾取" Margin="2" Padding="10,4" Click="MousePick_Click" />
-            <Button x:Name="RunGraphButton" Content="执行图谱" Margin="2" Padding="10,4" Click="RunGraph_Click" />
+            <Button x:Name="RunGraphButton" Content="执行图谱" Margin="2" Padding="10,4" Click="RunGraph_Click">
+                <Button.Style>
+                    <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsExecuting, RelativeSource={RelativeSource AncestorType=Window}}" Value="True">
+                                <Setter Property="Content" Value="&#x23F3; 执行中..." />
+                                <Setter Property="Foreground" Value="#4FA3FF" />
+                                <Setter Property="FontWeight" Value="Bold" />
+                                <Setter Property="IsEnabled" Value="False" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+            </Button>
+            <Button x:Name="StopExecutionButton" Content="&#x23F9; 停止执行" Margin="2" Padding="10,4" Click="StopExecution_Click" Visibility="Collapsed">
+                <Button.Style>
+                    <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                        <Setter Property="Background" Value="#8B0000" />
+                        <Setter Property="Foreground" Value="#FF6B6B" />
+                        <Setter Property="FontWeight" Value="Bold" />
+                        <Style.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#B22222" />
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+            </Button>
+            
         </ToolBar>
 
         <Border x:Name="EditorWindowBar"

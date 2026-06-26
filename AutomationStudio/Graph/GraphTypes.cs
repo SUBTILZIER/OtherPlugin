@@ -1,4 +1,4 @@
-namespace AutomationStudioWpf.Graph;
+﻿namespace AutomationStudioWpf.Graph;
 
 public enum NodeKind
 {
@@ -89,6 +89,7 @@ public enum MouseButton
 {
     Left,
     Right,
+    Middle,
     XButton1,
     XButton2,
 }

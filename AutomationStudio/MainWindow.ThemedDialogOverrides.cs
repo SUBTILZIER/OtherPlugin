@@ -28,6 +28,8 @@ namespace AutomationStudioWpf;
 
 public partial class MainWindow
 {
+    private bool _isReallyClosing;
+    private bool _alwaysMinimizeToTray;
     private bool _themedDialogOverridesInstalled;
     private readonly HashSet<EditorSurfaceControl> _themedGraphListHandlerSurfaces = [];
 
@@ -134,7 +136,7 @@ public partial class MainWindow
         var dialog = new Microsoft.Win32.OpenFileDialog
         {
             Title = "打开图谱",
-            Filter = "图谱文件 (*.json)|*.json|所有文件(*.*)|*.*",
+            Filter = "图谱文件 (*.json)|*.json|所有文件 (*.*)|*.*",
             InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.Desktop),
         };
 
@@ -167,7 +169,7 @@ public partial class MainWindow
         await _executionController.RunAsync();
     }
 
-    private void Window_ClosingThemed(object? sender, System.ComponentModel.CancelEventArgs e)
+        private void Window_ClosingThemed(object? sender, System.ComponentModel.CancelEventArgs e)
     {
         _scriptRunManager.StopAll();
         _executionController.ReleaseAllKeys();
@@ -199,9 +201,41 @@ public partial class MainWindow
         if (e.Cancel)
             return;
 
+        if (!_isReallyClosing)
+        {
+            if (_alwaysMinimizeToTray)
+            {
+                e.Cancel = true;
+                MinimizeToTray();
+                return;
+            }
+            var choice = ThemedDialog.ShowCustom(
+                this,
+                "是否最小化到系统托盘？\n选择 [是] 最小化到托盘，选择 [否] 退出程序。",
+                "关闭窗口",
+                WpfMessageBoxImage.Question,
+                new ThemedDialogButton("是 - 最小化到托盘", WpfMessageBoxResult.Yes, true),
+                new ThemedDialogButton("否 - 退出程序", WpfMessageBoxResult.No),
+                new ThemedDialogButton("取消", WpfMessageBoxResult.Cancel));
+            if (choice == WpfMessageBoxResult.Yes)
+            {
+                _alwaysMinimizeToTray = true;
+                e.Cancel = true;
+                MinimizeToTray();
+                return;
+            }
+            if (choice == WpfMessageBoxResult.Cancel)
+            {
+                e.Cancel = true;
+                return;
+            }
+            _isReallyClosing = true;
+        }
+
         _isClosing = true;
         _scriptRunManager.Dispose();
         _scriptHotkeyService.Dispose();
+        System.Windows.Application.Current.Shutdown();
     }
 
     private bool EnsureCompiledBeforeSaveThemed()
@@ -375,7 +409,7 @@ public partial class MainWindow
         _contentRangeAnchor = null;
         RefreshContentBrowserViews();
         PersistAssetLibrary();
-        SetStatus($"已删除 {targets.Count} 个资产。");
+        SetStatus($"已删除{targets.Count} 个资产。");
         return true;
     }
 
@@ -402,31 +436,11 @@ public partial class MainWindow
         }
 
         var choice = ShowContentDropActionDialogThemed(sources.Count == 1 ? sources[0].Name : $"{sources.Count} 个资产");
-        if (choice == ContentDropAction.Cancel)
-        {
-            e.Effects = WpfDragDropEffects.None;
-            e.Handled = true;
-            return;
-        }
-
-        bool copy = choice == ContentDropAction.Copy;
-        var acceptedSources = copy ? copyableSources : movableSources;
-        if (acceptedSources.Count == 0)
-        {
-            SetStatus(copy ? "没有可复制到此处的资产。" : "没有可移动到此处的资产。");
-            e.Effects = WpfDragDropEffects.None;
-            e.Handled = true;
-            return;
-        }
-
-        ApplyContentAssetDrop(acceptedSources, target, copy, alreadyFiltered: true);
-        e.Effects = copy ? WpfDragDropEffects.Copy : WpfDragDropEffects.Move;
-        e.Handled = true;
     }
 
     private ContentDropAction ShowContentDropActionDialogThemed(string assetName)
     {
-        var result = ThemedDialog.ShowCustom(this, $"选择对资产“{assetName}”的操作：", "拖拽资产", WpfMessageBoxImage.Question, new ThemedDialogButton("移动到此处", WpfMessageBoxResult.Yes, true), new ThemedDialogButton("复制到此处", WpfMessageBoxResult.No), new ThemedDialogButton("取消", WpfMessageBoxResult.Cancel));
+        var result = ThemedDialog.ShowCustom(this, $"选择对资产{assetName}的操作：", "拖拽资产", WpfMessageBoxImage.Question, new ThemedDialogButton("移动到此", WpfMessageBoxResult.Yes, true), new ThemedDialogButton("复制到此", WpfMessageBoxResult.No), new ThemedDialogButton("取消", WpfMessageBoxResult.Cancel));
         return result switch
         {
             WpfMessageBoxResult.Yes => ContentDropAction.Move,

@@ -1,6 +1,6 @@
 # AutomationStudioWpf
 
-## Current Notes (2026-06-26)
+## Current Notes (2026-06-27)
 
 - 2026-06-11: CodeGraph, project skill, technical docs, README, and agent memory were audited against the current local code. CodeGraph generated database/cache/log files remain local and ignored.
 - Visual wires bind to `GraphEditorService.ConnectionPaths`; persisted graph data and runtime execution still use `GraphEditorService.Connections`.
@@ -33,7 +33,14 @@
 - `多线程` is an execution node with dynamic `线程N` outputs and a distinct `全部完成` output. Connected branches run in parallel; `全部完成` runs after all branches finish. Mouse/keyboard/window nodes are serialized by a global runtime lock when used inside parallel branches.
 - `ScriptHotkeyService` registers global low-level keyboard and mouse hooks (WH_KEYBOARD_LL / WH_MOUSE_LL) so scripts can be started or stopped by external hotkeys without the editor window being focused.
 - `ScriptRunManager` manages script run lifecycle: compile → execute with optional retry count, loop count, and fixed loop delay. It enforces single-instance-per-asset, reports running status to the toolbar, and handles hotkey dispatch.
-- `ScriptPropertiesWindow` is a themed dark WPF dialog for configuring per-script run settings (hotkey chord, retry/loop counts, fixed delay). Hotkey conflicts are validated before save.
+- `ScriptPropertiesWindow` is a themed dark WPF dialog for configuring per-script run settings (hotkey chord, retry/loop counts, fixed delay). Hotkey conflicts are validated before save. All controls have Chinese ToolTip explanations. Trigger time window (ms) is per-hotkey configurable.
+- `ScriptHotkeyCaptureWindow` handles mouse wheel (WheelForward/WheelBackward) in addition to keyboard and mouse buttons. A `_captured` guard prevents double-capture from WPF re-entrant events.
+- Closing the main window shows a three-option themed dialog (minimize-to-tray / exit / cancel). First "minimize" choice persists via `_alwaysMinimizeToTray`.
+- `NotifyIcon` lives in the system tray: left-click restores window, right-click shows context menu with "打开面板" and "退出程序".
+- Hotkey triggers play distinct `Console.Beep` tones: start = 800Hz/150ms, stop = 400Hz/300ms.
+- `ExecutionController.SetRunButtonRunning/RestoreRunButton` fire `ExecutionStateChanged` callback; `ScriptRunManager` exposes `IsAnyRunning` + `RunningStateChanged` event. MainWindow combines both into `IsExecuting` DP, which drives toolbar button styles via XAML DataTrigger.
+- `StopExecutionButton` (red, bold) appears only during execution; click calls `_scriptRunManager.StopAll()` + `_executionController.Cancel()` (equivalent to Esc).
+- Mouse middle button (`MouseButton.Middle`) added across enum, XAML combo, ViewModel, executor, and Win32 adapter.
 
 UE4 风格的 WPF 蓝图节点编辑器 — 用于桌面自动化脚本编排。
 
@@ -46,7 +53,7 @@ UE4 风格的 WPF 蓝图节点编辑器 — 用于桌面自动化脚本编排。
 - **内容浏览器**: 文件夹树 + 瓦片视图，支持递归模糊搜索、多选、框选、复制粘贴、拖拽移动/复制到文件夹、`Ctrl+B` 定位
 - **多编辑窗口**: 工具栏下方窗口栏管理主窗口标签页，支持切换、关闭、关闭右侧、关闭所有、拖出为独立窗口；独立窗口不再占用主窗口标签
 - **鼠标拾取**: 顶部工具栏可进入全屏拾取模式，鼠标移动时显示坐标和屏幕颜色，支持复制坐标或颜色；复制后自动退出
-- **多格式兼容**: 支持鼠标左键/右键/侧键、键盘按键、滚轮方向
+- **多格式兼容**: 支持鼠标左键/右键/中键/侧键、键盘按键、滚轮前滚/后滚
 - **日志系统**: 内嵌日志面板 + 独立日志窗口，分级过滤(INFO/WARN/ERROR)，增量刷新、自动文件持久化，支持复制，多行日志视觉对齐
 - **蓝图编辑器体验**: 框选、组拖动、复制粘贴、对齐、缩放平移、路由节点、边缘自动平移(EdgePan)、快捷键
 - **自动环境检测**: 首次执行前后台检测并缓存 Python 环境结果，提供安装指引；找图脚本对 Windows 中文路径做了兼容处理
@@ -54,6 +61,10 @@ UE4 风格的 WPF 蓝图节点编辑器 — 用于桌面自动化脚本编排。
 - **ToDo 跳转**: 用节点名 + 编号在同图内跳转，可选目标执行完后返回
 - **全局热键启动**: 右键脚本资产 → 属性，配置键盘/鼠标快捷键；无需编辑器前置即可启动/停止脚本
 - **执行控制**: 支持设置重试次数、循环次数、固定循环间隔；运行状态实时显示；热键冲突校验
+- **热键配置**: 启动/终止热键独立配置，支持按键、按下次数、触发时间阈值（毫秒）；鼠标滚轮前滚/后滚可设为热键
+- **提示音反馈**: 热键触发时播放区分音调（启动高音/终止低音），无需看屏幕即可感知脚本状态
+- **托盘最小化**: 关闭窗口可选择最小化到系统托盘，首次选择后记忆偏好，不再重复询问
+- **执行中工具栏**: 执行时按钮变蓝"⏳ 执行中..."，出现红色"⏹ 停止执行"按钮；点击停止等效按 Esc
 
 ## 使用
 
@@ -65,8 +76,10 @@ UE4 风格的 WPF 蓝图节点编辑器 — 用于桌面自动化脚本编排。
 6. 点击"执行图谱"运行；如有未编译图会先自动编译，失败才停止执行；运行中按钮会显示执行中并防止重复点击
 7. 按 Esc 停止执行
 8. 点击"鼠标拾取"可查看/复制当前屏幕坐标与颜色；左键弹复制选项，复制后退出，取消继续拾取，右键退出
-9. 右键脚本资产 → 属性，可配置全局热键、重试次数、循环执行等运行参数
-10. 配置热键后，无需编辑器前置即可通过热键启动/停止对应脚本
+9. 右键脚本资产 → 属性，可配置全局热键（支持鼠标滚轮）、触发时间阈值、循环执行等运行参数；所有属性有悬停 ToolTip 说明
+10. 配置热键后，无需编辑器前置即可通过热键启动/停止对应脚本；启动/终止热键触发时有区分提示音
+11. 关闭窗口时可选最小化到托盘；首次选择后默认记忆；托盘右键菜单"打开面板/退出程序"
+12. 执行图谱时工具栏出现红色停止按钮，点击可随时终止执行
 
 ## 快捷键
 

@@ -47,12 +47,6 @@ public static class Logger
     {
         string timestamp = DateTime.Now.ToString("HH:mm:ss");
         LogEntry entry = new(timestamp, level, message);
-        if (!bypassCapture && _activeCapture.Value is { } capture)
-        {
-            capture.Add(entry);
-            return;
-        }
-
         // Always write to file immediately (safe from any thread).
         lock (_lock)
         {
@@ -68,6 +62,10 @@ public static class Logger
         }
 
         QueueEntryForUi(entry);
+
+        // Also add to active capture scope for structured summaries.
+        if (!bypassCapture && _activeCapture.Value is { } capture)
+            capture.Add(entry);
     }
 
     public static string GetLogDirectory() => LogDir;

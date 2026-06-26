@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Input;
@@ -27,7 +27,7 @@ internal sealed class ScriptHotkeyService : IDisposable
     private const int WM_RBUTTONDOWN = 0x0204;
     private const int WM_MBUTTONDOWN = 0x0207;
     private const int WM_XBUTTONDOWN = 0x020B;
-    private static readonly TimeSpan PressWindow = TimeSpan.FromMilliseconds(600);
+    private const int WM_MOUSEWHEEL = 0x020A;
 
     private readonly Window _owner;
     private readonly Action<ScriptHotkeyTrigger> _onTrigger;
@@ -35,6 +35,7 @@ internal sealed class ScriptHotkeyService : IDisposable
     private readonly LowLevelMouseProc _mouseProc;
     private readonly Dictionary<ScriptHotkeyMatchKey, ScriptHotkeyBinding> _bindings = [];
     private readonly Dictionary<ScriptHotkeyPressKey, PressState> _pressStates = [];
+    private readonly Dictionary<ScriptHotkeyPressKey, int> _pressWindows = [];
     private readonly HashSet<int> _pressedKeys = [];
     private readonly DispatcherTimer _flushTimer;
     private IntPtr _keyboardHook;
@@ -58,6 +59,7 @@ internal sealed class ScriptHotkeyService : IDisposable
     {
         _bindings.Clear();
         _pressStates.Clear();
+        _pressWindows.Clear();
         foreach (var asset in assets.Where(asset => asset.Kind == ContentAssetKind.Script))
         {
             asset.RunSettings.Normalize();
@@ -130,13 +132,21 @@ internal sealed class ScriptHotkeyService : IDisposable
         if (!hotkey.IsConfigured)
             return;
 
-        _bindings[ToMatchKey(hotkey)] = new ScriptHotkeyBinding(asset, action, Math.Max(1, hotkey.PressCount));
+        _bindings[ToMatchKey(hotkey)] = new ScriptHotkeyBinding(asset, action, Math.Max(1, hotkey.PressCount), hotkey.TriggerWindowMs);
+
+        var pressKey = new ScriptHotkeyPressKey(hotkey.InputKind, hotkey.Key);
+        int window = hotkey.TriggerWindowMs > 0 ? hotkey.TriggerWindowMs : 1000;
+        if (!_pressWindows.TryGetValue(pressKey, out int existing) || window > existing)
+            _pressWindows[pressKey] = window;
     }
 
     private void HandlePress(ScriptHotkeyPressKey key)
     {
         var now = DateTime.UtcNow;
-        if (!_pressStates.TryGetValue(key, out var state) || now - state.FirstPressAt > PressWindow)
+        int windowMs = _pressWindows.GetValueOrDefault(key, 1000);
+        var window = TimeSpan.FromMilliseconds(Math.Max(100, windowMs));
+
+        if (!_pressStates.TryGetValue(key, out var state) || now - state.FirstPressAt > window)
             state = new PressState(now, 0);
 
         _pressStates[key] = state with { FirstPressAt = now, Count = state.Count + 1 };
@@ -167,12 +177,13 @@ internal sealed class ScriptHotkeyService : IDisposable
     {
         if (nCode >= 0)
         {
-            var key = wParam.ToInt32() switch
+            string? key = wParam.ToInt32() switch
             {
                 WM_LBUTTONDOWN => "Left",
                 WM_RBUTTONDOWN => "Right",
                 WM_MBUTTONDOWN => "Middle",
                 WM_XBUTTONDOWN => GetXButton(lParam),
+                WM_MOUSEWHEEL => GetWheelDirection(lParam),
                 _ => null,
             };
             if (key is not null)
@@ -188,17 +199,29 @@ internal sealed class ScriptHotkeyService : IDisposable
             return;
 
         var now = DateTime.UtcNow;
-        foreach (var key in _pressStates
-                     .Where(pair => now - pair.Value.FirstPressAt >= PressWindow)
-                     .Select(pair => pair.Key)
-                     .ToList())
+        var keysToRemove = new List<ScriptHotkeyPressKey>();
+
+        foreach (var (pressKey, state) in _pressStates)
         {
-            var state = _pressStates[key];
-            _pressStates.Remove(key);
-            var bindingKey = new ScriptHotkeyMatchKey(key.InputKind, key.Key, state.Count);
-            if (_bindings.TryGetValue(bindingKey, out var binding))
-                _onTrigger(new ScriptHotkeyTrigger(binding.Asset, binding.Action));
+            int pressWindowMs = _pressWindows.GetValueOrDefault(pressKey, 1000);
+            var pressWindow = TimeSpan.FromMilliseconds(Math.Max(100, pressWindowMs));
+
+            if (now - state.FirstPressAt < pressWindow)
+                continue;
+
+            var matchKey = new ScriptHotkeyMatchKey(pressKey.InputKind, pressKey.Key, state.Count);
+            if (_bindings.TryGetValue(matchKey, out var binding))
+            {
+                int bindingWindowMs = binding.TriggerWindowMs > 0 ? binding.TriggerWindowMs : 1000;
+                if (now - state.FirstPressAt >= TimeSpan.FromMilliseconds(bindingWindowMs))
+                    _onTrigger(new ScriptHotkeyTrigger(binding.Asset, binding.Action));
+            }
+
+            keysToRemove.Add(pressKey);
         }
+
+        foreach (var key in keysToRemove)
+            _pressStates.Remove(key);
     }
 
     private static string GetXButton(IntPtr lParam)
@@ -206,6 +229,13 @@ internal sealed class ScriptHotkeyService : IDisposable
         var info = Marshal.PtrToStructure<MSLLHOOKSTRUCT>(lParam);
         int button = (short)(info.mouseData >> 16);
         return button == 1 ? "XButton1" : "XButton2";
+    }
+
+    private static string GetWheelDirection(IntPtr lParam)
+    {
+        var info = Marshal.PtrToStructure<MSLLHOOKSTRUCT>(lParam);
+        int delta = (short)(info.mouseData >> 16);
+        return delta > 0 ? "WheelForward" : "WheelBackward";
     }
 
     private void InstallHooks()
@@ -238,12 +268,13 @@ internal sealed class ScriptHotkeyService : IDisposable
 
         _pressedKeys.Clear();
         _pressStates.Clear();
+        _pressWindows.Clear();
     }
 
     private static ScriptHotkeyMatchKey ToMatchKey(ScriptHotkeySettings hotkey) =>
         new(hotkey.InputKind, hotkey.Key, Math.Max(1, hotkey.PressCount));
 
-    private sealed record ScriptHotkeyBinding(ContentAssetViewModel Asset, ScriptHotkeyAction Action, int PressCount);
+    private sealed record ScriptHotkeyBinding(ContentAssetViewModel Asset, ScriptHotkeyAction Action, int PressCount, int TriggerWindowMs);
 
     private sealed record PressState(DateTime FirstPressAt, int Count);
 

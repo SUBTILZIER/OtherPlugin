@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
@@ -87,6 +87,13 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     };
     // 运行状态
     private bool _isClosing;
+    private bool _isExecuting;
+
+    public bool IsExecuting
+    {
+        get => _isExecuting;
+        set { if (_isExecuting != value) { _isExecuting = value; PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsExecuting))); } }
+    }
 
     // 右键菜单状态
     private bool _rightClickPending;
@@ -102,6 +109,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         InitializeControllers();
         InitializeServices();
         InitializeEditor();
+        SetupNotifyIcon();
     }
 
     #region 属性绑定
@@ -120,6 +128,31 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     #region 辅助方法
 
+    
+    private void UpdateExecutionUI()
+    {
+        Dispatcher.InvokeAsync(() =>
+        {
+            IsExecuting = _scriptRunManager.IsAnyRunning || (_executionController?.IsRunning ?? false);
+            StopExecutionButton.Visibility = IsExecuting ? Visibility.Visible : Visibility.Collapsed;
+        });
+    }
+
+    private void StopExecution_Click(object sender, RoutedEventArgs e)
+    {
+        _scriptRunManager.StopAll();
+        _executionController?.Cancel();
+    }
+
+    private void OnExecutionStateChanged(bool isRunning) { UpdateExecutionUI(); }
+    private void OnScriptRunningStateChanged()
+    {
+        Dispatcher.InvokeAsync(() =>
+        {
+            IsExecuting = _scriptRunManager.IsAnyRunning;
+            StopExecutionButton.Visibility = IsExecuting ? Visibility.Visible : Visibility.Collapsed;
+        });
+    }
     private void EnsureCanvasLargeEnough()
     {
         // Infinite canvas mode no longer resizes the surface by viewport bounds.
