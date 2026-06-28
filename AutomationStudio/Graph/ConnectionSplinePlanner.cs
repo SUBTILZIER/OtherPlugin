@@ -10,8 +10,9 @@ namespace AutomationStudioWpf.Graph;
 public static class ConnectionSplinePlanner
 {
     private const double Epsilon = 0.001;
-    private const double OrdinaryTangentScale = 0.45;
-    private const double SplineHandleScale = 0.35;
+    private const double SegmentHandleScale = 0.35;
+    private const double SegmentHandleMaxFraction = 0.49;
+    private const double LinearFallbackScale = 1.0 / 3.0;
     private const double DuplicatePointDistance = 0.25;
 
     public static Geometry BuildPinConnectionGeometry(PinViewModel sourcePin, PinViewModel targetPin)
@@ -34,13 +35,9 @@ public static class ConnectionSplinePlanner
             IsFilled = false,
         };
 
-        if (points.Count == 2)
+        if (points.Count > 1)
         {
-            AddOrdinarySegment(figure, points[0], points[1]);
-        }
-        else
-        {
-            AddSplineSegments(figure, points);
+            AddConstrainedSegments(figure, points);
         }
 
         PathGeometry geometry = new();
@@ -74,75 +71,80 @@ public static class ConnectionSplinePlanner
         return Math.Sqrt(DistanceSquared(point, projection));
     }
 
-    private static void AddOrdinarySegment(PathFigure figure, Point start, Point end)
-    {
-        double tangent = Math.Abs(end.X - start.X) * OrdinaryTangentScale;
-        Point control1 = new(start.X + tangent, start.Y);
-        Point control2 = new(end.X - tangent, end.Y);
-        figure.Segments.Add(new BezierSegment(control1, control2, end, true));
-    }
-
-    private static void AddSplineSegments(PathFigure figure, IReadOnlyList<Point> points)
+    private static void AddConstrainedSegments(PathFigure figure, IReadOnlyList<Point> points)
     {
         for (int i = 0; i < points.Count - 1; i++)
         {
             Point start = points[i];
             Point end = points[i + 1];
-            Vector segment = end - start;
-            double segmentLength = segment.Length;
-
-            if (segmentLength < Epsilon)
+            if (TryCreateConstrainedControls(start, end, out Point control1, out Point control2))
             {
-                continue;
+                figure.Segments.Add(new BezierSegment(control1, control2, end, true));
+            }
+        }
+    }
+
+    private static bool TryCreateConstrainedControls(Point start, Point end, out Point control1, out Point control2)
+    {
+        Vector segment = end - start;
+        double segmentLength = segment.Length;
+        if (segmentLength < Epsilon)
+        {
+            control1 = start;
+            control2 = end;
+            return false;
+        }
+
+        double absDx = Math.Abs(segment.X);
+        double absDy = Math.Abs(segment.Y);
+        bool horizontalDominant = absDx >= absDy;
+
+        if (horizontalDominant)
+        {
+            double handle = Math.Min(segmentLength * SegmentHandleScale, absDx * SegmentHandleMaxFraction);
+            if (handle < Epsilon)
+            {
+                return BuildLinearControls(start, end, out control1, out control2);
             }
 
-            Vector controlOut = TangentForPoint(points, i, segment, segmentLength);
-            Vector controlIn = TangentForPoint(points, i + 1, segment, segmentLength);
-            Point control1 = start + controlOut;
-            Point control2 = end - controlIn;
-            figure.Segments.Add(new BezierSegment(control1, control2, end, true));
+            double direction = Math.Sign(segment.X);
+            if (direction == 0)
+            {
+                return BuildLinearControls(start, end, out control1, out control2);
+            }
+
+            control1 = new Point(start.X + direction * handle, start.Y);
+            control2 = new Point(end.X - direction * handle, end.Y);
+            return true;
         }
+
+        double verticalHandle = Math.Min(segmentLength * SegmentHandleScale, absDy * SegmentHandleMaxFraction);
+        if (verticalHandle < Epsilon)
+        {
+            return BuildLinearControls(start, end, out control1, out control2);
+        }
+
+        double verticalDirection = Math.Sign(segment.Y);
+        if (verticalDirection == 0)
+        {
+            return BuildLinearControls(start, end, out control1, out control2);
+        }
+
+        control1 = new Point(start.X, start.Y + verticalDirection * verticalHandle);
+        control2 = new Point(end.X, end.Y - verticalDirection * verticalHandle);
+        return true;
     }
 
-    private static Vector TangentForPoint(IReadOnlyList<Point> points, int index, Vector segment, double segmentLength)
+    private static bool BuildLinearControls(Point start, Point end, out Point control1, out Point control2)
     {
-        Vector tangent;
-        if (index <= 0)
-        {
-            tangent = points[1] - points[0];
-        }
-        else if (index >= points.Count - 1)
-        {
-            tangent = points[^1] - points[^2];
-        }
-        else
-        {
-            tangent = points[index + 1] - points[index - 1];
-        }
-
-        double scale = segmentLength * SplineHandleScale;
-        return AlignAndScale(tangent, segment, scale);
-    }
-
-    private static Vector AlignAndScale(Vector tangent, Vector segment, double scale)
-    {
-        if (tangent.Length < Epsilon)
-        {
-            tangent = segment;
-        }
-
-        if (Vector.Multiply(tangent, segment) <= 0)
-        {
-            tangent = segment;
-        }
-
-        if (tangent.Length < Epsilon)
-        {
-            return new Vector();
-        }
-
-        tangent.Normalize();
-        return tangent * scale;
+        Vector segment = end - start;
+        control1 = new Point(
+            start.X + segment.X * LinearFallbackScale,
+            start.Y + segment.Y * LinearFallbackScale);
+        control2 = new Point(
+            end.X - segment.X * LinearFallbackScale,
+            end.Y - segment.Y * LinearFallbackScale);
+        return true;
     }
 
     private static List<Point> Deduplicate(IEnumerable<Point> rawPoints)

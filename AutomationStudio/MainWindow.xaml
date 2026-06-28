@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         xmlns:graph="clr-namespace:AutomationStudioWpf.Graph"
         xmlns:logging="clr-namespace:AutomationStudioWpf.Logging"
         mc:Ignorable="d"
@@ -10,12 +11,66 @@
         Width="1680"
         Height="980"
         WindowStartupLocation="CenterScreen"
+        WindowStyle="None"
+        ResizeMode="CanResize"
         Background="{StaticResource EditorRootBackgroundBrush}"
+        SnapsToDevicePixels="True"
+        UseLayoutRounding="True"
+        StateChanged="Window_StateChanged"
         PreviewKeyDown="Window_PreviewKeyDown"
         AllowDrop="True"
         DragEnter="Window_DragEnter"
         Drop="Window_Drop">
+    <shell:WindowChrome.WindowChrome>
+        <shell:WindowChrome CaptionHeight="36"
+                            ResizeBorderThickness="6"
+                            GlassFrameThickness="0"
+                            CornerRadius="0"
+                            UseAeroCaptionButtons="False" />
+    </shell:WindowChrome.WindowChrome>
     <Window.Resources>
+        <Style x:Key="TitleBarButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Width" Value="44" />
+            <Setter Property="Height" Value="28" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="0,0,2,0" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Foreground" Value="{StaticResource ForegroundPrimaryBrush}" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="FontFamily" Value="Segoe UI Symbol" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="ChromeBorder"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="5"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"
+                                              RecognizesAccessKey="True" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ChromeBorder" Property="Background" Value="#2A313B" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="ChromeBorder" Property="Background" Value="#36404F" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.5" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="TitleBarCloseButtonStyle" TargetType="Button" BasedOn="{StaticResource TitleBarButtonStyle}">
+            <Setter Property="Margin" Value="0" />
+        </Style>
         <Style x:Key="ContentRenameTextBoxStyle" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
             <Setter Property="Visibility" Value="Collapsed" />
             <Setter Property="Background" Value="#E6EDF5" />
@@ -46,6 +101,105 @@
                     <Setter Property="Data" Value="M 0 0 L 8 0 L 4 6 Z" />
                 </DataTrigger>
             </Style.Triggers>
+        </Style>
+        <Style x:Key="ContentAssetContextMenuStyle" TargetType="ContextMenu">
+            <Setter Property="Background" Value="#141922" />
+            <Setter Property="BorderBrush" Value="#435066" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="6" />
+            <Setter Property="HasDropShadow" Value="False" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ContextMenu">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="10"
+                                Padding="{TemplateBinding Padding}"
+                                SnapsToDevicePixels="True">
+                            <Border.Effect>
+                                <DropShadowEffect BlurRadius="18"
+                                                  ShadowDepth="6"
+                                                  Opacity="0.34"
+                                                  Color="#000000" />
+                            </Border.Effect>
+                            <ScrollViewer CanContentScroll="True"
+                                          HorizontalScrollBarVisibility="Disabled"
+                                          VerticalScrollBarVisibility="Auto">
+                                <StackPanel IsItemsHost="True"
+                                            KeyboardNavigation.DirectionalNavigation="Cycle" />
+                            </ScrollViewer>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="ContentAssetMenuItemStyle" TargetType="MenuItem">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{StaticResource EditorTextBrightBrush}" />
+            <Setter Property="Padding" Value="12,7" />
+            <Setter Property="Margin" Value="0,1" />
+            <Setter Property="MinWidth" Value="190" />
+            <Setter Property="MinHeight" Value="32" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="MenuItem">
+                        <Border x:Name="MenuItemBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="Transparent"
+                                BorderThickness="1"
+                                CornerRadius="7"
+                                Padding="{TemplateBinding Padding}"
+                                SnapsToDevicePixels="True">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="18" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <ContentPresenter Grid.Column="0"
+                                                  ContentSource="Icon"
+                                                  HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center" />
+                                <ContentPresenter Grid.Column="1"
+                                                  ContentSource="Header"
+                                                  RecognizesAccessKey="True"
+                                                  VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="2"
+                                           Text="{TemplateBinding InputGestureText}"
+                                           Foreground="{StaticResource DropdownMutedTextBrush}"
+                                           FontSize="11"
+                                           VerticalAlignment="Center"
+                                           Margin="12,0,0,0" />
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="MenuItemBorder" Property="Background" Value="#223040" />
+                                <Setter TargetName="MenuItemBorder" Property="BorderBrush" Value="#42526A" />
+                            </Trigger>
+                            <Trigger Property="IsHighlighted" Value="True">
+                                <Setter TargetName="MenuItemBorder" Property="Background" Value="#2B3C52" />
+                                <Setter TargetName="MenuItemBorder" Property="BorderBrush" Value="#58708D" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.55" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="ContentAssetMenuIconStyle" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="Segoe MDL2 Assets" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Width" Value="14" />
+            <Setter Property="Height" Value="14" />
+            <Setter Property="TextAlignment" Value="Center" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
         </Style>
         <Style TargetType="MenuItem">
             <Setter Property="Foreground" Value="{StaticResource EditorTextBrightBrush}" />
@@ -108,6 +262,54 @@
         </Style>
     </Window.Resources>
     <DockPanel>
+        <Border DockPanel.Dock="Top"
+                Height="36"
+                Background="{StaticResource EditorPanelBackgroundBrush}"
+                BorderBrush="{StaticResource EditorSectionHeaderBrush}"
+                BorderThickness="0,0,0,1"
+                >
+            <Grid Margin="10,0,8,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Orientation="Horizontal"
+                            VerticalAlignment="Center">
+                    <Image Width="18"
+                           Height="18"
+                           Margin="0,0,8,0"
+                           Source="{Binding Icon, RelativeSource={RelativeSource AncestorType=Window}}" />
+                    <TextBlock Text="{Binding Title, RelativeSource={RelativeSource AncestorType=Window}}"
+                               Foreground="{StaticResource EditorTextBrightBrush}"
+                               FontWeight="SemiBold"
+                               FontSize="13"
+                               VerticalAlignment="Center"
+                               TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+                <StackPanel Grid.Column="1"
+                            Orientation="Horizontal"
+                            VerticalAlignment="Center">
+                    <Button Style="{StaticResource TitleBarButtonStyle}"
+                            Click="WindowMinimize_Click"
+                            ToolTip="最小化"
+                            shell:WindowChrome.IsHitTestVisibleInChrome="True">
+                        <TextBlock Text="─" FontSize="14" />
+                    </Button>
+                    <Button Style="{StaticResource TitleBarButtonStyle}"
+                            Click="WindowMaximizeRestore_Click"
+                            ToolTip="最大化 / 还原"
+                            shell:WindowChrome.IsHitTestVisibleInChrome="True">
+                        <TextBlock x:Name="WindowMaximizeGlyph" Text="▢" FontSize="13" />
+                    </Button>
+                    <Button Style="{StaticResource TitleBarCloseButtonStyle}"
+                            Click="WindowClose_Click"
+                            ToolTip="关闭"
+                            shell:WindowChrome.IsHitTestVisibleInChrome="True">
+                        <TextBlock Text="✕" FontSize="13" Foreground="#FF6B6B" />
+                    </Button>
+                </StackPanel>
+            </Grid>
+        </Border>
         <ToolBar DockPanel.Dock="Top"
                  Background="{StaticResource EditorPanelBackgroundBrush}"
                  BorderBrush="{StaticResource EditorSectionHeaderBrush}"
@@ -400,9 +602,27 @@
                                     </DataTemplate>
                                 </ListBox.ItemTemplate>
                                 <ListBox.ContextMenu>
-                                    <ContextMenu Style="{StaticResource DarkContextMenuStyle}">
-                                        <MenuItem Header="重命名" Click="RenameContentAssetMenuItem_Click" />
-                                        <MenuItem Header="删除" Click="DeleteContentAssetMenuItem_Click" />
+                                    <ContextMenu Style="{StaticResource ContentAssetContextMenuStyle}">
+                                        <MenuItem Style="{StaticResource ContentAssetMenuItemStyle}"
+                                                  Header="重命名"
+                                                  InputGestureText="F2"
+                                                  Click="RenameContentAssetMenuItem_Click">
+                                            <MenuItem.Icon>
+                                                <TextBlock Style="{StaticResource ContentAssetMenuIconStyle}"
+                                                           Text="&#xE70F;"
+                                                           Foreground="{StaticResource EditorMutedTextBrush}" />
+                                            </MenuItem.Icon>
+                                        </MenuItem>
+                                        <MenuItem Style="{StaticResource ContentAssetMenuItemStyle}"
+                                                  Header="删除"
+                                                  InputGestureText="Del"
+                                                  Click="DeleteContentAssetMenuItem_Click">
+                                            <MenuItem.Icon>
+                                                <TextBlock Style="{StaticResource ContentAssetMenuIconStyle}"
+                                                           Text="&#xE74D;"
+                                                           Foreground="{StaticResource LogErrorBrush}" />
+                                            </MenuItem.Icon>
+                                        </MenuItem>
                                     </ContextMenu>
                                 </ListBox.ContextMenu>
                             </ListBox>
@@ -484,17 +704,56 @@
                                 </DataTemplate>
                             </ListBox.ItemTemplate>
                             <ListBox.ContextMenu>
-                                <ContextMenu Style="{StaticResource DarkContextMenuStyle}"
+                                <ContextMenu Style="{StaticResource ContentAssetContextMenuStyle}"
                                              Opened="ContentBrowserContextMenu_Opened"
                                              Closed="ContentBrowserContextMenu_Closed">
-                                    <MenuItem x:Name="ContentBrowserRenameMenuItem" Header="重命名" Click="RenameContentAssetMenuItem_Click" />
-                                    <MenuItem x:Name="ContentBrowserDeleteMenuItem" Header="删除" Click="DeleteContentAssetMenuItem_Click" />
-                                    <MenuItem x:Name="ContentBrowserPropertiesMenuItem" Header="属性" Click="ContentAssetPropertiesMenuItem_Click" />
+                                    <MenuItem x:Name="ContentBrowserRenameMenuItem"
+                                              Style="{StaticResource ContentAssetMenuItemStyle}"
+                                              Header="重命名"
+                                              InputGestureText="F2"
+                                              Click="RenameContentAssetMenuItem_Click">
+                                        <MenuItem.Icon>
+                                            <TextBlock Style="{StaticResource ContentAssetMenuIconStyle}"
+                                                       Text="&#xE70F;"
+                                                       Foreground="{StaticResource EditorMutedTextBrush}" />
+                                        </MenuItem.Icon>
+                                    </MenuItem>
+                                    <MenuItem x:Name="ContentBrowserDeleteMenuItem"
+                                              Style="{StaticResource ContentAssetMenuItemStyle}"
+                                              Header="删除"
+                                              InputGestureText="Del"
+                                              Click="DeleteContentAssetMenuItem_Click">
+                                        <MenuItem.Icon>
+                                            <TextBlock Style="{StaticResource ContentAssetMenuIconStyle}"
+                                                       Text="&#xE74D;"
+                                                       Foreground="{StaticResource LogErrorBrush}" />
+                                        </MenuItem.Icon>
+                                    </MenuItem>
+                                    <MenuItem x:Name="ContentBrowserPropertiesMenuItem"
+                                              Style="{StaticResource ContentAssetMenuItemStyle}"
+                                              Header="属性"
+                                              InputGestureText="Alt+Enter"
+                                              Click="ContentAssetPropertiesMenuItem_Click">
+                                        <MenuItem.Icon>
+                                            <TextBlock Style="{StaticResource ContentAssetMenuIconStyle}"
+                                                       Text="&#xE713;"
+                                                       Foreground="{StaticResource AccentBrush}" />
+                                        </MenuItem.Icon>
+                                    </MenuItem>
                                     <Separator x:Name="ContentBrowserAssetMenuSeparator" />
-                                    <MenuItem x:Name="ContentBrowserNewScriptMenuItem" Header="脚本" Click="NewScriptAsset_Click" />
-                                    <MenuItem x:Name="ContentBrowserNewFolderMenuItem" Header="文件夹" Click="NewContentFolder_Click" />
+                                    <MenuItem x:Name="ContentBrowserNewScriptMenuItem"
+                                              Style="{StaticResource ContentAssetMenuItemStyle}"
+                                              Header="脚本"
+                                              Click="NewScriptAsset_Click" />
+                                    <MenuItem x:Name="ContentBrowserNewFolderMenuItem"
+                                              Style="{StaticResource ContentAssetMenuItemStyle}"
+                                              Header="文件夹"
+                                              Click="NewContentFolder_Click" />
                                     <Separator x:Name="ContentBrowserNewLibraryMenuSeparator" />
-                                    <MenuItem x:Name="ContentBrowserNewFunctionLibraryMenuItem" Header="函数库" Click="NewFunctionLibraryAsset_Click" />
+                                    <MenuItem x:Name="ContentBrowserNewFunctionLibraryMenuItem"
+                                              Style="{StaticResource ContentAssetMenuItemStyle}"
+                                              Header="函数库"
+                                              Click="NewFunctionLibraryAsset_Click" />
                                 </ContextMenu>
                             </ListBox.ContextMenu>
                             </ListBox>

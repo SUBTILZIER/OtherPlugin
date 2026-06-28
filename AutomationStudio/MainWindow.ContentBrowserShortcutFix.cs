@@ -24,9 +24,11 @@ public partial class MainWindow
             return false;
 
         bool ctrl = (WpfKeyboard.Modifiers & WpfModifierKeys.Control) != 0;
+        bool alt = (WpfKeyboard.Modifiers & WpfModifierKeys.Alt) != 0;
         bool isContentShortcut =
             e.Key == WpfKey.Delete ||
             e.Key == WpfKey.F2 ||
+            (alt && e.Key == WpfKey.Enter) ||
             (ctrl && (e.Key == WpfKey.C || e.Key == WpfKey.V));
 
         if (!isContentShortcut || !ShouldRouteShortcutToContentBrowser())
@@ -56,6 +58,13 @@ public partial class MainWindow
         if (e.Key == WpfKey.F2)
         {
             StartRenameSelectedContentAssetEnhanced();
+            e.Handled = true;
+            return true;
+        }
+
+        if (alt && e.Key == WpfKey.Enter)
+        {
+            ShowSelectedScriptProperties();
             e.Handled = true;
             return true;
         }

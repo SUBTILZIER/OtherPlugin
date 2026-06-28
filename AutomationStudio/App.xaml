@@ -99,10 +99,13 @@
         </Style>
 
         <Style TargetType="Window">
+            <Setter Property="Icon" Value="{x:Static local:WindowIconHelper.AppIcon}" />
             <Setter Property="Background" Value="{StaticResource AppBackgroundBrush}" />
             <Setter Property="Foreground" Value="{StaticResource ForegroundPrimaryBrush}" />
             <Setter Property="FontFamily" Value="Segoe UI" />
             <Setter Property="FontSize" Value="13" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+            <Setter Property="UseLayoutRounding" Value="True" />
         </Style>
 
         <Style TargetType="TextBlock">

@@ -380,6 +380,13 @@ public partial class MainWindow
         if (Keyboard.FocusedElement is TextBox)
             return;
 
+        if (e.Key == Key.Enter && (Keyboard.Modifiers & ModifierKeys.Alt) != 0)
+        {
+            ShowSelectedScriptProperties();
+            e.Handled = true;
+            return;
+        }
+
         if (e.Key == Key.Delete)
         {
             DeleteSelectedContentAsset();

@@ -106,10 +106,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         DataContext = this;
         _graphCompileService = new GraphCompileService(_callableGraphResolver);
         InitializeComponent();
+        Icon = WindowIconHelper.AppIcon;
         InitializeControllers();
         InitializeServices();
         InitializeEditor();
         SetupNotifyIcon();
+        UpdateChromeState();
     }
 
     #region 属性绑定
@@ -171,6 +173,34 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private void SetStatus(string message)
     {
         StatusTextBlock.Text = message;
+    }
+
+    private void UpdateChromeState()
+    {
+        if (WindowMaximizeGlyph is null)
+            return;
+
+        WindowMaximizeGlyph.Text = WindowState == WindowState.Maximized ? "❐" : "▢";
+    }
+
+    private void Window_StateChanged(object sender, EventArgs e)
+    {
+        UpdateChromeState();
+    }
+
+    private void WindowMinimize_Click(object sender, RoutedEventArgs e)
+    {
+        WindowState = WindowState.Minimized;
+    }
+
+    private void WindowMaximizeRestore_Click(object sender, RoutedEventArgs e)
+    {
+        WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+    }
+
+    private void WindowClose_Click(object sender, RoutedEventArgs e)
+    {
+        Close();
     }
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null)

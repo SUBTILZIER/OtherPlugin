@@ -14,22 +14,9 @@ public partial class MainWindow
 
     private void SetupNotifyIcon()
     {
-        System.Drawing.Icon? icon = null;
-        try
-        {
-            var iconPath = System.IO.Path.Combine(AppContext.BaseDirectory, "Resources", "2.png");
-            if (System.IO.File.Exists(iconPath))
-            {
-                using var bmp = new Bitmap(iconPath);
-                icon = System.Drawing.Icon.FromHandle(bmp.GetHicon());
-            }
-        }
-        catch { }
-        icon ??= SystemIcons.Application;
-
         _notifyIcon = new NotifyIcon
         {
-            Icon = icon,
+            Icon = WindowIconHelper.TrayIcon,
             Text = "AutomationStudio",
             Visible = true,
         };

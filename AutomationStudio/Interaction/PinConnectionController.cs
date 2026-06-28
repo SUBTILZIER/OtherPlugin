@@ -385,24 +385,7 @@ public sealed class PinConnectionController
     {
         var startAnchor = sourcePin.Owner.GetPinAnchor(sourcePin);
         var start = new Point(sourcePin.Owner.X + startAnchor.X, sourcePin.Owner.Y + startAnchor.Y);
-        var end = currentPoint;
-
-        double direction = sourcePin.Direction == PinDirection.Output ? 1.0 : -1.0;
-        var tangent = Math.Abs(end.X - start.X) * 0.45;
-        var control1 = new Point(start.X + tangent * direction, start.Y);
-        var control2 = new Point(end.X - tangent * direction, end.Y);
-
-        var figure = new PathFigure
-        {
-            StartPoint = start,
-            IsClosed = false,
-            IsFilled = false,
-        };
-        figure.Segments.Add(new BezierSegment(control1, control2, end, true));
-
-        var geometry = new PathGeometry();
-        geometry.Figures.Add(figure);
-        _previewPath.Data = geometry;
+        _previewPath.Data = ConnectionSplinePlanner.BuildGeometry([start, currentPoint]);
     }
 
     private void OpenPaletteFromPendingWire()
