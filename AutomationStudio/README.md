@@ -2,7 +2,7 @@
 
 ## Current Notes (2026-06-27)
 
-- 2026-06-11: CodeGraph, project skill, technical docs, README, and agent memory were audited against the current local code. CodeGraph generated database/cache/log files remain local and ignored.
+- 2026-07-02: Long-term technical notes now live only in `AutomationStudio/Agent/TECHNICAL.md`. Start from its outline, then read only the relevant section.
 - Visual wires bind to `GraphEditorService.ConnectionPaths`; persisted graph data and runtime execution still use `GraphEditorService.Connections`.
 - `ConnectionPathViewModel` aggregates linear reroute chains only for drawing. Reroute order follows the real `Connections` chain, not point distance, so moving route nodes does not reorder or jump the wire.
 - `ConnectionSplinePlanner` is the active visible-wire geometry builder. Single backing connections use one cubic Bezier; aggregated reroute chains use per-segment spline handles scaled from neighboring point distance.
@@ -285,11 +285,11 @@ saved/log/Log_2026_05_28_22_11.txt
 - **Changed**: Dark context menu and dropdown list styles are shared from `App.xaml`, not duplicated per window/surface.
 
 ### v1.2.8 (2026-06-11)
-- **Changed**: Documentation, project skill, agent memory, and CodeGraph were refreshed against current code after the latest `main` pull.
+- **Changed**: Documentation was consolidated; durable technical notes now live only in `Agent/TECHNICAL.md`.
 - **Changed**: Each editor session now owns a complete `EditorSurfaceControl`; detached windows host their own editable surface directly, and inactive detached preview/legacy region moving has been removed from the active path.
 - **Fixed**: Surface activation is now lightweight and per-session controller state is preserved, so main tabs and detached windows no longer steal each other's graph/list/canvas state.
 - **Fixed**: Detaching a session no longer blanks the main host; the main window keeps the last main tab surface, and the empty fallback panel only shows when no main tabs remain.
-- **Changed**: Project skill source is now `AutomationStudio/Agent/skills/automation-studio-wpf/SKILL.md`; the old `.kimi/skills/...` path is deleted.
+- **Changed**: Removed the old project skill path; use `Agent/TECHNICAL.md` as the technical source of truth.
 
 ### v1.2.7 (2026-06-09)
 - **Added**: UE-style editor window bar. Open assets stay as sessions; reopening an asset focuses the existing session instead of replacing the current editor.
@@ -316,7 +316,7 @@ saved/log/Log_2026_05_28_22_11.txt
 - **Improved**: Runtime execution/input lookup uses an internal lazy `GraphExecutionIndex` without changing graph JSON or `GraphExecutionPlan` construction.
 
 ### v1.2.3 (2026-06-08)
-- **Changed**: Audited CodeGraph, project skill, technical documentation, README, and agent memory against current local code.
+- **Changed**: Audited CodeGraph and documentation against current local code.
 - **Note**: CodeGraph runtime database/log files remain local through `.codegraph/.gitignore`; they are synced but not committed.
 
 ### v1.2.2 (2026-06-06)

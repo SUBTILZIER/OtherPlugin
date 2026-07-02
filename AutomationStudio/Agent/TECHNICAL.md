@@ -2,9 +2,30 @@
 
 ## 阅读 / 维护规则
 
-- 后续开发先读 `README.md` 和本文件简介；确认改动涉及多窗口、函数库、热键、日志、连线、运行时等高风险区后，再细读对应章节。
+- 后续开发先读本文“大纲 / 索引”。只有确认当前改动命中某个主题时，再细读对应章节，避免无意义消耗上下文。
 - 重要优化、反复踩坑修复、架构边界变化必须记录到本文件，避免后续重复修改同一问题。
-- `SKILL.md` 只放 Agent 高频约束；完整技术细节以本文为准。
+- 本文件是唯一长期技术文档：记录开发规则、踩坑、架构边界、重要知识点。旧 `TECHNICAL.md`、`agentmemory.md`、项目 skill 文档不再维护。
+
+## 大纲 / 索引
+
+- 文档迁移记录：唯一技术文档位置、旧文档删除规则、后续维护入口。
+- 架构设计：模块边界、Interaction / Services / Runtime 职责。
+- 运行态 / 日志 / 找图：`ExecutionController`、`RuntimeContext`、结构化日志、Python 找图桥接。
+- 热键 / 托盘 / 工具栏执行状态：全局热键、脚本属性窗、运行中冻结遮罩、托盘退出。
+- 编辑器视觉规则：左侧图表栏、右侧细节面板、工具栏、弹窗、主题资源。
+- 资产系统：脚本事件图、辅助事件图、函数库、内容浏览器索引和重命名规则。
+- 多窗口 / EditorSurface：session、detached 窗口、active surface 安全规则。
+- 编译 / 保存 / 运行：session snapshot、active asset 编译、函数库保存防丢图。
+- 连线 / 路由点：`Connections` 持久化、`ConnectionPaths` 视觉路径、命中和批量更新。
+- 节点规则：执行节点/纯运算节点、多线程、ToDo、函数调用、参数默认值。
+- 验证 / 文档门禁：构建、启动探针、Git、CodeGraph、本地-only smoke。
+
+## 文档迁移记录
+
+- 2026-07-02 起，长期技术文档只维护本文件：`AutomationStudio/Agent/TECHNICAL.md`。
+- 旧文件 `AutomationStudio/TECHNICAL.md`、`AutomationStudio/agentmemory.md`、`AutomationStudio/Agent/skills/automation-studio-wpf/SKILL.md` 已删除，Git 上也应同步删除。
+- 后续开发先看上方“大纲 / 索引”。确认当前任务涉及某个主题后，再跳到对应章节细读。
+- 新增踩坑、架构约束、重要优化结论时，只写入本文件；README 只保留用户入口和必要指向，不复制技术细节。
 
 ## 架构设计
 
@@ -632,8 +653,8 @@ Python 参数规则：
 ### 验证 / 文档门禁
 
 - CodeGraph sync is part of the final gate. Commit `.codegraph/.gitignore` so database, wal/shm, cache, and logs stay local.
-- Project skill source of truth in this local project is `AutomationStudio/Agent/skills/automation-studio-wpf/SKILL.md`; the old `.kimi/skills/automation-studio-wpf/SKILL.md` tree is gone.
-- README, TECHNICAL, `agentmemory.md`, and project skill should mention durable graph-editor rules: `ConnectionPaths` for visuals, `Connections` for persistence/runtime, batched connection edits, command-stack boundaries, and wire/reroute UX.
+- 本文件是唯一长期技术文档；重要开发规则、踩坑和知识点只维护在 `AutomationStudio/Agent/TECHNICAL.md`。
+- 旧 `AutomationStudio/TECHNICAL.md`、`AutomationStudio/agentmemory.md`、`AutomationStudio/Agent/skills/automation-studio-wpf/SKILL.md` 已废弃/删除，不再恢复。
 - Do not describe git push as allowed unless the user explicitly requests push in the current task.
 
 - `Tests/CodexSmoke` 是本地-only 回归辅助，Git 不跟踪、不提交；只在高风险交互或用户明确要求时本地运行。
