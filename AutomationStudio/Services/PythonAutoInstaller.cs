@@ -1,8 +1,6 @@
 using System.Diagnostics;
 using System.IO;
-using System.Windows;
 using AutomationStudioWpf.Logging;
-using MessageBox = System.Windows.MessageBox;
 
 namespace AutomationStudioWpf.Services;
 

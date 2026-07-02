@@ -525,6 +525,7 @@ public partial class MainWindow
     {
         var context = session.EnsureSurfaceContext();
         context.Configure(this, CreateEditorSurfaceHostServices(session));
+        context.Surface.IsExecutionFrozen = IsExecuting;
         if (_themedDialogOverridesInstalled)
             InstallGraphListHandlersForSurface(context.Surface, context);
         if (ReferenceEquals(session, _activeEditorSession))

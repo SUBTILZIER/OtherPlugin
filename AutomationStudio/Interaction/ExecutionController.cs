@@ -79,7 +79,7 @@ public sealed class ExecutionController
         }
         catch (Exception ex)
         {
-            System.Windows.MessageBox.Show(_owner, ex.Message, "执行失败", MessageBoxButton.OK, MessageBoxImage.Error);
+            ThemedDialog.Show(_owner, ex.Message, "执行失败", MessageBoxButton.OK, MessageBoxImage.Error);
             _setStatus("执行失败。");
         }
         finally

@@ -3,6 +3,8 @@
 ## 当前偏好
 
 - 中文、简洁；保留准确文件名/类名/方法名/命令/错误文本。
+- 开发前先读 `README.md` / `TECHNICAL.md` 简介；命中高风险区再读 `TECHNICAL.md` 对应章节。
+- 重要行为变更、反复踩坑修复、架构边界变化必须写入 `TECHNICAL.md`。
 - 不自动 `git push`。只有用户明确说推送才推；推送前确认不包含测试功能相关文件夹。
 - 项目 skill 源文件：`AutomationStudio/Agent/skills/automation-studio-wpf/SKILL.md`。旧 `.kimi/skills/...` 不恢复。
 
@@ -54,9 +56,9 @@
 
 ### 热键系统
 - `ScriptHotkeyService` 用 WH_KEYBOARD_LL/WH_MOUSE_LL；WM_MOUSEWHEEL→WheelForward/WheelBackward。
-- 每个绑定独立 `TriggerWindowMs`（默认1000ms），非全局共享。
+- 每个绑定独立 `TriggerWindowMs`（默认1000ms），非全局共享；达到 `PressCount` 后立即触发，不等时间窗结束。
 - 热键窗体 `ScriptHotkeyCaptureWindow` 必须用 `_captured` bool 防 WPF 重入导致双重 DialogResult。
-- 热键行 UI 格式：`按键[Badge] 修改 按下次数[] 清空`；未设置显示"无"。
+- 热键行 UI 用固定列：`按键[Badge] 修改 按下次数[] 清空`；未设置显示"无"，只显示按键名。
 - 所有属性控件有中文 ToolTip。
 
 ### 托盘

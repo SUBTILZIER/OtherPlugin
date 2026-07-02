@@ -3,7 +3,7 @@ using System.Drawing;
 using System.Reflection;
 using System.Windows;
 using System.Windows.Forms;
-using WpfMessageBox = System.Windows.MessageBox;
+using AutomationStudioWpf.Interaction;
 using WpfApplication = System.Windows.Application;
 
 namespace AutomationStudioWpf;
@@ -71,12 +71,14 @@ public partial class MainWindow
         if (ContentBrowserItems.Any(item => item.IsDirty) ||
             GraphListItems.Concat(FunctionListItems).Any(item => item.IsDirty))
         {
-            var result = WpfMessageBox.Show(
+            var result = ThemedDialog.ShowCustom(
                 this,
                 "存在未保存资产，是否保存？",
                 "是否保存",
-                MessageBoxButton.YesNoCancel,
-                MessageBoxImage.Question);
+                MessageBoxImage.Question,
+                new ThemedDialogButton("保存", MessageBoxResult.Yes, true),
+                new ThemedDialogButton("不保存", MessageBoxResult.No),
+                new ThemedDialogButton("取消", MessageBoxResult.Cancel));
             if (result == MessageBoxResult.Cancel)
             {
                 e.Cancel = true;

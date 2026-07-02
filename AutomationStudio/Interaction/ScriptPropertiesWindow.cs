@@ -9,6 +9,7 @@ using Border = System.Windows.Controls.Border;
 using Grid = System.Windows.Controls.Grid;
 using ColumnDefinition = System.Windows.Controls.ColumnDefinition;
 using RadioButton = System.Windows.Controls.RadioButton;
+using ScrollViewer = System.Windows.Controls.ScrollViewer;
 using StackPanel = System.Windows.Controls.StackPanel;
 using TextBlock = System.Windows.Controls.TextBlock;
 using TextBox = System.Windows.Controls.TextBox;
@@ -54,8 +55,8 @@ public sealed class ScriptPropertiesWindow : Window
     {
         Owner = owner;
         Title = $"脚本属性 - {assetName}";
-        Width = 660;
-        MinWidth = 620;
+        Width = 760;
+        MinWidth = 740;
         Height = 580;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         Background = WindowBackgroundBrush;
@@ -75,17 +76,17 @@ public sealed class ScriptPropertiesWindow : Window
             Background = PanelBrush,
             BorderBrush = CardBorderBrush,
             BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(12),
-            Padding = new Thickness(16),
+            CornerRadius = new CornerRadius(16),
+            Padding = new Thickness(20),
         };
         var root = new DockPanel();
         shell.Child = root;
 
-        var header = new StackPanel { Margin = new Thickness(0, 0, 0, 14) };
+        var header = new StackPanel { Margin = new Thickness(0, 0, 0, 18) };
         var title = new TextBlock
         {
             Text = "脚本属性",
-            FontSize = 20,
+            FontSize = 22,
             FontWeight = FontWeights.Bold,
             Margin = new Thickness(0, 0, 0, 4),
         };
@@ -104,7 +105,7 @@ public sealed class ScriptPropertiesWindow : Window
         {
             Orientation = Orientation.Horizontal,
             HorizontalAlignment = HorizontalAlignment.Right,
-            Margin = new Thickness(0, 12, 0, 0),
+            Margin = new Thickness(0, 16, 0, 0),
         };
         DockPanel.SetDock(buttons, Dock.Bottom);
         var save = CreateButton("保存设置", 96);
@@ -117,7 +118,14 @@ public sealed class ScriptPropertiesWindow : Window
         root.Children.Add(buttons);
 
         var panel = new StackPanel();
-        root.Children.Add(panel);
+        var scrollViewer = new ScrollViewer
+        {
+            Content = panel,
+            VerticalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Disabled,
+            Padding = new Thickness(0, 0, 8, 0),
+        };
+        root.Children.Add(scrollViewer);
 
         // ---- ToolTips ----
         _countRadio.ToolTip = "按设定次数重复执行脚本";
@@ -128,10 +136,10 @@ public sealed class ScriptPropertiesWindow : Window
         _minutesBox.ToolTip = "循环时长 - 分钟";
         _secondsBox.ToolTip = "循环时长 - 秒";
         _preventDuplicateCheck.ToolTip = "运行中再次触发启动热键时将忽略此次触发";
-        _startPressCountBox.ToolTip = "在触发时间阈值内累计按下次数，达到此次数后触发";
-        _stopPressCountBox.ToolTip = "在触发时间阈值内累计按下次数，达到此次数后触发";
-        _startTriggerWindowBox.ToolTip = "按下热键的判定时间窗，在此时间内累计按下次数（毫秒）";
-        _stopTriggerWindowBox.ToolTip = "按下热键的判定时间窗，在此时间内累计按下次数（毫秒）";
+        _startPressCountBox.ToolTip = "启动热键在触发时间阈值内需要按下的次数";
+        _stopPressCountBox.ToolTip = "终止热键在触发时间阈值内需要按下的次数";
+        _startTriggerWindowBox.ToolTip = "启动热键的计数时间窗。超过该毫秒数后，按下次数会重新累计";
+        _stopTriggerWindowBox.ToolTip = "终止热键的计数时间窗。超过该毫秒数后，按下次数会重新累计";
 
         panel.Children.Add(Section("运行设置",
             Row(_countRadio, _loopCountBox, Label("次")),
@@ -216,7 +224,6 @@ public sealed class ScriptPropertiesWindow : Window
 
         target.InputKind = window.Result.InputKind;
         target.Key = window.Result.Key;
-        target.PressCount = Math.Max(1, window.Result.PressCount);
         RefreshHotkeyText(target, label);
     }
 
@@ -237,11 +244,12 @@ public sealed class ScriptPropertiesWindow : Window
     {
         Text = text,
         Width = width,
-        Margin = new Thickness(4, 0, 4, 0),
+        MinHeight = 30,
+        Margin = new Thickness(5, 0, 6, 0),
         Background = InputBrush,
         Foreground = Brushes.White,
         BorderBrush = InputBorderBrush,
-        Padding = new Thickness(6, 3, 6, 3),
+        Padding = new Thickness(8, 5, 8, 5),
         VerticalContentAlignment = VerticalAlignment.Center,
     };
 
@@ -270,9 +278,9 @@ public sealed class ScriptPropertiesWindow : Window
             Background = CardBrush,
             BorderBrush = CardBorderBrush,
             BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(10),
-            Padding = new Thickness(12),
-            Margin = new Thickness(0, 0, 0, 12),
+            CornerRadius = new CornerRadius(12),
+            Padding = new Thickness(16),
+            Margin = new Thickness(0, 0, 0, 14),
             Child = new StackPanel
             {
                 Children =
@@ -281,8 +289,8 @@ public sealed class ScriptPropertiesWindow : Window
                     {
                         Text = text,
                         FontWeight = FontWeights.Bold,
-                        FontSize = 13,
-                        Margin = new Thickness(0, 0, 0, 10),
+                        FontSize = 14,
+                        Margin = new Thickness(0, 0, 0, 12),
                         Foreground = Brushes.White,
                     },
                     body,
@@ -307,23 +315,27 @@ public sealed class ScriptPropertiesWindow : Window
         TextBox triggerWindowBox,
         Action capture)
     {
-        label.Width = 130;
+        label.Width = 148;
         label.VerticalAlignment = VerticalAlignment.Center;
         label.Foreground = Brushes.White;
+        label.TextTrimming = TextTrimming.CharacterEllipsis;
         var keyBadge = new Border
         {
             Background = InputBrush,
             BorderBrush = InputBorderBrush,
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(8),
-            Padding = new Thickness(10, 6, 10, 6),
-            MinWidth = 110,
+            Padding = new Thickness(12, 7, 12, 7),
+            Width = 164,
             Child = label,
+            ToolTip = "当前绑定的键盘键或鼠标键。未设置时显示“无”。",
         };
 
-        var change = CreateButton("修改", 58);
+        var change = CreateButton("修改", 64);
+        change.ToolTip = "重新捕获启动/终止热键。支持键盘、鼠标按键、滚轮前滚/后滚。";
         change.Click += (_, _) => capture();
-        var clear = CreateButton("清空", 50);
+        var clear = CreateButton("清空", 60);
+        clear.ToolTip = "清空当前热键，并恢复按下次数和触发时间阈值为默认值。";
         clear.Click += (_, _) =>
         {
             settings.Key = string.Empty;
@@ -334,39 +346,88 @@ public sealed class ScriptPropertiesWindow : Window
             triggerWindowBox.Text = "1000";
         };
 
-        var headerRow = Row(
-            Label(title, true),
-            Label("按键", width: 32),
-            keyBadge,
-            change,
-            Label("按下次数", width: 56),
-            pressCountBox,
-            clear);
+        var titleLabel = Label(title, true);
+        titleLabel.ToolTip = title == "启动热键"
+            ? "按下该热键后启动脚本。"
+            : "按下该热键后终止当前脚本运行。";
+        var keyLabel = Label("按键", width: 38);
+        keyLabel.ToolTip = "热键主体，只显示按键名称。";
+        var pressLabel = Label("按下次数", width: 72);
+        pressLabel.ToolTip = "需要在触发时间阈值内连续按下多少次。";
 
-        var thresholdRow = new StackPanel
+        var headerRow = CreateHotkeyGrid();
+        AddToGrid(headerRow, titleLabel, 0);
+        AddToGrid(headerRow, keyLabel, 1);
+        AddToGrid(headerRow, keyBadge, 2);
+        AddToGrid(headerRow, change, 3);
+        AddToGrid(headerRow, pressLabel, 4);
+        AddToGrid(headerRow, pressCountBox, 5);
+        AddToGrid(headerRow, clear, 6);
+
+        var thresholdRow = new Grid
         {
-            Orientation = Orientation.Horizontal,
             Margin = new Thickness(0, 2, 0, 6),
         };
+        AddHotkeyColumns(thresholdRow);
         var thresholdLabel = Label("触发时间阈值");
+        thresholdLabel.ToolTip = "热键计数时间窗。例：1000ms 内按下 3 次才触发。";
         var msLabel = Label("ms");
-        triggerWindowBox.ToolTip = "在此时间窗内累计按下次数，达到目标次数后触发（毫秒）";
-        thresholdRow.Children.Add(thresholdLabel);
-        thresholdRow.Children.Add(triggerWindowBox);
-        thresholdRow.Children.Add(msLabel);
+        triggerWindowBox.ToolTip = "毫秒值，默认 1000。有效范围会被限制在 100-10000。";
+        AddToGrid(thresholdRow, thresholdLabel, 1, 2);
+        AddToGrid(thresholdRow, triggerWindowBox, 3);
+        AddToGrid(thresholdRow, msLabel, 4);
 
-        var wrapper = new StackPanel();
+        var wrapper = new StackPanel
+        {
+            Margin = new Thickness(0, 0, 0, 10),
+        };
         wrapper.Children.Add(headerRow);
         wrapper.Children.Add(thresholdRow);
-        return wrapper;
+        return new Border
+        {
+            Background = Brush(0x18, 0x1E, 0x28),
+            BorderBrush = InputBorderBrush,
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(10),
+            Padding = new Thickness(10, 8, 10, 4),
+            Margin = new Thickness(0, 0, 0, 10),
+            Child = wrapper,
+        };
+    }
+
+    private static Grid CreateHotkeyGrid()
+    {
+        var grid = new Grid { Margin = new Thickness(0, 4, 0, 2) };
+        AddHotkeyColumns(grid);
+        return grid;
+    }
+
+    private static void AddHotkeyColumns(Grid grid)
+    {
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(82) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(44) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(172) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(76) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(86) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(70) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(68) });
+    }
+
+    private static void AddToGrid(Grid grid, UIElement child, int column, int columnSpan = 1)
+    {
+        Grid.SetColumn(child, column);
+        if (columnSpan > 1)
+            Grid.SetColumnSpan(child, columnSpan);
+        grid.Children.Add(child);
     }
 
     private static Button CreateButton(string text, double width) => new()
     {
         Content = text,
         Width = width,
+        MinHeight = 32,
         Margin = new Thickness(4, 0, 0, 0),
-        Padding = new Thickness(8, 4, 8, 4),
+        Padding = new Thickness(10, 5, 10, 5),
         Background = AccentBrush,
         Foreground = Brushes.White,
         BorderBrush = AccentHoverBrush,
@@ -402,9 +463,9 @@ internal sealed class ScriptHotkeyCaptureWindow : Window
             Margin = new Thickness(18),
             TextWrapping = TextWrapping.Wrap,
         };
-        KeyDown += CaptureKeyDown;
-        MouseDown += CaptureMouseDown;
-        MouseWheel += CaptureMouseWheel;
+        PreviewKeyDown += CaptureKeyDown;
+        PreviewMouseDown += CaptureMouseDown;
+        PreviewMouseWheel += CaptureMouseWheel;
     }
 
     private void CaptureKeyDown(object sender, KeyEventArgs e)

@@ -13,9 +13,22 @@ namespace AutomationStudioWpf.Controls;
 /// </summary>
 public partial class EditorSurfaceControl : WpfUserControl
 {
+    public static readonly DependencyProperty IsExecutionFrozenProperty =
+        DependencyProperty.Register(
+            nameof(IsExecutionFrozen),
+            typeof(bool),
+            typeof(EditorSurfaceControl),
+            new PropertyMetadata(false));
+
     public EditorSurfaceControl()
     {
         InitializeComponent();
+    }
+
+    public bool IsExecutionFrozen
+    {
+        get => (bool)GetValue(IsExecutionFrozenProperty);
+        set => SetValue(IsExecutionFrozenProperty, value);
     }
 
     public EditorSessionViewModel? Session { get; private set; }

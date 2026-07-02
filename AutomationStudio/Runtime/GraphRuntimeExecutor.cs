@@ -822,7 +822,7 @@ public sealed class GraphRuntimeExecutor
         builder.AppendLine("执行节点");
         builder.AppendLine($"名称：{NodeLogLabel(node)}");
         builder.AppendLine($"耗时：{FormatElapsed(elapsed)}");
-        builder.AppendLine($"结果：{status}");
+        builder.AppendLine($"执行结果：{status}");
         builder.AppendLine($"返回结果：{returnText}");
 
         var details = BuildCapturedDetails(capturedEntries, result).ToList();

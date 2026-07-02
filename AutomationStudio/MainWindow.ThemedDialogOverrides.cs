@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Windows;
 using System.Windows.Controls;
 using AutomationStudioWpf.Controls;
 using AutomationStudioWpf.Interaction;
@@ -16,9 +17,6 @@ using WpfKeyEventArgs = System.Windows.Input.KeyEventArgs;
 using WpfKeyEventHandler = System.Windows.Input.KeyEventHandler;
 using WpfListBox = System.Windows.Controls.ListBox;
 using WpfMenuItem = System.Windows.Controls.MenuItem;
-using WpfMessageBoxButton = System.Windows.MessageBoxButton;
-using WpfMessageBoxImage = System.Windows.MessageBoxImage;
-using WpfMessageBoxResult = System.Windows.MessageBoxResult;
 using WpfModifierKeys = System.Windows.Input.ModifierKeys;
 using WpfRoutedEventArgs = System.Windows.RoutedEventArgs;
 using WpfRoutedEventHandler = System.Windows.RoutedEventHandler;
@@ -54,7 +52,7 @@ public partial class MainWindow
         RunGraphButton.Click += RunGraph_ClickThemed;
 
         ReplaceToolbarButton("保存", SaveGraph_Click, SaveGraph_ClickThemed);
-        ReplaceToolbarButton("打开图谱", OpenGraph_Click, OpenGraph_ClickThemed);
+        ReplaceToolbarButton("外部导入", OpenGraph_Click, OpenGraph_ClickThemed);
 
         ContentBrowserDeleteMenuItem.Click -= DeleteContentAssetMenuItem_Click;
         ContentBrowserDeleteMenuItem.Click -= DeleteSelectedContentAssetsMenuItem_Click;
@@ -135,8 +133,8 @@ public partial class MainWindow
     {
         var dialog = new Microsoft.Win32.OpenFileDialog
         {
-            Title = "打开图谱",
-            Filter = "图谱文件 (*.json)|*.json|所有文件 (*.*)|*.*",
+            Title = "外部导入",
+            Filter = "图谱文件 (*.json)|*.json|所有文件(*.*)|*.*",
             InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.Desktop),
         };
 
@@ -149,7 +147,7 @@ public partial class MainWindow
         }
         catch (Exception ex)
         {
-            ThemedDialog.Show(this, ex.Message, "打开失败", WpfMessageBoxButton.OK, WpfMessageBoxImage.Error);
+            ThemedDialog.Show(this, ex.Message, "打开失败", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
@@ -161,7 +159,7 @@ public partial class MainWindow
         var activeSessionController = _activeEditorSession is null ? _activeAssetController : GetSessionActiveAssetController(_activeEditorSession);
         if (_activeContentAsset?.Kind != ContentAssetKind.Script || !ReferenceEquals(activeSessionController, _graphListController))
         {
-            ThemedDialog.Show(this, "只有脚本里的事件图可以直接执行。请从内容浏览器打开脚本，并进入事件图。", "不能执行", WpfMessageBoxButton.OK, WpfMessageBoxImage.Information);
+            ThemedDialog.Show(this, "只有脚本里的事件图可以直接执行。请从内容浏览器打开脚本，并进入事件图。", "不能执行", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
@@ -183,18 +181,18 @@ public partial class MainWindow
                 this,
                 "存在未保存资产，是否保存？",
                 "是否保存",
-                WpfMessageBoxImage.Question,
-                new ThemedDialogButton("保存", WpfMessageBoxResult.Yes, true),
-                new ThemedDialogButton("不保存", WpfMessageBoxResult.No),
-                new ThemedDialogButton("取消", WpfMessageBoxResult.Cancel));
+                MessageBoxImage.Question,
+                new ThemedDialogButton("保存", MessageBoxResult.Yes, true),
+                new ThemedDialogButton("不保存", MessageBoxResult.No),
+                new ThemedDialogButton("取消", MessageBoxResult.Cancel));
 
-            if (result == WpfMessageBoxResult.Cancel)
+            if (result == MessageBoxResult.Cancel)
             {
                 e.Cancel = true;
                 return;
             }
 
-            if (result == WpfMessageBoxResult.Yes)
+            if (result == MessageBoxResult.Yes)
                 SaveAllAssets();
         }
 
@@ -213,18 +211,18 @@ public partial class MainWindow
                 this,
                 "是否最小化到系统托盘？\n选择 [是] 最小化到托盘，选择 [否] 退出程序。",
                 "关闭窗口",
-                WpfMessageBoxImage.Question,
-                new ThemedDialogButton("是 - 最小化到托盘", WpfMessageBoxResult.Yes, true),
-                new ThemedDialogButton("否 - 退出程序", WpfMessageBoxResult.No),
-                new ThemedDialogButton("取消", WpfMessageBoxResult.Cancel));
-            if (choice == WpfMessageBoxResult.Yes)
+                MessageBoxImage.Question,
+                new ThemedDialogButton("是 - 最小化到托盘", MessageBoxResult.Yes, true),
+                new ThemedDialogButton("否 - 退出程序", MessageBoxResult.No),
+                new ThemedDialogButton("取消", MessageBoxResult.Cancel));
+            if (choice == MessageBoxResult.Yes)
             {
                 _alwaysMinimizeToTray = true;
                 e.Cancel = true;
                 MinimizeToTray();
                 return;
             }
-            if (choice == WpfMessageBoxResult.Cancel)
+            if (choice == MessageBoxResult.Cancel)
             {
                 e.Cancel = true;
                 return;
@@ -248,14 +246,14 @@ public partial class MainWindow
             this,
             "存在未编译修改，是否先编译再保存？",
             "需要编译",
-            WpfMessageBoxImage.Question,
-            new ThemedDialogButton("先编译", WpfMessageBoxResult.Yes, true),
-            new ThemedDialogButton("直接保存", WpfMessageBoxResult.No),
-            new ThemedDialogButton("取消", WpfMessageBoxResult.Cancel));
+            MessageBoxImage.Question,
+            new ThemedDialogButton("先编译", MessageBoxResult.Yes, true),
+            new ThemedDialogButton("直接保存", MessageBoxResult.No),
+            new ThemedDialogButton("取消", MessageBoxResult.Cancel));
 
-        if (result == WpfMessageBoxResult.Cancel)
+        if (result == MessageBoxResult.Cancel)
             return false;
-        if (result == WpfMessageBoxResult.Yes)
+        if (result == MessageBoxResult.Yes)
             return CompileAllAssets(showPrompt: false);
         return true;
     }
@@ -294,10 +292,10 @@ public partial class MainWindow
             this,
             $"是否删除{GetGraphDisplayName(controller)}：{selected.Name}？",
             $"删除{GetGraphDisplayName(controller)}",
-            WpfMessageBoxImage.Question,
-            new ThemedDialogButton("删除", WpfMessageBoxResult.Yes, true),
-            new ThemedDialogButton("取消", WpfMessageBoxResult.Cancel));
-        if (result != WpfMessageBoxResult.Yes)
+            MessageBoxImage.Question,
+            new ThemedDialogButton("删除", MessageBoxResult.Yes, true),
+            new ThemedDialogButton("取消", MessageBoxResult.Cancel));
+        if (result != MessageBoxResult.Yes)
             return;
 
         var items = controller.Items.ToList();
@@ -385,8 +383,8 @@ public partial class MainWindow
             ? $"是否删除：{targets[0].Name}？"
             : $"是否删除 {targets.Count} 个资产？\n\n{string.Join("\n", targets.Take(8).Select(item => "- " + item.Name))}{(targets.Count > 8 ? "\n..." : string.Empty)}";
 
-        var result = ThemedDialog.ShowCustom(this, message, "删除资产", WpfMessageBoxImage.Question, new ThemedDialogButton("删除", WpfMessageBoxResult.Yes, true), new ThemedDialogButton("取消", WpfMessageBoxResult.Cancel));
-        if (result != WpfMessageBoxResult.Yes)
+        var result = ThemedDialog.ShowCustom(this, message, "删除资产", MessageBoxImage.Question, new ThemedDialogButton("删除", MessageBoxResult.Yes, true), new ThemedDialogButton("取消", MessageBoxResult.Cancel));
+        if (result != MessageBoxResult.Yes)
             return true;
 
         var deletingIds = targets.Select(item => item.Id).ToHashSet();
@@ -440,11 +438,11 @@ public partial class MainWindow
 
     private ContentDropAction ShowContentDropActionDialogThemed(string assetName)
     {
-        var result = ThemedDialog.ShowCustom(this, $"选择对资产{assetName}的操作：", "拖拽资产", WpfMessageBoxImage.Question, new ThemedDialogButton("移动到此", WpfMessageBoxResult.Yes, true), new ThemedDialogButton("复制到此", WpfMessageBoxResult.No), new ThemedDialogButton("取消", WpfMessageBoxResult.Cancel));
+        var result = ThemedDialog.ShowCustom(this, $"选择对资产{assetName}的操作：", "拖拽资产", MessageBoxImage.Question, new ThemedDialogButton("移动到此", MessageBoxResult.Yes, true), new ThemedDialogButton("复制到此", MessageBoxResult.No), new ThemedDialogButton("取消", MessageBoxResult.Cancel));
         return result switch
         {
-            WpfMessageBoxResult.Yes => ContentDropAction.Move,
-            WpfMessageBoxResult.No => ContentDropAction.Copy,
+            MessageBoxResult.Yes => ContentDropAction.Move,
+            MessageBoxResult.No => ContentDropAction.Copy,
             _ => ContentDropAction.Cancel,
         };
     }

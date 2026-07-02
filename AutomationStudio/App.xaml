@@ -46,6 +46,14 @@
         <SolidColorBrush x:Key="EditorTextBrush" Color="#D0D7E2" />
         <SolidColorBrush x:Key="EditorTextBrightBrush" Color="#E8EDF5" />
         <SolidColorBrush x:Key="EditorMutedTextBrush" Color="#A7B1BF" />
+        <SolidColorBrush x:Key="EditorPanelCardBrush" Color="#1B2028" />
+        <SolidColorBrush x:Key="EditorPanelCardHoverBrush" Color="#222A35" />
+        <SolidColorBrush x:Key="EditorSectionHeaderAccentBrush" Color="#263242" />
+        <SolidColorBrush x:Key="EditorSelectedAccentBrush" Color="#58A6FF" />
+        <SolidColorBrush x:Key="EditorSelectedBorderBrush" Color="#4F77A8" />
+        <SolidColorBrush x:Key="EditorFieldCardBrush" Color="#181D25" />
+        <SolidColorBrush x:Key="EditorDisabledChipBrush" Color="#242A33" />
+        <SolidColorBrush x:Key="EditorDisabledChipBorderBrush" Color="#394353" />
 
         <Style x:Key="DarkContextMenuStyle" TargetType="ContextMenu">
             <Setter Property="Background" Value="{StaticResource DropdownBackgroundBrush}" />

@@ -1,7 +1,6 @@
 using System.Windows;
 using AutomationStudioWpf.Interaction;
 using AutomationStudioWpf.Services;
-using WpfMessageBox = System.Windows.MessageBox;
 
 namespace AutomationStudioWpf;
 
@@ -23,7 +22,7 @@ public partial class MainWindow
         var conflicts = _scriptHotkeyService.Validate(ContentBrowserItems, asset, newSettings);
         if (conflicts.Count > 0)
         {
-            WpfMessageBox.Show(this, string.Join(Environment.NewLine, conflicts), "热键冲突", MessageBoxButton.OK, MessageBoxImage.Warning);
+            ThemedDialog.Show(this, string.Join(Environment.NewLine, conflicts), "热键冲突", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 

@@ -5,7 +5,6 @@ using AutomationStudioWpf.GraphCore;
 using AutomationStudioWpf.Interaction;
 using AutomationStudioWpf.Logging;
 using AutomationStudioWpf.Services;
-using WpfMessageBox = System.Windows.MessageBox;
 
 namespace AutomationStudioWpf;
 
@@ -172,7 +171,14 @@ public partial class MainWindow
         if (!HasCompileDirtyAssets())
             return true;
 
-        var result = WpfMessageBox.Show(this, "存在未编译修改，是否先编译再保存？", "需要编译", MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
+        var result = ThemedDialog.ShowCustom(
+            this,
+            "存在未编译修改，是否先编译再保存？",
+            "需要编译",
+            MessageBoxImage.Question,
+            new ThemedDialogButton("先编译", MessageBoxResult.Yes, true),
+            new ThemedDialogButton("直接保存", MessageBoxResult.No),
+            new ThemedDialogButton("取消", MessageBoxResult.Cancel));
         if (result == MessageBoxResult.Cancel)
             return false;
         if (result == MessageBoxResult.Yes)
@@ -198,7 +204,7 @@ public partial class MainWindow
         if (targetAsset is null || targetAsset.Kind == ContentAssetKind.Folder)
         {
             if (showPrompt)
-                WpfMessageBox.Show(this, "没有打开可编译的资产。", "无法编译", MessageBoxButton.OK, MessageBoxImage.Warning);
+                ThemedDialog.Show(this, "没有打开可编译的资产。", "无法编译", MessageBoxButton.OK, MessageBoxImage.Warning);
             SetStatus("编译失败：没有打开可编译的资产。");
             return false;
         }
@@ -286,7 +292,7 @@ public partial class MainWindow
             .Take(6)
             .Select(issue => issue.Message));
         if (showPrompt && !string.IsNullOrWhiteSpace(message))
-            WpfMessageBox.Show(this, message, "编译失败", MessageBoxButton.OK, MessageBoxImage.Error);
+            ThemedDialog.Show(this, message, "编译失败", MessageBoxButton.OK, MessageBoxImage.Error);
         SetStatus($"编译失败：{result.Issues.Count(issue => issue.Severity == GraphValidationSeverity.Error)} 个错误。");
         UpdateGraphSectionVisibility();
         return false;

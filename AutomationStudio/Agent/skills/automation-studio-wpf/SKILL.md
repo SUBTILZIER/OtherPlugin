@@ -8,6 +8,8 @@ WPF 可视化节点自动化编辑器，类似 UE 蓝图。技术栈：C# 12 / .
 
 - 默认中文，简洁。中间进度只说：在做什么、发现什么、下一步。
 - 保留准确文件名、类名、方法名、命令、错误文本。
+- 改代码前先读 `README.md` 和 `TECHNICAL.md` 简介；确认涉及多窗口、函数库、热键、日志、连线、运行时等高风险区后，再细读 `TECHNICAL.md` 对应章节。
+- 重要行为变更、反复踩坑修复、架构边界变化必须同步写入 `TECHNICAL.md`，避免后续重复修同一问题。
 - 不自动 `git push`。只有用户明确说推送才推；推送前确认不包含测试功能相关文件夹。
 - 不恢复旧 `.kimi/skills/automation-studio-wpf/SKILL.md`。
 - `Tests/CodexSmoke` 是本地-only，Git 不跟踪、不提交。只在用户明确要求或触碰高风险交互时本地跑。
@@ -87,12 +89,15 @@ WPF 可视化节点自动化编辑器，类似 UE 蓝图。技术栈：C# 12 / .
 ## UI / 主题 / 日志
 
 - `DarkContextMenuStyle`、`DarkDropdownListBoxStyle`、`DarkDropdownListBoxItemStyle` 和 editor surface 常用 brush 在 `App.xaml`。
+- 改编辑器左栏/细节面板视觉前先读 `TECHNICAL.md` 的“编辑器视觉规则”；复用 `Editor*Brush`，不要散落硬编码颜色，不改控件 `x:Name`/事件/Binding。
+- 禁止新增系统默认 `MessageBox.Show`；弹窗统一走 `ThemedDialog` 或项目自定义窗口。顶部工具栏规则看 `TECHNICAL.md`，不要恢复“新建图谱”入口。
 - 节点 header、pin、日志级别、编译按钮、弹窗常用 brush 用静态冻结 brush 复用；不要在高频 getter / 日志追加 / dirty 刷新里反复 `new SolidColorBrush(...)`。
 - 日志面板是只读 `RichTextBox`。全局快捷键必须对 `TextBoxBase` 放行，避免 `Ctrl+C` 被节点复制截获。
 - `LogPanelController` / `LogWindow` 追加日志要增量处理；过滤/清空才全量刷新。
 - 日志过滤 `RadioButton` checked dot 必须可见，避免用户不知道当前过滤级别。
 - 执行日志由 runtime 聚合成节点块，时间戳只到秒；节点内部细碎 info/warn/error 默认被捕获到块内详情。日志多行内容在 UI 上做对齐显示，但复制文本保持原样。
 - `ExecutionController` 运行中会禁用执行按钮并改成 `执行中...`，防重复点击。
+- 执行中必须通过 `EditorSurfaceControl.IsExecutionFrozen` 冻结所有 editor surface，包含 detached 窗口；不要只做静态按钮态。
 - XAML 初始化期事件要容忍 controller/service 为空，尤其 `Checked`、`SelectionChanged`、`TextChanged`、`Loaded`、`LayoutUpdated`。
 - 鼠标拾取是 editor 工具，不是 runtime 节点；只在鼠标坐标变化时采样/更新，浮窗和复制选择窗要 clamp 到当前屏幕工作区内；复制坐标/颜色后退出，取消继续；退出、窗口关闭、异常路径必须 unhook、释放 DC、关 overlay。
 - 找图节点的 Python 桥接用 `np.fromfile(...) + cv2.imdecode(...)` 处理中文路径；不要再回退到 `cv2.imread(...)`。

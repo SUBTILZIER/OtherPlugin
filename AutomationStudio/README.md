@@ -32,8 +32,8 @@
 - Node dragging and arrow-key nudging snap to the 20px grid by default; hold Alt for 1px precision movement.
 - `多线程` is an execution node with dynamic `线程N` outputs and a distinct `全部完成` output. Connected branches run in parallel; `全部完成` runs after all branches finish. Mouse/keyboard/window nodes are serialized by a global runtime lock when used inside parallel branches.
 - `ScriptHotkeyService` registers global low-level keyboard and mouse hooks (WH_KEYBOARD_LL / WH_MOUSE_LL) so scripts can be started or stopped by external hotkeys without the editor window being focused.
-- `ScriptRunManager` manages script run lifecycle: compile → execute with optional retry count, loop count, and fixed loop delay. It enforces single-instance-per-asset, reports running status to the toolbar, and handles hotkey dispatch.
-- `ScriptPropertiesWindow` is a themed dark WPF dialog for configuring per-script run settings (hotkey chord, retry/loop counts, fixed delay). Hotkey conflicts are validated before save. All controls have Chinese ToolTip explanations. Trigger time window (ms) is per-hotkey configurable.
+- `ScriptRunManager` manages script run lifecycle: compile → execute with loop count / until-stopped / duration modes. It enforces single-instance-per-asset, reports running status to the toolbar, and handles hotkey dispatch.
+- `ScriptPropertiesWindow` is a themed dark WPF dialog for configuring per-script run settings (loop mode, start/stop hotkeys, press count, trigger time window). Hotkey conflicts are validated before save. All controls have Chinese ToolTip explanations.
 - `ScriptHotkeyCaptureWindow` handles mouse wheel (WheelForward/WheelBackward) in addition to keyboard and mouse buttons. A `_captured` guard prevents double-capture from WPF re-entrant events.
 - Closing the main window shows a three-option themed dialog (minimize-to-tray / exit / cancel). First "minimize" choice persists via `_alwaysMinimizeToTray`.
 - `NotifyIcon` lives in the system tray: left-click restores window, right-click shows context menu with "打开面板" and "退出程序".
@@ -60,7 +60,7 @@ UE4 风格的 WPF 蓝图节点编辑器 — 用于桌面自动化脚本编排。
 - **执行前校验**: 检查节点可达性、参数缺失、连线唯一性、循环/坏图
 - **ToDo 跳转**: 用节点名 + 编号在同图内跳转，可选目标执行完后返回
 - **全局热键启动**: 右键脚本资产 → 属性，配置键盘/鼠标快捷键；无需编辑器前置即可启动/停止脚本
-- **执行控制**: 支持设置重试次数、循环次数、固定循环间隔；运行状态实时显示；热键冲突校验
+- **执行控制**: 支持按次数循环、循环到终止键、按时长循环；运行状态实时显示；热键冲突校验
 - **热键配置**: 启动/终止热键独立配置，支持按键、按下次数、触发时间阈值（毫秒）；鼠标滚轮前滚/后滚可设为热键
 - **提示音反馈**: 热键触发时播放区分音调（启动高音/终止低音），无需看屏幕即可感知脚本状态
 - **托盘最小化**: 关闭窗口可选择最小化到系统托盘，首次选择后记忆偏好，不再重复询问
@@ -261,7 +261,7 @@ saved/log/Log_2026_05_28_22_11.txt
 
 ### v1.2.11 (2026-06-26)
 - **Added**: Global hotkey service (`ScriptHotkeyService`) with low-level keyboard/mouse hooks — start or stop scripts without focusing the editor window.
-- **Added**: Per-script run settings window (`ScriptPropertiesWindow`) for configuring hotkey chords, retry counts, loop counts, and fixed loop delay.
+- **Added**: Per-script run settings window (`ScriptPropertiesWindow`) for configuring loop mode, start/stop hotkeys, press count, and trigger time window.
 - **Added**: Script run lifecycle manager (`ScriptRunManager`) with single-instance enforcement, toolbar status reporting, and hotkey conflict validation.
 - **Added**: Inspector controller split into focused partial files: `InspectorController.Parameters.cs`, `InspectorController.CommonNodes.cs`.
 - **Added**: MainWindow partials: `MainWindow.AssetCommands.cs`, `MainWindow.GraphInputHandlers.cs`, `MainWindow.ScriptRunSettings.cs`.

@@ -3,6 +3,7 @@ using System.IO;
 using System.Text.Json;
 using AutomationStudioWpf.Adapters;
 using AutomationStudioWpf.Graph;
+using AutomationStudioWpf.Interaction;
 using AutomationStudioWpf.Logging;
 using AutomationStudioWpf.Runtime;
 using Point = System.Drawing.Point;
@@ -280,7 +281,14 @@ public sealed class CommonNodeExecutor(NodeKind nodeKind) : INodeExecutor
             return WarnResult(request, "弹窗提示：文本输入已连接，但上游没有输出。继续执行。");
 
         string title = string.IsNullOrWhiteSpace(request.Node.Text2) ? "自动化提示" : request.Node.Text2;
-        global::System.Windows.Application.Current.Dispatcher.Invoke(() => global::System.Windows.MessageBox.Show(message, title));
+        global::System.Windows.Application.Current.Dispatcher.Invoke(() =>
+        {
+            var owner = global::System.Windows.Application.Current.Windows
+                .OfType<global::System.Windows.Window>()
+                .FirstOrDefault(window => window.IsActive)
+                ?? global::System.Windows.Application.Current.MainWindow;
+            ThemedDialog.Show(owner, message, title);
+        });
         request.Context.Set(request.Node.Id, "result", true);
         return NodeExecutionResult.Ok("弹窗提示完成。");
     }

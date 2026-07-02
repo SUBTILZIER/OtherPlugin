@@ -12,7 +12,6 @@ using OpenFileDialog = Microsoft.Win32.OpenFileDialog;
 using SaveFileDialog = Microsoft.Win32.SaveFileDialog;
 using WpfKeyEventArgs = System.Windows.Input.KeyEventArgs;
 using WpfListBox = System.Windows.Controls.ListBox;
-using WpfMessageBox = System.Windows.MessageBox;
 using WpfTextBox = System.Windows.Controls.TextBox;
 
 namespace AutomationStudioWpf.Interaction;
@@ -214,7 +213,7 @@ public sealed class GraphListController
     {
         var dialog = new OpenFileDialog
         {
-            Title = "打开图谱",
+            Title = "外部导入",
             Filter = "图谱文件 (*.json)|*.json|所有文件(*.*)|*.*",
             InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.Desktop),
         };
@@ -227,7 +226,7 @@ public sealed class GraphListController
         }
         catch (Exception ex)
         {
-            WpfMessageBox.Show(_owner, ex.Message, "打开失败", MessageBoxButton.OK, MessageBoxImage.Error);
+            ThemedDialog.Show(_owner, ex.Message, "打开失败", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
@@ -300,12 +299,13 @@ public sealed class GraphListController
     {
         if (SelectedItem is null) return;
 
-        var result = WpfMessageBox.Show(
+        var result = ThemedDialog.ShowCustom(
             _owner,
             $"是否删除{_displayName}：{SelectedItem.Name}？",
             $"删除{_displayName}",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Question);
+            MessageBoxImage.Question,
+            new ThemedDialogButton("删除", MessageBoxResult.Yes, true),
+            new ThemedDialogButton("取消", MessageBoxResult.Cancel));
         if (result != MessageBoxResult.Yes) return;
 
         DeleteSelectedConfirmed();
@@ -410,12 +410,14 @@ public sealed class GraphListController
         if (!_items.Any(item => item.IsDirty))
             return true;
 
-        var result = WpfMessageBox.Show(
+        var result = ThemedDialog.ShowCustom(
             _owner,
             $"存在未保存{_displayName}，是否保存？",
             "是否保存",
-            MessageBoxButton.YesNoCancel,
-            MessageBoxImage.Question);
+            MessageBoxImage.Question,
+            new ThemedDialogButton("保存", MessageBoxResult.Yes, true),
+            new ThemedDialogButton("不保存", MessageBoxResult.No),
+            new ThemedDialogButton("取消", MessageBoxResult.Cancel));
 
         if (result == MessageBoxResult.Cancel)
         {

@@ -138,8 +138,7 @@ public sealed class ScriptHotkeySettings
         if (!IsConfigured)
             return "未设置";
 
-        string prefix = InputKind == ScriptHotkeyInputKind.Mouse ? "鼠标" : "键盘";
-        return PressCount <= 1 ? $"{prefix} {Key}" : $"{prefix} {Key} x{PressCount}";
+        return PressCount <= 1 ? Key : $"{Key} x{PressCount}";
     }
 }
 

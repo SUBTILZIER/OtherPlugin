@@ -1,5 +1,11 @@
 # 技术文档
 
+## 阅读 / 维护规则
+
+- 后续开发先读 `README.md` 和本文件简介；确认改动涉及多窗口、函数库、热键、日志、连线、运行时等高风险区后，再细读对应章节。
+- 重要优化、反复踩坑修复、架构边界变化必须记录到本文件，避免后续重复修改同一问题。
+- `SKILL.md` 只放 Agent 高频约束；完整技术细节以本文为准。
+
 ## 架构设计
 
 ### 当前模块边界（2026-06-02）
@@ -44,7 +50,7 @@ Runtime / Nodes / Adapters
 - `RuntimeContext` 是运行时输入解析唯一入口：按目标 pin 找连接，先求值纯节点，再读取上游 raw 输出；字符串、布尔、坐标、函数参数和函数返回都走该底层 resolver，避免“已连接但误报上游没有输出”。
 - 每个执行节点结束后，`GraphRuntimeExecutor` 会把标准执行记录写入 `RuntimeContext` 临时缓冲区：`__executed`、`__status`、`__success`、`__message`、`__next_pin`；有 `result` 输出 pin 但 executor 未写时会兜底写入。纯运算节点按需求值成功后也写入同一缓冲。`__*` 内部键不显示在结构化日志返回结果里。
 - 数据 `Reroute` 对 runtime 输入解析是透明节点：raw resolver 会沿数据转接点继续追溯上游真实输出，支持上上游/更远上游通过 reroute 供值。
-- 执行日志由 `GraphRuntimeExecutor.ExecuteNode(...)` 统一捕获节点内部细碎日志，并输出“执行节点 / 名称 / 耗时 / 结果 / 返回结果 / 详情”块；`Logger.Timestamp` 只保留 `HH:mm:ss`。
+- 执行日志由 `GraphRuntimeExecutor.ExecuteNode(...)` 统一捕获节点内部细碎日志，并输出“执行节点 / 名称 / 耗时 / 执行结果 / 返回结果 / 详情”块；`Logger.Timestamp` 只保留 `HH:mm:ss`。
 - 日志面板和独立日志窗口共用 `LogEntryDocumentRenderer`；UI 视觉上按 `[时间] [LEVEL] ` 前缀宽度做多行对齐，但复制文本保持原始内容，不补缩进空格。
 - 日志复制和鼠标拾取复制都走 `ClipboardHelper.TrySetText(...)`，遇到 `CLIPBRD_E_CANT_OPEN` 只重试/提示，不允许崩溃进程。
 - 查询节点的 `False` 是业务结果，不是执行警告；例如 `WindowExists` 不存在、`FindImage` 未命中时写 `result=False` 且日志级别保持 INFO，只有配置错误、路径无效或执行失败才 WARN/ERROR。
@@ -56,12 +62,12 @@ Runtime / Nodes / Adapters
 ### 全局热键服务 (`ScriptHotkeyService`)
 - `WH_KEYBOARD_LL` / `WH_MOUSE_LL` 全局低层级钩子，不依赖窗口焦点。
 - 支持键盘按键、鼠标按钮（左/右/中/侧键X1X2）、鼠标滚轮（WM_MOUSEWHEEL，delta>0→WheelForward，delta<0→WheelBackward）。
-- 每个绑定独立 `TriggerWindowMs`（100-10000ms），在时间窗内累计按下次数，达到 `PressCount` 后触发。
+- 每个绑定独立 `TriggerWindowMs`（100-10000ms），在时间窗内累计按下次数，达到 `PressCount` 后立即触发；不再等待时间窗结束。
 - `ToMatchKey` 为三元组 (InputKind, Key, PressCount)；时间窗不参与匹配键，独立使用。
 
 ### 热键属性窗 (`ScriptPropertiesWindow`)
-- 热键行格式：`Label("启动热键") Label("按键") [keyBadge] 修改 按下次数[TextBox] 清空`
-- 按键未设置显示"无"；热键区下方"触发时间阈值"输入框（ms）。
+- 热键行固定列布局，避免按钮遮挡文字：`启动热键 | 按键 [keyBadge] | 修改 | 按下次数 [TextBox] | 清空`。
+- 按键未设置显示"无"；只显示实际按键名，不显示“键盘/鼠标”前缀；下方单独显示"触发时间阈值"输入框（ms，默认1000）。
 - 所有控件带中文 ToolTip 解释。
 - `ScriptHotkeyCaptureWindow` 支持键盘、鼠标按钮、鼠标滚轮捕获；`_captured` 防双重 `DialogResult`。
 
@@ -81,6 +87,7 @@ Runtime / Nodes / Adapters
 - XAML DataTrigger：执行时 RunGraphButton 变 "⏳ 执行中..."、蓝色加粗、禁用；StopExecutionButton 红色显示。
 - `ExecutionController.ExecutionStateChanged` 回调 + `ScriptRunManager.RunningStateChanged` 事件合并驱动。
 - `SetRunButtonRunning/RestoreRunButton` 只发事件，不直接操作按钮（避免与 Style 冲突）。
+- `EditorSurfaceControl.IsExecutionFrozen` 是运行期冻结入口。`MainWindow.UpdateExecutionFreezeState()` 会把 `IsExecuting` 广播到所有 session surface，包含主窗口和 detached 窗口；surface 内部遮罩会拦截命中测试并显示旋转进度/扫描线。不要只靠按钮禁用表达运行态。
 
 ### 鼠标中键支持
 - `GraphTypes.MouseButton` 枚举新增 `Middle`。
@@ -94,6 +101,23 @@ Runtime / Nodes / Adapters
 
 ### 日志捕获修复 (`Logger.cs`)
 - `Write()` 方法：日志先写文件 + 入队 UI，再进 capture scope，确保 `BeginCapture()` 期间日志面板仍实时显示。
+
+## 编辑器视觉规则
+
+- `EditorSurfaceControl.xaml` 的左侧图表栏使用 section card + pill list item：hover、selected、compile dirty 必须分别用 `EditorPanelCardHoverBrush`、`EditorListSelectedBrush`、`EditorDirtyBackgroundBrush`，选中/脏状态用左侧 accent 条辅助识别。
+- 右侧细节面板的 header、基础节点信息、编号 chip 使用卡片层级；禁用/前置输入态使用 disabled chip/input 颜色，避免看起来像普通可编辑输入。
+- 左侧 section 的折叠/新增按钮统一用 `EditorSidebarIconButtonStyle`；函数项“公开”开关使用紧凑短文案和 ToolTip，避免挤压函数名。细节面板内 `TextBox` / `ComboBox` 统一最小高度，保持字段节奏一致。
+- `MainWindow.xaml` 的顶部工具栏命令按钮统一用 `TopToolbarButtonStyle`；底部内容浏览器 folder/tree item 和 asset tile 分别用 `ContentFolderListItemBaseStyle`、`ContentAssetTileContainerStyle`。不要在每个 `ListBoxItem` 内重复写 hover/selected 模板。
+- 顶部工具栏不再提供“新建图谱”全局入口；资产创建只能从内容浏览器走，避免绕过脚本主图/辅助图规则。“打开图谱”文案统一为“外部导入”。`鼠标拾取` 固定放在 `另存为` 后面。
+- `编译`、`显示最终代码`、`执行脚本` 属于编辑动作组：只有打开脚本或函数库编辑 session 后显示。`执行脚本` 只允许脚本事件图触发；函数库或非事件图下要禁用并给出 ToolTip。
+- 全项目禁止直接调用 `System.Windows.MessageBox.Show` / `WpfMessageBox.Show`。确认、错误、信息弹窗必须走 `ThemedDialog` 或项目自定义窗口；运行时 `ShowMessage` 节点也必须使用同风格弹窗。
+- 底部内容浏览器/日志 header 标题统一用 `BottomPanelTitleStyle`；日志过滤组用圆角 field card，日志正文保留等宽字体和较大的 padding，优先保证长期阅读清晰度。
+- 窗口标签栏使用圆角 tab：active 用 `EditorListSelectedBrush`，dirty 用 `CompileDirtyBorderBrush` 和左侧脏点提示；关闭按钮保持小尺寸但使用共享工具栏按钮风格。
+- 空编辑器状态使用中央引导卡片，不要回退成单行文字或整块空黑；节点菜单 `NodePalette` 要有标题、说明、搜索框和结果区层级。
+- `ScriptPropertiesWindow` 是代码构建 UI，仍要遵循卡片分组：运行设置和热键分组要留足宽度，热键行固定展示“按键 / 修改 / 按下次数 / 清空 / 触发时间阈值”，按钮不能压住文字。
+- `ScriptPropertiesWindow` 根布局保持“顶部标题固定 + 中间 `ScrollViewer` + 底部保存/取消固定”；新增设置项只能放入滚动内容区，禁止被底部按钮遮挡。
+- 新增编辑器 UI 颜色优先放在 `App.xaml` 的 `Editor*Brush`，不要在 XAML 中散落硬编码颜色；局部样式只负责布局、圆角、间距和状态触发。
+- 视觉优化只改样式时不得改控件 `x:Name`、事件处理器、Binding 路径，避免打断 `EditorSurfaceContext` / `InspectorController`。
 
 
 ### 整体架构

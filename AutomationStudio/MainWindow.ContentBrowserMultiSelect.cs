@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Windows;
+using AutomationStudioWpf.Interaction;
 using AutomationStudioWpf.Services;
 using WpfAdorner = System.Windows.Documents.Adorner;
 using WpfAdornerLayer = System.Windows.Documents.AdornerLayer;
@@ -23,10 +25,6 @@ using WpfKeyboard = System.Windows.Input.Keyboard;
 using WpfKeyEventArgs = System.Windows.Input.KeyEventArgs;
 using WpfKeyEventHandler = System.Windows.Input.KeyEventHandler;
 using WpfListBoxItem = System.Windows.Controls.ListBoxItem;
-using WpfMessageBox = System.Windows.MessageBox;
-using WpfMessageBoxButton = System.Windows.MessageBoxButton;
-using WpfMessageBoxImage = System.Windows.MessageBoxImage;
-using WpfMessageBoxResult = System.Windows.MessageBoxResult;
 using WpfMouseButtonEventArgs = System.Windows.Input.MouseButtonEventArgs;
 using WpfMouseButtonEventHandler = System.Windows.Input.MouseButtonEventHandler;
 using WpfMouseButtonState = System.Windows.Input.MouseButtonState;
@@ -621,8 +619,14 @@ public partial class MainWindow
             ? $"是否删除：{targets[0].Name}？"
             : $"是否删除 {targets.Count} 个资产？\n\n{string.Join("\n", targets.Take(8).Select(item => "- " + item.Name))}{(targets.Count > 8 ? "\n..." : string.Empty)}";
 
-        var result = WpfMessageBox.Show(this, message, "删除资产", WpfMessageBoxButton.YesNo, WpfMessageBoxImage.Question);
-        if (result != WpfMessageBoxResult.Yes)
+        var result = ThemedDialog.ShowCustom(
+            this,
+            message,
+            "删除资产",
+            MessageBoxImage.Question,
+            new ThemedDialogButton("删除", MessageBoxResult.Yes, true),
+            new ThemedDialogButton("取消", MessageBoxResult.Cancel));
+        if (result != MessageBoxResult.Yes)
             return true;
 
         var deletingIds = targets.Select(item => item.Id).ToHashSet();

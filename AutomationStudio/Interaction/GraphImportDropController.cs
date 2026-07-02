@@ -3,7 +3,6 @@ using System.Windows;
 using WpfDataFormats = System.Windows.DataFormats;
 using WpfDragEventArgs = System.Windows.DragEventArgs;
 using WpfDragDropEffects = System.Windows.DragDropEffects;
-using WpfMessageBox = System.Windows.MessageBox;
 
 namespace AutomationStudioWpf.Interaction;
 
@@ -33,7 +32,7 @@ public sealed class GraphImportDropController
     {
         if (!TryGetSingleJsonPath(e, out var filePath)) return;
 
-        var result = WpfMessageBox.Show(
+        var result = ThemedDialog.Show(
             _owner,
             $"是否导入图谱？\n\n{Path.GetFileName(filePath)}",
             "导入图谱",
@@ -48,7 +47,7 @@ public sealed class GraphImportDropController
         }
         catch (Exception ex)
         {
-            WpfMessageBox.Show(_owner, ex.Message, "导入失败", MessageBoxButton.OK, MessageBoxImage.Error);
+            ThemedDialog.Show(_owner, ex.Message, "导入失败", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 

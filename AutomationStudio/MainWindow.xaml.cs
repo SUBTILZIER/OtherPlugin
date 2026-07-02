@@ -24,7 +24,6 @@ using MouseButton = System.Windows.Input.MouseButton;
 using DataFormats = System.Windows.DataFormats;
 using DragDropEffects = System.Windows.DragDropEffects;
 using TextBoxBase = System.Windows.Controls.Primitives.TextBoxBase;
-using WpfMessageBox = System.Windows.MessageBox;
 
 namespace AutomationStudioWpf;
 
@@ -136,7 +135,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         Dispatcher.InvokeAsync(() =>
         {
             IsExecuting = _scriptRunManager.IsAnyRunning || (_executionController?.IsRunning ?? false);
+            UpdateExecutionFreezeState();
             StopExecutionButton.Visibility = IsExecuting ? Visibility.Visible : Visibility.Collapsed;
+            UpdateEditorToolbarVisibility();
         });
     }
 
@@ -152,8 +153,22 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         Dispatcher.InvokeAsync(() =>
         {
             IsExecuting = _scriptRunManager.IsAnyRunning;
+            UpdateExecutionFreezeState();
             StopExecutionButton.Visibility = IsExecuting ? Visibility.Visible : Visibility.Collapsed;
+            UpdateEditorToolbarVisibility();
         });
+    }
+
+    private void UpdateExecutionFreezeState()
+    {
+        foreach (var session in _editorSessions)
+        {
+            if (session.Surface is { } surface)
+                surface.IsExecutionFrozen = IsExecuting;
+        }
+
+        if (_bootstrapEditorSurface is { } bootstrapSurface)
+            bootstrapSurface.IsExecutionFrozen = IsExecuting;
     }
     private void EnsureCanvasLargeEnough()
     {
@@ -228,6 +243,26 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         RefreshMainEditorSessions();
         EditorWindowBar.Visibility = _mainEditorSessions.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        UpdateEditorToolbarVisibility();
+    }
+
+    private void UpdateEditorToolbarVisibility()
+    {
+        if (EditorActionToolbarGroup is null || RunGraphButton is null)
+            return;
+
+        bool hasEditableAsset = _activeContentAsset?.Kind is ContentAssetKind.Script or ContentAssetKind.FunctionLibrary;
+        EditorActionToolbarGroup.Visibility = hasEditableAsset ? Visibility.Visible : Visibility.Collapsed;
+
+        var activeSessionController = _activeEditorSession is null
+            ? _activeAssetController
+            : GetSessionActiveAssetController(_activeEditorSession);
+        bool canRunScript = _activeContentAsset?.Kind == ContentAssetKind.Script &&
+                            ReferenceEquals(activeSessionController, _graphListController);
+        RunGraphButton.IsEnabled = canRunScript && !IsExecuting;
+        RunGraphButton.ToolTip = canRunScript
+            ? "执行当前脚本事件图。"
+            : "只有脚本事件图可执行。";
     }
 
     private void RefreshMainEditorSessions()

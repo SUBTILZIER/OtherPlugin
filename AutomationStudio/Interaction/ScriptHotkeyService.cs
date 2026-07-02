@@ -143,13 +143,26 @@ internal sealed class ScriptHotkeyService : IDisposable
     private void HandlePress(ScriptHotkeyPressKey key)
     {
         var now = DateTime.UtcNow;
-        int windowMs = _pressWindows.GetValueOrDefault(key, 1000);
-        var window = TimeSpan.FromMilliseconds(Math.Max(100, windowMs));
+        var candidates = _bindings
+            .Where(pair => pair.Key.InputKind == key.InputKind && pair.Key.Key == key.Key)
+            .ToArray();
+        if (candidates.Length == 0)
+            return;
+
+        int windowMs = candidates.Max(pair => Math.Max(100, pair.Value.TriggerWindowMs));
+        var window = TimeSpan.FromMilliseconds(windowMs);
 
         if (!_pressStates.TryGetValue(key, out var state) || now - state.FirstPressAt > window)
             state = new PressState(now, 0);
 
-        _pressStates[key] = state with { FirstPressAt = now, Count = state.Count + 1 };
+        state = state with { Count = state.Count + 1 };
+        _pressStates[key] = state;
+
+        bool hasHigherPressCount = candidates.Any(pair => pair.Key.PressCount > state.Count);
+        if (hasHigherPressCount)
+            return;
+
+        TryTriggerPressState(key, state, candidates, now);
     }
 
     private IntPtr KeyboardHookCallback(int nCode, IntPtr wParam, IntPtr lParam)
@@ -203,25 +216,53 @@ internal sealed class ScriptHotkeyService : IDisposable
 
         foreach (var (pressKey, state) in _pressStates)
         {
+            var candidates = _bindings
+                .Where(pair => pair.Key.InputKind == pressKey.InputKind && pair.Key.Key == pressKey.Key)
+                .ToArray();
+            if (candidates.Length == 0)
+            {
+                keysToRemove.Add(pressKey);
+                continue;
+            }
+
+            if (TryTriggerPressState(pressKey, state, candidates, now))
+            {
+                keysToRemove.Add(pressKey);
+                continue;
+            }
+
             int pressWindowMs = _pressWindows.GetValueOrDefault(pressKey, 1000);
             var pressWindow = TimeSpan.FromMilliseconds(Math.Max(100, pressWindowMs));
 
-            if (now - state.FirstPressAt < pressWindow)
-                continue;
-
-            var matchKey = new ScriptHotkeyMatchKey(pressKey.InputKind, pressKey.Key, state.Count);
-            if (_bindings.TryGetValue(matchKey, out var binding))
-            {
-                int bindingWindowMs = binding.TriggerWindowMs > 0 ? binding.TriggerWindowMs : 1000;
-                if (now - state.FirstPressAt >= TimeSpan.FromMilliseconds(bindingWindowMs))
-                    _onTrigger(new ScriptHotkeyTrigger(binding.Asset, binding.Action));
-            }
-
-            keysToRemove.Add(pressKey);
+            if (now - state.FirstPressAt >= pressWindow)
+                keysToRemove.Add(pressKey);
         }
 
         foreach (var key in keysToRemove)
             _pressStates.Remove(key);
+    }
+
+    private bool TryTriggerPressState(
+        ScriptHotkeyPressKey key,
+        PressState state,
+        KeyValuePair<ScriptHotkeyMatchKey, ScriptHotkeyBinding>[] candidates,
+        DateTime now)
+    {
+        foreach (var (matchKey, binding) in candidates)
+        {
+            if (matchKey.PressCount != state.Count)
+                continue;
+
+            int bindingWindowMs = Math.Max(100, binding.TriggerWindowMs);
+            if (now - state.FirstPressAt > TimeSpan.FromMilliseconds(bindingWindowMs))
+                continue;
+
+            _pressStates.Remove(key);
+            _onTrigger(new ScriptHotkeyTrigger(binding.Asset, binding.Action));
+            return true;
+        }
+
+        return false;
     }
 
     private static string GetXButton(IntPtr lParam)

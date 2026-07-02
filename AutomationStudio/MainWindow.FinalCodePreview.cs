@@ -3,7 +3,6 @@ using AutomationStudioWpf.Graph;
 using AutomationStudioWpf.Interaction;
 using AutomationStudioWpf.Runtime;
 using AutomationStudioWpf.Services;
-using WpfMessageBox = System.Windows.MessageBox;
 
 namespace AutomationStudioWpf;
 
@@ -20,7 +19,7 @@ public partial class MainWindow
         if (session is null || controller is null || controller.ActiveItem is null)
         {
             SetStatus("没有可预览的当前图表。");
-            WpfMessageBox.Show(this, "没有可预览的当前图表。", "显示最终代码", MessageBoxButton.OK, MessageBoxImage.Information);
+            ThemedDialog.Show(this, "没有可预览的当前图表。", "显示最终代码", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 

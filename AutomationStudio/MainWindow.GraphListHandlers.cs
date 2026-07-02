@@ -223,6 +223,7 @@ public partial class MainWindow
         surface.FunctionDirtyBadge.Visibility = showFunction && _functionListController.HasCompileDirtyItems ? Visibility.Visible : Visibility.Collapsed;
         UpdateLibraryPublishOptionVisibility();
         UpdateCompileButtonState();
+        UpdateEditorToolbarVisibility();
     }
 
     private void UpdateLibraryPublishOptionVisibility()

@@ -5,6 +5,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
 using AutomationStudioWpf.Graph;
+using AutomationStudioWpf.Interaction;
 using AutomationStudioWpf.Services;
 using Point = System.Windows.Point;
 using MouseEventArgs = System.Windows.Input.MouseEventArgs;
@@ -13,7 +14,6 @@ using DragEventArgs = System.Windows.DragEventArgs;
 using TextBox = System.Windows.Controls.TextBox;
 using MouseButton = System.Windows.Input.MouseButton;
 using DragDropEffects = System.Windows.DragDropEffects;
-using WpfMessageBox = System.Windows.MessageBox;
 
 namespace AutomationStudioWpf;
 
@@ -469,7 +469,13 @@ public partial class MainWindow
 
         _contentBrowserContextTargetAsset = null;
         _contentBrowserContextTargetsAsset = false;
-        var result = WpfMessageBox.Show(this, $"是否删除：{item.Name}？", "删除资产", MessageBoxButton.YesNo, MessageBoxImage.Question);
+        var result = ThemedDialog.ShowCustom(
+            this,
+            $"是否删除：{item.Name}？",
+            "删除资产",
+            MessageBoxImage.Question,
+            new ThemedDialogButton("删除", MessageBoxResult.Yes, true),
+            new ThemedDialogButton("取消", MessageBoxResult.Cancel));
         if (result != MessageBoxResult.Yes)
             return;
 
