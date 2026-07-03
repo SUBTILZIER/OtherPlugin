@@ -2,19 +2,22 @@ using System.ComponentModel;
 using System.Drawing;
 using System.Reflection;
 using System.Windows;
-using System.Windows.Forms;
 using AutomationStudioWpf.Interaction;
 using WpfApplication = System.Windows.Application;
+using WinFormsCursor = System.Windows.Forms.Cursor;
+using WinFormsMouseButtons = System.Windows.Forms.MouseButtons;
+using WinFormsNotifyIcon = System.Windows.Forms.NotifyIcon;
 
 namespace AutomationStudioWpf;
 
 public partial class MainWindow
 {
-    private NotifyIcon? _notifyIcon;
+    private WinFormsNotifyIcon? _notifyIcon;
+    private TrayMenuWindow? _trayMenuWindow;
 
     private void SetupNotifyIcon()
     {
-        _notifyIcon = new NotifyIcon
+        _notifyIcon = new WinFormsNotifyIcon
         {
             Icon = WindowIconHelper.TrayIcon,
             Text = "AutomationStudio",
@@ -23,17 +26,25 @@ public partial class MainWindow
 
         _notifyIcon.MouseClick += (_, e) =>
         {
-            if (e.Button == MouseButtons.Left)
+            if (e.Button == WinFormsMouseButtons.Left)
                 RestoreFromTray();
+            else if (e.Button == WinFormsMouseButtons.Right)
+                ShowTrayMenu();
         };
+    }
 
-        _notifyIcon.ContextMenuStrip = new ContextMenuStrip();
-        _notifyIcon.ContextMenuStrip.Items.Add("打开面板", null, (_, _) => RestoreFromTray());
-        _notifyIcon.ContextMenuStrip.Items.Add("退出程序", null, (_, _) => ExitApplication());
+    private void ShowTrayMenu()
+    {
+        _trayMenuWindow?.Close();
+        _trayMenuWindow = new TrayMenuWindow(RestoreFromTray, ExitApplication);
+        _trayMenuWindow.Closed += (_, _) => _trayMenuWindow = null;
+        _trayMenuWindow.ShowNear(WinFormsCursor.Position, this);
     }
 
     private void RestoreFromTray()
     {
+        _trayMenuWindow?.Close();
+        _trayMenuWindow = null;
         Show();
         WindowState = WindowState.Normal;
         Activate();
@@ -42,12 +53,16 @@ public partial class MainWindow
     private void ExitApplication()
     {
         _isReallyClosing = true;
+        _trayMenuWindow?.Close();
+        _trayMenuWindow = null;
         if (_notifyIcon is not null)
         {
             _notifyIcon.Visible = false;
             _notifyIcon.Dispose();
             _notifyIcon = null;
         }
+        _trayMenuWindow?.Close();
+        _trayMenuWindow = null;
         Close();
         WpfApplication.Current.Shutdown();
         Environment.Exit(0);
@@ -104,6 +119,8 @@ public partial class MainWindow
         _mousePickController.Dispose();
         _scriptRunManager.Dispose();
         _scriptHotkeyService.Dispose();
+        _trayMenuWindow?.Close();
+        _trayMenuWindow = null;
         if (_notifyIcon is not null)
         {
             _notifyIcon.Visible = false;

@@ -64,15 +64,7 @@ public partial class MainWindow
     {
         if (_activeEditorSession?.SurfaceContext is { IsConfigured: true } activeContext)
         {
-            _executionController = new ExecutionController(
-                this,
-                _editorService,
-                new Runtime.GraphRuntimeExecutor(nodeRegistry: _nodeRegistry, adapters: new Adapters.RuntimeAdapters()),
-                new GraphCore.GraphValidator(),
-                RunGraphButton,
-                GetRuntimeCallableFunctions,
-                SetStatus);
-            _executionController.ExecutionStateChanged += OnExecutionStateChanged;
+            RebuildExecutionController();
 
             ApplyEditorSurfaceContext(activeContext);
             return;
@@ -81,14 +73,7 @@ public partial class MainWindow
         _graphCommandService = GetOrCreateActiveCommandService();
         var surface = GetEditorSurfaceForControllerSetup();
 
-        _executionController = new ExecutionController(
-            this,
-            _editorService,
-            new Runtime.GraphRuntimeExecutor(nodeRegistry: _nodeRegistry, adapters: new Adapters.RuntimeAdapters()),
-            new GraphCore.GraphValidator(),
-            RunGraphButton,
-            GetRuntimeCallableFunctions,
-            SetStatus);
+        RebuildExecutionController();
 
         _graphListController = new GraphListController(
             this,
@@ -119,6 +104,19 @@ public partial class MainWindow
             SetStatus);
 
         RebuildInteractionControllers();
+    }
+
+    private void RebuildExecutionController()
+    {
+        _executionController = new ExecutionController(
+            this,
+            _editorService,
+            new Runtime.GraphRuntimeExecutor(nodeRegistry: _nodeRegistry, adapters: new Adapters.RuntimeAdapters()),
+            new GraphCore.GraphValidator(),
+            RunGraphButton,
+            GetRuntimeCallableFunctions,
+            SetStatus);
+        _executionController.ExecutionStateChanged += OnExecutionStateChanged;
     }
 
     private GraphCommandService GetOrCreateActiveCommandService()

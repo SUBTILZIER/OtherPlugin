@@ -113,6 +113,17 @@
             <Setter Property="Margin" Value="0,2,0,10" />
         </Style>
 
+        <Style x:Key="EditorPanelDropShadowStyle" TargetType="{x:Type Border}">
+            <Setter Property="Effect">
+                <Setter.Value>
+                    <DropShadowEffect ShadowDepth="8"
+                                      BlurRadius="24"
+                                      Opacity="0.36"
+                                      Color="#000000" />
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <Style x:Key="EditorSidebarIconButtonStyle" TargetType="{x:Type Button}">
             <Setter Property="Foreground" Value="{StaticResource EditorTextBrightBrush}" />
             <Setter Property="Background" Value="{StaticResource EditorFieldCardBrush}" />
@@ -853,40 +864,43 @@
 
                             <Border x:Name="NodePalette"
                                     Visibility="Collapsed"
-                                    Width="300"
-                                    MaxHeight="500"
-                                    Background="{StaticResource EditorPanelCardBrush}"
-                                    BorderBrush="{StaticResource EditorPanelBorderBrush}"
+                                    Width="330"
+                                    MaxHeight="540"
+                                    Background="{StaticResource EditorPanelElevatedBrush}"
+                                    BorderBrush="{StaticResource EditorSelectedBorderBrush}"
                                     BorderThickness="1"
                                     CornerRadius="12"
+                                    Style="{StaticResource EditorPanelDropShadowStyle}"
                                     Panel.ZIndex="1000">
-                                <Border.Effect>
-                                    <DropShadowEffect ShadowDepth="4" BlurRadius="12" Opacity="0.5" Color="Black"/>
-                                </Border.Effect>
                                 <Grid>
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="Auto"/>
                                         <RowDefinition Height="Auto"/>
                                         <RowDefinition Height="*"/>
                                     </Grid.RowDefinitions>
-                                    <StackPanel Grid.Row="0" Margin="12,10,12,2">
-                                        <TextBlock Text="添加节点"
-                                                   Foreground="{StaticResource EditorTextBrightBrush}"
-                                                   FontWeight="SemiBold"
-                                                   FontSize="14" />
-                                        <TextBlock Text="搜索或选择要放到画布上的节点"
-                                                   Foreground="{StaticResource ForegroundSecondaryBrush}"
-                                                   FontSize="11"
-                                                   Margin="0,3,0,0" />
-                                    </StackPanel>
+                                    <Border Grid.Row="0"
+                                            Background="{StaticResource EditorChromeHighlightBrush}"
+                                            CornerRadius="11,11,0,0"
+                                            Padding="14,11,14,9">
+                                        <StackPanel>
+                                            <TextBlock Text="添加节点"
+                                                       Foreground="{StaticResource EditorTextBrightBrush}"
+                                                       FontWeight="SemiBold"
+                                                       FontSize="15" />
+                                            <TextBlock Text="搜索或选择要放到画布上的节点"
+                                                       Foreground="{StaticResource ForegroundSecondaryBrush}"
+                                                       FontSize="11"
+                                                       Margin="0,3,0,0" />
+                                        </StackPanel>
+                                    </Border>
                                     <TextBox x:Name="NodePaletteSearchBox"
                                              Grid.Row="1"
-                                             Margin="12,8,12,0"
-                                             Padding="9,6"
-                                             MinHeight="32"
+                                             Margin="12,10,12,0"
+                                             Padding="10,7"
+                                             MinHeight="34"
                                              Background="{StaticResource EditorFieldCardBrush}"
                                              Foreground="White"
-                                             BorderBrush="{StaticResource EditorPanelBorderBrush}"
+                                             BorderBrush="{StaticResource EditorSelectedBorderBrush}"
                                              BorderThickness="1"
                                              CaretBrush="White"
                                              TextChanged="NodePaletteSearchBox_TextChanged"/>
@@ -941,14 +955,19 @@
                                        Text="请选择一个节点进行编辑。"
                                        Foreground="{StaticResource ForegroundSecondaryBrush}"
                                        TextWrapping="Wrap" />
-
-                            <TextBlock Text="节点名称" Foreground="White" />
-                            <TextBox x:Name="NodeTitleTextBox" Margin="0,4,0,12" TextChanged="InspectorField_TextChanged" />
-                            <TextBlock Text="节点编号" Foreground="White" />
-                            <TextBlock x:Name="NodeNumberTextBlock"
-                                       Text="N001"
-                                       Style="{StaticResource EditorReadonlyChipStyle}"
-                                       Margin="0,4,0,0" />
+                            <ContentControl x:Name="ScriptPropertiesSummaryHost"
+                                            Visibility="Collapsed"
+                                            Margin="0,0,0,4"
+                                            HorizontalContentAlignment="Stretch" />
+                            <StackPanel x:Name="NodeBasicsPanel">
+                                <TextBlock Text="节点名称" Foreground="White" />
+                                <TextBox x:Name="NodeTitleTextBox" Margin="0,4,0,12" TextChanged="InspectorField_TextChanged" />
+                                <TextBlock Text="节点编号" Foreground="White" />
+                                <TextBlock x:Name="NodeNumberTextBlock"
+                                           Text="N001"
+                                           Style="{StaticResource EditorReadonlyChipStyle}"
+                                           Margin="0,4,0,0" />
+                            </StackPanel>
                                 </StackPanel>
                             </Border>
 
@@ -1374,10 +1393,11 @@
                                 HorizontalAlignment="Center"
                                 VerticalAlignment="Center"
                                 Padding="30"
-                                Background="{StaticResource EditorPanelCardBrush}"
+                                Background="{StaticResource EditorPanelElevatedBrush}"
                                 BorderBrush="{StaticResource EditorSelectedBorderBrush}"
                                 BorderThickness="1"
-                                CornerRadius="18">
+                                CornerRadius="18"
+                                Style="{StaticResource EditorPanelDropShadowStyle}">
                             <StackPanel HorizontalAlignment="Center">
                                 <Grid Width="74"
                                       Height="74"

@@ -60,7 +60,7 @@ internal sealed class ScriptHotkeyService : IDisposable
         _bindings.Clear();
         _pressStates.Clear();
         _pressWindows.Clear();
-        foreach (var asset in assets.Where(asset => asset.Kind == ContentAssetKind.Script))
+        foreach (var asset in assets.Where(asset => asset.Kind == ContentAssetKind.Script && asset.IsScriptEnabled))
         {
             asset.RunSettings.Normalize();
             AddBinding(asset, ScriptHotkeyAction.Start, asset.RunSettings.StartHotkey);
@@ -84,7 +84,7 @@ internal sealed class ScriptHotkeyService : IDisposable
     {
         var errors = new List<string>();
         var seen = new Dictionary<ScriptHotkeyMatchKey, string>();
-        foreach (var asset in assets.Where(asset => asset.Kind == ContentAssetKind.Script))
+        foreach (var asset in assets.Where(asset => asset.Kind == ContentAssetKind.Script && asset.IsScriptEnabled))
         {
             var settings = ReferenceEquals(asset, editingAsset) && editingSettings is not null
                 ? editingSettings

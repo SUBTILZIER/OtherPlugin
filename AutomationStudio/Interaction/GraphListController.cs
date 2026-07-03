@@ -129,7 +129,7 @@ public sealed class GraphListController
         if (target is not null)
         {
             _graphListBox.SelectedItem = target;
-            Load(target);
+            Load(target, persistAfterLoad: false);
         }
     }
 
@@ -153,7 +153,8 @@ public sealed class GraphListController
         _graphListBox.SelectedItem = null;
     }
 
-    public void LoadItem(GraphListItemViewModel item, bool snapshotCurrent = true) => Load(item, snapshotCurrent);
+    public void LoadItem(GraphListItemViewModel item, bool snapshotCurrent = true, bool persistAfterLoad = true) =>
+        Load(item, snapshotCurrent, persistAfterLoad);
 
     public bool LoadDoubleClickedItem(MouseButtonEventArgs e)
     {
@@ -162,7 +163,7 @@ public sealed class GraphListController
             return false;
         }
 
-        Load(item, snapshotCurrent: false);
+        Load(item, snapshotCurrent: false, persistAfterLoad: false);
         e.Handled = true;
         return true;
     }
@@ -253,7 +254,7 @@ public sealed class GraphListController
 
         _items.Add(item);
         _graphListBox.SelectedItem = item;
-        Load(item);
+        Load(item, persistAfterLoad: false);
         Persist();
     }
 
@@ -262,7 +263,7 @@ public sealed class GraphListController
         if (SelectedItem is null) return;
         if (e.OriginalSource is DependencyObject source && !TryFindGraphItemFromSource(source, out _)) return;
 
-        Load(SelectedItem);
+        Load(SelectedItem, persistAfterLoad: false);
         e.Handled = true;
     }
 
@@ -345,7 +346,7 @@ public sealed class GraphListController
             var next = _items[Math.Clamp(oldIndex, 0, _items.Count - 1)];
             _graphListBox.SelectedItem = next;
             if (deletingActive)
-                Load(next);
+                Load(next, persistAfterLoad: false);
         }
 
         Persist();
@@ -529,7 +530,7 @@ public sealed class GraphListController
         }
     }
 
-    private void Load(GraphListItemViewModel item, bool snapshotCurrent = true)
+    private void Load(GraphListItemViewModel item, bool snapshotCurrent = true, bool persistAfterLoad = true)
     {
         if (snapshotCurrent)
             SnapshotActive();
@@ -544,7 +545,8 @@ public sealed class GraphListController
             _activeItem = item;
             _graphListBox.SelectedItem = item;
             _setStatus($"已进入{_displayName}：{item.Name}");
-            Persist();
+            if (persistAfterLoad)
+                Persist();
         }
         finally
         {

@@ -7,14 +7,19 @@
         Height="500"
         WindowStartupLocation="CenterOwner"
         Background="{StaticResource AppBackgroundBrush}">
+    <Border Margin="10"
+            Background="{StaticResource EditorPanelCardBrush}"
+            BorderBrush="{StaticResource EditorPanelBorderBrush}"
+            BorderThickness="1"
+            CornerRadius="12">
     <DockPanel>
         <StackPanel DockPanel.Dock="Top"
                     Orientation="Horizontal"
-                    Margin="10,8"
-                    Background="Transparent">
+                    Height="42"
+                    Background="{StaticResource EditorPanelElevatedBrush}">
             <Button Content="复制全部" Click="CopyAll_Click" Margin="0,0,8,0" Padding="12,4" />
             <Button Content="清空" Click="Clear_Click" Padding="12,4" />
-            <Border Margin="8,0,0,0" Background="{StaticResource ToolbarButtonBorderBrush}" CornerRadius="3" Height="22" VerticalAlignment="Center">
+            <Border Margin="8,0,0,0" Background="{StaticResource EditorFieldCardBrush}" BorderBrush="{StaticResource EditorPanelBorderBrush}" BorderThickness="1" CornerRadius="9" Height="24" VerticalAlignment="Center">
                 <StackPanel Orientation="Horizontal">
                     <RadioButton x:Name="FilterAllRadio" Content="全部" IsChecked="True"
                                  Checked="FilterRadio_Checked"
@@ -41,15 +46,16 @@
                        FontSize="11" />
         </StackPanel>
         <RichTextBox x:Name="LogRichTextBox"
-                     Background="{StaticResource AppBackgroundBrush}"
-                     Foreground="{StaticResource ForegroundPrimaryBrush}"
+                     Background="{StaticResource EditorChromeBrush}"
+                     Foreground="{StaticResource EditorTextBrush}"
                      BorderThickness="0"
-                     Margin="10,0,10,10"
+                     Margin="0"
                      FontFamily="Consolas"
                      FontSize="12"
                      IsReadOnly="True"
-                     Padding="6,4"
+                     Padding="12,10"
                      VerticalScrollBarVisibility="Auto"
                      HorizontalScrollBarVisibility="Auto" />
     </DockPanel>
+    </Border>
 </Window>

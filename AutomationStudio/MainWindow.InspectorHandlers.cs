@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Linq;
 using AutomationStudioWpf.Graph;
 
 namespace AutomationStudioWpf;
@@ -8,7 +9,11 @@ public partial class MainWindow
 {
     private void LoadNodeToInspector(NodeBaseViewModel? node)
     {
+        node ??= _editorService.Nodes.FirstOrDefault(item => item.IsSelected);
+        HideScriptPropertiesInInspector();
         _inspectorController.LoadNode(node);
+        if (node is null && !_editorService.Nodes.Any(item => item.IsSelected))
+            TryShowActiveScriptPropertiesInInspector();
     }
 
     private void ApplyInspectorChanges()

@@ -73,11 +73,49 @@
         </Style>
         <Style x:Key="TopToolbarButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
             <Setter Property="MinHeight" Value="30" />
-            <Setter Property="Margin" Value="3,2" />
+            <Setter Property="Margin" Value="2,0" />
             <Setter Property="Padding" Value="12,5" />
             <Setter Property="FontSize" Value="12" />
-            <Setter Property="Background" Value="{StaticResource ToolbarButtonBackgroundBrush}" />
-            <Setter Property="BorderBrush" Value="{StaticResource ToolbarButtonBorderBrush}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{StaticResource EditorTextBrightBrush}" />
+            <Setter Property="Background" Value="{StaticResource EditorToolbarGroupBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource EditorPanelBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Button}">
+                        <Border x:Name="ButtonChrome"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="7"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"
+                                              Margin="{TemplateBinding Padding}"
+                                              RecognizesAccessKey="True" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ButtonChrome" Property="Background" Value="{StaticResource EditorChromeHighlightBrush}" />
+                                <Setter TargetName="ButtonChrome" Property="BorderBrush" Value="{StaticResource EditorSelectedBorderBrush}" />
+                                <Setter Property="Foreground" Value="#FFFFFF" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="ButtonChrome" Property="Background" Value="{StaticResource EditorListSelectedBrush}" />
+                                <Setter TargetName="ButtonChrome" Property="BorderBrush" Value="{StaticResource EditorSelectedBorderBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="ButtonChrome" Property="BorderBrush" Value="{StaticResource EditorSelectedAccentBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.45" />
+                                <Setter Property="Foreground" Value="{StaticResource EditorMutedTextBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
         <Style x:Key="ContentRenameTextBoxStyle" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
             <Setter Property="Visibility" Value="Collapsed" />
@@ -402,72 +440,98 @@
                 </StackPanel>
             </Grid>
         </Border>
-        <ToolBar DockPanel.Dock="Top"
-                 Background="{StaticResource EditorPanelBackgroundBrush}"
-                 BorderBrush="{StaticResource EditorSectionHeaderBrush}"
-                 BorderThickness="0,0,0,1"
-                 Padding="8,6">
-            <Button Content="外部导入" Style="{StaticResource TopToolbarButtonStyle}" Click="OpenGraph_Click" />
-            <Button Content="保存" Style="{StaticResource TopToolbarButtonStyle}" Click="SaveGraph_Click" />
-            <Button Content="另存为" Style="{StaticResource TopToolbarButtonStyle}" Click="SaveGraphAs_Click" />
-            <Button x:Name="MousePickButton" Content="鼠标拾取" Style="{StaticResource TopToolbarButtonStyle}" Click="MousePick_Click" />
-            <StackPanel x:Name="EditorActionToolbarGroup"
-                        Orientation="Horizontal"
-                        Visibility="Collapsed">
-                <Button x:Name="CompileGraphButton" Style="{StaticResource TopToolbarButtonStyle}" Click="CompileGraph_Click">
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="⚙" Margin="0,0,4,0" />
-                        <TextBlock x:Name="CompileButtonText" Text="编译" />
-                        <Border x:Name="CompileDirtyIcon"
-                                Width="14"
-                                Height="14"
-                                Margin="5,0,0,0"
-                                CornerRadius="7"
-                                Background="{StaticResource CompileDirtyBorderBrush}"
-                                Visibility="Collapsed">
-                            <TextBlock Text="!" Foreground="#111111" FontWeight="Bold" FontSize="10" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                        </Border>
-                    </StackPanel>
-                </Button>
-                <Button Content="显示最终代码" Style="{StaticResource TopToolbarButtonStyle}" Click="ShowFinalCode_Click" />
-                <Button x:Name="RunGraphButton" Content="执行脚本" Click="RunGraph_Click">
-                    <Button.Style>
-                        <Style TargetType="Button" BasedOn="{StaticResource TopToolbarButtonStyle}">
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding IsExecuting, RelativeSource={RelativeSource AncestorType=Window}}" Value="True">
-                                    <Setter Property="Content" Value="&#x23F3; 执行中..." />
-                                    <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
-                                    <Setter Property="FontWeight" Value="Bold" />
-                                    <Setter Property="IsEnabled" Value="False" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Button.Style>
-                </Button>
-                <Button x:Name="StopExecutionButton" Content="&#x23F9; 停止执行" Click="StopExecution_Click" Visibility="Collapsed">
-                    <Button.Style>
-                        <Style TargetType="Button" BasedOn="{StaticResource TopToolbarButtonStyle}">
-                            <Setter Property="Background" Value="#8B0000" />
-                            <Setter Property="Foreground" Value="{StaticResource LogErrorBrush}" />
-                            <Setter Property="FontWeight" Value="Bold" />
-                            <Style.Triggers>
-                                <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter Property="Background" Value="#B22222" />
-                                </Trigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Button.Style>
-                </Button>
-            </StackPanel>
-            
-        </ToolBar>
+        <Border DockPanel.Dock="Top"
+                Background="{StaticResource EditorChromeBrush}"
+                BorderBrush="{StaticResource EditorSectionHeaderBrush}"
+                BorderThickness="0,0,0,1"
+                Padding="12,6">
+            <DockPanel LastChildFill="True">
+                <StackPanel Orientation="Horizontal"
+                            VerticalAlignment="Center">
+                    <Border Background="{StaticResource EditorToolbarGroupBrush}"
+                            BorderBrush="{StaticResource EditorPanelBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="10"
+                            Padding="3">
+                        <StackPanel Orientation="Horizontal">
+                            <Button Content="外部导入" Style="{StaticResource TopToolbarButtonStyle}" Click="OpenGraph_Click" />
+                            <Button Content="保存" Style="{StaticResource TopToolbarButtonStyle}" Click="SaveGraph_Click" />
+                            <Button Content="另存为" Style="{StaticResource TopToolbarButtonStyle}" Click="SaveGraphAs_Click" />
+                            <Button x:Name="MousePickButton" Content="鼠标拾取" Style="{StaticResource TopToolbarButtonStyle}" Click="MousePick_Click" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border x:Name="EditorActionToolbarGroup"
+                            Margin="8,0,0,0"
+                            Background="{StaticResource EditorToolbarGroupBrush}"
+                            BorderBrush="{StaticResource EditorPanelBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="10"
+                            Padding="3"
+                            Visibility="Collapsed">
+                        <StackPanel Orientation="Horizontal">
+                            <Border Width="1"
+                                    Height="22"
+                                    Margin="3,0,8,0"
+                                    Background="{StaticResource EditorToolbarSeparatorBrush}"
+                                    VerticalAlignment="Center" />
+                            <Button x:Name="CompileGraphButton" Style="{StaticResource TopToolbarButtonStyle}" Click="CompileGraph_Click">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="⚙" Margin="0,0,4,0" />
+                                    <TextBlock x:Name="CompileButtonText" Text="编译" />
+                                    <Border x:Name="CompileDirtyIcon"
+                                            Width="14"
+                                            Height="14"
+                                            Margin="5,0,0,0"
+                                            CornerRadius="7"
+                                            Background="{StaticResource CompileDirtyBorderBrush}"
+                                            Visibility="Collapsed">
+                                        <TextBlock Text="!" Foreground="#111111" FontWeight="Bold" FontSize="10" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                </StackPanel>
+                            </Button>
+                            <Button Content="显示最终代码" Style="{StaticResource TopToolbarButtonStyle}" Click="ShowFinalCode_Click" />
+                            <Button x:Name="RunGraphButton" Content="执行脚本" Click="RunGraph_Click">
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource TopToolbarButtonStyle}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsExecuting, RelativeSource={RelativeSource AncestorType=Window}}" Value="True">
+                                                <Setter Property="Content" Value="&#x23F3; 执行中..." />
+                                                <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+                                                <Setter Property="FontWeight" Value="Bold" />
+                                                <Setter Property="IsEnabled" Value="False" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
+                            <Button x:Name="StopExecutionButton" Content="&#x23F9; 停止执行" Click="StopExecution_Click" Visibility="Collapsed">
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource TopToolbarButtonStyle}">
+                                        <Setter Property="Background" Value="#8B0000" />
+                                        <Setter Property="Foreground" Value="{StaticResource LogErrorBrush}" />
+                                        <Setter Property="FontWeight" Value="Bold" />
+                                        <Style.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter Property="Background" Value="#B22222" />
+                                            </Trigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </DockPanel>
+        </Border>
 
         <Border x:Name="EditorWindowBar"
                 DockPanel.Dock="Top"
-                MinHeight="34"
-                Background="{StaticResource EditorCanvasGridBackgroundBrush}"
+                MinHeight="42"
+                Background="{StaticResource EditorChromeBrush}"
                 BorderBrush="{StaticResource EditorSectionHeaderBrush}"
                 BorderThickness="0,0,0,1"
+                Padding="5,1"
                 Visibility="Collapsed">
             <ScrollViewer HorizontalScrollBarVisibility="Auto"
                           VerticalScrollBarVisibility="Disabled">
@@ -479,11 +543,12 @@
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
-                            <Border Margin="5,5,0,5"
-                                    Padding="10,5"
+                            <Border Margin="4,5,2,5"
+                                    Padding="10,6"
                                     MinWidth="150"
+                                    MinHeight="30"
                                     BorderThickness="1"
-                                    CornerRadius="9"
+                                    CornerRadius="10"
                                     Cursor="Hand"
                                     PreviewMouseLeftButtonDown="EditorSessionTab_PreviewMouseLeftButtonDown"
                                     PreviewMouseMove="EditorSessionTab_PreviewMouseMove"
@@ -493,6 +558,10 @@
                                         <Setter Property="Background" Value="{StaticResource EditorPanelCardBrush}" />
                                         <Setter Property="BorderBrush" Value="{StaticResource EditorPanelBorderBrush}" />
                                         <Style.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter Property="Background" Value="{StaticResource EditorPanelCardHoverBrush}" />
+                                                <Setter Property="BorderBrush" Value="{StaticResource EditorSelectedBorderBrush}" />
+                                            </Trigger>
                                             <DataTrigger Binding="{Binding IsDirty}" Value="True">
                                                 <Setter Property="BorderBrush" Value="{StaticResource CompileDirtyBorderBrush}" />
                                             </DataTrigger>
@@ -513,40 +582,57 @@
                                         <MenuItem Header="关闭右侧窗口" Click="EditorSessionCloseRightMenuItem_Click" />
                                     </ContextMenu>
                                 </Border.ContextMenu>
-                                <DockPanel LastChildFill="True">
-                                    <Button DockPanel.Dock="Right"
-                                            Content="×"
-                                            Width="22"
-                                            Height="22"
-                                            Padding="0"
-                                            Margin="8,0,0,0"
-                                            FontSize="14"
-                                            ToolTip="关闭窗口"
-                                            Style="{StaticResource TopToolbarButtonStyle}"
-                                            Click="EditorSessionCloseButton_Click" />
-                                    <Border DockPanel.Dock="Left"
-                                            Width="8"
-                                            Height="8"
-                                            Margin="0,0,7,0"
-                                            CornerRadius="4"
-                                            Background="{StaticResource CompileDirtyBorderBrush}">
+                                <Grid>
+                                    <DockPanel LastChildFill="True">
+                                        <Button DockPanel.Dock="Right"
+                                                Content="×"
+                                                Width="22"
+                                                Height="22"
+                                                Padding="0"
+                                                Margin="8,0,0,0"
+                                                FontSize="14"
+                                                ToolTip="关闭窗口"
+                                                Style="{StaticResource TopToolbarButtonStyle}"
+                                                Click="EditorSessionCloseButton_Click" />
+                                        <Border DockPanel.Dock="Left"
+                                                Width="8"
+                                                Height="8"
+                                                Margin="0,0,7,0"
+                                                CornerRadius="4"
+                                                Background="{StaticResource CompileDirtyBorderBrush}">
+                                            <Border.Style>
+                                                <Style TargetType="Border">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsDirty}" Value="True">
+                                                            <Setter Property="Visibility" Value="Visible" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Border.Style>
+                                        </Border>
+                                        <TextBlock Text="{Binding DisplayTitle}"
+                                                   Foreground="{StaticResource EditorTextBrightBrush}"
+                                                   FontWeight="SemiBold"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   VerticalAlignment="Center" />
+                                    </DockPanel>
+                                    <Border Height="2"
+                                            VerticalAlignment="Bottom"
+                                            CornerRadius="1"
+                                            Background="{StaticResource EditorSelectedAccentBrush}">
                                         <Border.Style>
                                             <Style TargetType="Border">
                                                 <Setter Property="Visibility" Value="Collapsed" />
                                                 <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding IsDirty}" Value="True">
+                                                    <DataTrigger Binding="{Binding IsActive}" Value="True">
                                                         <Setter Property="Visibility" Value="Visible" />
                                                     </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
                                         </Border.Style>
                                     </Border>
-                                    <TextBlock Text="{Binding DisplayTitle}"
-                                               Foreground="{StaticResource EditorTextBrightBrush}"
-                                               FontWeight="SemiBold"
-                                               TextTrimming="CharacterEllipsis"
-                                               VerticalAlignment="Center" />
-                                </DockPanel>
+                                </Grid>
                             </Border>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
@@ -621,15 +707,17 @@
                 </Grid.ColumnDefinitions>
 
                 <Border Grid.Column="0"
-                        Background="{StaticResource EditorRootBackgroundBrush}"
-                        BorderBrush="{StaticResource EditorSectionHeaderBrush}"
-                        BorderThickness="0,1,1,0">
+                        Margin="6,6,3,6"
+                        Background="{StaticResource EditorPanelCardBrush}"
+                        BorderBrush="{StaticResource EditorPanelBorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="12">
                     <DockPanel>
                         <StackPanel x:Name="ContentBrowserHeaderBar"
                                     DockPanel.Dock="Top"
                                     Orientation="Horizontal"
-                                    Background="{StaticResource EditorPanelBackgroundBrush}"
-                                    Height="32">
+                                    Background="{StaticResource EditorPanelElevatedBrush}"
+                                    Height="36">
                             <TextBlock Text="内容浏览器" Style="{StaticResource BottomPanelTitleStyle}" />
                         </StackPanel>
                         <Grid x:Name="ContentBrowserBodyGrid" PreviewMouseDown="ContentBrowserArea_PreviewMouseDown">
@@ -640,9 +728,9 @@
                             </Grid.ColumnDefinitions>
                             <ListBox x:Name="ContentFolderListBox"
                                      ItemsSource="{Binding ContentFolderItems}"
-                                     Background="{StaticResource EditorCanvasBackgroundBrush}"
+                                     Background="{StaticResource EditorChromeBrush}"
                                      BorderThickness="0,0,1,0"
-                                     BorderBrush="{StaticResource EditorSectionHeaderBrush}"
+                                     BorderBrush="{StaticResource EditorPanelBorderBrush}"
                                      Foreground="White"
                                      AllowDrop="True"
                                      ScrollViewer.HorizontalScrollBarVisibility="Disabled"
@@ -748,13 +836,13 @@
                                           Width="4"
                                           HorizontalAlignment="Stretch"
                                           VerticalAlignment="Stretch"
-                                          Background="{StaticResource EditorSectionHeaderBrush}"
+                                          Background="{StaticResource EditorPanelBorderBrush}"
                                           ShowsPreview="True"
                                           ResizeBehavior="PreviousAndNext" />
                              <ListBox x:Name="ContentBrowserListBox"
                                   Grid.Column="2"
                                   ItemsSource="{Binding ContentVisibleItems}"
-                                  Background="{StaticResource EditorRootBackgroundBrush}"
+                                  Background="{StaticResource EditorPanelCardBrush}"
                                   BorderThickness="0"
                                   Foreground="White"
                                   ScrollViewer.HorizontalScrollBarVisibility="Disabled"
@@ -781,9 +869,32 @@
                             <ListBox.ItemTemplate>
                                 <DataTemplate>
                                     <StackPanel>
-                                        <Border Width="44" Height="40" CornerRadius="6" Background="{Binding TileBrush}" HorizontalAlignment="Center">
-                                            <TextBlock Text="{Binding TileGlyph}" Foreground="{Binding TileGlyphForeground}" FontWeight="Bold" FontSize="11" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                        </Border>
+                                        <Grid Width="54" Height="44" HorizontalAlignment="Center">
+                                            <Border Width="44" Height="40" CornerRadius="6" Background="{Binding TileBrush}" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding TileGlyph}" Foreground="{Binding TileGlyphForeground}" FontWeight="Bold" FontSize="11" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                            </Border>
+                                            <CheckBox HorizontalAlignment="Right"
+                                                      VerticalAlignment="Top"
+                                                      IsChecked="{Binding IsScriptEnabled, Mode=OneWay}"
+                                                      ToolTip="{Binding ScriptEnabledToolTip}"
+                                                      Checked="ContentAssetScriptEnabledCheckBox_Changed"
+                                                      Unchecked="ContentAssetScriptEnabledCheckBox_Changed">
+                                                <CheckBox.Style>
+                                                    <Style TargetType="{x:Type CheckBox}" BasedOn="{StaticResource {x:Type CheckBox}}">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                        <Setter Property="Width" Value="18" />
+                                                        <Setter Property="Height" Value="18" />
+                                                        <Setter Property="Padding" Value="0" />
+                                                        <Setter Property="Margin" Value="0" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding ShowScriptEnableToggle}" Value="True">
+                                                                <Setter Property="Visibility" Value="Visible" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </CheckBox.Style>
+                                            </CheckBox>
+                                        </Grid>
                                         <TextBlock Text="{Binding Name}" TextAlignment="Center" TextWrapping="Wrap" Margin="0,6,0,0">
                                             <TextBlock.Style>
                                                 <Style TargetType="TextBlock">
@@ -836,7 +947,18 @@
                                               Click="ContentAssetPropertiesMenuItem_Click">
                                         <MenuItem.Icon>
                                             <TextBlock Style="{StaticResource ContentAssetMenuIconStyle}"
-                                                       Text="&#xE713;"
+                                               Text="&#xE713;"
+                                               Foreground="{StaticResource AccentBrush}" />
+                                        </MenuItem.Icon>
+                                    </MenuItem>
+                                    <MenuItem x:Name="ContentBrowserToggleScriptEnabledMenuItem"
+                                              Style="{StaticResource ContentAssetMenuItemStyle}"
+                                              Header="启用脚本"
+                                              IsCheckable="True"
+                                              Click="ContentBrowserToggleScriptEnabledMenuItem_Click">
+                                        <MenuItem.Icon>
+                                            <TextBlock Style="{StaticResource ContentAssetMenuIconStyle}"
+                                                       Text="&#xE8FB;"
                                                        Foreground="{StaticResource AccentBrush}" />
                                         </MenuItem.Icon>
                                     </MenuItem>
@@ -864,18 +986,20 @@
                 <GridSplitter Grid.Column="1"
                               Width="4"
                               HorizontalAlignment="Stretch"
-                              Background="{StaticResource EditorSectionHeaderBrush}"
+                              Background="{StaticResource EditorRootBackgroundBrush}"
                               ResizeDirection="Columns" />
 
                 <Border Grid.Column="2"
-                    Background="{StaticResource EditorCanvasBackgroundBrush}"
-                    BorderBrush="{StaticResource EditorSectionHeaderBrush}"
-                    BorderThickness="0,1,0,0">
+                    Margin="3,6,6,6"
+                    Background="{StaticResource EditorPanelCardBrush}"
+                    BorderBrush="{StaticResource EditorPanelBorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="12">
                 <DockPanel>
                     <StackPanel DockPanel.Dock="Top"
                                 Orientation="Horizontal"
-                                Background="{StaticResource EditorPanelBackgroundBrush}"
-                                Height="32">
+                                Background="{StaticResource EditorPanelElevatedBrush}"
+                                Height="36">
                         <TextBlock Text="日志" Style="{StaticResource BottomPanelTitleStyle}" />
                         <TextBlock x:Name="StatusTextBlock" Foreground="{StaticResource StatusMutedBrush}" Margin="16,0,0,0" VerticalAlignment="Center" FontSize="11" />
                         <Border Margin="12,0,0,0"
@@ -896,13 +1020,13 @@
                     </StackPanel>
 
                     <RichTextBox x:Name="LogRichTextBox"
-                                 Background="{StaticResource EditorCanvasBackgroundBrush}"
+                                 Background="{StaticResource EditorChromeBrush}"
                                  Foreground="{StaticResource EditorTextBrush}"
                                  BorderThickness="0"
                                  FontFamily="Consolas"
                                  FontSize="11"
                                  IsReadOnly="True"
-                                 Padding="10,8"
+                                 Padding="12,10"
                                  VerticalScrollBarVisibility="Auto"
                                  HorizontalScrollBarVisibility="Auto" />
                 </DockPanel>

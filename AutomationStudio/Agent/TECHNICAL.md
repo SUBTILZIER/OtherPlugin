@@ -98,9 +98,9 @@ Runtime / Nodes / Adapters
 - `StopAll()` 遍历取消所有运行中的 CancellationTokenSource。
 
 ### 托盘最小化 (`MainWindow.WindowLifecycle` + `ThemedDialogOverrides`)
-- `NotifyIcon`（`System.Windows.Forms`）在系统托盘显示图标。
-- 左键单击恢复窗口；右键弹出 ContextMenuStrip（"打开面板" / "退出程序"）。
-- `Window_ClosingThemed` 三选对话框：首次选"是"后 `_alwaysMinimizeToTray=true`，后续直接最小化。
+- `NotifyIcon`（`System.Windows.Forms`）只负责系统托盘图标和鼠标事件。
+- 左键单击恢复窗口；右键弹出项目自绘 WPF `TrayMenuWindow`（"打开面板" / "退出程序"），禁止恢复 WinForms 默认 `ContextMenuStrip`。
+- `Window_ClosingThemed` 关闭对话框固定只有三个按钮：`关闭软件` / `最小化` / `取消`，不再显示长说明，也不记忆“永远最小化到托盘”。
 - 退出时 `Application.Current.Shutdown()` + `Environment.Exit(0)` 确保进程完全结束。
 
 ### 工具栏执行状态 (`MainWindow.xaml` + `ExecutionController`)
@@ -129,14 +129,19 @@ Runtime / Nodes / Adapters
 - 右侧细节面板的 header、基础节点信息、编号 chip 使用卡片层级；禁用/前置输入态使用 disabled chip/input 颜色，避免看起来像普通可编辑输入。
 - 左侧 section 的折叠/新增按钮统一用 `EditorSidebarIconButtonStyle`；函数项“公开”开关使用紧凑短文案和 ToolTip，避免挤压函数名。细节面板内 `TextBox` / `ComboBox` 统一最小高度，保持字段节奏一致。
 - `MainWindow.xaml` 的顶部工具栏命令按钮统一用 `TopToolbarButtonStyle`；底部内容浏览器 folder/tree item 和 asset tile 分别用 `ContentFolderListItemBaseStyle`、`ContentAssetTileContainerStyle`。不要在每个 `ListBoxItem` 内重复写 hover/selected 模板。
+- 顶部工具栏按钮必须放在圆角分组容器里，并保留 hover、pressed、keyboard focus、disabled 四种状态反馈；不要恢复成透明裸按钮。
 - 顶部工具栏不再提供“新建图谱”全局入口；资产创建只能从内容浏览器走，避免绕过脚本主图/辅助图规则。“打开图谱”文案统一为“外部导入”。`鼠标拾取` 固定放在 `另存为` 后面。
 - `编译`、`显示最终代码`、`执行脚本` 属于编辑动作组：只有打开脚本或函数库编辑 session 后显示。`执行脚本` 只允许脚本事件图触发；函数库或非事件图下要禁用并给出 ToolTip。
 - 全项目禁止直接调用 `System.Windows.MessageBox.Show` / `WpfMessageBox.Show`。确认、错误、信息弹窗必须走 `ThemedDialog` 或项目自定义窗口；运行时 `ShowMessage` 节点也必须使用同风格弹窗。
+- 全项目禁止使用 Windows 原生默认面板/默认白底提示，包括 `MessageBox`、WinForms `ContextMenuStrip`、WPF 默认白底 `ToolTip`。所有弹窗、托盘菜单、右键菜单、Tooltip、属性浮层必须走项目暗色高对比样式。
+- 所有 UI 文本必须保证“背景/文字/边框”对比度一眼可读：暗底配亮字，禁用态也要能看清功能含义；不要使用浅底浅字、灰字贴近背景、按钮压文字、tooltip 白底灰字这类低对比方案。
+- `ThemedDialog` 按钮组居中显示，按钮必须有 hover、pressed、keyboard focus 反馈；空正文对话框只显示标题和按钮，不留大段说明空白。
 - 底部内容浏览器/日志 header 标题统一用 `BottomPanelTitleStyle`；日志过滤组用圆角 field card，日志正文保留等宽字体和较大的 padding，优先保证长期阅读清晰度。
 - 窗口标签栏使用圆角 tab：active 用 `EditorListSelectedBrush`，dirty 用 `CompileDirtyBorderBrush` 和左侧脏点提示；关闭按钮保持小尺寸但使用共享工具栏按钮风格。
 - 空编辑器状态使用中央引导卡片，不要回退成单行文字或整块空黑；节点菜单 `NodePalette` 要有标题、说明、搜索框和结果区层级。
 - `ScriptPropertiesWindow` 是代码构建 UI，仍要遵循卡片分组：运行设置和热键分组要留足宽度，热键行固定展示“按键 / 修改 / 按下次数 / 清空 / 触发时间阈值”，按钮不能压住文字。
 - `ScriptPropertiesWindow` 根布局保持“顶部标题固定 + 中间 `ScrollViewer` + 底部保存/取消固定”；新增设置项只能放入滚动内容区，禁止被底部按钮遮挡。
+- `ScriptPropertiesSummaryControl` 是脚本属性的内嵌可编辑面板：主页面无打开资产时，单击脚本资产会在 `EmptyEditorPanel` 直接显示可编辑属性；脚本编辑界面只有单击画布空白且无节点选中时，才会在右侧细节面板显示脚本属性。选中节点时必须显示节点详情，不能混入脚本属性。`EditorSurfaceContext` 的 node selection callback 也必须调用 MainWindow 的脚本属性隐藏/显示 helper，不能直接只调 `InspectorController.LoadNode(...)`，否则 session 自己选节点会残留脚本属性面板。
 - 新增编辑器 UI 颜色优先放在 `App.xaml` 的 `Editor*Brush`，不要在 XAML 中散落硬编码颜色；局部样式只负责布局、圆角、间距和状态触发。
 - 视觉优化只改样式时不得改控件 `x:Name`、事件处理器、Binding 路径，避免打断 `EditorSurfaceContext` / `InspectorController`。
 
@@ -261,6 +266,8 @@ public class GraphEditorService
 - `EditorSurfaceContext.Configure(...)` 是幂等的：同一个 session 的 controller 不因 host attach/activate 反复重建。surface 事件按类型分类：明确用户交互才提升 active session；`PinAnchorLoaded/LayoutUpdated`、无按键 `MouseMove`、初始化触发的 `TextChanged/SelectionChanged` 只使用所属 context 或直接忽略，避免 tab 闪动、列表折叠或 detached/main 互相污染。
 - surface controller 的 dirty/snapshot 回调按所属 `EditorSessionViewModel` 闭包绑定；编辑 detached 或非首个 tab 时不能直接依赖全局 `_activeAssetController`，否则 dirty 黄点和 compile target 会串到其它资产。
 - 当前图 controller 统一通过 `SetSessionActiveGraphController(session, controller)` 写入；它同步 `EditorSurfaceContext.ActiveAssetController`、session remembered active graph，以及当前操作 session 的 `_activeAssetController` 镜像。新增图/函数和 `LoadGraphItem(...)` 都必须用这个入口。
+- 主窗口 tab 切换是 view activation，不是 graph load。已打开并已加载 graph 的 tab 必须走 `ActivateEditorSessionFromMainTab(...)` 的轻量路径：只切 `_activeEditorSession`、active service/controller、toolbar、content browser selection 和 main host surface；禁止 `LoadFromModel(...)`、禁止清 active graph、禁止写 `graph-library.json`。首次打开资产、双击函数/事件跳转、显式切图表才允许重载目标 graph。
+- `GraphListController.LoadItem(..., persistAfterLoad: false)` 用于 `MainWindow.LoadGraphItem(...)` 这类导航加载；纯导航只 snapshot 到内存，不持久化。新增/删除/重命名/导入/保存/编译同步才允许触发 `PersistAssetLibrary()`。
 - session dirty/snapshot/compile helper 在 `MainWindow.EditorSessionState.cs`；不要把这些状态路径重新散回 `MainWindow.xaml.cs`。
 - `HandleEditorSurfaceEvent(...)` 处理完事件后不能把全局 `_activeAssetController` 回写到 `_activeEditorSession.SurfaceContext`。非 active surface 事件通过 `RunWithSurfaceContext(...)` 临时切 controller，结束后应恢复全局状态而不是污染其它 session。
 - detached session 激活时只更新全局工具栏/运行/保存目标，不覆盖 `_lastMainEditorSession`；主窗口继续显示最近的主窗口 tab surface。
@@ -698,7 +705,7 @@ Python 参数规则：
 - **根因**：`GraphListController.Load()` 内部会 `Persist()`。如果加载目标图前 owning session 的 `EditorSurfaceContext.ActiveAssetController` 仍指向旧 controller 或为空，`PersistAssetLibrary()` / snapshot / compile 会用错 controller。结果新加载的函数画布可能写回旧图，或函数库切回后重新加载默认 entry/return。
 - **修复**：
   - 新增统一入口 `ActivateGraphListItem(...)`。
-  - 切换顺序固定为：`SnapshotActiveAsset()` -> `SetSessionActiveGraphController(session, targetController, remember: false)` -> `targetController.LoadItem(item, snapshotCurrent: false)` -> `SetSessionActiveGraphController(session, targetController)`。
+  - 切换顺序固定为：`SnapshotActiveAsset()` -> `SetSessionActiveGraphController(session, targetController, remember: false)` -> `targetController.LoadItem(item, snapshotCurrent: false, persistAfterLoad: false)` -> `SetSessionActiveGraphController(session, targetController)`。
   - 事件图、函数列表项增加 `PreviewMouseLeftButtonDown`，单击即可切换编辑界面。
   - 右键列表项也先激活目标项，再打开菜单，避免重命名/删除走错 controller。
 - **本地验证建议**：可用事件图、函数来回切换，确认当前画布节点类型正确，并确认各自 `GraphFileModel.Nodes` 不混入其它图类型。
@@ -1075,7 +1082,7 @@ dotnet publish -c Release -r win-x64 \
 
 ### 重要坑点
 - 打开节点菜单前必须 `SnapshotActiveAsset()`，否则函数参数刚改完但未写回 `GraphFileModel`，调用节点会缺 pin。
-- `GraphListController.LoadItem(item, snapshotCurrent: false)` 用于上层资产切换；跨事件图/函数切换由 `MainWindow` 统一快照，并用 `SetSessionActiveGraphController(...)` 同步 owning session，避免图谱混写或函数库切回后回默认图。
+- `GraphListController.LoadItem(item, snapshotCurrent: false, persistAfterLoad: false)` 用于上层导航加载；跨事件图/函数切换由 `MainWindow` 统一快照，并用 `SetSessionActiveGraphController(...)` 同步 owning session，避免图谱混写或函数库切回后回默认图。主窗口 tab 切换不得调用它，已加载 session 只做轻量激活。
 - `ExecutionController`、`NodePaletteController`、`GraphCallReferenceSyncService` 都读取 `CallableGraphResolver` 产出的 `CallableGraphItem`，不要直接扫全局 `FunctionListItems`。
 - `公开到库` 是硬隔离：旧图如果跨脚本引用未公开库项，编译时报错并保留 dirty，不自动删节点。
 - `CustomEventCall` 在当前 `GraphExecutionPlan` 内找 `CustomEventId` 对应入口；运行时用 `custom_event:{id}` 调用栈阻止递归。
@@ -1106,3 +1113,14 @@ dotnet publish -c Release -r win-x64 \
 - `Window_PreviewKeyDown` routes `Delete` / `F2` to focused graph/content list, while text boxes keep normal editing behavior.
 - Content tree commands track `_contentFolderSelectionActive` so folder right-click/`Delete`/`F2` cannot act on a stale tile selection.
 - Build gate: `dotnet build .\AutomationStudioWpf.csproj -o .\bin\CodexBuildCheck` must stay `0 warning / 0 error`.
+## 2026-07-02：视觉优化补充
+
+- 顶部工具栏不要再使用 WPF 默认 `ToolBar` 直接承载按钮；默认 gripper/overflow 视觉不符合当前暗色编辑器风格。主窗口顶部命令区使用自绘 `Border + StackPanel` 分组，保留按钮 `x:Name` 和事件处理器。
+- 顶部工具栏按钮必须保持轻量 command strip：默认透明、hover 高亮、用分隔线区分基础命令/编辑命令；不要再把整组按钮包成厚重胶囊边框。
+- 工具栏分为基础命令组和编辑命令组：基础命令常显，编辑命令组只在脚本/函数库 session 打开后显示。视觉分组用 `EditorToolbarGroupBrush`，不要把所有按钮铺成一排。
+- 窗口标签栏使用独立 chrome 背景、圆角 tab、active 底部 accent 线、dirty 小点。后续改 tab 样式时不得破坏拖拽独立窗口事件。
+- detached 子窗口只保留“停靠回主窗口”按钮；编辑靠点击窗口激活，关闭靠 OS 窗口 `×`，不要恢复“编辑此窗口/关闭窗口”冗余按钮。
+- 底部内容浏览器和日志区按两个独立卡片处理，避免硬边框大黑块。主日志窗口和独立日志窗口要保持同一视觉层级。
+- `NodePalette`、执行冻结遮罩、最终代码窗口、脚本属性窗口都属于编辑器浮层；必须使用卡片背景、边框和阴影，不要退回系统默认窗口或朴素白底控件。
+- `ScriptPropertiesWindow` 是代码构建 UI；热键行需要足够列宽，窗口默认宽度不应低于 820，内容超出走中间滚动区，底部保存/取消固定。
+- 新增视觉资源优先放 `App.xaml` 的 `Editor*Brush`，局部 XAML 只负责布局和状态触发；不要散落硬编码颜色。

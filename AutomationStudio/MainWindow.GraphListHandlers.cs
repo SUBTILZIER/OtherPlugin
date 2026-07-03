@@ -133,7 +133,7 @@ public partial class MainWindow
             SnapshotActiveAsset();
 
         SetSessionActiveGraphController(GetOperationEditorSession(), controller, remember: false);
-        controller.LoadItem(item, snapshotCurrent: false);
+        controller.LoadItem(item, snapshotCurrent: false, persistAfterLoad: false);
         var session = GetOperationEditorSession();
         SetSessionActiveGraphController(session, controller);
         _graphCommandService.Clear();

@@ -45,6 +45,7 @@ using WpfTextBlock = System.Windows.Controls.TextBlock;
 using WpfTextBox = System.Windows.Controls.TextBox;
 using WpfTextTrimming = System.Windows.TextTrimming;
 using WpfThickness = System.Windows.Thickness;
+using WpfToggleButton = System.Windows.Controls.Primitives.ToggleButton;
 using WpfUIElement = System.Windows.UIElement;
 using WpfVerticalAlignment = System.Windows.VerticalAlignment;
 using WpfVisibility = System.Windows.Visibility;
@@ -103,7 +104,7 @@ public partial class MainWindow
     {
         if (e.OriginalSource is not WpfDependencyObject source || !IsVisualInside(ContentBrowserListBox, source))
             return;
-        if (HasVisualAncestor<WpfTextBox>(source))
+        if (HasVisualAncestor<WpfTextBox>(source) || HasVisualAncestor<WpfToggleButton>(source))
             return;
 
         _contentFolderSelectionActive = false;
@@ -130,11 +131,13 @@ public partial class MainWindow
             }
 
             SelectContentAssetForClick(asset, WpfKeyboard.Modifiers, forceSingle: false);
+            ShowContentAssetPreviewIfIdle(asset);
             e.Handled = true;
             return;
         }
 
         _contentDragCandidate = null;
+        ShowContentAssetPreviewIfIdle(null);
         BeginContentBoxSelection(e.GetPosition(ContentBrowserListBox), WpfKeyboard.Modifiers);
         e.Handled = true;
     }
@@ -143,7 +146,7 @@ public partial class MainWindow
     {
         if (e.OriginalSource is not WpfDependencyObject source || !IsVisualInside(ContentBrowserListBox, source))
             return;
-        if (HasVisualAncestor<WpfTextBox>(source))
+        if (HasVisualAncestor<WpfTextBox>(source) || HasVisualAncestor<WpfToggleButton>(source))
             return;
 
         _contentFolderSelectionActive = false;
@@ -264,6 +267,11 @@ public partial class MainWindow
             canRename && selectedAsset?.Kind == ContentAssetKind.Script
                 ? WpfVisibility.Visible
                 : WpfVisibility.Collapsed;
+        ContentBrowserToggleScriptEnabledMenuItem.Visibility =
+            canRename && selectedAsset?.Kind == ContentAssetKind.Script
+                ? WpfVisibility.Visible
+                : WpfVisibility.Collapsed;
+        ContentBrowserToggleScriptEnabledMenuItem.IsChecked = selectedAsset?.IsScriptEnabled == true;
         ContentBrowserAssetMenuSeparator.Visibility = hasSelection ? WpfVisibility.Visible : WpfVisibility.Collapsed;
 
         var newVisibility = hasSelection ? WpfVisibility.Collapsed : WpfVisibility.Visible;

@@ -65,18 +65,34 @@ internal sealed class FinalCodePreviewWindow : Window
 
     private UIElement BuildContent()
     {
+        var shell = new Border
+        {
+            Background = WindowBackgroundBrush,
+            BorderBrush = WindowBorderBrush,
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(14),
+            Padding = new Thickness(14),
+        };
+
         var root = new DockPanel
         {
-            Margin = new Thickness(14),
-        };
-
-        var header = new DockPanel
-        {
             LastChildFill = true,
+        };
+        shell.Child = root;
+
+        var header = new Border
+        {
+            Background = FrozenBrush(32, 39, 51),
+            BorderBrush = WindowBorderBrush,
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(10),
+            Padding = new Thickness(12, 10, 12, 10),
             Margin = new Thickness(0, 0, 0, 10),
         };
+        var headerDock = new DockPanel { LastChildFill = true };
+        header.Child = headerDock;
 
-        header.Children.Add(new TextBlock
+        headerDock.Children.Add(new TextBlock
         {
             Text = "显示最终代码",
             Foreground = TitleBrush,
@@ -89,7 +105,7 @@ internal sealed class FinalCodePreviewWindow : Window
         _statusText.Text = "只读预览";
         _statusText.VerticalAlignment = VerticalAlignment.Center;
         _statusText.Foreground = MutedBrush;
-        header.Children.Add(_statusText);
+        headerDock.Children.Add(_statusText);
 
         DockPanel.SetDock(header, Dock.Top);
         root.Children.Add(header);
@@ -115,7 +131,7 @@ internal sealed class FinalCodePreviewWindow : Window
         _textBox.ContextMenu = BuildContextMenu();
 
         root.Children.Add(_textBox);
-        return root;
+        return shell;
     }
 
     private WpfContextMenu BuildContextMenu()

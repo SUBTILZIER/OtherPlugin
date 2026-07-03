@@ -27,7 +27,6 @@ namespace AutomationStudioWpf;
 public partial class MainWindow
 {
     private bool _isReallyClosing;
-    private bool _alwaysMinimizeToTray;
     private bool _themedDialogOverridesInstalled;
     private readonly HashSet<EditorSurfaceControl> _themedGraphListHandlerSurfaces = [];
 
@@ -201,23 +200,16 @@ public partial class MainWindow
 
         if (!_isReallyClosing)
         {
-            if (_alwaysMinimizeToTray)
-            {
-                e.Cancel = true;
-                MinimizeToTray();
-                return;
-            }
             var choice = ThemedDialog.ShowCustom(
                 this,
-                "是否最小化到系统托盘？\n选择 [是] 最小化到托盘，选择 [否] 退出程序。",
+                string.Empty,
                 "关闭窗口",
                 MessageBoxImage.Question,
-                new ThemedDialogButton("是 - 最小化到托盘", MessageBoxResult.Yes, true),
-                new ThemedDialogButton("否 - 退出程序", MessageBoxResult.No),
+                new ThemedDialogButton("关闭软件", MessageBoxResult.No),
+                new ThemedDialogButton("最小化", MessageBoxResult.Yes, true),
                 new ThemedDialogButton("取消", MessageBoxResult.Cancel));
             if (choice == MessageBoxResult.Yes)
             {
-                _alwaysMinimizeToTray = true;
                 e.Cancel = true;
                 MinimizeToTray();
                 return;

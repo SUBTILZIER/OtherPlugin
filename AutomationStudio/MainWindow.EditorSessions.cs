@@ -116,7 +116,6 @@ public partial class MainWindow
             session.DetachedWindow = new DetachedEditorWindow(
                 session,
                 this,
-                ActivateEditorSessionFromDetachedWindow,
                 DockEditorSessionToTab,
                 CloseEditorSession,
                 HandleDetachedEditorPreviewMouseDown);
@@ -170,7 +169,65 @@ public partial class MainWindow
     {
         _lastMainEditorSession = session;
         RestoreMainEditorDefaultPanel();
+        if (targetGraph is null && targetKind is null && TryActivateLoadedMainTabSession(session))
+            return;
+
         ActivateEditorSession(session, targetGraph, targetKind);
+    }
+
+    private bool TryActivateLoadedMainTabSession(EditorSessionViewModel session)
+    {
+        if (_executionController?.IsRunning == true)
+        {
+            SetStatus("执行中，不能切换编辑窗口。");
+            return true;
+        }
+
+        if (session.DockMode == EditorDockMode.Detached)
+            return false;
+
+        if (session.SurfaceContext is not { IsConfigured: true } context)
+            return false;
+
+        // Main tabs are view activation only. Do not reload the graph or persist
+        // graph-library.json here; loaded sessions already own their surface state.
+        var sessionController = GetSessionActiveAssetController(session);
+        if (sessionController is null)
+            return false;
+
+        if (ReferenceEquals(session, _activeEditorSession))
+        {
+            _lastMainEditorSession = session;
+            ShowEditorSurfaceForSession(session);
+            ApplyEditorSurfaceContext(context);
+            UpdateGraphSectionVisibility();
+            UpdateEditorSessionChrome();
+            return true;
+        }
+
+        CommitCurrentSessionToAsset();
+
+        if (_activeEditorSession is not null)
+            _activeEditorSession.IsActive = false;
+
+        _activeEditorSession = session;
+        _activeEditorSession.IsActive = true;
+        _activeContentAsset = session.ContentAsset;
+        _editorService = session.EditorService;
+        _nodeFactory = session.NodeFactory;
+
+        ShowEditorSurfaceForSession(session);
+        if (!ReferenceEquals(ContentBrowserListBox.SelectedItem, session.ContentAsset))
+            ContentBrowserListBox.SelectedItem = session.ContentAsset;
+
+        AttachActiveEditorService(_editorService);
+        RebuildExecutionController();
+        ApplyEditorSurfaceContext(context);
+        AttachGraphCollectionChangeHandlers();
+        UpdateGraphSectionVisibility();
+        UpdateEditorSessionChrome();
+        SetStatus($"已切换窗口：{session.ContentAsset.Name}");
+        return true;
     }
 
     private void ActivateEditorSessionFromDetachedWindow(EditorSessionViewModel session)

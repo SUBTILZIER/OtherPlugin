@@ -13,14 +13,12 @@ public sealed class DetachedEditorWindow : Window
 {
     private static readonly SolidColorBrush WindowBackgroundBrush = FrozenBrush(17, 21, 26);
     private static readonly SolidColorBrush ToolbarBackgroundBrush = FrozenBrush(32, 36, 43);
-    private static readonly SolidColorBrush ButtonPrimaryForegroundBrush = FrozenBrush(12, 16, 22);
     private static readonly SolidColorBrush ButtonForegroundBrush = FrozenBrush(232, 237, 245);
     private static readonly SolidColorBrush ButtonBackgroundBrush = FrozenBrush(36, 43, 53);
     private static readonly SolidColorBrush ButtonBorderBrush = FrozenBrush(79, 94, 116);
     private static readonly SolidColorBrush TitleForegroundBrush = FrozenBrush(232, 237, 245);
 
     private readonly EditorSessionViewModel _session;
-    private readonly Action<EditorSessionViewModel> _activateRequested;
     private readonly Action<EditorSessionViewModel> _dockRequested;
     private readonly Action<EditorSessionViewModel> _closeRequested;
     private readonly Action<EditorSessionViewModel, MouseButtonEventArgs> _previewMouseDownRequested;
@@ -35,13 +33,11 @@ public sealed class DetachedEditorWindow : Window
     public DetachedEditorWindow(
         EditorSessionViewModel session,
         Window owner,
-        Action<EditorSessionViewModel> activateRequested,
         Action<EditorSessionViewModel> dockRequested,
         Action<EditorSessionViewModel> closeRequested,
         Action<EditorSessionViewModel, MouseButtonEventArgs> previewMouseDownRequested)
     {
         _session = session;
-        _activateRequested = activateRequested;
         _dockRequested = dockRequested;
         _closeRequested = closeRequested;
         _previewMouseDownRequested = previewMouseDownRequested;
@@ -109,20 +105,10 @@ public sealed class DetachedEditorWindow : Window
             LastChildFill = true,
         };
 
-        var closeButton = CreateButton("关闭窗口");
-        closeButton.Click += (_, _) => _closeRequested(_session);
-        DockPanel.SetDock(closeButton, Dock.Right);
-        bar.Children.Add(closeButton);
-
         var dockButton = CreateButton("停靠回主窗口");
         dockButton.Click += (_, _) => _dockRequested(_session);
         DockPanel.SetDock(dockButton, Dock.Right);
         bar.Children.Add(dockButton);
-
-        var activateButton = CreateButton("编辑此窗口");
-        activateButton.Click += (_, _) => _activateRequested(_session);
-        DockPanel.SetDock(activateButton, Dock.Right);
-        bar.Children.Add(activateButton);
 
         _titleText.Foreground = TitleForegroundBrush;
         _titleText.FontWeight = FontWeights.SemiBold;

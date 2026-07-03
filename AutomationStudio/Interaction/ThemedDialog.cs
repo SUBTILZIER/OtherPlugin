@@ -19,6 +19,8 @@ public static class ThemedDialog
     private static readonly SolidColorBrush ButtonForegroundBrush = FrozenBrush(232, 237, 245);
     private static readonly SolidColorBrush PrimaryButtonForegroundBrush = FrozenBrush(12, 16, 22);
     private static readonly SolidColorBrush ButtonBackgroundBrush = FrozenBrush(36, 43, 53);
+    private static readonly SolidColorBrush ButtonHoverBackgroundBrush = FrozenBrush(45, 56, 70);
+    private static readonly SolidColorBrush ButtonPressedBackgroundBrush = FrozenBrush(31, 39, 50);
     private static readonly SolidColorBrush ButtonBorderBrush = FrozenBrush(79, 94, 116);
 
     public static MessageBoxResult Show(Window? owner, string message, string title, MessageBoxButton buttons = MessageBoxButton.OK, MessageBoxImage image = MessageBoxImage.None)
@@ -53,58 +55,93 @@ public static class ThemedDialog
             Background = WindowBackgroundBrush,
             BorderBrush = WindowBorderBrush,
             BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(8),
-            Padding = new Thickness(18),
+            CornerRadius = new CornerRadius(10),
+            Padding = new Thickness(20),
+            Effect = new System.Windows.Media.Effects.DropShadowEffect
+            {
+                Color = Colors.Black,
+                BlurRadius = 22,
+                ShadowDepth = 5,
+                Opacity = 0.35,
+            },
         };
 
         var panel = new StackPanel();
+        var titleRow = new DockPanel
+        {
+            LastChildFill = true,
+            Margin = new Thickness(0, 0, 0, string.IsNullOrWhiteSpace(message) ? 10 : 12),
+        };
+        titleRow.Children.Add(new Border
+        {
+            Width = 4,
+            Height = 20,
+            CornerRadius = new CornerRadius(2),
+            Background = new SolidColorBrush(accent),
+            Margin = new Thickness(0, 0, 10, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+        });
         var titleText = new TextBlock
         {
             Text = title,
             Foreground = new SolidColorBrush(accent),
             FontSize = 16,
             FontWeight = FontWeights.SemiBold,
-            Margin = new Thickness(0, 0, 0, 10),
+            VerticalAlignment = VerticalAlignment.Center,
         };
-        titleText.MouseLeftButtonDown += (_, e) =>
+        titleRow.MouseLeftButtonDown += (_, e) =>
         {
             if (e.ButtonState == MouseButtonState.Pressed)
                 window.DragMove();
         };
-        panel.Children.Add(titleText);
+        titleRow.Children.Add(titleText);
+        panel.Children.Add(titleRow);
 
-        panel.Children.Add(new TextBlock
+        if (!string.IsNullOrWhiteSpace(message))
         {
-            Text = message,
-            Foreground = BodyForegroundBrush,
-            TextWrapping = TextWrapping.Wrap,
-            LineHeight = 20,
-            Margin = new Thickness(0, 0, 0, 18),
-        });
+            panel.Children.Add(new TextBlock
+            {
+                Text = message,
+                Foreground = BodyForegroundBrush,
+                TextWrapping = TextWrapping.Wrap,
+                LineHeight = 20,
+                Margin = new Thickness(0, 0, 0, 18),
+            });
+        }
 
         var buttonPanel = new StackPanel
         {
             Orientation = System.Windows.Controls.Orientation.Horizontal,
-            HorizontalAlignment = System.Windows.HorizontalAlignment.Right,
+            HorizontalAlignment = System.Windows.HorizontalAlignment.Center,
+            Margin = new Thickness(0, string.IsNullOrWhiteSpace(message) ? 4 : 0, 0, 0),
         };
 
-        foreach (var item in buttons)
+        for (var i = 0; i < buttons.Length; i++)
         {
+            var item = buttons[i];
+            var normalBackground = item.IsPrimary ? new SolidColorBrush(accent) : ButtonBackgroundBrush;
+            var hoverBackground = item.IsPrimary ? new SolidColorBrush(Lighten(accent, 16)) : ButtonHoverBackgroundBrush;
+            var pressedBackground = item.IsPrimary ? new SolidColorBrush(Darken(accent, 18)) : ButtonPressedBackgroundBrush;
             var button = new System.Windows.Controls.Button
             {
                 Content = item.Text,
                 MinWidth = 82,
                 Height = 30,
                 Padding = new Thickness(12, 0, 12, 0),
-                Margin = new Thickness(8, 0, 0, 0),
+                Margin = new Thickness(i == 0 ? 0 : 8, 0, 0, 0),
                 IsDefault = item.IsPrimary,
                 IsCancel = item.Result == MessageBoxResult.Cancel,
                 Foreground = item.IsPrimary ? PrimaryButtonForegroundBrush : ButtonForegroundBrush,
-                Background = item.IsPrimary ? new SolidColorBrush(accent) : ButtonBackgroundBrush,
+                Background = normalBackground,
                 BorderBrush = ButtonBorderBrush,
                 BorderThickness = new Thickness(1),
                 Cursor = System.Windows.Input.Cursors.Hand,
+                Template = BuildButtonTemplate(),
             };
+            button.MouseEnter += (_, _) => button.Background = hoverBackground;
+            button.MouseLeave += (_, _) => button.Background = normalBackground;
+            button.PreviewMouseLeftButtonDown += (_, _) => button.Background = pressedBackground;
+            button.PreviewMouseLeftButtonUp += (_, _) => button.Background = button.IsMouseOver ? hoverBackground : normalBackground;
             button.Click += (_, _) =>
             {
                 result = item.Result;
@@ -116,8 +153,39 @@ public static class ThemedDialog
         panel.Children.Add(buttonPanel);
         root.Child = panel;
         window.Content = root;
+        window.Loaded += (_, _) =>
+        {
+            buttonPanel.Children.OfType<System.Windows.Controls.Button>().FirstOrDefault(button => button.IsDefault)?.Focus();
+        };
         window.ShowDialog();
         return result;
+    }
+
+    private static ControlTemplate BuildButtonTemplate()
+    {
+        var border = new FrameworkElementFactory(typeof(Border));
+        border.Name = "ButtonBorder";
+        border.SetValue(Border.BackgroundProperty, new TemplateBindingExtension(System.Windows.Controls.Button.BackgroundProperty));
+        border.SetValue(Border.BorderBrushProperty, new TemplateBindingExtension(System.Windows.Controls.Button.BorderBrushProperty));
+        border.SetValue(Border.BorderThicknessProperty, new TemplateBindingExtension(System.Windows.Controls.Button.BorderThicknessProperty));
+        border.SetValue(Border.CornerRadiusProperty, new CornerRadius(7));
+
+        var presenter = new FrameworkElementFactory(typeof(ContentPresenter));
+        presenter.SetValue(ContentPresenter.HorizontalAlignmentProperty, System.Windows.HorizontalAlignment.Center);
+        presenter.SetValue(ContentPresenter.VerticalAlignmentProperty, VerticalAlignment.Center);
+        presenter.SetValue(ContentPresenter.MarginProperty, new TemplateBindingExtension(System.Windows.Controls.Button.PaddingProperty));
+        presenter.SetValue(ContentPresenter.RecognizesAccessKeyProperty, true);
+        border.AppendChild(presenter);
+
+        var template = new ControlTemplate(typeof(System.Windows.Controls.Button)) { VisualTree = border };
+        var disabled = new Trigger { Property = UIElement.IsEnabledProperty, Value = false };
+        disabled.Setters.Add(new Setter(UIElement.OpacityProperty, 0.55, "ButtonBorder"));
+        template.Triggers.Add(disabled);
+
+        var focused = new Trigger { Property = UIElement.IsKeyboardFocusedProperty, Value = true };
+        focused.Setters.Add(new Setter(Border.BorderBrushProperty, FrozenBrush(116, 178, 255), "ButtonBorder"));
+        template.Triggers.Add(focused);
+        return template;
     }
 
     private static ThemedDialogButton[] BuildButtons(MessageBoxButton buttons) => buttons switch
@@ -142,6 +210,16 @@ public static class ThemedDialog
         MessageBoxImage.Information => WpfColor.FromRgb(79, 163, 255),
         _ => WpfColor.FromRgb(167, 177, 191),
     };
+
+    private static WpfColor Lighten(WpfColor color, byte amount) =>
+        WpfColor.FromRgb(Add(color.R, amount), Add(color.G, amount), Add(color.B, amount));
+
+    private static WpfColor Darken(WpfColor color, byte amount) =>
+        WpfColor.FromRgb(Subtract(color.R, amount), Subtract(color.G, amount), Subtract(color.B, amount));
+
+    private static byte Add(byte value, byte amount) => (byte)System.Math.Min(255, value + amount);
+
+    private static byte Subtract(byte value, byte amount) => (byte)System.Math.Max(0, value - amount);
 
     private static SolidColorBrush FrozenBrush(byte r, byte g, byte b)
     {

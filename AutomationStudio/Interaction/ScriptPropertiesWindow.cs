@@ -55,9 +55,10 @@ public sealed class ScriptPropertiesWindow : Window
     {
         Owner = owner;
         Title = $"脚本属性 - {assetName}";
-        Width = 760;
-        MinWidth = 740;
-        Height = 580;
+        Width = 840;
+        MinWidth = 820;
+        Height = 640;
+        MinHeight = 560;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         Background = WindowBackgroundBrush;
         Foreground = Brushes.White;
@@ -77,12 +78,12 @@ public sealed class ScriptPropertiesWindow : Window
             BorderBrush = CardBorderBrush,
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(16),
-            Padding = new Thickness(20),
+            Padding = new Thickness(22),
         };
         var root = new DockPanel();
         shell.Child = root;
 
-        var header = new StackPanel { Margin = new Thickness(0, 0, 0, 18) };
+        var header = new StackPanel { Margin = new Thickness(0, 0, 0, 20) };
         var title = new TextBlock
         {
             Text = "脚本属性",
@@ -105,7 +106,7 @@ public sealed class ScriptPropertiesWindow : Window
         {
             Orientation = Orientation.Horizontal,
             HorizontalAlignment = HorizontalAlignment.Right,
-            Margin = new Thickness(0, 16, 0, 0),
+            Margin = new Thickness(0, 18, 0, 0),
         };
         DockPanel.SetDock(buttons, Dock.Bottom);
         var save = CreateButton("保存设置", 96);
@@ -315,7 +316,7 @@ public sealed class ScriptPropertiesWindow : Window
         TextBox triggerWindowBox,
         Action capture)
     {
-        label.Width = 148;
+        label.Width = 170;
         label.VerticalAlignment = VerticalAlignment.Center;
         label.Foreground = Brushes.White;
         label.TextTrimming = TextTrimming.CharacterEllipsis;
@@ -326,7 +327,7 @@ public sealed class ScriptPropertiesWindow : Window
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(8),
             Padding = new Thickness(12, 7, 12, 7),
-            Width = 164,
+            Width = 196,
             Child = label,
             ToolTip = "当前绑定的键盘键或鼠标键。未设置时显示“无”。",
         };
@@ -404,13 +405,13 @@ public sealed class ScriptPropertiesWindow : Window
 
     private static void AddHotkeyColumns(Grid grid)
     {
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(92) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(48) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(204) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(82) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(44) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(172) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(76) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(86) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(70) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(68) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(92) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(80) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(72) });
     }
 
     private static void AddToGrid(Grid grid, UIElement child, int column, int columnSpan = 1)

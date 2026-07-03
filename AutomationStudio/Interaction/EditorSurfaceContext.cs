@@ -361,7 +361,16 @@ public sealed class EditorSurfaceContext
         Session.NodeFactory.ResetCounter(maxSeq);
     }
 
-    private void LoadNodeToInspector(NodeBaseViewModel? node) => InspectorController.LoadNode(node);
+    private void LoadNodeToInspector(NodeBaseViewModel? node)
+    {
+        if (node is not null)
+            _host?.HideScriptPropertiesInInspector(Surface);
+
+        InspectorController.LoadNode(node);
+
+        if (node is null && !Session.EditorService.Nodes.Any(item => item.IsSelected))
+            _host?.TryShowScriptPropertiesInInspector(Session, Surface);
+    }
 
     private bool TryGetPinAtPosition(Point position, out PinViewModel? pin)
     {

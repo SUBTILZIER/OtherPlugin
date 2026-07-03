@@ -35,8 +35,8 @@
 - `ScriptRunManager` manages script run lifecycle: compile → execute with loop count / until-stopped / duration modes. It enforces single-instance-per-asset, reports running status to the toolbar, and handles hotkey dispatch.
 - `ScriptPropertiesWindow` is a themed dark WPF dialog for configuring per-script run settings (loop mode, start/stop hotkeys, press count, trigger time window). Hotkey conflicts are validated before save. All controls have Chinese ToolTip explanations.
 - `ScriptHotkeyCaptureWindow` handles mouse wheel (WheelForward/WheelBackward) in addition to keyboard and mouse buttons. A `_captured` guard prevents double-capture from WPF re-entrant events.
-- Closing the main window shows a three-option themed dialog (minimize-to-tray / exit / cancel). First "minimize" choice persists via `_alwaysMinimizeToTray`.
-- `NotifyIcon` lives in the system tray: left-click restores window, right-click shows context menu with "打开面板" and "退出程序".
+- Closing the main window shows only three themed choices: `关闭软件`, `最小化`, and `取消`; no persistent minimize preference is kept.
+- `NotifyIcon` lives in the system tray: left-click restores window, right-click opens the themed tray menu with "打开面板" and "退出程序".
 - Hotkey triggers play distinct `Console.Beep` tones: start = 800Hz/150ms, stop = 400Hz/300ms.
 - `ExecutionController.SetRunButtonRunning/RestoreRunButton` fire `ExecutionStateChanged` callback; `ScriptRunManager` exposes `IsAnyRunning` + `RunningStateChanged` event. MainWindow combines both into `IsExecuting` DP, which drives toolbar button styles via XAML DataTrigger.
 - `StopExecutionButton` (red, bold) appears only during execution; click calls `_scriptRunManager.StopAll()` + `_executionController.Cancel()` (equivalent to Esc).
@@ -63,7 +63,7 @@ UE4 风格的 WPF 蓝图节点编辑器 — 用于桌面自动化脚本编排。
 - **执行控制**: 支持按次数循环、循环到终止键、按时长循环；运行状态实时显示；热键冲突校验
 - **热键配置**: 启动/终止热键独立配置，支持按键、按下次数、触发时间阈值（毫秒）；鼠标滚轮前滚/后滚可设为热键
 - **提示音反馈**: 热键触发时播放区分音调（启动高音/终止低音），无需看屏幕即可感知脚本状态
-- **托盘最小化**: 关闭窗口可选择最小化到系统托盘，首次选择后记忆偏好，不再重复询问
+- **托盘最小化**: 关闭窗口只显示 `关闭软件 / 最小化 / 取消` 三个选择；托盘右键使用项目暗色菜单
 - **执行中工具栏**: 执行时按钮变蓝"⏳ 执行中..."，出现红色"⏹ 停止执行"按钮；点击停止等效按 Esc
 
 ## 使用
@@ -78,7 +78,7 @@ UE4 风格的 WPF 蓝图节点编辑器 — 用于桌面自动化脚本编排。
 8. 点击"鼠标拾取"可查看/复制当前屏幕坐标与颜色；左键弹复制选项，复制后退出，取消继续拾取，右键退出
 9. 右键脚本资产 → 属性，可配置全局热键（支持鼠标滚轮）、触发时间阈值、循环执行等运行参数；所有属性有悬停 ToolTip 说明
 10. 配置热键后，无需编辑器前置即可通过热键启动/停止对应脚本；启动/终止热键触发时有区分提示音
-11. 关闭窗口时可选最小化到托盘；首次选择后默认记忆；托盘右键菜单"打开面板/退出程序"
+11. 关闭窗口时可选关闭软件、最小化或取消；托盘右键菜单为项目暗色风格，包含"打开面板/退出程序"
 12. 执行图谱时工具栏出现红色停止按钮，点击可随时终止执行
 
 ## 快捷键

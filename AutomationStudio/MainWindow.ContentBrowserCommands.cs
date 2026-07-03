@@ -124,6 +124,9 @@ public partial class MainWindow
         ContentBrowserDeleteMenuItem.Visibility = assetVisibility;
         ContentBrowserPropertiesMenuItem.Visibility =
             selected?.Kind == ContentAssetKind.Script ? Visibility.Visible : Visibility.Collapsed;
+        ContentBrowserToggleScriptEnabledMenuItem.Visibility =
+            selected?.Kind == ContentAssetKind.Script ? Visibility.Visible : Visibility.Collapsed;
+        ContentBrowserToggleScriptEnabledMenuItem.IsChecked = selected?.IsScriptEnabled == true;
         ContentBrowserAssetMenuSeparator.Visibility = assetVisibility;
         ContentBrowserNewScriptMenuItem.Visibility = newVisibility;
         ContentBrowserNewFolderMenuItem.Visibility = newVisibility;
@@ -197,6 +200,49 @@ public partial class MainWindow
     {
         ShowSelectedScriptProperties();
         _contentBrowserContextTargetsAsset = false;
+    }
+
+    private void ContentBrowserToggleScriptEnabledMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        if ((_contentBrowserContextTargetAsset ?? GetSelectedContentAsset()) is not { Kind: ContentAssetKind.Script } asset)
+            return;
+
+        SetScriptAssetEnabled(asset, !asset.IsScriptEnabled);
+        e.Handled = true;
+    }
+
+    private void ContentAssetScriptEnabledCheckBox_Changed(object sender, RoutedEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.CheckBox { DataContext: ContentAssetViewModel { Kind: ContentAssetKind.Script } asset } checkBox)
+            return;
+
+        SetScriptAssetEnabled(asset, checkBox.IsChecked == true);
+        e.Handled = true;
+    }
+
+    private void SetScriptAssetEnabled(ContentAssetViewModel asset, bool enabled)
+    {
+        if (asset.Kind != ContentAssetKind.Script || asset.IsScriptEnabled == enabled)
+            return;
+
+        asset.IsScriptEnabled = enabled;
+        if (enabled)
+        {
+            var conflicts = _scriptHotkeyService.Validate(ContentBrowserItems);
+            if (conflicts.Count > 0)
+            {
+                asset.IsScriptEnabled = false;
+                ThemedDialog.Show(this, string.Join(Environment.NewLine, conflicts), "热键冲突", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+        }
+
+        asset.IsDirty = true;
+        PersistAssetLibrary();
+        RefreshScriptHotkeys();
+        SetStatus(enabled
+            ? $"已启用脚本热键监听：{asset.Name}"
+            : $"已禁用脚本热键监听：{asset.Name}");
     }
 
     private void ContentAssetNameTextBox_KeyDown(object sender, KeyEventArgs e)

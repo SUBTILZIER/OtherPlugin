@@ -202,6 +202,7 @@ public sealed class ContentAssetViewModel : ObservableObject
     private int _viewDepth;
     private bool _hasFolderChildren;
     private bool _isTreeExpanded;
+    private bool _isScriptEnabled = true;
 
     public string Id { get; init; } = Guid.NewGuid().ToString("N");
 
@@ -236,6 +237,17 @@ public sealed class ContentAssetViewModel : ObservableObject
     public ObservableCollection<GraphListItemViewModel> Functions { get; set; } = [];
 
     public ScriptRunSettings RunSettings { get; set; } = new();
+
+    public bool IsScriptEnabled
+    {
+        get => Kind == ContentAssetKind.Script && _isScriptEnabled;
+        set
+        {
+            bool next = Kind == ContentAssetKind.Script && value;
+            if (SetProperty(ref _isScriptEnabled, next))
+                OnPropertyChanged(nameof(ScriptEnabledToolTip));
+        }
+    }
 
     public bool IsEditing
     {
@@ -332,6 +344,14 @@ public sealed class ContentAssetViewModel : ObservableObject
 
     [System.Text.Json.Serialization.JsonIgnore]
     public bool IsFolder => Kind == ContentAssetKind.Folder;
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool ShowScriptEnableToggle => Kind == ContentAssetKind.Script;
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string ScriptEnabledToolTip => IsScriptEnabled
+        ? "是否启用：已启用。启用后可监听全局热键。"
+        : "是否启用：已禁用。禁用后不会监听全局热键。";
 
     [System.Text.Json.Serialization.JsonIgnore]
     public string TileGlyph => Kind switch
