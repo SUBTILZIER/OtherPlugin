@@ -99,7 +99,7 @@
                             <Trigger Property="IsMouseOver" Value="True">
                                 <Setter TargetName="ButtonChrome" Property="Background" Value="{StaticResource EditorChromeHighlightBrush}" />
                                 <Setter TargetName="ButtonChrome" Property="BorderBrush" Value="{StaticResource EditorSelectedBorderBrush}" />
-                                <Setter Property="Foreground" Value="#FFFFFF" />
+                                <Setter Property="Foreground" Value="{StaticResource EditorTextBrightBrush}" />
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
                                 <Setter TargetName="ButtonChrome" Property="Background" Value="{StaticResource EditorListSelectedBrush}" />
@@ -458,6 +458,7 @@
                             <Button Content="保存" Style="{StaticResource TopToolbarButtonStyle}" Click="SaveGraph_Click" />
                             <Button Content="另存为" Style="{StaticResource TopToolbarButtonStyle}" Click="SaveGraphAs_Click" />
                             <Button x:Name="MousePickButton" Content="鼠标拾取" Style="{StaticResource TopToolbarButtonStyle}" Click="MousePick_Click" />
+                            <Button x:Name="SettingsButton" Content="设置" Style="{StaticResource TopToolbarButtonStyle}" Click="Settings_Click" />
                         </StackPanel>
                     </Border>
 

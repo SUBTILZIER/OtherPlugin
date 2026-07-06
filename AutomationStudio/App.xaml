@@ -2,66 +2,67 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="clr-namespace:AutomationStudioWpf"
+             xmlns:po="http://schemas.microsoft.com/winfx/2006/xaml/presentation/options"
              ShutdownMode="OnMainWindowClose"
              >
     <Application.Resources>
-        <!-- Rider-like dark palette -->
-        <SolidColorBrush x:Key="AppBackgroundBrush" Color="#1E1F22" />
-        <SolidColorBrush x:Key="PanelBackgroundBrush" Color="#25272B" />
-        <SolidColorBrush x:Key="PanelAltBackgroundBrush" Color="#2B2D31" />
-        <SolidColorBrush x:Key="BorderBrushDark" Color="#3C4048" />
-        <SolidColorBrush x:Key="ForegroundPrimaryBrush" Color="#DFE1E5" />
-        <SolidColorBrush x:Key="ForegroundSecondaryBrush" Color="#A8ADB7" />
-        <SolidColorBrush x:Key="AccentBrush" Color="#4C89FF" />
-        <SolidColorBrush x:Key="AccentHoverBrush" Color="#5D97FF" />
-        <SolidColorBrush x:Key="AccentPressedBrush" Color="#3B73E0" />
-        <SolidColorBrush x:Key="InputBackgroundBrush" Color="#31343A" />
-        <SolidColorBrush x:Key="InputBorderBrush" Color="#4B5260" />
-        <SolidColorBrush x:Key="DisabledInputBackgroundBrush" Color="#23262B" />
-        <SolidColorBrush x:Key="DisabledInputBorderBrush" Color="#3A3F47" />
-        <SolidColorBrush x:Key="DisabledForegroundBrush" Color="#737A86" />
-        <SolidColorBrush x:Key="DropdownBackgroundBrush" Color="#1B2028" />
-        <SolidColorBrush x:Key="DropdownHoverBrush" Color="#263241" />
-        <SolidColorBrush x:Key="DropdownSelectedBrush" Color="#30455F" />
-        <SolidColorBrush x:Key="DropdownBorderBrush" Color="#3A4554" />
-        <SolidColorBrush x:Key="DropdownTextBrush" Color="#E8EDF5" />
-        <SolidColorBrush x:Key="DropdownMutedTextBrush" Color="#A8B3C3" />
-        <SolidColorBrush x:Key="ToolbarButtonBackgroundBrush" Color="#20242B" />
-        <SolidColorBrush x:Key="ToolbarButtonBorderBrush" Color="#2E3440" />
-        <SolidColorBrush x:Key="CompileDirtyBackgroundBrush" Color="#4B361C" />
-        <SolidColorBrush x:Key="CompileDirtyBorderBrush" Color="#D68A22" />
-        <SolidColorBrush x:Key="StatusMutedBrush" Color="#7A8797" />
-        <SolidColorBrush x:Key="LogErrorBrush" Color="#FF6B6B" />
-        <SolidColorBrush x:Key="EditorRootBackgroundBrush" Color="#181B20" />
-        <SolidColorBrush x:Key="EditorPanelBackgroundBrush" Color="#20242B" />
-        <SolidColorBrush x:Key="EditorPanelBorderBrush" Color="#303744" />
-        <SolidColorBrush x:Key="EditorPanelStrongBorderBrush" Color="#384150" />
-        <SolidColorBrush x:Key="EditorCanvasBackgroundBrush" Color="#11151A" />
-        <SolidColorBrush x:Key="EditorCanvasGridBackgroundBrush" Color="#171B22" />
-        <SolidColorBrush x:Key="EditorCanvasGridLineBrush" Color="#232931" />
-        <SolidColorBrush x:Key="EditorSectionHeaderBrush" Color="#2E3440" />
-        <SolidColorBrush x:Key="EditorListSelectedBrush" Color="#30445C" />
-        <SolidColorBrush x:Key="EditorListHoverBrush" Color="#2B3542" />
-        <SolidColorBrush x:Key="EditorDirtyBackgroundBrush" Color="#3E2D18" />
-        <SolidColorBrush x:Key="EditorTextBrush" Color="#D0D7E2" />
-        <SolidColorBrush x:Key="EditorTextBrightBrush" Color="#E8EDF5" />
-        <SolidColorBrush x:Key="EditorMutedTextBrush" Color="#A7B1BF" />
-        <SolidColorBrush x:Key="EditorPanelCardBrush" Color="#1B2028" />
-        <SolidColorBrush x:Key="EditorPanelCardHoverBrush" Color="#222A35" />
-        <SolidColorBrush x:Key="EditorPanelElevatedBrush" Color="#202733" />
-        <SolidColorBrush x:Key="EditorChromeBrush" Color="#151A22" />
-        <SolidColorBrush x:Key="EditorChromeHighlightBrush" Color="#263141" />
-        <SolidColorBrush x:Key="EditorToolbarGroupBrush" Color="#181E27" />
-        <SolidColorBrush x:Key="EditorToolbarSeparatorBrush" Color="#334050" />
-        <SolidColorBrush x:Key="EditorSectionHeaderAccentBrush" Color="#263242" />
-        <SolidColorBrush x:Key="EditorSelectedAccentBrush" Color="#58A6FF" />
-        <SolidColorBrush x:Key="EditorSelectedBorderBrush" Color="#4F77A8" />
-        <SolidColorBrush x:Key="EditorFieldCardBrush" Color="#181D25" />
-        <SolidColorBrush x:Key="EditorDisabledChipBrush" Color="#242A33" />
-        <SolidColorBrush x:Key="EditorDisabledChipBorderBrush" Color="#394353" />
-        <SolidColorBrush x:Key="EditorToolTipBackgroundBrush" Color="#0F1620" />
-        <SolidColorBrush x:Key="EditorToolTipBorderBrush" Color="#5AA7FF" />
-        <SolidColorBrush x:Key="EditorToolTipTextBrush" Color="#F4F8FF" />
+        <!-- Runtime themes mutate these brushes. Keep them unfrozen; otherwise existing StaticResource users keep stale colors. -->
+        <SolidColorBrush x:Key="AppBackgroundBrush" Color="#171C24" po:Freeze="False" />
+        <SolidColorBrush x:Key="PanelBackgroundBrush" Color="#1C232D" po:Freeze="False" />
+        <SolidColorBrush x:Key="PanelAltBackgroundBrush" Color="#222A35" po:Freeze="False" />
+        <SolidColorBrush x:Key="BorderBrushDark" Color="#303A48" po:Freeze="False" />
+        <SolidColorBrush x:Key="ForegroundPrimaryBrush" Color="#E6EDF5" po:Freeze="False" />
+        <SolidColorBrush x:Key="ForegroundSecondaryBrush" Color="#AAB6C6" po:Freeze="False" />
+        <SolidColorBrush x:Key="AccentBrush" Color="#4FA3FF" po:Freeze="False" />
+        <SolidColorBrush x:Key="AccentHoverBrush" Color="#65B3FF" po:Freeze="False" />
+        <SolidColorBrush x:Key="AccentPressedBrush" Color="#357AD8" po:Freeze="False" />
+        <SolidColorBrush x:Key="InputBackgroundBrush" Color="#232B36" po:Freeze="False" />
+        <SolidColorBrush x:Key="InputBorderBrush" Color="#3C4A5C" po:Freeze="False" />
+        <SolidColorBrush x:Key="DisabledInputBackgroundBrush" Color="#1A2028" po:Freeze="False" />
+        <SolidColorBrush x:Key="DisabledInputBorderBrush" Color="#303A48" po:Freeze="False" />
+        <SolidColorBrush x:Key="DisabledForegroundBrush" Color="#7C8796" po:Freeze="False" />
+        <SolidColorBrush x:Key="DropdownBackgroundBrush" Color="#151B23" po:Freeze="False" />
+        <SolidColorBrush x:Key="DropdownHoverBrush" Color="#203044" po:Freeze="False" />
+        <SolidColorBrush x:Key="DropdownSelectedBrush" Color="#2D6FB7" po:Freeze="False" />
+        <SolidColorBrush x:Key="DropdownBorderBrush" Color="#344154" po:Freeze="False" />
+        <SolidColorBrush x:Key="DropdownTextBrush" Color="#EAF1FA" po:Freeze="False" />
+        <SolidColorBrush x:Key="DropdownMutedTextBrush" Color="#AAB6C6" po:Freeze="False" />
+        <SolidColorBrush x:Key="ToolbarButtonBackgroundBrush" Color="#171E28" po:Freeze="False" />
+        <SolidColorBrush x:Key="ToolbarButtonBorderBrush" Color="#303A48" po:Freeze="False" />
+        <SolidColorBrush x:Key="CompileDirtyBackgroundBrush" Color="#4A3216" po:Freeze="False" />
+        <SolidColorBrush x:Key="CompileDirtyBorderBrush" Color="#D68A22" po:Freeze="False" />
+        <SolidColorBrush x:Key="StatusMutedBrush" Color="#8793A4" po:Freeze="False" />
+        <SolidColorBrush x:Key="LogErrorBrush" Color="#FF6B6B" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorRootBackgroundBrush" Color="#10151D" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorPanelBackgroundBrush" Color="#171C24" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorPanelBorderBrush" Color="#293241" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorPanelStrongBorderBrush" Color="#354255" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorCanvasBackgroundBrush" Color="#0D1219" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorCanvasGridBackgroundBrush" Color="#111821" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorCanvasGridLineBrush" Color="#202936" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorSectionHeaderBrush" Color="#25303D" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorListSelectedBrush" Color="#2D6FB7" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorListHoverBrush" Color="#203044" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorDirtyBackgroundBrush" Color="#3F2A13" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorTextBrush" Color="#D7E0EC" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorTextBrightBrush" Color="#F3F7FF" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorMutedTextBrush" Color="#9EABBC" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorPanelCardBrush" Color="#151B23" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorPanelCardHoverBrush" Color="#1C2633" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorPanelElevatedBrush" Color="#1B2330" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorChromeBrush" Color="#111821" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorChromeHighlightBrush" Color="#203044" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorToolbarGroupBrush" Color="#151B24" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorToolbarSeparatorBrush" Color="#334155" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorSectionHeaderAccentBrush" Color="#1E2C3D" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorSelectedAccentBrush" Color="#4FA3FF" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorSelectedBorderBrush" Color="#2E7BC5" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorFieldCardBrush" Color="#121922" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorDisabledChipBrush" Color="#202833" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorDisabledChipBorderBrush" Color="#364354" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorToolTipBackgroundBrush" Color="#0B1220" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorToolTipBorderBrush" Color="#4FA3FF" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorToolTipTextBrush" Color="#F8FAFC" po:Freeze="False" />
 
         <Style x:Key="DarkContextMenuStyle" TargetType="ContextMenu">
             <Setter Property="Background" Value="{StaticResource DropdownBackgroundBrush}" />
@@ -391,7 +392,7 @@
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
                                 <Setter TargetName="Border" Property="Background" Value="{StaticResource DropdownHoverBrush}" />
-                                <Setter Property="Foreground" Value="#FFFFFF" />
+                                <Setter Property="Foreground" Value="{StaticResource DropdownTextBrush}" />
                             </Trigger>
                             <Trigger Property="IsSelected" Value="True">
                                 <Setter TargetName="Border" Property="Background" Value="{StaticResource DropdownSelectedBrush}" />
@@ -425,7 +426,7 @@
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
                                 <Setter TargetName="Border" Property="Background" Value="{StaticResource DropdownHoverBrush}" />
-                                <Setter Property="Foreground" Value="#FFFFFF" />
+                                <Setter Property="Foreground" Value="{StaticResource DropdownTextBrush}" />
                             </Trigger>
                             <Trigger Property="IsSelected" Value="True">
                                 <Setter TargetName="Border" Property="Background" Value="{StaticResource DropdownSelectedBrush}" />

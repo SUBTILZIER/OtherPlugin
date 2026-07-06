@@ -102,6 +102,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     public MainWindow()
     {
+        LoadAppSettings();
         DataContext = this;
         _graphCompileService = new GraphCompileService(_callableGraphResolver);
         InitializeComponent();

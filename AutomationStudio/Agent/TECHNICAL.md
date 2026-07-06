@@ -125,6 +125,12 @@ Runtime / Nodes / Adapters
 
 ## 编辑器视觉规则
 
+- 2026-07-06：应用级主题由 `AppSettingsService` + `AppThemeService` 管理，配置文件在 `%AppData%/AutomationStudioWpf/app-settings.json`。主题设置不属于资产数据，禁止写入脚本/函数库 JSON。
+- 主题资源只允许通过 `App.xaml` 中的 `Editor*Brush` / `Accent*Brush` 等全局 brush 进入 UI；这些 brush 必须带 `po:Freeze="False"`，运行时切换主题时更新已有 `SolidColorBrush.Color`，否则旧控件会继续拿着旧颜色。
+- 当前内置两套主题：暗色编辑器主题、亮色 Codex 风格主题。强调色必须扩散到选中态、hover、工具栏、输入边框、下拉选中、Tooltip 边框等全局状态，不允许只改设置面板预览色。
+- 后续新增控件必须使用资源 brush，不能硬编码浅底浅字或只适配暗色；亮色主题下 hover 字体不能硬编码白色，除非背景是经过对比度处理的深色强调底。
+- 顶部工具栏的 `设置` 按钮打开 `SettingsWindow`；该窗口必须保持项目自绘窗口样式，不能使用 Windows 原生设置/消息面板。
+- `ThemedDialog` 需要读取当前主题资源，不能固定暗色；否则亮色主题下会出现视觉割裂。
 - `EditorSurfaceControl.xaml` 的左侧图表栏使用 section card + pill list item：hover、selected、compile dirty 必须分别用 `EditorPanelCardHoverBrush`、`EditorListSelectedBrush`、`EditorDirtyBackgroundBrush`，选中/脏状态用左侧 accent 条辅助识别。
 - 右侧细节面板的 header、基础节点信息、编号 chip 使用卡片层级；禁用/前置输入态使用 disabled chip/input 颜色，避免看起来像普通可编辑输入。
 - 左侧 section 的折叠/新增按钮统一用 `EditorSidebarIconButtonStyle`；函数项“公开”开关使用紧凑短文案和 ToolTip，避免挤压函数名。细节面板内 `TextBox` / `ComboBox` 统一最小高度，保持字段节奏一致。
@@ -625,6 +631,7 @@ Python 参数规则：
 - `Ctrl+B` 是已实现定位：内容浏览器有选中资产时定位该资产真实父目录；无选中资产但有当前打开资产时定位当前打开资产。
 - 双击画布中的函数调用节点是当前已实现跳转：按 stable `FunctionId` 找目标图，打开目标所在资产，再加载目标函数图。
 - `MainWindow.ContentBrowserCommands.cs` 负责内容浏览器基础 CRUD / rename / folder projection；`MainWindow.ContentBrowserMultiSelect.cs` 负责多选、框选、资产 Ctrl+C/Ctrl+V、拖拽预览和多删除。新增内容浏览器交互优先放在这些 partial 或独立 controller，不要继续膨胀 `MainWindow.xaml.cs`。
+- 脚本资产的启用状态同时出现在瓦片角标和右键菜单。右键菜单文案必须随状态翻转：未启用显示“启用脚本”，已启用显示“关闭脚本”，不要固定显示同一动作名。
 
 ### 2026-06-08: ToDo persistence and log copy fixes
 

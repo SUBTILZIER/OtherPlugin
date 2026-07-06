@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using WpfApplication = System.Windows.Application;
 using WpfColor = System.Windows.Media.Color;
 
 namespace AutomationStudioWpf.Interaction;
@@ -35,6 +36,15 @@ public static class ThemedDialog
 
         var result = GetFallbackResult(buttons);
         var accent = GetAccentColor(image);
+        var windowForegroundBrush = ResourceBrush("EditorTextBrightBrush", 232, 237, 245);
+        var windowBackgroundBrush = ResourceBrush("EditorPanelBackgroundBrush", 27, 32, 40);
+        var windowBorderBrush = ResourceBrush("EditorPanelBorderBrush", 64, 76, 94);
+        var bodyForegroundBrush = ResourceBrush("EditorTextBrush", 232, 237, 245);
+        var buttonForegroundBrush = ResourceBrush("EditorTextBrightBrush", 232, 237, 245);
+        var buttonBackgroundBrush = ResourceBrush("EditorToolbarGroupBrush", 36, 43, 53);
+        var buttonHoverBackgroundBrush = ResourceBrush("EditorChromeHighlightBrush", 45, 56, 70);
+        var buttonPressedBackgroundBrush = ResourceBrush("EditorListSelectedBrush", 31, 39, 50);
+        var buttonBorderBrush = ResourceBrush("EditorPanelBorderBrush", 79, 94, 116);
         var window = new Window
         {
             Owner = owner,
@@ -47,13 +57,13 @@ public static class ThemedDialog
             WindowStyle = WindowStyle.None,
             AllowsTransparency = true,
             Background = System.Windows.Media.Brushes.Transparent,
-            Foreground = WindowForegroundBrush,
+            Foreground = windowForegroundBrush,
         };
 
         var root = new Border
         {
-            Background = WindowBackgroundBrush,
-            BorderBrush = WindowBorderBrush,
+            Background = windowBackgroundBrush,
+            BorderBrush = windowBorderBrush,
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(10),
             Padding = new Thickness(20),
@@ -102,7 +112,7 @@ public static class ThemedDialog
             panel.Children.Add(new TextBlock
             {
                 Text = message,
-                Foreground = BodyForegroundBrush,
+                Foreground = bodyForegroundBrush,
                 TextWrapping = TextWrapping.Wrap,
                 LineHeight = 20,
                 Margin = new Thickness(0, 0, 0, 18),
@@ -119,9 +129,9 @@ public static class ThemedDialog
         for (var i = 0; i < buttons.Length; i++)
         {
             var item = buttons[i];
-            var normalBackground = item.IsPrimary ? new SolidColorBrush(accent) : ButtonBackgroundBrush;
-            var hoverBackground = item.IsPrimary ? new SolidColorBrush(Lighten(accent, 16)) : ButtonHoverBackgroundBrush;
-            var pressedBackground = item.IsPrimary ? new SolidColorBrush(Darken(accent, 18)) : ButtonPressedBackgroundBrush;
+            var normalBackground = item.IsPrimary ? new SolidColorBrush(accent) : buttonBackgroundBrush;
+            var hoverBackground = item.IsPrimary ? new SolidColorBrush(Lighten(accent, 16)) : buttonHoverBackgroundBrush;
+            var pressedBackground = item.IsPrimary ? new SolidColorBrush(Darken(accent, 18)) : buttonPressedBackgroundBrush;
             var button = new System.Windows.Controls.Button
             {
                 Content = item.Text,
@@ -131,9 +141,9 @@ public static class ThemedDialog
                 Margin = new Thickness(i == 0 ? 0 : 8, 0, 0, 0),
                 IsDefault = item.IsPrimary,
                 IsCancel = item.Result == MessageBoxResult.Cancel,
-                Foreground = item.IsPrimary ? PrimaryButtonForegroundBrush : ButtonForegroundBrush,
+                Foreground = item.IsPrimary ? ContrastBrush(accent) : buttonForegroundBrush,
                 Background = normalBackground,
-                BorderBrush = ButtonBorderBrush,
+                BorderBrush = buttonBorderBrush,
                 BorderThickness = new Thickness(1),
                 Cursor = System.Windows.Input.Cursors.Hand,
                 Template = BuildButtonTemplate(),
@@ -220,6 +230,22 @@ public static class ThemedDialog
     private static byte Add(byte value, byte amount) => (byte)System.Math.Min(255, value + amount);
 
     private static byte Subtract(byte value, byte amount) => (byte)System.Math.Max(0, value - amount);
+
+    private static SolidColorBrush ResourceBrush(string key, byte fallbackR, byte fallbackG, byte fallbackB)
+    {
+        if (WpfApplication.Current?.TryFindResource(key) is SolidColorBrush brush)
+            return brush;
+
+        return FrozenBrush(fallbackR, fallbackG, fallbackB);
+    }
+
+    private static SolidColorBrush ContrastBrush(WpfColor background)
+    {
+        var luminance = (0.299 * background.R) + (0.587 * background.G) + (0.114 * background.B);
+        return luminance > 150
+            ? FrozenBrush(12, 16, 22)
+            : FrozenBrush(255, 255, 255);
+    }
 
     private static SolidColorBrush FrozenBrush(byte r, byte g, byte b)
     {

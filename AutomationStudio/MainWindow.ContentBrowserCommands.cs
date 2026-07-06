@@ -126,7 +126,7 @@ public partial class MainWindow
             selected?.Kind == ContentAssetKind.Script ? Visibility.Visible : Visibility.Collapsed;
         ContentBrowserToggleScriptEnabledMenuItem.Visibility =
             selected?.Kind == ContentAssetKind.Script ? Visibility.Visible : Visibility.Collapsed;
-        ContentBrowserToggleScriptEnabledMenuItem.IsChecked = selected?.IsScriptEnabled == true;
+        UpdateScriptEnabledMenuItem(selected);
         ContentBrowserAssetMenuSeparator.Visibility = assetVisibility;
         ContentBrowserNewScriptMenuItem.Visibility = newVisibility;
         ContentBrowserNewFolderMenuItem.Visibility = newVisibility;
@@ -243,6 +243,16 @@ public partial class MainWindow
         SetStatus(enabled
             ? $"已启用脚本热键监听：{asset.Name}"
             : $"已禁用脚本热键监听：{asset.Name}");
+    }
+
+    private void UpdateScriptEnabledMenuItem(ContentAssetViewModel? asset)
+    {
+        bool enabled = asset?.Kind == ContentAssetKind.Script && asset.IsScriptEnabled;
+        ContentBrowserToggleScriptEnabledMenuItem.Header = enabled ? "关闭脚本" : "启用脚本";
+        ContentBrowserToggleScriptEnabledMenuItem.IsChecked = enabled;
+        ContentBrowserToggleScriptEnabledMenuItem.ToolTip = enabled
+            ? "关闭后，该脚本不再监听全局热键。"
+            : "启用后，该脚本才有资格监听全局热键。";
     }
 
     private void ContentAssetNameTextBox_KeyDown(object sender, KeyEventArgs e)

@@ -271,7 +271,7 @@ public partial class MainWindow
             canRename && selectedAsset?.Kind == ContentAssetKind.Script
                 ? WpfVisibility.Visible
                 : WpfVisibility.Collapsed;
-        ContentBrowserToggleScriptEnabledMenuItem.IsChecked = selectedAsset?.IsScriptEnabled == true;
+        UpdateScriptEnabledMenuItem(selectedAsset);
         ContentBrowserAssetMenuSeparator.Visibility = hasSelection ? WpfVisibility.Visible : WpfVisibility.Collapsed;
 
         var newVisibility = hasSelection ? WpfVisibility.Collapsed : WpfVisibility.Visible;
