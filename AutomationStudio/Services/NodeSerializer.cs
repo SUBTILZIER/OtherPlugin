@@ -47,11 +47,22 @@ public static class NodeSerializer
                 file.PositionX = mouseNode.PositionX;
                 file.PositionY = mouseNode.PositionY;
                 file.MouseButton = mouseNode.MouseButton.ToString();
+                file.TriggerCount = mouseNode.TriggerCount;
+                file.TriggerIntervalMs = mouseNode.TriggerIntervalMs;
                 break;
 
             case KeyboardNodeViewModel keyboardNode:
                 file.OperationMode = keyboardNode.OperationMode.ToString();
                 file.Key = keyboardNode.Key;
+                file.TriggerCount = keyboardNode.TriggerCount;
+                file.TriggerIntervalMs = keyboardNode.TriggerIntervalMs;
+                break;
+
+            case KeyChordNodeViewModel keyChordNode:
+                file.OperationMode = keyChordNode.OperationMode.ToString();
+                file.Text = keyChordNode.Chord;
+                file.TriggerCount = keyChordNode.TriggerCount;
+                file.TriggerIntervalMs = keyChordNode.TriggerIntervalMs;
                 break;
 
             case ScrollWheelNodeViewModel scrollNode:
@@ -200,6 +211,8 @@ public static class NodeSerializer
                 MouseButton = Enum.TryParse<MouseButton>(file.MouseButton, true, out var button) ? button : MouseButton.Left,
                 PositionX = file.PositionX,
                 PositionY = file.PositionY,
+                TriggerCount = NormalizeTriggerCount(file.TriggerCount),
+                TriggerIntervalMs = NormalizeTriggerInterval(file.TriggerIntervalMs),
             },
 
             "keyboard" => new KeyboardNodeViewModel(file.Id)
@@ -209,6 +222,8 @@ public static class NodeSerializer
                 Y = file.Y,
                 OperationMode = Enum.TryParse<PressReleaseMode>(file.OperationMode, true, out var kbdMode) ? kbdMode : PressReleaseMode.Press,
                 Key = file.Key ?? "A",
+                TriggerCount = NormalizeTriggerCount(file.TriggerCount),
+                TriggerIntervalMs = NormalizeTriggerInterval(file.TriggerIntervalMs),
             },
 
             "scroll_wheel" => new ScrollWheelNodeViewModel(file.Id)
@@ -314,9 +329,29 @@ public static class NodeSerializer
                 InputMode = Enum.TryParse<WindowInputMode>(file.WindowInputMode, true, out var mode) ? mode : WindowInputMode.Manual,
             },
 
-            "mouse_double_click" => CreateCommonFromFile(file, NodeKind.MouseDoubleClick, "鼠标双击"),
+            "mouse_double_click" => new MouseClickNodeViewModel(file.Id)
+            {
+                Title = string.IsNullOrWhiteSpace(file.Title) ? "鼠标点击" : file.Title,
+                X = file.X,
+                Y = file.Y,
+                OperationMode = PressReleaseMode.Click,
+                MouseButton = MouseButton.Left,
+                PositionX = Math.Abs(file.PositionX) > 0.001 ? file.PositionX : file.Number,
+                PositionY = Math.Abs(file.PositionY) > 0.001 ? file.PositionY : file.Number2,
+                TriggerCount = 2,
+                TriggerIntervalMs = 80,
+            },
             "get_mouse_position" => CreateCommonFromFile(file, NodeKind.GetMousePosition, "获取鼠标位置"),
-            "key_chord" => CreateCommonFromFile(file, NodeKind.KeyChord, "组合键"),
+            "key_chord" => new KeyChordNodeViewModel(file.Id)
+            {
+                Title = string.IsNullOrWhiteSpace(file.Title) ? "组合键" : file.Title,
+                X = file.X,
+                Y = file.Y,
+                Chord = file.Text ?? string.Empty,
+                OperationMode = Enum.TryParse<PressReleaseMode>(file.OperationMode, true, out var chordMode) ? chordMode : PressReleaseMode.Click,
+                TriggerCount = NormalizeTriggerCount(file.TriggerCount),
+                TriggerIntervalMs = NormalizeTriggerInterval(file.TriggerIntervalMs),
+            },
             "wait_image" => CreateCommonFromFile(file, NodeKind.WaitImage, "等待图片"),
             "wait_image_disappear" => CreateCommonFromFile(file, NodeKind.WaitImageDisappear, "图片消失"),
             "compare" => CreateCommonFromFile(file, NodeKind.Compare, "比较"),
@@ -382,11 +417,18 @@ public static class NodeSerializer
             MouseClickNodeViewModel mouseNode => GraphRuntimeNode.ForMouseClick(
                 mouseNode.Id, mouseNode.Title,
                 mouseNode.OperationMode, mouseNode.MouseButton,
-                mouseNode.PositionX, mouseNode.PositionY),
+                mouseNode.PositionX, mouseNode.PositionY,
+                mouseNode.TriggerCount, mouseNode.TriggerIntervalMs),
 
             KeyboardNodeViewModel keyboardNode => GraphRuntimeNode.ForKeyboard(
                 keyboardNode.Id, keyboardNode.Title,
-                keyboardNode.OperationMode, keyboardNode.Key),
+                keyboardNode.OperationMode, keyboardNode.Key,
+                keyboardNode.TriggerCount, keyboardNode.TriggerIntervalMs),
+
+            KeyChordNodeViewModel keyChordNode => GraphRuntimeNode.ForKeyChord(
+                keyChordNode.Id, keyChordNode.Title,
+                keyChordNode.Chord, keyChordNode.OperationMode,
+                keyChordNode.TriggerCount, keyChordNode.TriggerIntervalMs),
 
             ScrollWheelNodeViewModel scrollNode => GraphRuntimeNode.ForScrollWheel(
                 scrollNode.Id, scrollNode.Title,
@@ -604,4 +646,10 @@ public static class NodeSerializer
             return result;
         return PressReleaseMode.Press;
     }
+
+    private static int NormalizeTriggerCount(int count) =>
+        count < 0 ? 1 : count;
+
+    private static int NormalizeTriggerInterval(int intervalMs) =>
+        intervalMs > 0 ? intervalMs : 1000;
 }

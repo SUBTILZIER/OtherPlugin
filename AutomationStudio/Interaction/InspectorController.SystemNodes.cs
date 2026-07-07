@@ -116,6 +116,17 @@ public sealed partial class InspectorController
         ApplyChanges();
     }
 
+    public void AddKeyChordKey()
+    {
+        string key = GetEditableComboValue(_keyChordKeyComboBox);
+        if (string.IsNullOrWhiteSpace(key))
+            return;
+
+        string current = _keyChordTextBox.Text.Trim();
+        _keyChordTextBox.Text = string.IsNullOrWhiteSpace(current) ? key : $"{current}+{key}";
+        ApplyChanges();
+    }
+
     private void PopulateWindowListComboBox()
     {
         var names = _windowAdapter.GetRunningWindowNames();

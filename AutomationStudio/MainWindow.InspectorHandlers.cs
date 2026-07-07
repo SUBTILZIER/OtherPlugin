@@ -92,6 +92,11 @@ public partial class MainWindow
         _inspectorController.AddCommonKeyChordKey();
     }
 
+    private void KeyChordAddButton_Click(object sender, RoutedEventArgs e)
+    {
+        _inspectorController.AddKeyChordKey();
+    }
+
     private void AddParameterButton_Click(object sender, RoutedEventArgs e)
     {
         _inspectorController.AddParameter();

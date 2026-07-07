@@ -14,25 +14,28 @@ using StackPanel = System.Windows.Controls.StackPanel;
 using TextBlock = System.Windows.Controls.TextBlock;
 using TextBox = System.Windows.Controls.TextBox;
 using KeyEventArgs = System.Windows.Input.KeyEventArgs;
-using Brushes = System.Windows.Media.Brushes;
-using Color = System.Windows.Media.Color;
 using Dock = System.Windows.Controls.Dock;
 using HorizontalAlignment = System.Windows.HorizontalAlignment;
 using Orientation = System.Windows.Controls.Orientation;
+using WpfBrush = System.Windows.Media.Brush;
 
 namespace AutomationStudioWpf.Interaction;
 
 public sealed class ScriptPropertiesWindow : Window
 {
-    private static readonly SolidColorBrush WindowBackgroundBrush = Brush(0x10, 0x14, 0x1B);
-    private static readonly SolidColorBrush PanelBrush = Brush(0x16, 0x1B, 0x23);
-    private static readonly SolidColorBrush CardBrush = Brush(0x1B, 0x22, 0x2C);
-    private static readonly SolidColorBrush CardBorderBrush = Brush(0x2D, 0x37, 0x47);
-    private static readonly SolidColorBrush AccentBrush = Brush(0x4F, 0xA3, 0xFF);
-    private static readonly SolidColorBrush AccentHoverBrush = Brush(0x66, 0xB3, 0xFF);
-    private static readonly SolidColorBrush MutedTextBrush = Brush(0x9A, 0xA6, 0xB6);
-    private static readonly SolidColorBrush InputBrush = Brush(0x21, 0x28, 0x34);
-    private static readonly SolidColorBrush InputBorderBrush = Brush(0x34, 0x3E, 0x4E);
+    private static WpfBrush WindowBackgroundBrush => ThemeResourceHelper.Brush("EditorPanelBackgroundBrush");
+    private static WpfBrush PanelBrush => ThemeResourceHelper.Brush("EditorPanelBackgroundBrush");
+    private static WpfBrush CardBrush => ThemeResourceHelper.Brush("EditorPanelCardBrush");
+    private static WpfBrush CardBorderBrush => ThemeResourceHelper.Brush("EditorPanelBorderBrush");
+    private static WpfBrush AccentBrush => ThemeResourceHelper.Brush("AccentBrush");
+    private static WpfBrush AccentHoverBrush => ThemeResourceHelper.Brush("AccentHoverBrush");
+    private static WpfBrush AccentForegroundBrush => ThemeResourceHelper.Brush("AccentForegroundBrush");
+    private static WpfBrush MutedTextBrush => ThemeResourceHelper.Brush("EditorMutedTextBrush");
+    private static WpfBrush InputBrush => ThemeResourceHelper.Brush("InputBackgroundBrush");
+    private static WpfBrush InputBorderBrush => ThemeResourceHelper.Brush("InputBorderBrush");
+    private static WpfBrush TextBrush => ThemeResourceHelper.Brush("EditorTextBrush");
+    private static WpfBrush BrightTextBrush => ThemeResourceHelper.Brush("EditorTextBrightBrush");
+    private static WpfBrush ErrorBrush => ThemeResourceHelper.Brush("LogErrorBrush");
 
     private readonly ScriptRunSettings _settings;
     private readonly RadioButton _countRadio = new() { Content = "按次数循环" };
@@ -61,7 +64,7 @@ public sealed class ScriptPropertiesWindow : Window
         MinHeight = 560;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         Background = WindowBackgroundBrush;
-        Foreground = Brushes.White;
+        Foreground = TextBrush;
         _settings = settings.Clone();
         _settings.Normalize();
         Content = BuildContent(assetName);
@@ -154,7 +157,7 @@ public sealed class ScriptPropertiesWindow : Window
             HotkeyRow("终止热键", _settings.StopHotkey, _stopHotkeyText, _stopPressCountBox, _stopTriggerWindowBox,
                 () => CaptureHotkey(_settings.StopHotkey, _stopHotkeyText))));
 
-        _errorText.Foreground = Brushes.OrangeRed;
+        _errorText.Foreground = ErrorBrush;
         _errorText.Margin = new Thickness(0, 10, 0, 0);
         panel.Children.Add(_errorText);
         return shell;
@@ -248,7 +251,7 @@ public sealed class ScriptPropertiesWindow : Window
         MinHeight = 30,
         Margin = new Thickness(5, 0, 6, 0),
         Background = InputBrush,
-        Foreground = Brushes.White,
+        Foreground = TextBrush,
         BorderBrush = InputBorderBrush,
         Padding = new Thickness(8, 5, 8, 5),
         VerticalContentAlignment = VerticalAlignment.Center,
@@ -292,7 +295,7 @@ public sealed class ScriptPropertiesWindow : Window
                         FontWeight = FontWeights.Bold,
                         FontSize = 14,
                         Margin = new Thickness(0, 0, 0, 12),
-                        Foreground = Brushes.White,
+                        Foreground = BrightTextBrush,
                     },
                     body,
                 }
@@ -318,7 +321,7 @@ public sealed class ScriptPropertiesWindow : Window
     {
         label.Width = 170;
         label.VerticalAlignment = VerticalAlignment.Center;
-        label.Foreground = Brushes.White;
+        label.Foreground = TextBrush;
         label.TextTrimming = TextTrimming.CharacterEllipsis;
         var keyBadge = new Border
         {
@@ -386,7 +389,7 @@ public sealed class ScriptPropertiesWindow : Window
         wrapper.Children.Add(thresholdRow);
         return new Border
         {
-            Background = Brush(0x18, 0x1E, 0x28),
+            Background = ThemeResourceHelper.Brush("EditorFieldCardBrush"),
             BorderBrush = InputBorderBrush,
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(10),
@@ -430,18 +433,12 @@ public sealed class ScriptPropertiesWindow : Window
         Margin = new Thickness(4, 0, 0, 0),
         Padding = new Thickness(10, 5, 10, 5),
         Background = AccentBrush,
-        Foreground = Brushes.White,
+        Foreground = AccentForegroundBrush,
         BorderBrush = AccentHoverBrush,
         BorderThickness = new Thickness(1),
         FontWeight = FontWeights.SemiBold,
     };
 
-    private static SolidColorBrush Brush(byte r, byte g, byte b)
-    {
-        var brush = new SolidColorBrush(Color.FromRgb(r, g, b));
-        brush.Freeze();
-        return brush;
-    }
 }
 
 internal sealed class ScriptHotkeyCaptureWindow : Window
@@ -456,8 +453,8 @@ internal sealed class ScriptHotkeyCaptureWindow : Window
         Width = 340;
         Height = 160;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
-        Background = new SolidColorBrush(Color.FromRgb(0x16, 0x1B, 0x23));
-        Foreground = Brushes.White;
+        Background = ThemeResourceHelper.Brush("EditorPanelBackgroundBrush");
+        Foreground = ThemeResourceHelper.Brush("EditorTextBrush");
         Content = new TextBlock
         {
             Text = "按下键盘键或鼠标键作为热键。\n支持鼠标滚轮前滚/后滚。\nEsc 取消。",

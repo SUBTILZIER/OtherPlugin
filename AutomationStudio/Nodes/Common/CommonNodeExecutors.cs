@@ -18,9 +18,7 @@ public sealed class CommonNodeExecutor(NodeKind nodeKind) : INodeExecutor
     {
         return NodeKind switch
         {
-            NodeKind.MouseDoubleClick => ExecuteMouseDoubleClick(request),
             NodeKind.GetMousePosition => ExecuteGetMousePosition(request),
-            NodeKind.KeyChord => ExecuteKeyChord(request),
             NodeKind.WaitImage => ExecuteWaitImage(request, waitDisappear: false),
             NodeKind.WaitImageDisappear => ExecuteWaitImage(request, waitDisappear: true),
             NodeKind.Compare => ExecuteCompare(request),
@@ -38,18 +36,6 @@ public sealed class CommonNodeExecutor(NodeKind nodeKind) : INodeExecutor
         };
     }
 
-    private static NodeExecutionResult ExecuteMouseDoubleClick(NodeExecutionRequest request)
-    {
-        if (!ResolvePoint(request, "position", request.Node.Number, request.Node.Number2, out Point point, out string warn))
-            return WarnResult(request, warn);
-
-        request.Adapters.Mouse.MoveTo(point);
-        request.Adapters.Mouse.DoubleClick(MouseButton.Left);
-        request.Context.Set(request.Node.Id, "result", true);
-        Logger.Info($"鼠标双击：({point.X},{point.Y})");
-        return NodeExecutionResult.Ok("鼠标双击完成。");
-    }
-
     private static NodeExecutionResult ExecuteGetMousePosition(NodeExecutionRequest request)
     {
         Point point = request.Adapters.Mouse.GetPosition();
@@ -57,17 +43,6 @@ public sealed class CommonNodeExecutor(NodeKind nodeKind) : INodeExecutor
         request.Context.Set(request.Node.Id, "result", true);
         Logger.Info($"获取鼠标位置：({point.X},{point.Y})");
         return NodeExecutionResult.Ok("获取鼠标位置完成。");
-    }
-
-    private static NodeExecutionResult ExecuteKeyChord(NodeExecutionRequest request)
-    {
-        if (string.IsNullOrWhiteSpace(request.Node.Text))
-            return WarnResult(request, "组合键：未设置组合键。继续执行。");
-
-        request.Adapters.Keyboard.ExecuteChord(request.Node.Text, Math.Max(0, (int)request.Node.Number), request.CancellationToken);
-        request.Context.Set(request.Node.Id, "result", true);
-        Logger.Info($"组合键完成：{request.Node.Text}");
-        return NodeExecutionResult.Ok("组合键完成。");
     }
 
     private static NodeExecutionResult ExecuteWaitImage(NodeExecutionRequest request, bool waitDisappear)

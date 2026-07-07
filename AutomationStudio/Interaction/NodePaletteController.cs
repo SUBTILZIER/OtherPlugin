@@ -249,7 +249,7 @@ public sealed class NodePaletteController
         _content.Children.Add(new TextBlock
         {
             Text = text,
-            Foreground = System.Windows.Media.Brushes.White,
+            Foreground = ThemeResourceHelper.Brush("EditorTextBrightBrush"),
             FontWeight = FontWeights.SemiBold,
             FontSize = 12,
             Margin = new Thickness(12, 10, 12, 4),
@@ -261,7 +261,7 @@ public sealed class NodePaletteController
         Content = text,
         Background = System.Windows.Media.Brushes.Transparent,
         BorderThickness = new Thickness(0),
-        Foreground = Brush(0xD0, 0xD7, 0xE2),
+        Foreground = ThemeResourceHelper.Brush("EditorTextBrush"),
         FontSize = 13,
         Padding = new Thickness(12, 6, 12, 6),
         HorizontalContentAlignment = System.Windows.HorizontalAlignment.Left,

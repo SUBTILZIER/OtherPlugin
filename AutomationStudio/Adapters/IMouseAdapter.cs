@@ -9,8 +9,6 @@ public interface IMouseAdapter
 
     void ExecuteButton(MouseButton button, PressReleaseMode mode);
 
-    void DoubleClick(MouseButton button);
-
     Point GetPosition();
 
     void ExecuteScroll(ScrollWheelAction action, int speed, int intervalMs, int durationMs, CancellationToken ct);

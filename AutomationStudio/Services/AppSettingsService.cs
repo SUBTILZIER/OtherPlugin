@@ -28,7 +28,7 @@ public sealed class AppSettings
     public void Normalize()
     {
         if (!AppThemeService.TryParseColor(AccentColor, out _))
-            AccentColor = ThemeMode == AppThemeMode.Light ? "#2F6FEB" : "#4FA3FF";
+            AccentColor = ThemeMode == AppThemeMode.Light ? "#7C8DFF" : "#4FA3FF";
     }
 }
 

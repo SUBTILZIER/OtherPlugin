@@ -3,10 +3,12 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using AutomationStudioWpf.Services;
+using WpfApplication = System.Windows.Application;
+using WpfBrush = System.Windows.Media.Brush;
 using WpfBrushes = System.Windows.Media.Brushes;
 using WpfButton = System.Windows.Controls.Button;
 using WpfCheckBox = System.Windows.Controls.CheckBox;
-using WpfColor = System.Windows.Media.Color;
+using WpfControl = System.Windows.Controls.Control;
 using WpfRadioButton = System.Windows.Controls.RadioButton;
 using WpfTextBox = System.Windows.Controls.TextBox;
 using WpfUserControl = System.Windows.Controls.UserControl;
@@ -15,13 +17,14 @@ namespace AutomationStudioWpf.Interaction;
 
 public sealed class ScriptPropertiesSummaryControl : WpfUserControl
 {
-    private static readonly SolidColorBrush CardBrush = FrozenBrush(0x17, 0x1D, 0x27);
-    private static readonly SolidColorBrush SectionBrush = FrozenBrush(0x1B, 0x22, 0x2D);
-    private static readonly SolidColorBrush InputBrush = FrozenBrush(0x20, 0x27, 0x34);
-    private static readonly SolidColorBrush ChromeBorderBrush = FrozenBrush(0x2F, 0x3A, 0x4B);
-    private static readonly SolidColorBrush AccentBrush = FrozenBrush(0x4F, 0xA3, 0xFF);
-    private static readonly SolidColorBrush TextBrush = FrozenBrush(0xEA, 0xF2, 0xFF);
-    private static readonly SolidColorBrush MutedBrush = FrozenBrush(0xA3, 0xB0, 0xC2);
+    private static WpfBrush CardBrush => ResourceBrush("EditorPanelCardBrush");
+    private static WpfBrush SectionBrush => ResourceBrush("EditorFieldCardBrush");
+    private static WpfBrush InputBrush => ResourceBrush("InputBackgroundBrush");
+    private static WpfBrush ChromeBorderBrush => ResourceBrush("EditorPanelBorderBrush");
+    private static WpfBrush AccentBrush => ResourceBrush("AccentBrush");
+    private static WpfBrush TextBrush => ResourceBrush("EditorTextBrightBrush");
+    private static WpfBrush MutedBrush => ResourceBrush("EditorMutedTextBrush");
+    private static WpfBrush ErrorBrush => ResourceBrush("LogErrorBrush");
 
     private readonly ContentAssetViewModel _asset;
     private readonly Func<ContentAssetViewModel, ScriptRunSettings, bool> _saveAction;
@@ -66,8 +69,6 @@ public sealed class ScriptPropertiesSummaryControl : WpfUserControl
     {
         var root = new Border
         {
-            Background = CardBrush,
-            BorderBrush = ChromeBorderBrush,
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(14),
             Padding = new Thickness(18),
@@ -75,23 +76,28 @@ public sealed class ScriptPropertiesSummaryControl : WpfUserControl
             HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch,
             VerticalAlignment = VerticalAlignment.Top,
         };
+        SetResource(root, Border.BackgroundProperty, "EditorPanelCardBrush");
+        SetResource(root, Border.BorderBrushProperty, "EditorPanelBorderBrush");
 
         var body = new StackPanel();
         root.Child = body;
-        body.Children.Add(new TextBlock
+        var title = new TextBlock
         {
             Text = "脚本属性",
-            Foreground = TextBrush,
             FontSize = 22,
             FontWeight = FontWeights.Bold,
-        });
-        body.Children.Add(new TextBlock
+        };
+        SetResource(title, TextBlock.ForegroundProperty, "EditorTextBrightBrush");
+        body.Children.Add(title);
+
+        var assetName = new TextBlock
         {
             Text = _asset.Name,
-            Foreground = MutedBrush,
             FontSize = 12,
             Margin = new Thickness(0, 4, 0, 16),
-        });
+        };
+        SetResource(assetName, TextBlock.ForegroundProperty, "EditorMutedTextBrush");
+        body.Children.Add(assetName);
 
         _countRadio.ToolTip = "按设定次数重复执行脚本。";
         _untilStoppedRadio.ToolTip = "持续运行直到按下终止热键。";
@@ -108,7 +114,7 @@ public sealed class ScriptPropertiesSummaryControl : WpfUserControl
             HotkeyRow("启动热键", _draft.StartHotkey, _startHotkeyText, _startPressCountBox, _startTriggerWindowBox),
             HotkeyRow("终止热键", _draft.StopHotkey, _stopHotkeyText, _stopPressCountBox, _stopTriggerWindowBox)));
 
-        _statusText.Foreground = MutedBrush;
+        SetResource(_statusText, TextBlock.ForegroundProperty, "EditorMutedTextBrush");
         _statusText.Margin = new Thickness(0, 0, 0, 10);
         body.Children.Add(_statusText);
 
@@ -120,7 +126,7 @@ public sealed class ScriptPropertiesSummaryControl : WpfUserControl
         var save = Button("保存设置", 96);
         save.Click += (_, _) => Save();
         var reset = Button("还原", 72);
-        reset.Background = InputBrush;
+        SetResource(reset, WpfControl.BackgroundProperty, "InputBackgroundBrush");
         reset.Click += (_, _) => Refresh();
         buttons.Children.Add(save);
         buttons.Children.Add(reset);
@@ -135,7 +141,7 @@ public sealed class ScriptPropertiesSummaryControl : WpfUserControl
 
     private void Save()
     {
-        _statusText.Foreground = MutedBrush;
+        SetResource(_statusText, TextBlock.ForegroundProperty, "EditorMutedTextBrush");
         _statusText.Text = string.Empty;
         ReadUiToDraft();
         if (_draft.LoopMode == ScriptLoopMode.Duration &&
@@ -143,7 +149,7 @@ public sealed class ScriptPropertiesSummaryControl : WpfUserControl
             _draft.DurationMinutes == 0 &&
             _draft.DurationSeconds == 0)
         {
-            _statusText.Foreground = WpfBrushes.OrangeRed;
+            SetResource(_statusText, TextBlock.ForegroundProperty, "LogErrorBrush");
             _statusText.Text = "循环时长不能为 0。";
             return;
         }
@@ -152,14 +158,14 @@ public sealed class ScriptPropertiesSummaryControl : WpfUserControl
             _draft.StopHotkey.IsConfigured &&
             ScriptHotkeyService.SameHotkey(_draft.StartHotkey, _draft.StopHotkey))
         {
-            _statusText.Foreground = WpfBrushes.OrangeRed;
+            SetResource(_statusText, TextBlock.ForegroundProperty, "LogErrorBrush");
             _statusText.Text = "启动热键与终止热键不能相同。";
             return;
         }
 
         if (_saveAction(_asset, _draft.Clone()))
         {
-            _statusText.Foreground = AccentBrush;
+            SetResource(_statusText, TextBlock.ForegroundProperty, "AccentBrush");
             _statusText.Text = "已保存。";
             CopySettings(_asset.RunSettings, _draft);
             LoadDraftToUi();
@@ -207,25 +213,25 @@ public sealed class ScriptPropertiesSummaryControl : WpfUserControl
     private UIElement HotkeyRow(string title, ScriptHotkeySettings settings, TextBlock keyText, WpfTextBox pressCount, WpfTextBox triggerWindow)
     {
         keyText.Text = settings.IsConfigured ? settings.Key : "无";
-        keyText.Foreground = TextBrush;
+        SetResource(keyText, TextBlock.ForegroundProperty, "EditorTextBrush");
         keyText.VerticalAlignment = VerticalAlignment.Center;
         keyText.TextTrimming = TextTrimming.CharacterEllipsis;
 
         var keyBadge = new Border
         {
-            Background = InputBrush,
-            BorderBrush = ChromeBorderBrush,
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(8),
             Padding = new Thickness(10, 6, 10, 6),
             MinWidth = 120,
             Child = keyText,
         };
+        SetResource(keyBadge, Border.BackgroundProperty, "InputBackgroundBrush");
+        SetResource(keyBadge, Border.BorderBrushProperty, "EditorPanelBorderBrush");
 
         var change = Button("修改", 58);
         change.Click += (_, _) => CaptureHotkey(settings, keyText);
         var clear = Button("清空", 58);
-        clear.Background = InputBrush;
+        SetResource(clear, WpfControl.BackgroundProperty, "InputBackgroundBrush");
         clear.Click += (_, _) =>
         {
             settings.Key = string.Empty;
@@ -250,29 +256,29 @@ public sealed class ScriptPropertiesSummaryControl : WpfUserControl
         AddToGrid(keyRow, clear, 3);
         stack.Children.Add(keyRow);
 
-        var triggerRow = new Grid();
-        triggerRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        triggerRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        triggerRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        triggerRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        triggerRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        AddToGrid(triggerRow, Label("按下次数", 66), 0);
-        AddToGrid(triggerRow, pressCount, 1);
-        AddToGrid(triggerRow, Label("触发时间阈值", 94), 2);
-        AddToGrid(triggerRow, triggerWindow, 3);
-        AddToGrid(triggerRow, Label("ms", 24), 4);
+        var triggerRow = new WrapPanel
+        {
+            Orientation = System.Windows.Controls.Orientation.Horizontal,
+            Margin = new Thickness(0, 2, 0, 0),
+        };
+        triggerRow.Children.Add(Label("按下次数", 66));
+        triggerRow.Children.Add(pressCount);
+        triggerRow.Children.Add(Label("触发时间阈值", 94));
+        triggerRow.Children.Add(triggerWindow);
+        triggerRow.Children.Add(Label("ms", 24));
         stack.Children.Add(triggerRow);
 
-        return new Border
+        var hotkeyCard = new Border
         {
-            Background = CardBrush,
-            BorderBrush = ChromeBorderBrush,
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(10),
             Padding = new Thickness(10),
             Margin = new Thickness(0, 2, 0, 10),
             Child = stack,
         };
+        SetResource(hotkeyCard, Border.BackgroundProperty, "EditorPanelCardBrush");
+        SetResource(hotkeyCard, Border.BorderBrushProperty, "EditorPanelBorderBrush");
+        return hotkeyCard;
     }
 
     private void CaptureHotkey(ScriptHotkeySettings target, TextBlock label)
@@ -290,28 +296,30 @@ public sealed class ScriptPropertiesSummaryControl : WpfUserControl
     private static Border Section(string title, params UIElement[] fields)
     {
         var stack = new StackPanel();
-        stack.Children.Add(new TextBlock
+        var header = new TextBlock
         {
             Text = title,
-            Foreground = TextBrush,
             FontWeight = FontWeights.SemiBold,
             FontSize = 14,
             Margin = new Thickness(0, 0, 0, 8),
-        });
+        };
+        SetResource(header, TextBlock.ForegroundProperty, "EditorTextBrush");
+        stack.Children.Add(header);
 
         foreach (var field in fields)
             stack.Children.Add(field);
 
-        return new Border
+        var section = new Border
         {
-            Background = SectionBrush,
-            BorderBrush = ChromeBorderBrush,
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(10),
             Padding = new Thickness(12),
             Margin = new Thickness(0, 0, 0, 12),
             Child = stack,
         };
+        SetResource(section, Border.BackgroundProperty, "EditorFieldCardBrush");
+        SetResource(section, Border.BorderBrushProperty, "EditorPanelBorderBrush");
+        return section;
     }
 
     private static StackPanel Row(params UIElement[] children)
@@ -327,11 +335,11 @@ public sealed class ScriptPropertiesSummaryControl : WpfUserControl
         var label = new TextBlock
         {
             Text = text,
-            Foreground = MutedBrush,
             FontWeight = bold ? FontWeights.SemiBold : FontWeights.Normal,
             Margin = new Thickness(0, 6, 6, 4),
             VerticalAlignment = VerticalAlignment.Center,
         };
+        SetResource(label, TextBlock.ForegroundProperty, "EditorMutedTextBrush");
         if (width.HasValue)
             label.Width = width.Value;
         return label;
@@ -343,32 +351,40 @@ public sealed class ScriptPropertiesSummaryControl : WpfUserControl
         grid.Children.Add(element);
     }
 
-    private static WpfTextBox TextBox(string text, double width) => new()
+    private static WpfTextBox TextBox(string text, double width)
     {
-        Text = text,
-        Width = width,
-        MinHeight = 30,
-        Margin = new Thickness(4, 0, 8, 0),
-        Background = InputBrush,
-        Foreground = TextBrush,
-        BorderBrush = ChromeBorderBrush,
-        Padding = new Thickness(8, 5, 8, 5),
-        VerticalContentAlignment = VerticalAlignment.Center,
-    };
+        var textBox = new WpfTextBox
+        {
+            Text = text,
+            Width = width,
+            MinHeight = 30,
+            Margin = new Thickness(4, 0, 8, 0),
+            Padding = new Thickness(8, 5, 8, 5),
+            VerticalContentAlignment = VerticalAlignment.Center,
+        };
+        SetResource(textBox, WpfControl.BackgroundProperty, "InputBackgroundBrush");
+        SetResource(textBox, WpfControl.ForegroundProperty, "EditorTextBrush");
+        SetResource(textBox, WpfControl.BorderBrushProperty, "EditorPanelBorderBrush");
+        return textBox;
+    }
 
-    private static WpfButton Button(string text, double width) => new()
+    private static WpfButton Button(string text, double width)
     {
-        Content = text,
-        Width = width,
-        MinHeight = 32,
-        Margin = new Thickness(6, 0, 0, 0),
-        Padding = new Thickness(10, 5, 10, 5),
-        Background = AccentBrush,
-        Foreground = WpfBrushes.White,
-        BorderBrush = AccentBrush,
-        FontWeight = FontWeights.SemiBold,
-        Cursor = System.Windows.Input.Cursors.Hand,
-    };
+        var button = new WpfButton
+        {
+            Content = text,
+            Width = width,
+            MinHeight = 32,
+            Margin = new Thickness(6, 0, 0, 0),
+            Padding = new Thickness(10, 5, 10, 5),
+            FontWeight = FontWeights.SemiBold,
+            Cursor = System.Windows.Input.Cursors.Hand,
+        };
+        SetResource(button, WpfControl.BackgroundProperty, "AccentBrush");
+        SetResource(button, WpfControl.ForegroundProperty, "AccentForegroundBrush");
+        SetResource(button, WpfControl.BorderBrushProperty, "AccentBrush");
+        return button;
+    }
 
     private static void RefreshHotkeyText(ScriptHotkeySettings settings, TextBlock label)
     {
@@ -392,10 +408,19 @@ public sealed class ScriptPropertiesSummaryControl : WpfUserControl
         target.StopHotkey = clone.StopHotkey.Clone();
     }
 
-    private static SolidColorBrush FrozenBrush(byte r, byte g, byte b)
+    private static void SetResource(DependencyObject target, DependencyProperty property, string key)
     {
-        var brush = new SolidColorBrush(WpfColor.FromRgb(r, g, b));
-        brush.Freeze();
-        return brush;
+        if (target is FrameworkElement element)
+            element.SetResourceReference(property, key);
+        else if (target is FrameworkContentElement contentElement)
+            contentElement.SetResourceReference(property, key);
+    }
+
+    private static WpfBrush ResourceBrush(string key)
+    {
+        var resources = WpfApplication.Current?.Resources;
+        if (resources is not null && resources.Contains(key) && resources[key] is WpfBrush brush)
+            return brush;
+        return WpfBrushes.Transparent;
     }
 }

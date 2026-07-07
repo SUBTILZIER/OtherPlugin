@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -7,12 +7,14 @@ using System.Windows.Shapes;
 using AutomationStudioWpf.Services;
 using WpfBrushes = System.Windows.Media.Brushes;
 using WpfButton = System.Windows.Controls.Button;
+using WpfCursors = System.Windows.Input.Cursors;
 using WpfHorizontalAlignment = System.Windows.HorizontalAlignment;
 using WpfOrientation = System.Windows.Controls.Orientation;
 using WpfPanel = System.Windows.Controls.Panel;
 using WpfRadioButton = System.Windows.Controls.RadioButton;
 using WpfRectangle = System.Windows.Shapes.Rectangle;
 using WpfTextBox = System.Windows.Controls.TextBox;
+using WpfVerticalAlignment = System.Windows.VerticalAlignment;
 
 namespace AutomationStudioWpf.Interaction;
 
@@ -24,6 +26,8 @@ public sealed class SettingsWindow : Window
     private readonly WpfRadioButton _lightThemeRadio;
     private readonly WpfTextBox _accentTextBox;
     private readonly WpfRectangle _accentPreview;
+    private readonly Border _darkThemeCard;
+    private readonly Border _lightThemeCard;
 
     public SettingsWindow(Window owner, AppSettings currentSettings, Func<AppSettings, bool> apply)
     {
@@ -33,15 +37,15 @@ public sealed class SettingsWindow : Window
 
         Owner = owner;
         Title = "设置";
-        Width = 560;
-        Height = 430;
-        MinWidth = 520;
-        MinHeight = 380;
+        Width = 720;
+        Height = 620;
+        MinWidth = 640;
+        MinHeight = 520;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         WindowStyle = WindowStyle.None;
         AllowsTransparency = true;
         Background = WpfBrushes.Transparent;
-        ResizeMode = ResizeMode.NoResize;
+        ResizeMode = ResizeMode.CanResizeWithGrip;
         ShowInTaskbar = false;
         Icon = WindowIconHelper.AppIcon;
 
@@ -84,20 +88,30 @@ public sealed class SettingsWindow : Window
         layout.Children.Add(contentScroll);
 
         var themeCard = BuildCard("主题颜色", "暗色沿用当前编辑器视觉；亮色接近 Codex 的清爽浅色界面。", out var themeCardBody);
-        var themeRows = new StackPanel { Margin = new Thickness(0, 12, 0, 0) };
+        var themeRows = new Grid { Margin = new Thickness(0, 12, 0, 0) };
+        themeRows.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        themeRows.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(12) });
+        themeRows.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         _darkThemeRadio = new WpfRadioButton
         {
             Content = "暗色主题",
             IsChecked = _draft.ThemeMode == AppThemeMode.Dark,
-            Margin = new Thickness(0, 0, 0, 8),
+            Visibility = Visibility.Collapsed,
         };
         _lightThemeRadio = new WpfRadioButton
         {
             Content = "亮色主题（Codex 风格）",
             IsChecked = _draft.ThemeMode == AppThemeMode.Light,
+            Visibility = Visibility.Collapsed,
         };
         themeRows.Children.Add(_darkThemeRadio);
         themeRows.Children.Add(_lightThemeRadio);
+        _darkThemeCard = BuildThemeChoiceCard("暗色", "高对比编辑器", "#10151D", "#151B23", "#4FA3FF", _darkThemeRadio);
+        Grid.SetColumn(_darkThemeCard, 0);
+        themeRows.Children.Add(_darkThemeCard);
+        _lightThemeCard = BuildThemeChoiceCard("亮色", "Codex 柔和灰白", "#DDE3EA", "#E6EBF2", "#7C8DFF", _lightThemeRadio);
+        Grid.SetColumn(_lightThemeCard, 2);
+        themeRows.Children.Add(_lightThemeCard);
         themeCardBody.Children.Add(themeRows);
         content.Children.Add(themeCard);
 
@@ -126,10 +140,25 @@ public sealed class SettingsWindow : Window
             RadiusY = 7,
             StrokeThickness = 1,
             Margin = new Thickness(0, 0, 10, 0),
+            Cursor = WpfCursors.Hand,
+            ToolTip = "点击打开自定义颜色选择器",
         };
         SetResource(_accentPreview, Shape.StrokeProperty, "EditorPanelBorderBrush");
+        _accentPreview.MouseLeftButtonDown += (_, _) => OpenAccentColorPicker();
         Grid.SetColumn(_accentPreview, 2);
         accentGrid.Children.Add(_accentPreview);
+
+        var pickButton = new WpfButton
+        {
+            Content = "色盘",
+            Padding = new Thickness(12, 4, 12, 4),
+            MinHeight = 30,
+            Margin = new Thickness(0, 0, 8, 0),
+            ToolTip = "打开自定义颜色选择器",
+        };
+        pickButton.Click += (_, _) => OpenAccentColorPicker();
+        Grid.SetColumn(pickButton, 3);
+        accentGrid.Children.Add(pickButton);
 
         var resetButton = new WpfButton
         {
@@ -139,13 +168,13 @@ public sealed class SettingsWindow : Window
         };
         resetButton.Click += (_, _) =>
         {
-            _accentTextBox.Text = _lightThemeRadio.IsChecked == true ? "#2F6FEB" : "#4FA3FF";
-            RefreshAccentPreview();
+            _accentTextBox.Text = _lightThemeRadio.IsChecked == true ? "#7C8DFF" : "#4FA3FF";
+            ApplyLivePreviewIfValid();
         };
-        Grid.SetColumn(resetButton, 3);
+        Grid.SetColumn(resetButton, 4);
         accentGrid.Children.Add(resetButton);
 
-        _accentTextBox.TextChanged += (_, _) => RefreshAccentPreview();
+        _accentTextBox.TextChanged += (_, _) => ApplyLivePreviewIfValid();
         accentCardBody.Children.Add(accentGrid);
 
         var presetRow = new StackPanel
@@ -153,15 +182,102 @@ public sealed class SettingsWindow : Window
             Orientation = WpfOrientation.Horizontal,
             Margin = new Thickness(0, 12, 0, 0),
         };
+        AddPresetButton(presetRow, "雾蓝", "#7C8DFF");
         AddPresetButton(presetRow, "蓝", "#4FA3FF");
-        AddPresetButton(presetRow, "绿", "#22C55E");
-        AddPresetButton(presetRow, "橙", "#F59E0B");
-        AddPresetButton(presetRow, "粉", "#EC4899");
+        AddPresetButton(presetRow, "湖青", "#5FB7C8");
+        AddPresetButton(presetRow, "鼠尾草", "#7AA874");
+        AddPresetButton(presetRow, "柔紫", "#B8A7FF");
+        AddPresetButton(presetRow, "玫瑰", "#D98BA6");
         accentCardBody.Children.Add(presetRow);
         content.Children.Add(accentCard);
 
         Content = root;
+        _darkThemeRadio.Checked += (_, _) => ApplyLivePreviewIfValid();
+        _lightThemeRadio.Checked += (_, _) => ApplyLivePreviewIfValid();
         RefreshAccentPreview();
+        UpdateThemeCards();
+    }
+
+    private Border BuildThemeChoiceCard(string title, string subtitle, string rootColor, string panelColor, string accentColor, WpfRadioButton targetRadio)
+    {
+        var card = new Border
+        {
+            CornerRadius = new CornerRadius(12),
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(12),
+            Cursor = WpfCursors.Hand,
+            ToolTip = $"切换到{title}主题",
+        };
+        SetResource(card, Border.BackgroundProperty, "EditorFieldCardBrush");
+        SetResource(card, Border.BorderBrushProperty, "EditorPanelBorderBrush");
+        card.MouseLeftButtonDown += (_, _) =>
+        {
+            targetRadio.IsChecked = true;
+            ApplyLivePreviewIfValid();
+        };
+
+        var stack = new StackPanel();
+        var header = new DockPanel { LastChildFill = true };
+        var check = new TextBlock
+        {
+            Text = "●",
+            FontSize = 14,
+            Margin = new Thickness(0, 0, 8, 0),
+            VerticalAlignment = WpfVerticalAlignment.Center,
+        };
+        SetResource(check, TextBlock.ForegroundProperty, "EditorSelectedAccentBrush");
+        header.Children.Add(check);
+        var titleText = new TextBlock
+        {
+            Text = title,
+            FontWeight = FontWeights.Bold,
+            FontSize = 14,
+        };
+        SetResource(titleText, TextBlock.ForegroundProperty, "EditorTextBrightBrush");
+        header.Children.Add(titleText);
+        stack.Children.Add(header);
+
+        var subtitleText = new TextBlock
+        {
+            Text = subtitle,
+            FontSize = 11,
+            Margin = new Thickness(22, 2, 0, 10),
+        };
+        SetResource(subtitleText, TextBlock.ForegroundProperty, "EditorMutedTextBrush");
+        stack.Children.Add(subtitleText);
+
+        var preview = new Border
+        {
+            Height = 82,
+            CornerRadius = new CornerRadius(10),
+            Background = BrushFrom(rootColor),
+            Padding = new Thickness(10),
+        };
+        var previewGrid = new Grid();
+        previewGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(42) });
+        previewGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });
+        previewGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        previewGrid.Children.Add(new Border
+        {
+            CornerRadius = new CornerRadius(7),
+            Background = BrushFrom(panelColor),
+        });
+
+        var lines = new StackPanel
+        {
+            VerticalAlignment = WpfVerticalAlignment.Center,
+        };
+        lines.Children.Add(new Border { Height = 8, Width = 72, CornerRadius = new CornerRadius(4), Background = BrushFrom(accentColor), HorizontalAlignment = WpfHorizontalAlignment.Left, Margin = new Thickness(0, 0, 0, 8) });
+        lines.Children.Add(new Border { Height = 6, Width = 120, CornerRadius = new CornerRadius(3), Background = BrushFrom("#9AA4B2"), HorizontalAlignment = WpfHorizontalAlignment.Left, Margin = new Thickness(0, 0, 0, 7) });
+        lines.Children.Add(new Border { Height = 6, Width = 92, CornerRadius = new CornerRadius(3), Background = BrushFrom("#C4CBD5"), HorizontalAlignment = WpfHorizontalAlignment.Left });
+        Grid.SetColumn(lines, 2);
+        previewGrid.Children.Add(lines);
+        preview.Child = previewGrid;
+        stack.Children.Add(preview);
+
+        card.Child = stack;
+        return card;
     }
 
     private Border BuildTitleBar()
@@ -232,39 +348,20 @@ public sealed class SettingsWindow : Window
             HorizontalAlignment = WpfHorizontalAlignment.Right,
         };
 
-        var saveButton = new WpfButton
-        {
-            Content = "保存设置",
-            MinWidth = 96,
-            Height = 32,
-            Margin = new Thickness(0, 0, 8, 0),
-        };
-        saveButton.Click += (_, _) =>
-        {
-            if (ApplyDraft())
-                Close();
-        };
-        buttons.Children.Add(saveButton);
-
         var applyButton = new WpfButton
         {
             Content = "应用",
-            MinWidth = 76,
+            MinWidth = 96,
             Height = 32,
-            Margin = new Thickness(0, 0, 8, 0),
         };
-        applyButton.Click += (_, _) => ApplyDraft();
-        buttons.Children.Add(applyButton);
-
-        var cancelButton = new WpfButton
+        applyButton.Click += (_, _) =>
         {
-            Content = "取消",
-            MinWidth = 76,
-            Height = 32,
-            IsCancel = true,
+            if (ApplyDraft())
+            {
+                Close();
+            }
         };
-        cancelButton.Click += (_, _) => Close();
-        buttons.Children.Add(cancelButton);
+        buttons.Children.Add(applyButton);
 
         bar.Child = buttons;
         return bar;
@@ -308,6 +405,14 @@ public sealed class SettingsWindow : Window
         var outer = new StackPanel();
         outer.Children.Add(wrapper);
         return outer;
+    }
+
+    private void UpdateThemeCards()
+    {
+        SetResource(_darkThemeCard, Border.BorderBrushProperty, _darkThemeRadio.IsChecked == true ? "EditorSelectedAccentBrush" : "EditorPanelBorderBrush");
+        SetResource(_lightThemeCard, Border.BorderBrushProperty, _lightThemeRadio.IsChecked == true ? "EditorSelectedAccentBrush" : "EditorPanelBorderBrush");
+        _darkThemeCard.Opacity = _darkThemeRadio.IsChecked == true ? 1 : 0.72;
+        _lightThemeCard.Opacity = _lightThemeRadio.IsChecked == true ? 1 : 0.72;
     }
 
     private TextBlock BuildLabel(string text)
@@ -355,12 +460,35 @@ public sealed class SettingsWindow : Window
         return _apply(_draft.Clone());
     }
 
+    private void ApplyLivePreviewIfValid()
+    {
+        RefreshAccentPreview();
+        UpdateThemeCards();
+        if (!AppThemeService.TryParseColor(_accentTextBox.Text, out var accent))
+            return;
+
+        _draft.ThemeMode = _lightThemeRadio.IsChecked == true ? AppThemeMode.Light : AppThemeMode.Dark;
+        _draft.AccentColor = AppThemeService.ToHex(accent);
+        _draft.Normalize();
+        _apply(_draft.Clone());
+    }
+
     private void RefreshAccentPreview()
     {
         if (AppThemeService.TryParseColor(_accentTextBox.Text, out var color))
             _accentPreview.Fill = new SolidColorBrush(color);
         else
             _accentPreview.Fill = WpfBrushes.Transparent;
+    }
+
+    private void OpenAccentColorPicker()
+    {
+        var picker = new AccentColorPickerWindow(this, _accentTextBox.Text);
+        if (picker.ShowDialog() == true && !string.IsNullOrWhiteSpace(picker.SelectedColorHex))
+        {
+            _accentTextBox.Text = picker.SelectedColorHex;
+            ApplyLivePreviewIfValid();
+        }
     }
 
     private static void SetResource(DependencyObject target, DependencyProperty property, string key)
@@ -373,5 +501,12 @@ public sealed class SettingsWindow : Window
         {
             contentElement.SetResourceReference(property, key);
         }
+    }
+
+    private static SolidColorBrush BrushFrom(string value)
+    {
+        return AppThemeService.TryParseColor(value, out var color)
+            ? new SolidColorBrush(color)
+            : new SolidColorBrush(Colors.Transparent);
     }
 }

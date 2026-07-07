@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Documents;
 using AutomationStudioWpf.Interaction;
 using AutomationStudioWpf.Logging;
+using AutomationStudioWpf.Services;
 
 namespace AutomationStudioWpf;
 
@@ -14,7 +15,17 @@ public partial class LogWindow : Window
         LogDirText.Text = $"日志目录：{Logger.GetLogDirectory()}";
         RefreshLogList();
         Logger.Entries.CollectionChanged += OnEntriesChanged;
-        Closed += (_, _) => Logger.Entries.CollectionChanged -= OnEntriesChanged;
+        AppThemeService.ThemeChanged += OnThemeChanged;
+        Closed += (_, _) =>
+        {
+            Logger.Entries.CollectionChanged -= OnEntriesChanged;
+            AppThemeService.ThemeChanged -= OnThemeChanged;
+        };
+    }
+
+    private void OnThemeChanged(object? sender, EventArgs e)
+    {
+        Dispatcher.InvokeAsync(RefreshLogList);
     }
 
     private void OnEntriesChanged(object? sender, NotifyCollectionChangedEventArgs e)

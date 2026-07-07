@@ -421,7 +421,6 @@ public sealed class GraphRuntimeExecutor
     private static bool RequiresGlobalDeviceLock(NodeKind kind) => kind is
         NodeKind.MouseClick or
         NodeKind.MouseMove or
-        NodeKind.MouseDoubleClick or
         NodeKind.ScrollWheel or
         NodeKind.Keyboard or
         NodeKind.KeyChord or

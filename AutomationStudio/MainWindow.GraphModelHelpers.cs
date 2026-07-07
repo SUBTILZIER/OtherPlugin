@@ -57,6 +57,8 @@ public partial class MainWindow
         HoldDurationMs = node.HoldDurationMs,
         MouseButton = node.MouseButton,
         OperationMode = node.OperationMode,
+        TriggerCount = node.TriggerCount,
+        TriggerIntervalMs = node.TriggerIntervalMs,
         Key = node.Key,
         ScrollAction = node.ScrollAction,
         ScrollSpeed = node.ScrollSpeed,
@@ -84,6 +86,15 @@ public partial class MainWindow
         Parameters = node.Parameters.Select(CloneParameterFile).ToList(),
         InputParameters = node.InputParameters.Select(CloneParameterFile).ToList(),
         OutputParameters = node.OutputParameters.Select(CloneParameterFile).ToList(),
+        VariadicInputCount = node.VariadicInputCount,
+        VariadicInputDefaults = node.VariadicInputDefaults is null
+            ? null
+            : new Dictionary<string, string>(node.VariadicInputDefaults, StringComparer.Ordinal),
+        ThreadOutputCount = node.ThreadOutputCount,
+        TargetNodeTitle = node.TargetNodeTitle,
+        TargetNodeNumber = node.TargetNodeNumber,
+        TargetNodeId = node.TargetNodeId,
+        ReturnAfterTarget = node.ReturnAfterTarget,
     };
 
     private static GraphParameterFileModel CloneParameterFile(GraphParameterFileModel parameter) => new()

@@ -219,7 +219,7 @@ public sealed partial class InspectorController
         root.Children.Add(new TextBlock
         {
             Text = node.VariadicInputLabel(ordinal),
-            Foreground = System.Windows.Media.Brushes.White,
+            Foreground = ResourceBrush("EditorTextBrush"),
         });
 
         if (node.NodeKind is NodeKind.BooleanAnd or NodeKind.BooleanOr)

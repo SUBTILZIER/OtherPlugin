@@ -241,7 +241,7 @@ public partial class MainWindow
         var label = new WpfTextBlock
         {
             Text = "搜索",
-            Foreground = WpfBrushes.White,
+            Foreground = AppBrush("ForegroundPrimaryBrush", 0xE6, 0xED, 0xF5),
             Margin = new Thickness(14, 0, 6, 0),
             VerticalAlignment = VerticalAlignment.Center,
             FontSize = 12,

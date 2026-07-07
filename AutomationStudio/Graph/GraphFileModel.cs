@@ -75,6 +75,10 @@ public sealed class NodeFileModel
 
     public string? OperationMode { get; set; }
 
+    public int TriggerCount { get; set; } = 1;
+
+    public int TriggerIntervalMs { get; set; } = 1000;
+
     // Keyboard 节点属性
     public string? Key { get; set; }
 

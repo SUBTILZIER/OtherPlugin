@@ -51,10 +51,21 @@ public sealed partial class InspectorController
     private readonly WpfTextBox _mousePositionYTextBox;
     private readonly WpfComboBox _mouseClickOperationModeComboBox;
     private readonly WpfComboBox _mouseButtonComboBox;
+    private readonly WpfTextBox _mouseTriggerCountTextBox;
+    private readonly WpfTextBox _mouseTriggerIntervalTextBox;
 
     private readonly StackPanel _keyboardInspectorPanel;
     private readonly WpfComboBox _keyboardKeyComboBox;
     private readonly WpfComboBox _keyboardOperationModeComboBox;
+    private readonly WpfTextBox _keyboardTriggerCountTextBox;
+    private readonly WpfTextBox _keyboardTriggerIntervalTextBox;
+
+    private readonly StackPanel _keyChordInspectorPanel;
+    private readonly WpfTextBox _keyChordTextBox;
+    private readonly WpfComboBox _keyChordKeyComboBox;
+    private readonly WpfComboBox _keyChordOperationModeComboBox;
+    private readonly WpfTextBox _keyChordTriggerCountTextBox;
+    private readonly WpfTextBox _keyChordTriggerIntervalTextBox;
 
     private readonly StackPanel _scrollWheelInspectorPanel;
     private readonly WpfComboBox _scrollWheelActionComboBox;
@@ -172,9 +183,19 @@ public sealed partial class InspectorController
         WpfTextBox mousePositionYTextBox,
         WpfComboBox mouseClickOperationModeComboBox,
         WpfComboBox mouseButtonComboBox,
+        WpfTextBox mouseTriggerCountTextBox,
+        WpfTextBox mouseTriggerIntervalTextBox,
         StackPanel keyboardInspectorPanel,
         WpfComboBox keyboardKeyComboBox,
         WpfComboBox keyboardOperationModeComboBox,
+        WpfTextBox keyboardTriggerCountTextBox,
+        WpfTextBox keyboardTriggerIntervalTextBox,
+        StackPanel keyChordInspectorPanel,
+        WpfTextBox keyChordTextBox,
+        WpfComboBox keyChordKeyComboBox,
+        WpfComboBox keyChordOperationModeComboBox,
+        WpfTextBox keyChordTriggerCountTextBox,
+        WpfTextBox keyChordTriggerIntervalTextBox,
         StackPanel scrollWheelInspectorPanel,
         WpfComboBox scrollWheelActionComboBox,
         WpfTextBox scrollWheelSpeedTextBox,
@@ -273,10 +294,21 @@ public sealed partial class InspectorController
         _mousePositionYTextBox = mousePositionYTextBox;
         _mouseClickOperationModeComboBox = mouseClickOperationModeComboBox;
         _mouseButtonComboBox = mouseButtonComboBox;
+        _mouseTriggerCountTextBox = mouseTriggerCountTextBox;
+        _mouseTriggerIntervalTextBox = mouseTriggerIntervalTextBox;
 
         _keyboardInspectorPanel = keyboardInspectorPanel;
         _keyboardKeyComboBox = keyboardKeyComboBox;
         _keyboardOperationModeComboBox = keyboardOperationModeComboBox;
+        _keyboardTriggerCountTextBox = keyboardTriggerCountTextBox;
+        _keyboardTriggerIntervalTextBox = keyboardTriggerIntervalTextBox;
+
+        _keyChordInspectorPanel = keyChordInspectorPanel;
+        _keyChordTextBox = keyChordTextBox;
+        _keyChordKeyComboBox = keyChordKeyComboBox;
+        _keyChordOperationModeComboBox = keyChordOperationModeComboBox;
+        _keyChordTriggerCountTextBox = keyChordTriggerCountTextBox;
+        _keyChordTriggerIntervalTextBox = keyChordTriggerIntervalTextBox;
 
         _scrollWheelInspectorPanel = scrollWheelInspectorPanel;
         _scrollWheelActionComboBox = scrollWheelActionComboBox;
@@ -361,6 +393,7 @@ public sealed partial class InspectorController
             _findImageInspectorPanel,
             _mouseLeftInspectorPanel,
             _keyboardInspectorPanel,
+            _keyChordInspectorPanel,
             _scrollWheelInspectorPanel,
             _ifInspectorPanel,
             _forLoopInspectorPanel,
@@ -434,6 +467,8 @@ public sealed partial class InspectorController
                     _mousePositionYTextBox.Text = mouseNode.PositionY.ToString("0.##");
                     _mouseClickOperationModeComboBox.SelectedIndex = (int)mouseNode.OperationMode;
                     _mouseButtonComboBox.SelectedIndex = (int)mouseNode.MouseButton;
+                    _mouseTriggerCountTextBox.Text = mouseNode.TriggerCount.ToString();
+                    _mouseTriggerIntervalTextBox.Text = mouseNode.TriggerIntervalMs.ToString();
                     break;
 
                 case KeyboardNodeViewModel keyboardNode:
@@ -446,6 +481,23 @@ public sealed partial class InspectorController
                         PressReleaseMode.Click => 2,
                         _ => 0,
                     };
+                    _keyboardTriggerCountTextBox.Text = keyboardNode.TriggerCount.ToString();
+                    _keyboardTriggerIntervalTextBox.Text = keyboardNode.TriggerIntervalMs.ToString();
+                    break;
+
+                case KeyChordNodeViewModel keyChordNode:
+                    _keyChordInspectorPanel.Visibility = Visibility.Visible;
+                    _keyChordTextBox.Text = keyChordNode.Chord;
+                    PopulateKeyComboBox(_keyChordKeyComboBox, string.Empty);
+                    _keyChordOperationModeComboBox.SelectedIndex = keyChordNode.OperationMode switch
+                    {
+                        PressReleaseMode.Press => 0,
+                        PressReleaseMode.Release => 1,
+                        PressReleaseMode.Click => 2,
+                        _ => 2,
+                    };
+                    _keyChordTriggerCountTextBox.Text = keyChordNode.TriggerCount.ToString();
+                    _keyChordTriggerIntervalTextBox.Text = keyChordNode.TriggerIntervalMs.ToString();
                     break;
 
                 case IfNodeViewModel ifNode:
@@ -574,6 +626,10 @@ public sealed partial class InspectorController
                     mouseNode.PositionX = x;
                 if (double.TryParse(_mousePositionYTextBox.Text.Trim(), out var y))
                     mouseNode.PositionY = y;
+                if (int.TryParse(_mouseTriggerCountTextBox.Text.Trim(), out var mouseCount))
+                    mouseNode.TriggerCount = Math.Max(0, mouseCount);
+                if (int.TryParse(_mouseTriggerIntervalTextBox.Text.Trim(), out var mouseInterval))
+                    mouseNode.TriggerIntervalMs = Math.Max(1, mouseInterval);
                 break;
 
             case KeyboardNodeViewModel keyboardNode:
@@ -585,6 +641,24 @@ public sealed partial class InspectorController
                 };
                 if (_keyboardKeyComboBox.SelectedItem is WpfComboBoxItem keyItem && keyItem.Tag is string keyStr)
                     keyboardNode.Key = keyStr;
+                if (int.TryParse(_keyboardTriggerCountTextBox.Text.Trim(), out var keyboardCount))
+                    keyboardNode.TriggerCount = Math.Max(0, keyboardCount);
+                if (int.TryParse(_keyboardTriggerIntervalTextBox.Text.Trim(), out var keyboardInterval))
+                    keyboardNode.TriggerIntervalMs = Math.Max(1, keyboardInterval);
+                break;
+
+            case KeyChordNodeViewModel keyChordNode:
+                keyChordNode.Chord = _keyChordTextBox.Text.Trim();
+                keyChordNode.OperationMode = _keyChordOperationModeComboBox.SelectedIndex switch
+                {
+                    0 => PressReleaseMode.Press,
+                    1 => PressReleaseMode.Release,
+                    _ => PressReleaseMode.Click,
+                };
+                if (int.TryParse(_keyChordTriggerCountTextBox.Text.Trim(), out var keyChordCount))
+                    keyChordNode.TriggerCount = Math.Max(0, keyChordCount);
+                if (int.TryParse(_keyChordTriggerIntervalTextBox.Text.Trim(), out var keyChordInterval))
+                    keyChordNode.TriggerIntervalMs = Math.Max(1, keyChordInterval);
                 break;
 
             case IfNodeViewModel ifNode:

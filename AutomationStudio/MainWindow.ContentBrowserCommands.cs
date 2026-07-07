@@ -585,8 +585,8 @@ public partial class MainWindow
             Height = 150,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
             ResizeMode = ResizeMode.NoResize,
-            Background = new SolidColorBrush(System.Windows.Media.Color.FromRgb(27, 32, 40)),
-            Foreground = System.Windows.Media.Brushes.White,
+            Background = ThemeResourceHelper.Brush("EditorPanelBackgroundBrush"),
+            Foreground = ThemeResourceHelper.Brush("EditorTextBrush"),
             Content = CreateContentDropDialogContent(assetName, action =>
             {
                 result = action;
@@ -611,7 +611,7 @@ public partial class MainWindow
         panel.Children.Add(new TextBlock
         {
             Text = $"选择对资产“{assetName}”的操作：",
-            Foreground = System.Windows.Media.Brushes.White,
+            Foreground = ThemeResourceHelper.Brush("EditorTextBrush"),
             Margin = new Thickness(0, 0, 0, 16),
         });
 

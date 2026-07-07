@@ -17,6 +17,7 @@ public partial class EditorSurfaceControl
     private void RefreshWindowList_Click(object sender, RoutedEventArgs e) => Forward(EditorSurfaceEvent.RefreshWindowListClick, sender, e);
     private void BrowseFindImageSourcePath_Click(object sender, RoutedEventArgs e) => Forward(EditorSurfaceEvent.BrowseFindImageSourcePathClick, sender, e);
     private void CommonKeyChordAddButton_Click(object sender, RoutedEventArgs e) => Forward(EditorSurfaceEvent.CommonKeyChordAddButtonClick, sender, e);
+    private void KeyChordAddButton_Click(object sender, RoutedEventArgs e) => Forward(EditorSurfaceEvent.KeyChordAddButtonClick, sender, e);
     private void AddParameterButton_Click(object sender, RoutedEventArgs e) => Forward(EditorSurfaceEvent.AddParameterButtonClick, sender, e);
     private void CommonModeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e) => Forward(EditorSurfaceEvent.CommonModeComboBoxSelectionChanged, sender, e);
     private void CommonWindowComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e) => Forward(EditorSurfaceEvent.CommonWindowComboBoxSelectionChanged, sender, e);

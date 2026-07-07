@@ -206,6 +206,10 @@ public sealed record GraphRuntimeNode(
 
     public int ThreadOutputCount { get; init; } = 2;
 
+    public int TriggerCount { get; init; } = 1;
+
+    public int TriggerIntervalMs { get; init; } = 1000;
+
     public string? FunctionId { get; init; }
 
     public string? CustomEventId { get; init; }
@@ -250,8 +254,12 @@ public sealed record GraphRuntimeNode(
             FindImageRegionHeight = regionHeight,
         };
 
-    public static GraphRuntimeNode ForMouseClick(string id, string title, PressReleaseMode operationMode, MouseButton mouseButton, double positionX, double positionY) =>
-        new(id, title, NodeKind.MouseClick, null, 0, operationMode, mouseButton, positionX, positionY, 0, null, ScrollWheelAction.ScrollForward, 120, 100, 1000, 0, false, PinKind.Execution, ProgramStartFailureAction.None, 0, null);
+    public static GraphRuntimeNode ForMouseClick(string id, string title, PressReleaseMode operationMode, MouseButton mouseButton, double positionX, double positionY, int triggerCount, int triggerIntervalMs) =>
+        new(id, title, NodeKind.MouseClick, null, 0, operationMode, mouseButton, positionX, positionY, 0, null, ScrollWheelAction.ScrollForward, 120, 100, 1000, 0, false, PinKind.Execution, ProgramStartFailureAction.None, 0, null)
+        {
+            TriggerCount = Math.Max(0, triggerCount),
+            TriggerIntervalMs = Math.Max(1, triggerIntervalMs),
+        };
 
     public static GraphRuntimeNode ForDelay(string id, string title, int delayMs) =>
         new(id, title, NodeKind.Delay, null, 0, PressReleaseMode.Press, MouseButton.Left, 0, 0, delayMs, null, ScrollWheelAction.ScrollForward, 120, 100, 1000, 0, false, PinKind.Execution, ProgramStartFailureAction.None, 0, null);
@@ -259,8 +267,20 @@ public sealed record GraphRuntimeNode(
     public static GraphRuntimeNode ForMouseMove(string id, string title, double positionX, double positionY) =>
         new(id, title, NodeKind.MouseMove, null, 0, PressReleaseMode.Press, MouseButton.Left, positionX, positionY, 0, null, ScrollWheelAction.ScrollForward, 120, 100, 1000, 0, false, PinKind.Execution, ProgramStartFailureAction.None, 0, null);
 
-    public static GraphRuntimeNode ForKeyboard(string id, string title, PressReleaseMode operationMode, string key) =>
-        new(id, title, NodeKind.Keyboard, null, 0, operationMode, MouseButton.Left, 0, 0, 0, key, ScrollWheelAction.ScrollForward, 120, 100, 1000, 0, false, PinKind.Execution, ProgramStartFailureAction.None, 0, null);
+    public static GraphRuntimeNode ForKeyboard(string id, string title, PressReleaseMode operationMode, string key, int triggerCount, int triggerIntervalMs) =>
+        new(id, title, NodeKind.Keyboard, null, 0, operationMode, MouseButton.Left, 0, 0, 0, key, ScrollWheelAction.ScrollForward, 120, 100, 1000, 0, false, PinKind.Execution, ProgramStartFailureAction.None, 0, null)
+        {
+            TriggerCount = Math.Max(0, triggerCount),
+            TriggerIntervalMs = Math.Max(1, triggerIntervalMs),
+        };
+
+    public static GraphRuntimeNode ForKeyChord(string id, string title, string chord, PressReleaseMode operationMode, int triggerCount, int triggerIntervalMs) =>
+        new(id, title, NodeKind.KeyChord, null, 0, operationMode, MouseButton.Left, 0, 0, 0, null, ScrollWheelAction.ScrollForward, 120, 100, 1000, 0, false, PinKind.Execution, ProgramStartFailureAction.None, 0, null)
+        {
+            Text = chord,
+            TriggerCount = Math.Max(0, triggerCount),
+            TriggerIntervalMs = Math.Max(1, triggerIntervalMs),
+        };
 
     public static GraphRuntimeNode ForScrollWheel(string id, string title, ScrollWheelAction scrollAction, int scrollSpeed, int scrollInterval, int scrollDuration) =>
         new(id, title, NodeKind.ScrollWheel, null, 0, PressReleaseMode.Press, MouseButton.Left, 0, 0, 0, null, scrollAction, scrollSpeed, scrollInterval, scrollDuration, 0, false, PinKind.Execution, ProgramStartFailureAction.None, 0, null);

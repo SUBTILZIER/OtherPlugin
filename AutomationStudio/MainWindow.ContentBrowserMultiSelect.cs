@@ -833,7 +833,7 @@ public partial class MainWindow
         panel.Children.Add(new WpfTextBlock
         {
             Text = title,
-            Foreground = System.Windows.Media.Brushes.White,
+            Foreground = ThemeResourceHelper.Brush("EditorTextBrightBrush"),
             FontWeight = WpfFontWeights.SemiBold,
             Margin = new WpfThickness(8, 0, 0, 0),
             VerticalAlignment = WpfVerticalAlignment.Center,
@@ -848,8 +848,8 @@ public partial class MainWindow
             Placement = WpfPlacementMode.Absolute,
             Child = new WpfBorder
             {
-                Background = new WpfSolidColorBrush(WpfColor.FromArgb(170, 32, 36, 43)),
-                BorderBrush = new WpfSolidColorBrush(WpfColor.FromArgb(210, 79, 163, 255)),
+                Background = ThemeResourceHelper.Brush("EditorPanelElevatedBrush"),
+                BorderBrush = ThemeResourceHelper.Brush("AccentBrush"),
                 BorderThickness = new WpfThickness(1),
                 CornerRadius = new System.Windows.CornerRadius(8),
                 Opacity = 0.72,

@@ -38,4 +38,20 @@ public partial class MainWindow
             return false;
         }
     }
+
+    private void OnAppThemeChanged(object? sender, EventArgs e)
+    {
+        if (!IsLoaded)
+            return;
+
+        Dispatcher.InvokeAsync(() =>
+        {
+            ApplyContextMenuResourceReferences();
+            RefreshVisibleScriptPropertiesSummaries();
+            _logPanelController?.Refresh();
+            _finalCodePreviewWindow?.RefreshTheme();
+            foreach (var session in _editorSessions)
+                session.DetachedWindow?.RefreshTheme();
+        });
+    }
 }

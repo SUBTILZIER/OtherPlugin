@@ -588,7 +588,7 @@ public sealed class GraphCompileService
         "start_program" => NodeKind.StartProgram,
         "print_log" => NodeKind.PrintLog,
         "select_window" => NodeKind.SelectWindow,
-        "mouse_double_click" => NodeKind.MouseDoubleClick,
+        "mouse_double_click" => NodeKind.MouseClick,
         "get_mouse_position" => NodeKind.GetMousePosition,
         "key_chord" => NodeKind.KeyChord,
         "wait_image" => NodeKind.WaitImage,

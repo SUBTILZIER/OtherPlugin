@@ -130,6 +130,8 @@ Runtime / Nodes / Adapters
 - 当前内置两套主题：暗色编辑器主题、亮色 Codex 风格主题。强调色必须扩散到选中态、hover、工具栏、输入边框、下拉选中、Tooltip 边框等全局状态，不允许只改设置面板预览色。
 - 后续新增控件必须使用资源 brush，不能硬编码浅底浅字或只适配暗色；亮色主题下 hover 字体不能硬编码白色，除非背景是经过对比度处理的深色强调底。
 - 顶部工具栏的 `设置` 按钮打开 `SettingsWindow`；该窗口必须保持项目自绘窗口样式，不能使用 Windows 原生设置/消息面板。
+- `SettingsWindow` 的主题选择使用可点击预览卡片，不再使用裸 RadioButton 列表；预览卡必须展示主题背景、面板和强调色，让用户点击前就能判断效果。
+- `SettingsWindow` 主题/强调色必须实时预览到全局主界面；`保存设置` 才持久化，`取消`/关闭必须回滚到最近一次已保存/已应用设置。不要只刷新设置窗口自身。
 - `ThemedDialog` 需要读取当前主题资源，不能固定暗色；否则亮色主题下会出现视觉割裂。
 - `EditorSurfaceControl.xaml` 的左侧图表栏使用 section card + pill list item：hover、selected、compile dirty 必须分别用 `EditorPanelCardHoverBrush`、`EditorListSelectedBrush`、`EditorDirtyBackgroundBrush`，选中/脏状态用左侧 accent 条辅助识别。
 - 右侧细节面板的 header、基础节点信息、编号 chip 使用卡片层级；禁用/前置输入态使用 disabled chip/input 颜色，避免看起来像普通可编辑输入。
@@ -148,6 +150,8 @@ Runtime / Nodes / Adapters
 - `ScriptPropertiesWindow` 是代码构建 UI，仍要遵循卡片分组：运行设置和热键分组要留足宽度，热键行固定展示“按键 / 修改 / 按下次数 / 清空 / 触发时间阈值”，按钮不能压住文字。
 - `ScriptPropertiesWindow` 根布局保持“顶部标题固定 + 中间 `ScrollViewer` + 底部保存/取消固定”；新增设置项只能放入滚动内容区，禁止被底部按钮遮挡。
 - `ScriptPropertiesSummaryControl` 是脚本属性的内嵌可编辑面板：主页面无打开资产时，单击脚本资产会在 `EmptyEditorPanel` 直接显示可编辑属性；脚本编辑界面只有单击画布空白且无节点选中时，才会在右侧细节面板显示脚本属性。选中节点时必须显示节点详情，不能混入脚本属性。`EditorSurfaceContext` 的 node selection callback 也必须调用 MainWindow 的脚本属性隐藏/显示 helper，不能直接只调 `InspectorController.LoadNode(...)`，否则 session 自己选节点会残留脚本属性面板。
+- `ScriptPropertiesSummaryControl` 由 C# 构建 UI，但颜色仍必须读取 `App.xaml` 全局 brush，禁止使用冻结硬编码色；热键行必须支持窄面板换行，不能让“修改/清空/阈值”压住文字。
+- 内容浏览器里的脚本启用开关必须使用自绘高对比角标，不允许回退为系统 checkbox 外观；启用态显示清晰 `✓`，停用态也必须可读，并通过 Tooltip 说明“是否监听全局热键”。
 - 新增编辑器 UI 颜色优先放在 `App.xaml` 的 `Editor*Brush`，不要在 XAML 中散落硬编码颜色；局部样式只负责布局、圆角、间距和状态触发。
 - 视觉优化只改样式时不得改控件 `x:Name`、事件处理器、Binding 路径，避免打断 `EditorSurfaceContext` / `InspectorController`。
 
@@ -362,9 +366,9 @@ public abstract class NodeBaseViewModel : ObservableObject
 - **PinKind**: Execution / Boolean / Vector2D / String
 - 支持动态引脚位置计算
 
-#### 当前节点定义 (39 个)
+#### 当前节点定义 (38 个)
 
-`NodeRegistry.CreateDefaultDefinitions()` 当前注册 39 个菜单/运行时定义；`NodeKind.Comment` 仍是历史残留枚举，但不在 `NodeRegistry.Definitions`，旧 `comment` 图节点由 `NodeSerializer.IsRemovedNodeType()` 丢弃。
+`NodeRegistry.CreateDefaultDefinitions()` 当前注册 38 个菜单/运行时定义；`NodeKind.Comment` 仍是历史残留枚举，但不在 `NodeRegistry.Definitions`，旧 `comment` 图节点由 `NodeSerializer.IsRemovedNodeType()` 丢弃。`NodeKind.MouseDoubleClick` 只作为旧数据兼容枚举保留，不出现在节点菜单。
 
 | 节点 | NodeKind | 分类 | 引脚 |
 |------|----------|------|------|
@@ -382,8 +386,8 @@ public abstract class NodeBaseViewModel : ObservableObject
 | SelectWindow | SelectWindow | 功能节点 | exec, process_name(String in/out), result(bool) |
 | PrintLog | PrintLog | 调试 | exec, message(String in) |
 | Reroute | Reroute | 连线 | in/out (同类型透传) |
-| Stage-5 Mouse | MouseDoubleClick/GetMousePosition | 输入/鼠标 | 双击、输出当前位置 |
-| Stage-5 Keyboard | KeyChord | 输入/键盘 | 组合键，属性面板支持添加按键 + 组合预览 |
+| Stage-5 Mouse | MouseClick/GetMousePosition | 输入/鼠标 | 鼠标点击支持触发次数/间隔；双击用次数 2 + 80~150ms 间隔；获取鼠标位置输出当前位置 |
+| Stage-5 Keyboard | KeyChord | 输入/键盘 | 组合键有专用 ViewModel/Inspector/Executor，支持点击/按下/抬起、触发次数、触发间隔 |
 | Stage-5 Image | WaitImage/WaitImageDisappear | 插件/图像识别 | 等待图片、等待消失；WaitImage 输出 image_path/center/result；实时截屏时隐藏 source_image_path 输入 |
 | Stage-5 Logic | Compare/BooleanAnd/BooleanOr/BooleanNot/StringConcat | 逻辑 | 比较、布尔、字符串拼接 |
 | Stage-5 Window | WaitWindow/CloseWindow/WindowExists/GetForegroundWindow | 系统/窗口 | 等待/关闭/存在/前台窗口 |
@@ -423,6 +427,8 @@ ExecuteChain() → ExecuteNode() → NodeRegistry → INodeExecutor → Adapter
 - `GraphRuntimeExecutor.ExecuteMultiThreadNode(...)` 为每个已连接 `exec_thread_N` 启动 branch task；未连接线程输出视为立即完成。任一分支失败则节点 `FatalStop`，全部成功后继续 `exec_completed`。
 - 分支共享 `RuntimeContext` 输出缓存；`RuntimeContext` 写读加锁，纯节点求值栈用 thread-local，避免并行分支互相误报数据环路。
 - 鼠标、键盘、窗口类节点使用 runtime 全局设备锁串行执行；Delay、日志、找图、纯运算等仍可并行。
+- 键盘、鼠标点击、组合键统一使用 `TriggerCount` / `TriggerIntervalMs`。`TriggerCount=0` 表示无限触发，直到脚本取消；间隔只发生在两次触发之间，运行时最小夹紧到 `1ms`，避免空转。
+- 鼠标双击不再是用户可见节点。旧 `mouse_double_click` 读取时由 `NodeSerializer` 迁成 `MouseClickNodeViewModel`，`TriggerCount=2`、`TriggerIntervalMs=80`、左键点击；编译 type key 也映射到 `MouseClick`。
 
 重要安全规则：
 - 输入 pin 未连接：可以使用节点本地属性。
@@ -726,16 +732,16 @@ Python 参数规则：
 
 #### 新增节点策略
 - **新增范围**：鼠标、键盘、图像、逻辑、系统、调试共 22 个常用节点。
-- **保留节点**：`MouseDoubleClick`、`GetMousePosition`、`KeyChord`、`WaitImage`、`WaitImageDisappear`、`Compare`、`BooleanAnd/Or/Not`、`StringConcat`、`WaitWindow`、`CloseWindow`、`WindowExists`、`GetForegroundWindow`、`SaveScreenshot`、`ShowMessage`。
+- **保留节点**：`GetMousePosition`、`KeyChord`、`WaitImage`、`WaitImageDisappear`、`Compare`、`BooleanAnd/Or/Not`、`StringConcat`、`WaitWindow`、`CloseWindow`、`WindowExists`、`GetForegroundWindow`、`SaveScreenshot`、`ShowMessage`。`MouseDoubleClick` 已废弃为可见节点，旧图自动迁移到鼠标点击重复触发。
 - **已删除节点**：`MouseDrag`、`InputText`、`KeySequence`、`ClickImageCenter`、`SetVariable`、`Comment`。旧图加载时丢弃这些节点并写 Warn，同时过滤坏连线。
-- **UI 策略**：保留的小节点继续使用 `CommonNodeViewModel` + 通用属性面板；复杂节点后续再拆专用 ViewModel/Inspector/Executor。
-- **Runtime 策略**：每个保留节点仍有独立 `NodeKind`，执行器统一走 `Nodes/Common/CommonNodeExecutors.cs`，菜单定义仍由 `NodeRegistry.Definitions` 生成。
-- **交互优化**：`KeyChord` 使用“增加按键 + 组合预览”；窗口类通用节点支持手填、运行窗口下拉、浏览 exe 推导进程名；`WaitImage.image_path` 可输出给后续 `FindImage.image_path`。
+- **UI 策略**：小型纯数据节点继续使用 `CommonNodeViewModel` + 通用属性面板；组合键等交互复杂节点拆专用 ViewModel/Inspector/Executor。
+- **Runtime 策略**：每个保留节点仍有独立 `NodeKind`，复杂节点走专用 executor，简单节点仍可走 `Nodes/Common/CommonNodeExecutors.cs`；菜单定义由 `NodeRegistry.Definitions` 生成。
+- **交互优化**：`KeyChord` 使用专用面板“增加按键 + 组合预览 + 操作模式 + 触发次数/间隔”；窗口类通用节点支持手填、运行窗口下拉、浏览 exe 推导进程名；`WaitImage.image_path` 可输出给后续 `FindImage.image_path`。
 - **维护规则**：如果某个通用节点后续参数变复杂，再单独拆成专属 ViewModel/Inspector 面板；不要一开始就把所有小节点拆成几十个重复类。
 
 #### 新增 Adapter 能力
-- `IMouseAdapter`：双击、获取鼠标位置。
-- `IKeyboardAdapter`：组合键。
+- `IMouseAdapter`：移动、按键、滚轮、获取鼠标位置；双击由鼠标点击节点重复触发实现。
+- `IKeyboardAdapter`：单键按下/抬起/点击、释放全部按键；组合键由 `KeyChordNodeExecutor` 编排按下/反向释放。
 - `IWindowAdapter`：等待窗口、关闭窗口、窗口是否存在、获取前台窗口。
 - `IScreenshotAdapter`：保存全屏或指定区域截图。
 
@@ -1131,3 +1137,22 @@ dotnet publish -c Release -r win-x64 \
 - `NodePalette`、执行冻结遮罩、最终代码窗口、脚本属性窗口都属于编辑器浮层；必须使用卡片背景、边框和阴影，不要退回系统默认窗口或朴素白底控件。
 - `ScriptPropertiesWindow` 是代码构建 UI；热键行需要足够列宽，窗口默认宽度不应低于 820，内容超出走中间滚动区，底部保存/取消固定。
 - 新增视觉资源优先放 `App.xaml` 的 `Editor*Brush`，局部 XAML 只负责布局和状态触发；不要散落硬编码颜色。
+## 2026-07-07：全局主题 token 收口
+
+- 主题必须是应用级配置，只能由 `AppThemeService.Apply(AppSettings)` 修改；设置保存在 `%AppData%/AutomationStudioWpf/app-settings.json`，不得写入脚本/函数库资产。
+- `App.xaml` 是全局主题 token 源。新增 UI 优先使用 `Root/Chrome/Panel/Card/Field/Text/Muted/Border/Hover/Selected/Accent/Warning/Error/Disabled` 语义 brush；不要在页面、控件、C# 构造 UI 里散写 `#RRGGBB`。
+- `AppThemeService` 现在支持 `#RRGGBB` 和 `#AARRGGBB`，半透明遮罩类 token（例如 `EditorExecutionOverlayBrush`）也必须走 palette，而不是写死在 XAML。
+- C# 动态 UI 必须用 `ThemeResourceHelper.SetResource(...)` 或 `ThemeResourceHelper.Brush(...)`：`ScriptPropertiesWindow`、`ScriptPropertiesSummaryControl`、`SettingsWindow`、`TrayMenuWindow`、`ThemedDialog`、拖拽预览、节点菜单等都不能固定 `Brushes.White` / `new SolidColorBrush(#...)`。
+- `SettingsWindow` 的主题/强调色是实时预览：点亮色/暗色、输入合法强调色、点预设色必须立刻刷新主窗口、编辑器、内容浏览器、日志、detached 窗口和已有自绘窗口；`保存设置` 才持久化，`取消/关闭` 必须回滚到最近一次保存/应用值。
+- 硬编码色白名单只允许：节点类型色、pin/连线语义色、日志 level 语义色、截图/鼠标拾取颜色预览、阴影黑色、透明色、主题 palette 本身。其它 `#[0-9A-Fa-f]{6,8}`、`Brushes.*`、`new SolidColorBrush(...)` 都需要解释或改成 token。
+- 亮色主题验收标准：主窗口上方、内容浏览器、日志、编辑器、属性面板、弹窗、菜单、Tooltip 必须同时切到浅色层级；不能出现“上白下黑”、白底白字、浅灰字贴浅底、按钮文字被背景吃掉。
+- 2026-07-07 根因补充：旧 `MainWindow.ThemeUnifier` 曾在 `OnContentRendered` 后用冻结暗色 brush 直接写内容浏览器、日志和右键菜单本地属性，导致设置窗口切到亮色后主界面仍黑。该类以后只允许安装内容浏览器交互/重命名校验等 hook，不允许再承担“统一暗色上色器”职责。
+- 主题切换事件由 `AppThemeService.ThemeChanged` 广播；主窗口负责刷新日志 FlowDocument、detached 子窗口、最终代码窗口和少量代码生成 UI。XAML 主题 token 使用 `DynamicResource`，避免已创建控件拿着旧资源不刷新。
+- 2026-07-07 亮色风格修正：亮色主题按 Codex 风格使用中性灰白层级（灰背景、白卡片、冷灰边框），禁止偏黄/米黄底色；`ContentAssetTileContainerStyle` 的资产名必须显式绑定 `EditorTextBrush`，选中态切 `AccentForegroundBrush`，不能再固定白字；`ThemedDialog` 按钮必须属于同一视觉族，默认按钮只用强调边框/轻微高亮区分，不允许“一个白按钮 + 一个整块蓝按钮”的割裂样式。
+- 2026-07-07 亮色二次修正：亮色不能大面积纯白刺眼，主背景/画布/日志/内容区优先用低亮度冷灰白；正文文字用灰黑，不用纯黑。执行 pin/执行连线必须走 `EditorExecutionPinBrush`，亮色下为深灰，避免白线在浅色画布上不可见；连接命中高亮和预览线分别走 `EditorConnectionHitBrush`、`EditorPreviewConnectionBrush`。
+- 2026-07-07 亮色三次修正：用户反馈 `#F8FAFC/#FFFFFF` 面积过大仍刺眼。亮色默认再压暗到柔和雾灰：应用背景约 `#E7EBF0`，主面板约 `#EEF2F6`，画布约 `#E9EEF4`，卡片约 `#F3F6FA`。后续别把大面积背景恢复成纯白或近纯白。
+- 2026-07-07 亮色四次修正：用户反馈画布仍刺眼，亮色主题继续压到低亮冷灰层级：应用背景约 `#DDE3EA`，主面板约 `#E6EBF2`，画布约 `#D6DEE9`，网格约 `#DCE4EE/#BFCBDA`。原则：亮色不是纯白主题，而是 Codex 风格柔和灰白主题；大面积区域优先灰，不用白。
+- `SettingsWindow` 默认尺寸不得太小，当前目标约 `720x620` 且允许 resize；内容多时滚动，不要把设置项挤没。强调色必须支持项目内自绘色盘（`AccentColorPickerWindow`），禁止调用 Windows 原生颜色面板。
+- `SettingsWindow` 底部只保留 `应用` 一个按钮；实时预览仍即时生效，`应用` 只负责确认并关闭。不要再恢复 `保存设置` / `取消` 双按钮和回滚流程，避免交互重复。
+- 用户自选强调色必须原样写入 `AccentBrush`，不要为了可读性直接暗化用户选择的颜色。需要深一点的选中底色时，单独派生 `EditorListSelectedBrush` / `DropdownSelectedBrush`；按钮文字色通过亮度在深/浅前景间切换。
+- `ScriptPropertiesSummaryControl` 属于 C# 动态 UI，必须用 `SetResourceReference` 绑定主题 token；不要在创建时把 `Brush` 取出来赋给 `Background/Foreground/BorderBrush`，否则亮/暗主题切换后空白画布里的脚本属性摘要会保留旧主题色。

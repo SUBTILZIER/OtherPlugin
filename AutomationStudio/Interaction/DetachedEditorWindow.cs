@@ -2,22 +2,12 @@ using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
-using System.Windows.Media;
 using WpfButton = System.Windows.Controls.Button;
-using WpfBrushes = System.Windows.Media.Brushes;
-using WpfColor = System.Windows.Media.Color;
 
 namespace AutomationStudioWpf.Interaction;
 
 public sealed class DetachedEditorWindow : Window
 {
-    private static readonly SolidColorBrush WindowBackgroundBrush = FrozenBrush(17, 21, 26);
-    private static readonly SolidColorBrush ToolbarBackgroundBrush = FrozenBrush(32, 36, 43);
-    private static readonly SolidColorBrush ButtonForegroundBrush = FrozenBrush(232, 237, 245);
-    private static readonly SolidColorBrush ButtonBackgroundBrush = FrozenBrush(36, 43, 53);
-    private static readonly SolidColorBrush ButtonBorderBrush = FrozenBrush(79, 94, 116);
-    private static readonly SolidColorBrush TitleForegroundBrush = FrozenBrush(232, 237, 245);
-
     private readonly EditorSessionViewModel _session;
     private readonly Action<EditorSessionViewModel> _dockRequested;
     private readonly Action<EditorSessionViewModel> _closeRequested;
@@ -28,6 +18,8 @@ public sealed class DetachedEditorWindow : Window
         VerticalContentAlignment = VerticalAlignment.Stretch,
     };
     private readonly TextBlock _titleText = new();
+    private DockPanel _toolbar = null!;
+    private WpfButton _dockButton = null!;
     private bool _closingFromOwner;
 
     public DetachedEditorWindow(
@@ -48,9 +40,10 @@ public sealed class DetachedEditorWindow : Window
         WindowStartupLocation = WindowStartupLocation.Manual;
         Left = owner.Left + 90;
         Top = owner.Top + 90;
-        Background = WindowBackgroundBrush;
+        Icon = WindowIconHelper.AppIcon;
 
         Content = CreateContent();
+        RefreshTheme();
         PreviewMouseDown += DetachedEditorWindow_PreviewMouseDown;
         Closing += DetachedEditorWindow_Closing;
     }
@@ -59,6 +52,16 @@ public sealed class DetachedEditorWindow : Window
     {
         Title = _session.DisplayTitle;
         _titleText.Text = _session.DisplayTitle;
+    }
+
+    public void RefreshTheme()
+    {
+        ThemeResourceHelper.SetResource(this, BackgroundProperty, "EditorRootBackgroundBrush");
+        ThemeResourceHelper.SetResource(_toolbar, DockPanel.BackgroundProperty, "EditorChromeBrush");
+        ThemeResourceHelper.SetResource(_titleText, TextBlock.ForegroundProperty, "EditorTextBrightBrush");
+        ThemeResourceHelper.SetResource(_dockButton, WpfButton.ForegroundProperty, "EditorTextBrightBrush");
+        ThemeResourceHelper.SetResource(_dockButton, WpfButton.BackgroundProperty, "EditorToolbarGroupBrush");
+        ThemeResourceHelper.SetResource(_dockButton, WpfButton.BorderBrushProperty, "EditorPanelBorderBrush");
     }
 
     public void SetEditorContent(UIElement editor)
@@ -98,25 +101,23 @@ public sealed class DetachedEditorWindow : Window
 
     private UIElement CreateToolbar()
     {
-        var bar = new DockPanel
+        _toolbar = new DockPanel
         {
             Height = 34,
-            Background = ToolbarBackgroundBrush,
             LastChildFill = true,
         };
 
-        var dockButton = CreateButton("停靠回主窗口");
-        dockButton.Click += (_, _) => _dockRequested(_session);
-        DockPanel.SetDock(dockButton, Dock.Right);
-        bar.Children.Add(dockButton);
+        _dockButton = CreateButton("停靠回主窗口");
+        _dockButton.Click += (_, _) => _dockRequested(_session);
+        DockPanel.SetDock(_dockButton, Dock.Right);
+        _toolbar.Children.Add(_dockButton);
 
-        _titleText.Foreground = TitleForegroundBrush;
         _titleText.FontWeight = FontWeights.SemiBold;
         _titleText.VerticalAlignment = VerticalAlignment.Center;
         _titleText.Margin = new Thickness(10, 0, 0, 0);
         _titleText.Text = _session.DisplayTitle;
-        bar.Children.Add(_titleText);
-        return bar;
+        _toolbar.Children.Add(_titleText);
+        return _toolbar;
     }
 
     private static WpfButton CreateButton(string text) => new()
@@ -124,10 +125,7 @@ public sealed class DetachedEditorWindow : Window
         Content = text,
         Margin = new Thickness(4),
         Padding = new Thickness(8, 2, 8, 2),
-        MinWidth = 74,
-        Foreground = ButtonForegroundBrush,
-        Background = ButtonBackgroundBrush,
-        BorderBrush = ButtonBorderBrush,
+        MinWidth = 92,
     };
 
     private void DetachedEditorWindow_Closing(object? sender, CancelEventArgs e)
@@ -142,12 +140,5 @@ public sealed class DetachedEditorWindow : Window
     private void DetachedEditorWindow_PreviewMouseDown(object sender, MouseButtonEventArgs e)
     {
         _previewMouseDownRequested(_session, e);
-    }
-
-    private static SolidColorBrush FrozenBrush(byte r, byte g, byte b)
-    {
-        var brush = new SolidColorBrush(WpfColor.FromRgb(r, g, b));
-        brush.Freeze();
-        return brush;
     }
 }

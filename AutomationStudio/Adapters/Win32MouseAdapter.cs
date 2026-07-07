@@ -34,13 +34,6 @@ public sealed class Win32MouseAdapter : IMouseAdapter
         }
     }
 
-    public void DoubleClick(MouseButton button)
-    {
-        ExecuteButton(button, PressReleaseMode.Click);
-        Thread.Sleep(80);
-        ExecuteButton(button, PressReleaseMode.Click);
-    }
-
     public Point GetPosition()
     {
         return GetCursorPos(out POINT point)

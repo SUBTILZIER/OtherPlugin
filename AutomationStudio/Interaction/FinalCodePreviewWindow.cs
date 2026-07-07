@@ -2,26 +2,20 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using WpfContextMenu = System.Windows.Controls.ContextMenu;
+using WpfFontFamily = System.Windows.Media.FontFamily;
 using WpfMenuItem = System.Windows.Controls.MenuItem;
 using WpfTextBox = System.Windows.Controls.TextBox;
-using WpfColor = System.Windows.Media.Color;
-using WpfFontFamily = System.Windows.Media.FontFamily;
 
 namespace AutomationStudioWpf.Interaction;
 
 internal sealed class FinalCodePreviewWindow : Window
 {
-    private static readonly SolidColorBrush WindowBackgroundBrush = FrozenBrush(23, 28, 36);
-    private static readonly SolidColorBrush WindowBorderBrush = FrozenBrush(58, 70, 86);
-    private static readonly SolidColorBrush TitleBrush = FrozenBrush(232, 237, 245);
-    private static readonly SolidColorBrush ErrorBrush = FrozenBrush(255, 107, 107);
-    private static readonly SolidColorBrush TextBrush = FrozenBrush(232, 237, 245);
-    private static readonly SolidColorBrush MutedBrush = FrozenBrush(167, 177, 191);
-    private static readonly SolidColorBrush TextBoxBackgroundBrush = FrozenBrush(18, 22, 29);
-    private static readonly SolidColorBrush TextBoxBorderBrush = FrozenBrush(69, 82, 100);
-
     private readonly WpfTextBox _textBox = new();
     private readonly TextBlock _statusText = new();
+    private Border _shell = null!;
+    private Border _header = null!;
+    private TextBlock _titleText = null!;
+    private bool _hasError;
 
     public FinalCodePreviewWindow(Window owner)
     {
@@ -32,11 +26,11 @@ internal sealed class FinalCodePreviewWindow : Window
         MinWidth = 720;
         MinHeight = 480;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
-        Background = WindowBackgroundBrush;
-        Foreground = TextBrush;
         ShowInTaskbar = false;
+        Icon = WindowIconHelper.AppIcon;
 
         Content = BuildContent();
+        RefreshTheme();
         Closed += (_, _) => IsClosed = true;
     }
 
@@ -45,11 +39,29 @@ internal sealed class FinalCodePreviewWindow : Window
     public void SetPreview(string text, string? errorMessage)
     {
         _textBox.Text = text;
-        _statusText.Text = string.IsNullOrWhiteSpace(errorMessage)
-            ? "只读预览"
-            : $"生成失败：{errorMessage}";
-        _statusText.Foreground = string.IsNullOrWhiteSpace(errorMessage) ? MutedBrush : ErrorBrush;
+        _hasError = !string.IsNullOrWhiteSpace(errorMessage);
+        _statusText.Text = _hasError
+            ? $"生成失败：{errorMessage}"
+            : "只读预览";
+        ThemeResourceHelper.SetResource(_statusText, TextBlock.ForegroundProperty, _hasError ? "LogErrorBrush" : "EditorMutedTextBrush");
         Dispatcher.BeginInvoke(new Action(() => _textBox.CaretIndex = 0));
+    }
+
+    public void RefreshTheme()
+    {
+        ThemeResourceHelper.SetResource(this, BackgroundProperty, "EditorPanelBackgroundBrush");
+        ThemeResourceHelper.SetResource(this, ForegroundProperty, "EditorTextBrush");
+        ThemeResourceHelper.SetResource(_shell, Border.BackgroundProperty, "EditorPanelBackgroundBrush");
+        ThemeResourceHelper.SetResource(_shell, Border.BorderBrushProperty, "EditorPanelBorderBrush");
+        ThemeResourceHelper.SetResource(_header, Border.BackgroundProperty, "EditorPanelElevatedBrush");
+        ThemeResourceHelper.SetResource(_header, Border.BorderBrushProperty, "EditorPanelBorderBrush");
+        ThemeResourceHelper.SetResource(_titleText, TextBlock.ForegroundProperty, "EditorTextBrightBrush");
+        ThemeResourceHelper.SetResource(_statusText, TextBlock.ForegroundProperty, _hasError ? "LogErrorBrush" : "EditorMutedTextBrush");
+        ThemeResourceHelper.SetResource(_textBox, WpfTextBox.BackgroundProperty, "EditorChromeBrush");
+        ThemeResourceHelper.SetResource(_textBox, WpfTextBox.ForegroundProperty, "EditorTextBrush");
+        ThemeResourceHelper.SetResource(_textBox, WpfTextBox.BorderBrushProperty, "EditorPanelBorderBrush");
+        ThemeResourceHelper.SetResource(_textBox, WpfTextBox.CaretBrushProperty, "EditorTextBrush");
+        ThemeResourceHelper.SetResource(_textBox, WpfTextBox.SelectionBrushProperty, "EditorListSelectedBrush");
     }
 
     public void ActivateWindow()
@@ -65,10 +77,8 @@ internal sealed class FinalCodePreviewWindow : Window
 
     private UIElement BuildContent()
     {
-        var shell = new Border
+        _shell = new Border
         {
-            Background = WindowBackgroundBrush,
-            BorderBrush = WindowBorderBrush,
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(14),
             Padding = new Thickness(14),
@@ -78,37 +88,34 @@ internal sealed class FinalCodePreviewWindow : Window
         {
             LastChildFill = true,
         };
-        shell.Child = root;
+        _shell.Child = root;
 
-        var header = new Border
+        _header = new Border
         {
-            Background = FrozenBrush(32, 39, 51),
-            BorderBrush = WindowBorderBrush,
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(10),
             Padding = new Thickness(12, 10, 12, 10),
             Margin = new Thickness(0, 0, 0, 10),
         };
         var headerDock = new DockPanel { LastChildFill = true };
-        header.Child = headerDock;
+        _header.Child = headerDock;
 
-        headerDock.Children.Add(new TextBlock
+        _titleText = new TextBlock
         {
             Text = "显示最终代码",
-            Foreground = TitleBrush,
             FontSize = 17,
             FontWeight = FontWeights.SemiBold,
             Margin = new Thickness(0, 0, 10, 0),
-        });
+        };
+        headerDock.Children.Add(_titleText);
 
         DockPanel.SetDock(_statusText, Dock.Right);
         _statusText.Text = "只读预览";
         _statusText.VerticalAlignment = VerticalAlignment.Center;
-        _statusText.Foreground = MutedBrush;
         headerDock.Children.Add(_statusText);
 
-        DockPanel.SetDock(header, Dock.Top);
-        root.Children.Add(header);
+        DockPanel.SetDock(_header, Dock.Top);
+        root.Children.Add(_header);
 
         _textBox.IsReadOnly = true;
         _textBox.AcceptsReturn = true;
@@ -118,25 +125,23 @@ internal sealed class FinalCodePreviewWindow : Window
         _textBox.HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled;
         _textBox.FontFamily = new WpfFontFamily("Consolas");
         _textBox.FontSize = 13;
-        _textBox.Background = TextBoxBackgroundBrush;
-        _textBox.Foreground = TextBrush;
-        _textBox.BorderBrush = TextBoxBorderBrush;
         _textBox.BorderThickness = new Thickness(1);
         _textBox.Padding = new Thickness(12);
-        _textBox.CaretBrush = TextBrush;
-        _textBox.SelectionBrush = new SolidColorBrush(WpfColor.FromRgb(79, 163, 255));
         _textBox.SelectionOpacity = 0.35;
         _textBox.IsUndoEnabled = false;
         _textBox.SpellCheck.IsEnabled = false;
         _textBox.ContextMenu = BuildContextMenu();
 
         root.Children.Add(_textBox);
-        return shell;
+        return _shell;
     }
 
     private WpfContextMenu BuildContextMenu()
     {
         var menu = new WpfContextMenu();
+        ThemeResourceHelper.SetResource(menu, WpfContextMenu.BackgroundProperty, "DropdownBackgroundBrush");
+        ThemeResourceHelper.SetResource(menu, WpfContextMenu.BorderBrushProperty, "DropdownBorderBrush");
+        ThemeResourceHelper.SetResource(menu, WpfContextMenu.ForegroundProperty, "DropdownTextBrush");
         menu.Items.Add(CreateMenuItem("全选", (_, _) => _textBox.SelectAll()));
         menu.Items.Add(CreateMenuItem("复制", (_, _) => _textBox.Copy()));
         return menu;
@@ -145,14 +150,8 @@ internal sealed class FinalCodePreviewWindow : Window
     private static WpfMenuItem CreateMenuItem(string header, RoutedEventHandler click)
     {
         var item = new WpfMenuItem { Header = header };
+        ThemeResourceHelper.SetResource(item, WpfMenuItem.ForegroundProperty, "DropdownTextBrush");
         item.Click += click;
         return item;
-    }
-
-    private static SolidColorBrush FrozenBrush(byte r, byte g, byte b)
-    {
-        var brush = new SolidColorBrush(WpfColor.FromRgb(r, g, b));
-        brush.Freeze();
-        return brush;
     }
 }

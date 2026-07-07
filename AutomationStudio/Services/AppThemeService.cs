@@ -8,6 +8,8 @@ namespace AutomationStudioWpf.Services;
 
 public static class AppThemeService
 {
+    public static event EventHandler? ThemeChanged;
+
     private static readonly Dictionary<string, string> DarkPalette = new()
     {
         ["AppBackgroundBrush"] = "#171C24",
@@ -16,6 +18,7 @@ public static class AppThemeService
         ["BorderBrushDark"] = "#303A48",
         ["ForegroundPrimaryBrush"] = "#E6EDF5",
         ["ForegroundSecondaryBrush"] = "#AAB6C6",
+        ["AccentForegroundBrush"] = "#FFFFFF",
         ["InputBackgroundBrush"] = "#232B36",
         ["InputBorderBrush"] = "#3C4A5C",
         ["DisabledInputBackgroundBrush"] = "#1A2028",
@@ -40,6 +43,11 @@ public static class AppThemeService
         ["EditorCanvasBackgroundBrush"] = "#0D1219",
         ["EditorCanvasGridBackgroundBrush"] = "#111821",
         ["EditorCanvasGridLineBrush"] = "#202936",
+        ["EditorNodeBackgroundBrush"] = "#20242A",
+        ["EditorExecutionOverlayBrush"] = "#B0181D2A",
+        ["EditorExecutionPinBrush"] = "#F4F4F4",
+        ["EditorConnectionHitBrush"] = "#2BA8FF",
+        ["EditorPreviewConnectionBrush"] = "#F5F5F5",
         ["EditorSectionHeaderBrush"] = "#25303D",
         ["EditorListSelectedBrush"] = "#2D6FB7",
         ["EditorListHoverBrush"] = "#203044",
@@ -65,55 +73,61 @@ public static class AppThemeService
 
     private static readonly Dictionary<string, string> LightPalette = new()
     {
-        ["AppBackgroundBrush"] = "#F4F1EA",
-        ["PanelBackgroundBrush"] = "#FFFCF6",
-        ["PanelAltBackgroundBrush"] = "#F0EDE5",
-        ["BorderBrushDark"] = "#D8D1C4",
-        ["ForegroundPrimaryBrush"] = "#20242A",
-        ["ForegroundSecondaryBrush"] = "#5B6470",
-        ["InputBackgroundBrush"] = "#FFFFFF",
-        ["InputBorderBrush"] = "#CFC7B8",
-        ["DisabledInputBackgroundBrush"] = "#ECE8DF",
-        ["DisabledInputBorderBrush"] = "#D9D1C2",
+        ["AppBackgroundBrush"] = "#DDE3EA",
+        ["PanelBackgroundBrush"] = "#E6EBF2",
+        ["PanelAltBackgroundBrush"] = "#D0D8E3",
+        ["BorderBrushDark"] = "#B4C0CF",
+        ["ForegroundPrimaryBrush"] = "#253041",
+        ["ForegroundSecondaryBrush"] = "#596575",
+        ["AccentForegroundBrush"] = "#FFFFFF",
+        ["InputBackgroundBrush"] = "#EEF2F6",
+        ["InputBorderBrush"] = "#B2BECD",
+        ["DisabledInputBackgroundBrush"] = "#D6DEE8",
+        ["DisabledInputBorderBrush"] = "#BBC7D5",
         ["DisabledForegroundBrush"] = "#667085",
-        ["DropdownBackgroundBrush"] = "#FFFFFF",
-        ["DropdownHoverBrush"] = "#EAF2FF",
+        ["DropdownBackgroundBrush"] = "#EEF2F6",
+        ["DropdownHoverBrush"] = "#D5E2F4",
         ["DropdownSelectedBrush"] = "#2F6FEB",
-        ["DropdownBorderBrush"] = "#CDC6BA",
-        ["DropdownTextBrush"] = "#20242A",
+        ["DropdownBorderBrush"] = "#B9C5D3",
+        ["DropdownTextBrush"] = "#253041",
         ["DropdownMutedTextBrush"] = "#667085",
-        ["ToolbarButtonBackgroundBrush"] = "#FFFFFF",
-        ["ToolbarButtonBorderBrush"] = "#D8D1C4",
-        ["CompileDirtyBackgroundBrush"] = "#FFF3D9",
+        ["ToolbarButtonBackgroundBrush"] = "#E6EBF2",
+        ["ToolbarButtonBorderBrush"] = "#B4C0CF",
+        ["CompileDirtyBackgroundBrush"] = "#FFF7E6",
         ["CompileDirtyBorderBrush"] = "#C98200",
-        ["StatusMutedBrush"] = "#64748B",
+        ["StatusMutedBrush"] = "#475569",
         ["LogErrorBrush"] = "#D92D20",
-        ["EditorRootBackgroundBrush"] = "#F4F1EA",
-        ["EditorPanelBackgroundBrush"] = "#FFFCF6",
-        ["EditorPanelBorderBrush"] = "#D8D1C4",
-        ["EditorPanelStrongBorderBrush"] = "#C5BBAA",
-        ["EditorCanvasBackgroundBrush"] = "#FAF8F2",
-        ["EditorCanvasGridBackgroundBrush"] = "#FFFEFB",
-        ["EditorCanvasGridLineBrush"] = "#E6DED1",
-        ["EditorSectionHeaderBrush"] = "#E6E0D6",
+        ["EditorRootBackgroundBrush"] = "#DDE3EA",
+        ["EditorPanelBackgroundBrush"] = "#E6EBF2",
+        ["EditorPanelBorderBrush"] = "#B4C0CF",
+        ["EditorPanelStrongBorderBrush"] = "#9FAEBF",
+        ["EditorCanvasBackgroundBrush"] = "#D6DEE9",
+        ["EditorCanvasGridBackgroundBrush"] = "#DCE4EE",
+        ["EditorCanvasGridLineBrush"] = "#BFCBDA",
+        ["EditorNodeBackgroundBrush"] = "#EEF2F6",
+        ["EditorExecutionOverlayBrush"] = "#AADDE5EF",
+        ["EditorExecutionPinBrush"] = "#64748B",
+        ["EditorConnectionHitBrush"] = "#2F80ED",
+        ["EditorPreviewConnectionBrush"] = "#64748B",
+        ["EditorSectionHeaderBrush"] = "#D9E1EB",
         ["EditorListSelectedBrush"] = "#2F6FEB",
-        ["EditorListHoverBrush"] = "#EAF2FF",
-        ["EditorDirtyBackgroundBrush"] = "#FFF3D9",
-        ["EditorTextBrush"] = "#20242A",
-        ["EditorTextBrightBrush"] = "#0F172A",
-        ["EditorMutedTextBrush"] = "#64748B",
-        ["EditorPanelCardBrush"] = "#FFFFFF",
-        ["EditorPanelCardHoverBrush"] = "#F2EFE7",
-        ["EditorPanelElevatedBrush"] = "#EEE9DF",
-        ["EditorChromeBrush"] = "#ECE8DF",
-        ["EditorChromeHighlightBrush"] = "#EAF2FF",
-        ["EditorToolbarGroupBrush"] = "#FFFFFF",
-        ["EditorToolbarSeparatorBrush"] = "#D7D0C3",
-        ["EditorSectionHeaderAccentBrush"] = "#EAF2FF",
+        ["EditorListHoverBrush"] = "#D5E2F4",
+        ["EditorDirtyBackgroundBrush"] = "#FFF7E6",
+        ["EditorTextBrush"] = "#253041",
+        ["EditorTextBrightBrush"] = "#1F2937",
+        ["EditorMutedTextBrush"] = "#667085",
+        ["EditorPanelCardBrush"] = "#EEF2F6",
+        ["EditorPanelCardHoverBrush"] = "#DEE7F1",
+        ["EditorPanelElevatedBrush"] = "#D8E0EA",
+        ["EditorChromeBrush"] = "#D0D8E3",
+        ["EditorChromeHighlightBrush"] = "#D5E2F4",
+        ["EditorToolbarGroupBrush"] = "#E6EBF2",
+        ["EditorToolbarSeparatorBrush"] = "#BBC7D5",
+        ["EditorSectionHeaderAccentBrush"] = "#D5E2F4",
         ["EditorSelectedBorderBrush"] = "#8BB8FF",
-        ["EditorFieldCardBrush"] = "#F5F2EA",
-        ["EditorDisabledChipBrush"] = "#ECE8DF",
-        ["EditorDisabledChipBorderBrush"] = "#D5CCBD",
+        ["EditorFieldCardBrush"] = "#DCE4EE",
+        ["EditorDisabledChipBrush"] = "#D6DEE8",
+        ["EditorDisabledChipBorderBrush"] = "#BBC7D5",
         ["EditorToolTipBackgroundBrush"] = "#141820",
         ["EditorToolTipTextBrush"] = "#F8FAFC",
     };
@@ -132,20 +146,23 @@ public static class AppThemeService
         if (!TryParseColor(settings.AccentColor, out var accent))
             TryParseColor(defaultAccent, out accent);
 
-        var selection = EnsureSelectionColor(accent);
+        var selection = CreateSelectionColor(accent, settings.ThemeMode);
         var chromeBase = settings.ThemeMode == AppThemeMode.Light
-            ? WpfColor.FromRgb(0xEC, 0xE8, 0xDF)
+            ? WpfColor.FromRgb(0xD0, 0xD8, 0xE3)
             : WpfColor.FromRgb(0x11, 0x18, 0x21);
         var cardBase = settings.ThemeMode == AppThemeMode.Light
-            ? WpfColor.FromRgb(0xFF, 0xFF, 0xFF)
+            ? WpfColor.FromRgb(0xEE, 0xF2, 0xF6)
             : WpfColor.FromRgb(0x15, 0x1B, 0x23);
         var fieldBase = settings.ThemeMode == AppThemeMode.Light
-            ? WpfColor.FromRgb(0xF5, 0xF2, 0xEA)
+            ? WpfColor.FromRgb(0xDC, 0xE4, 0xEE)
             : WpfColor.FromRgb(0x12, 0x19, 0x22);
 
         SetBrushColor("AccentBrush", accent);
         SetBrushColor("AccentHoverBrush", Lighten(accent, 18));
         SetBrushColor("AccentPressedBrush", Darken(accent, 22));
+        SetBrushColor("AccentForegroundBrush", Luminance(accent) > 160
+            ? WpfColor.FromRgb(0x1F, 0x29, 0x37)
+            : WpfColor.FromRgb(0xFF, 0xFF, 0xFF));
         SetBrushColor("EditorSelectedAccentBrush", accent);
         SetBrushColor("EditorToolTipBorderBrush", accent);
         SetBrushColor("EditorSelectedBorderBrush", settings.ThemeMode == AppThemeMode.Light ? Lighten(selection, 34) : Darken(selection, 12));
@@ -160,6 +177,7 @@ public static class AppThemeService
         SetBrushColor("EditorSectionHeaderAccentBrush", Blend(chromeBase, accent, settings.ThemeMode == AppThemeMode.Light ? 0.14 : 0.18));
         SetBrushColor("EditorToolbarGroupBrush", Blend(chromeBase, accent, settings.ThemeMode == AppThemeMode.Light ? 0.05 : 0.08));
         SetBrushColor("ToolbarButtonBorderBrush", Blend(chromeBase, accent, settings.ThemeMode == AppThemeMode.Light ? 0.24 : 0.20));
+        ThemeChanged?.Invoke(null, EventArgs.Empty);
     }
 
     public static bool TryParseColor(string? value, out WpfColor color)
@@ -172,15 +190,25 @@ public static class AppThemeService
         if (!text.StartsWith("#", StringComparison.Ordinal))
             text = "#" + text;
 
-        if (text.Length != 7)
+        if (text.Length != 7 && text.Length != 9)
             return false;
 
         try
         {
-            var r = byte.Parse(text.Substring(1, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture);
-            var g = byte.Parse(text.Substring(3, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture);
-            var b = byte.Parse(text.Substring(5, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture);
-            color = WpfColor.FromRgb(r, g, b);
+            if (text.Length == 9)
+            {
+                var a = byte.Parse(text.Substring(1, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture);
+                var r = byte.Parse(text.Substring(3, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture);
+                var g = byte.Parse(text.Substring(5, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture);
+                var b = byte.Parse(text.Substring(7, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture);
+                color = WpfColor.FromArgb(a, r, g, b);
+                return true;
+            }
+
+            var rgbR = byte.Parse(text.Substring(1, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture);
+            var rgbG = byte.Parse(text.Substring(3, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture);
+            var rgbB = byte.Parse(text.Substring(5, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture);
+            color = WpfColor.FromRgb(rgbR, rgbG, rgbB);
             return true;
         }
         catch
@@ -221,11 +249,20 @@ public static class AppThemeService
             BlendChannel(baseColor.B, tint.B, ratio));
     }
 
-    private static WpfColor EnsureSelectionColor(WpfColor accent)
+    private static WpfColor CreateSelectionColor(WpfColor accent, AppThemeMode themeMode)
     {
-        var selection = accent;
-        while (Luminance(selection) > 145)
-            selection = Darken(selection, 18);
+        if (themeMode == AppThemeMode.Dark)
+        {
+            var darkSelection = accent;
+            while (Luminance(darkSelection) > 170)
+                darkSelection = Darken(darkSelection, 14);
+            return darkSelection;
+        }
+
+        // Keep AccentBrush exact. Only selected backgrounds need a readable, slightly deeper version.
+        var selection = Blend(accent, WpfColor.FromRgb(0x2B, 0x34, 0x44), 0.30);
+        while (Luminance(selection) > 170)
+            selection = Blend(selection, WpfColor.FromRgb(0x1F, 0x29, 0x37), 0.18);
         return selection;
     }
 

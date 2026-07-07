@@ -32,13 +32,12 @@ public sealed class NodeRegistry
             new MouseMoveNodeExecutor(),
             new ScrollWheelNodeExecutor(),
             new KeyboardNodeExecutor(),
+            new KeyChordNodeExecutor(),
             new StartProgramNodeExecutor(),
             new SelectWindowNodeExecutor(),
             new PrintLogNodeExecutor(),
             new FindImageNodeExecutor(),
-            new CommonNodeExecutor(NodeKind.MouseDoubleClick),
             new CommonNodeExecutor(NodeKind.GetMousePosition),
-            new CommonNodeExecutor(NodeKind.KeyChord),
             new CommonNodeExecutor(NodeKind.WaitImage),
             new CommonNodeExecutor(NodeKind.WaitImageDisappear),
             new CommonNodeExecutor(NodeKind.Compare),
@@ -75,7 +74,6 @@ public sealed class NodeRegistry
 
             Definition(NodeKind.MouseClick, "mouse_click", "鼠标点击", "输入/鼠标", [InExec(), InVector("position", "点击位置"), OutExec(), OutBool("result", "结果")]),
             Definition(NodeKind.MouseMove, "mouse_move", "鼠标移动", "输入/鼠标", [InExec(), InVector("position", "目标坐标"), OutExec(), OutBool("result", "结果"), OutVector("position", "当前位置")]),
-            Definition(NodeKind.MouseDoubleClick, "mouse_double_click", "鼠标双击", "输入/鼠标", [InExec(), InVector("position", "点击位置"), OutExec(), OutBool("result", "结果")]),
             Definition(NodeKind.GetMousePosition, "get_mouse_position", "获取鼠标位置", "输入/鼠标", [InExec(), OutExec(), OutVector("position", "当前位置"), OutBool("result", "结果")]),
             Definition(NodeKind.ScrollWheel, "scroll_wheel", "鼠标滚轮", "输入/鼠标", [InExec(), OutExec(), OutBool("result", "结果")]),
 

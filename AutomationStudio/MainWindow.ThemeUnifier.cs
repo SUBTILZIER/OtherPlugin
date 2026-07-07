@@ -2,14 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
-using System.Windows.Media;
 using System.Windows.Threading;
+using AutomationStudioWpf.Interaction;
 using AutomationStudioWpf.Services;
-using WpfBorder = System.Windows.Controls.Border;
-using WpfBrush = System.Windows.Media.Brush;
 using WpfBrushes = System.Windows.Media.Brushes;
 using WpfButton = System.Windows.Controls.Button;
-using WpfColor = System.Windows.Media.Color;
+using WpfControl = System.Windows.Controls.Control;
 using WpfContextMenu = System.Windows.Controls.ContextMenu;
 using WpfContextMenuEventArgs = System.Windows.Controls.ContextMenuEventArgs;
 using WpfFrameworkElement = System.Windows.FrameworkElement;
@@ -19,9 +17,6 @@ using WpfListBoxItem = System.Windows.Controls.ListBoxItem;
 using WpfMenuItem = System.Windows.Controls.MenuItem;
 using WpfMouseButtonEventArgs = System.Windows.Input.MouseButtonEventArgs;
 using WpfMouseButtonEventHandler = System.Windows.Input.MouseButtonEventHandler;
-using WpfPanel = System.Windows.Controls.Panel;
-using WpfRadioButton = System.Windows.Controls.RadioButton;
-using WpfRichTextBox = System.Windows.Controls.RichTextBox;
 using WpfTextBox = System.Windows.Controls.TextBox;
 using WpfUIElement = System.Windows.UIElement;
 using WpfVisualTreeHelper = System.Windows.Media.VisualTreeHelper;
@@ -30,27 +25,16 @@ namespace AutomationStudioWpf;
 
 public partial class MainWindow
 {
-    private static readonly SolidColorBrush UnifiedPanelBrush = FrozenBrush(0x20, 0x24, 0x2B);
-    private static readonly SolidColorBrush UnifiedSurfaceBrush = FrozenBrush(0x1B, 0x20, 0x28);
-    private static readonly SolidColorBrush UnifiedSurfaceAltBrush = FrozenBrush(0x18, 0x1B, 0x20);
-    private static readonly SolidColorBrush UnifiedBorderBrush = FrozenBrush(0x30, 0x37, 0x44);
-    private static readonly SolidColorBrush UnifiedStrongBorderBrush = FrozenBrush(0x38, 0x41, 0x50);
-    private static readonly SolidColorBrush UnifiedSelectionBrush = FrozenBrush(0x30, 0x44, 0x5C);
-    private static readonly SolidColorBrush UnifiedTextBrush = FrozenBrush(0xE8, 0xED, 0xF5);
-    private static readonly SolidColorBrush UnifiedMutedTextBrush = FrozenBrush(0xA7, 0xB1, 0xBF);
-    private static readonly SolidColorBrush UnifiedAccentBrush = FrozenBrush(0xD6, 0x8A, 0x22);
-    private static readonly SolidColorBrush UnifiedErrorBrush = FrozenBrush(0xFF, 0x6B, 0x6B);
-
     private bool _unifiedThemeInstalled;
 
     protected override void OnContentRendered(EventArgs e)
     {
         base.OnContentRendered(e);
         EnsureEditorSurfaceHost();
-        InstallUnifiedDarkTheme();
+        InstallUnifiedThemeInteractionFixes();
     }
 
-    private void InstallUnifiedDarkTheme()
+    private void InstallUnifiedThemeInteractionFixes()
     {
         if (_unifiedThemeInstalled)
             return;
@@ -60,12 +44,11 @@ public partial class MainWindow
         ContentFolderListBox.AddHandler(WpfUIElement.PreviewMouseLeftButtonDownEvent, new WpfMouseButtonEventHandler(ContentFolderTree_PreviewMouseLeftButtonDownFix), true);
         InstallContentBrowserEnhancedInteractions();
         InstallContentAssetRenameValidation();
-        Dispatcher.BeginInvoke(new Action(ApplyUnifiedDarkTheme), DispatcherPriority.ContextIdle);
     }
 
     private void MainWindow_ContextMenuOpeningTheme(object sender, WpfContextMenuEventArgs e)
     {
-        Dispatcher.BeginInvoke(new Action(ApplyUnifiedContextMenuTheme), DispatcherPriority.ContextIdle);
+        Dispatcher.BeginInvoke(new Action(ApplyContextMenuResourceReferences), DispatcherPriority.ContextIdle);
     }
 
     private void ContentFolderTree_PreviewMouseLeftButtonDownFix(object sender, WpfMouseButtonEventArgs e)
@@ -140,107 +123,23 @@ public partial class MainWindow
             : ContentFolderItems.FirstOrDefault(item => item.Id == _currentContentFolderId);
     }
 
-    private void ApplyUnifiedDarkTheme()
-    {
-        ApplyContentBrowserTheme();
-        ApplyLogTheme();
-        ApplyUnifiedContextMenuTheme();
-    }
-
-    private void ApplyContentBrowserTheme()
-    {
-        StyleListBoxSurface(ContentFolderListBox, UnifiedSurfaceBrush);
-        StyleListBoxSurface(ContentBrowserListBox, UnifiedSurfaceBrush);
-
-        ContentBrowserTreeSplitter.Background = UnifiedBorderBrush;
-
-        foreach (var textBox in EnumerateVisualDescendants<WpfTextBox>(ContentBrowserListBox)
-                     .Concat(EnumerateVisualDescendants<WpfTextBox>(ContentFolderListBox))
-                     .Concat(EnumerateVisualDescendants<WpfTextBox>(ContentBrowserHeaderBar)))
-        {
-            StyleTextBox(textBox);
-        }
-
-        foreach (var border in EnumerateVisualDescendants<WpfBorder>(ContentBrowserListBox)
-                     .Concat(EnumerateVisualDescendants<WpfBorder>(ContentFolderListBox)))
-        {
-            if (border.BorderThickness.Left > 0 || border.BorderThickness.Top > 0 || border.BorderThickness.Right > 0 || border.BorderThickness.Bottom > 0)
-                border.BorderBrush = UnifiedStrongBorderBrush;
-        }
-    }
-
-    private void ApplyLogTheme()
-    {
-        if (LogRichTextBox is WpfRichTextBox log)
-        {
-            log.Background = UnifiedSurfaceBrush;
-            log.Foreground = UnifiedTextBrush;
-            log.BorderBrush = UnifiedBorderBrush;
-            log.SelectionBrush = UnifiedSelectionBrush;
-        }
-
-        if (FindParentBorder(LogRichTextBox) is { } logBorder)
-        {
-            logBorder.Background = UnifiedPanelBrush;
-            logBorder.BorderBrush = UnifiedBorderBrush;
-        }
-
-        if (FindParentPanel(FilterAllRadio) is { } filterPanel)
-            filterPanel.Background = UnifiedBorderBrush;
-
-        StyleRadioButton(FilterAllRadio, UnifiedTextBrush);
-        StyleRadioButton(FilterInfoRadio, UnifiedTextBrush);
-        StyleRadioButton(FilterWarnRadio, UnifiedAccentBrush);
-        StyleRadioButton(FilterErrorRadio, UnifiedErrorBrush);
-    }
-
-    private void ApplyUnifiedContextMenuTheme()
+    private void ApplyContextMenuResourceReferences()
     {
         foreach (var menu in EnumerateContextMenus(this))
-            StyleContextMenu(menu);
-    }
+        {
+            ThemeResourceHelper.SetResource(menu, WpfControl.BackgroundProperty, "DropdownBackgroundBrush");
+            ThemeResourceHelper.SetResource(menu, WpfControl.BorderBrushProperty, "DropdownBorderBrush");
+            ThemeResourceHelper.SetResource(menu, WpfControl.ForegroundProperty, "DropdownTextBrush");
 
-    private static void StyleListBoxSurface(WpfListBox listBox, WpfBrush background)
-    {
-        listBox.Background = background;
-        listBox.Foreground = UnifiedTextBrush;
-        listBox.BorderBrush = UnifiedBorderBrush;
-    }
-
-    private static void StyleTextBox(WpfTextBox textBox)
-    {
-        textBox.Background = UnifiedSurfaceAltBrush;
-        textBox.Foreground = UnifiedTextBrush;
-        textBox.BorderBrush = UnifiedStrongBorderBrush;
-        textBox.CaretBrush = UnifiedTextBrush;
-        textBox.SelectionBrush = UnifiedSelectionBrush;
-    }
-
-    private static void StyleRadioButton(WpfRadioButton radioButton, WpfBrush foreground)
-    {
-        radioButton.Foreground = foreground;
-        radioButton.Background = UnifiedSurfaceBrush;
-        radioButton.BorderBrush = UnifiedStrongBorderBrush;
-    }
-
-    private static void StyleContextMenu(WpfContextMenu menu)
-    {
-        menu.Background = UnifiedPanelBrush;
-        menu.BorderBrush = UnifiedBorderBrush;
-        menu.Foreground = UnifiedTextBrush;
-        menu.Padding = new Thickness(5);
-
-        foreach (var item in EnumerateMenuItems(menu))
-            StyleMenuItem(item);
-    }
-
-    private static void StyleMenuItem(WpfMenuItem item)
-    {
-        item.Background = WpfBrushes.Transparent;
-        item.Foreground = item.IsEnabled ? UnifiedTextBrush : UnifiedMutedTextBrush;
-        item.Padding = new Thickness(10, 6, 10, 6);
-        item.MinWidth = Math.Max(item.MinWidth, 130);
-        item.BorderBrush = WpfBrushes.Transparent;
+            foreach (var item in EnumerateMenuItems(menu))
+            {
+                item.Background = WpfBrushes.Transparent;
+                ThemeResourceHelper.SetResource(item, WpfControl.ForegroundProperty, item.IsEnabled ? "DropdownTextBrush" : "DropdownMutedTextBrush");
+                item.Padding = new Thickness(10, 6, 10, 6);
+                item.MinWidth = Math.Max(item.MinWidth, 130);
+                item.BorderBrush = WpfBrushes.Transparent;
+            }
+        }
     }
 
     private static IEnumerable<WpfMenuItem> EnumerateMenuItems(WpfItemsControl root)
@@ -295,38 +194,4 @@ public partial class MainWindow
         return null;
     }
 
-    private static WpfBorder? FindParentBorder(DependencyObject? source)
-    {
-        var current = source;
-        while (current is not null)
-        {
-            if (current is WpfBorder border)
-                return border;
-
-            current = GetSafeVisualOrLogicalParent(current);
-        }
-
-        return null;
-    }
-
-    private static WpfPanel? FindParentPanel(DependencyObject? source)
-    {
-        var current = source;
-        while (current is not null)
-        {
-            if (current is WpfPanel panel)
-                return panel;
-
-            current = GetSafeVisualOrLogicalParent(current);
-        }
-
-        return null;
-    }
-
-    private static SolidColorBrush FrozenBrush(byte r, byte g, byte b)
-    {
-        var brush = new SolidColorBrush(WpfColor.FromRgb(r, g, b));
-        brush.Freeze();
-        return brush;
-    }
 }

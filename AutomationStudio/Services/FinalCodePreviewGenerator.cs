@@ -682,14 +682,13 @@ internal sealed class FinalCodePreviewGenerator
         {
             NodeKind.PrintLog => $"print({ResolveStringInputExpression(plan, node, "message", node.PrintLogMessage ?? string.Empty, state)})",
             NodeKind.Delay => $"delay({node.DelayMs})",
-            NodeKind.MouseClick => $"mouse_click({ResolveVectorInputExpression(plan, node, "position", node.PositionX, node.PositionY, state)})",
+            NodeKind.MouseClick => FormatRepeat(node, $"mouse_{FormatMode(node.OperationMode)}({FormatMouseButton(node.MouseButton)}, position: {ResolveVectorInputExpression(plan, node, "position", node.PositionX, node.PositionY, state)})"),
             NodeKind.MouseMove => $"mouse_move({ResolveVectorInputExpression(plan, node, "position", node.PositionX, node.PositionY, state)})",
-            NodeKind.MouseDoubleClick => $"mouse_double_click({ResolveVectorInputExpression(plan, node, "position", node.Number, node.Number2, state)})",
             NodeKind.GetMousePosition => "get_mouse_position() -> position, result",
-            NodeKind.Keyboard => $"keyboard({Quote(node.Key ?? string.Empty)})",
+            NodeKind.Keyboard => FormatRepeat(node, $"keyboard_{FormatMode(node.OperationMode)}({Quote(node.Key ?? string.Empty)})"),
             NodeKind.ScrollWheel => $"scroll({node.ScrollAction})",
             NodeKind.StartProgram => $"start_program({Quote(node.ProgramPath ?? string.Empty)})",
-            NodeKind.KeyChord => $"key_chord({Quote(node.Text ?? string.Empty)})",
+            NodeKind.KeyChord => FormatRepeat(node, $"key_chord_{FormatMode(node.OperationMode)}({Quote(node.Text ?? string.Empty)})"),
             NodeKind.SelectWindow => $"select_window({ResolveStringInputExpression(plan, node, "process_name", node.ProcessName ?? string.Empty, state)})",
             NodeKind.WaitWindow => $"wait_window({ResolveStringInputExpression(plan, node, "process_name", node.Text ?? string.Empty, state)})",
             NodeKind.CloseWindow => $"close_window({ResolveStringInputExpression(plan, node, "process_name", node.Text ?? string.Empty, state)})",
@@ -718,6 +717,35 @@ internal sealed class FinalCodePreviewGenerator
 
     private static string FormatNode(GraphRuntimeNode node) =>
         string.IsNullOrWhiteSpace(node.NodeNumber) ? node.Title : $"{node.Title} {node.NodeNumber}";
+
+    private static string FormatRepeat(GraphRuntimeNode node, string expression)
+    {
+        int interval = Math.Max(1, node.TriggerIntervalMs);
+        return node.TriggerCount switch
+        {
+            1 when interval == 1000 => expression,
+            0 => $"repeat_forever(interval: {interval}ms) {{ {expression}; }}",
+            _ => $"repeat({Math.Max(1, node.TriggerCount)}, interval: {interval}ms) {{ {expression}; }}",
+        };
+    }
+
+    private static string FormatMode(PressReleaseMode mode) => mode switch
+    {
+        PressReleaseMode.Press => "press",
+        PressReleaseMode.Release => "release",
+        PressReleaseMode.Click => "click",
+        _ => "click",
+    };
+
+    private static string FormatMouseButton(MouseButton button) => button switch
+    {
+        MouseButton.Left => "left",
+        MouseButton.Right => "right",
+        MouseButton.Middle => "middle",
+        MouseButton.XButton1 => "xbutton1",
+        MouseButton.XButton2 => "xbutton2",
+        _ => "left",
+    };
 
     private static string FormatCall(GraphRuntimeNode node) =>
         string.IsNullOrWhiteSpace(node.NodeNumber) ? node.Title : $"{node.Title} {node.NodeNumber}";

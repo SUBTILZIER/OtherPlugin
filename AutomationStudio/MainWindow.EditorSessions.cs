@@ -265,14 +265,14 @@ public partial class MainWindow
         var title = new TextBlock
         {
             Text = session.DisplayTitle,
-            Foreground = System.Windows.Media.Brushes.White,
+            Foreground = AppBrush("EditorTextBrightBrush", 0xF3, 0xF7, 0xFF),
             FontWeight = FontWeights.SemiBold,
             TextTrimming = TextTrimming.CharacterEllipsis,
         };
         var hint = new TextBlock
         {
             Text = "拖离标签栏创建独立窗口",
-            Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(157, 172, 192)),
+            Foreground = AppBrush("EditorMutedTextBrush", 0x9D, 0xAC, 0xC0),
             FontSize = 11,
             Margin = new Thickness(0, 3, 0, 0),
         };

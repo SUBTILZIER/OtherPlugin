@@ -13,17 +13,6 @@ public sealed record ThemedDialogButton(string Text, MessageBoxResult Result, bo
 
 public static class ThemedDialog
 {
-    private static readonly SolidColorBrush WindowForegroundBrush = FrozenBrush(232, 237, 245);
-    private static readonly SolidColorBrush WindowBackgroundBrush = FrozenBrush(27, 32, 40);
-    private static readonly SolidColorBrush WindowBorderBrush = FrozenBrush(64, 76, 94);
-    private static readonly SolidColorBrush BodyForegroundBrush = FrozenBrush(232, 237, 245);
-    private static readonly SolidColorBrush ButtonForegroundBrush = FrozenBrush(232, 237, 245);
-    private static readonly SolidColorBrush PrimaryButtonForegroundBrush = FrozenBrush(12, 16, 22);
-    private static readonly SolidColorBrush ButtonBackgroundBrush = FrozenBrush(36, 43, 53);
-    private static readonly SolidColorBrush ButtonHoverBackgroundBrush = FrozenBrush(45, 56, 70);
-    private static readonly SolidColorBrush ButtonPressedBackgroundBrush = FrozenBrush(31, 39, 50);
-    private static readonly SolidColorBrush ButtonBorderBrush = FrozenBrush(79, 94, 116);
-
     public static MessageBoxResult Show(Window? owner, string message, string title, MessageBoxButton buttons = MessageBoxButton.OK, MessageBoxImage image = MessageBoxImage.None)
     {
         return ShowCustom(owner, message, title, image, BuildButtons(buttons));
@@ -42,9 +31,11 @@ public static class ThemedDialog
         var bodyForegroundBrush = ResourceBrush("EditorTextBrush", 232, 237, 245);
         var buttonForegroundBrush = ResourceBrush("EditorTextBrightBrush", 232, 237, 245);
         var buttonBackgroundBrush = ResourceBrush("EditorToolbarGroupBrush", 36, 43, 53);
-        var buttonHoverBackgroundBrush = ResourceBrush("EditorChromeHighlightBrush", 45, 56, 70);
-        var buttonPressedBackgroundBrush = ResourceBrush("EditorListSelectedBrush", 31, 39, 50);
+        var primaryButtonBackgroundBrush = ResourceBrush("EditorChromeHighlightBrush", 45, 56, 70);
+        var buttonHoverBackgroundBrush = ResourceBrush("EditorPanelCardHoverBrush", 45, 56, 70);
+        var buttonPressedBackgroundBrush = ResourceBrush("EditorChromeHighlightBrush", 31, 39, 50);
         var buttonBorderBrush = ResourceBrush("EditorPanelBorderBrush", 79, 94, 116);
+        var primaryButtonBorderBrush = ResourceBrush("AccentBrush", 79, 163, 255);
         var window = new Window
         {
             Owner = owner,
@@ -129,9 +120,9 @@ public static class ThemedDialog
         for (var i = 0; i < buttons.Length; i++)
         {
             var item = buttons[i];
-            var normalBackground = item.IsPrimary ? new SolidColorBrush(accent) : buttonBackgroundBrush;
-            var hoverBackground = item.IsPrimary ? new SolidColorBrush(Lighten(accent, 16)) : buttonHoverBackgroundBrush;
-            var pressedBackground = item.IsPrimary ? new SolidColorBrush(Darken(accent, 18)) : buttonPressedBackgroundBrush;
+            var normalBackground = item.IsPrimary ? primaryButtonBackgroundBrush : buttonBackgroundBrush;
+            var hoverBackground = buttonHoverBackgroundBrush;
+            var pressedBackground = buttonPressedBackgroundBrush;
             var button = new System.Windows.Controls.Button
             {
                 Content = item.Text,
@@ -141,9 +132,9 @@ public static class ThemedDialog
                 Margin = new Thickness(i == 0 ? 0 : 8, 0, 0, 0),
                 IsDefault = item.IsPrimary,
                 IsCancel = item.Result == MessageBoxResult.Cancel,
-                Foreground = item.IsPrimary ? ContrastBrush(accent) : buttonForegroundBrush,
+                Foreground = buttonForegroundBrush,
                 Background = normalBackground,
-                BorderBrush = buttonBorderBrush,
+                BorderBrush = item.IsPrimary ? primaryButtonBorderBrush : buttonBorderBrush,
                 BorderThickness = new Thickness(1),
                 Cursor = System.Windows.Input.Cursors.Hand,
                 Template = BuildButtonTemplate(),
@@ -221,30 +212,12 @@ public static class ThemedDialog
         _ => WpfColor.FromRgb(167, 177, 191),
     };
 
-    private static WpfColor Lighten(WpfColor color, byte amount) =>
-        WpfColor.FromRgb(Add(color.R, amount), Add(color.G, amount), Add(color.B, amount));
-
-    private static WpfColor Darken(WpfColor color, byte amount) =>
-        WpfColor.FromRgb(Subtract(color.R, amount), Subtract(color.G, amount), Subtract(color.B, amount));
-
-    private static byte Add(byte value, byte amount) => (byte)System.Math.Min(255, value + amount);
-
-    private static byte Subtract(byte value, byte amount) => (byte)System.Math.Max(0, value - amount);
-
     private static SolidColorBrush ResourceBrush(string key, byte fallbackR, byte fallbackG, byte fallbackB)
     {
         if (WpfApplication.Current?.TryFindResource(key) is SolidColorBrush brush)
             return brush;
 
         return FrozenBrush(fallbackR, fallbackG, fallbackB);
-    }
-
-    private static SolidColorBrush ContrastBrush(WpfColor background)
-    {
-        var luminance = (0.299 * background.R) + (0.587 * background.G) + (0.114 * background.B);
-        return luminance > 150
-            ? FrozenBrush(12, 16, 22)
-            : FrozenBrush(255, 255, 255);
     }
 
     private static SolidColorBrush FrozenBrush(byte r, byte g, byte b)

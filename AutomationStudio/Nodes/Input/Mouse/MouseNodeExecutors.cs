@@ -1,6 +1,7 @@
 using System.Drawing;
 using AutomationStudioWpf.Graph;
 using AutomationStudioWpf.Logging;
+using AutomationStudioWpf.Nodes.Input;
 using AutomationStudioWpf.Runtime;
 using MouseButton = AutomationStudioWpf.Graph.MouseButton;
 
@@ -50,11 +51,17 @@ public sealed class MouseClickNodeExecutor : INodeExecutor
             _ => "点击",
         };
 
-        Logger.Info($"鼠标点击：{buttonLabel} {modeLabel} ({point.X},{point.Y})");
+        int interval = Math.Max(1, node.TriggerIntervalMs);
+        Logger.Info($"鼠标点击：{buttonLabel} {modeLabel} ({point.X},{point.Y})，触发 {TriggerRepeatRunner.CountLabel(node.TriggerCount)}，间隔 {interval}ms");
         request.Adapters.Mouse.MoveTo(point);
-        request.Adapters.Mouse.ExecuteButton(node.MouseButton, node.OperationMode);
+        TriggerRepeatRunner.Run(
+            node.TriggerCount,
+            interval,
+            request.CancellationToken,
+            _ => request.Adapters.Mouse.ExecuteButton(node.MouseButton, node.OperationMode));
+
         request.Context.Set(node.Id, "result", true);
-        return NodeExecutionResult.Ok($"鼠标{buttonLabel}{modeLabel}：({point.X},{point.Y})");
+        return NodeExecutionResult.Ok($"鼠标{buttonLabel}{modeLabel}：({point.X},{point.Y})，触发 {TriggerRepeatRunner.CountLabel(node.TriggerCount)}");
     }
 
     private static bool HasUsablePosition(double x, double y)
@@ -121,4 +128,3 @@ public sealed class ScrollWheelNodeExecutor : INodeExecutor
         return NodeExecutionResult.Ok($"滚轮：{node.ScrollAction}");
     }
 }
-

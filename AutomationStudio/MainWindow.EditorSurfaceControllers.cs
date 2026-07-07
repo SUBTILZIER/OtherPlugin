@@ -19,6 +19,7 @@ public partial class MainWindow
         AttachActiveEditorService(_editorService);
 
         Logger.Entries.CollectionChanged += (_, e) => _logPanelController.HandleEntriesChanged(e);
+        AppThemeService.ThemeChanged += OnAppThemeChanged;
 
         Closing += Window_Closing;
         PreviewMouseDown += Window_PreviewMouseDown;
@@ -225,9 +226,19 @@ public partial class MainWindow
             surface.MousePositionYTextBox,
             surface.MouseClickOperationModeComboBox,
             surface.MouseButtonComboBox,
+            surface.MouseTriggerCountTextBox,
+            surface.MouseTriggerIntervalTextBox,
             surface.KeyboardInspectorPanel,
             surface.KeyboardKeyComboBox,
             surface.KeyboardOperationModeComboBox,
+            surface.KeyboardTriggerCountTextBox,
+            surface.KeyboardTriggerIntervalTextBox,
+            surface.KeyChordInspectorPanel,
+            surface.KeyChordTextBox,
+            surface.KeyChordKeyComboBox,
+            surface.KeyChordOperationModeComboBox,
+            surface.KeyChordTriggerCountTextBox,
+            surface.KeyChordTriggerIntervalTextBox,
             surface.ScrollWheelInspectorPanel,
             surface.ScrollWheelActionComboBox,
             surface.ScrollWheelSpeedTextBox,
@@ -504,6 +515,7 @@ public partial class MainWindow
             case EditorSurfaceEvent.RefreshWindowListClick: RefreshWindowList_Click(sender, (RoutedEventArgs)e); break;
             case EditorSurfaceEvent.BrowseFindImageSourcePathClick: BrowseFindImageSourcePath_Click(sender, (RoutedEventArgs)e); break;
             case EditorSurfaceEvent.CommonKeyChordAddButtonClick: CommonKeyChordAddButton_Click(sender, (RoutedEventArgs)e); break;
+            case EditorSurfaceEvent.KeyChordAddButtonClick: KeyChordAddButton_Click(sender, (RoutedEventArgs)e); break;
             case EditorSurfaceEvent.AddParameterButtonClick: AddParameterButton_Click(sender, (RoutedEventArgs)e); break;
             case EditorSurfaceEvent.CommonModeComboBoxSelectionChanged: CommonModeComboBox_SelectionChanged(sender, (SelectionChangedEventArgs)e); break;
             case EditorSurfaceEvent.CommonWindowComboBoxSelectionChanged: CommonWindowComboBox_SelectionChanged(sender, (SelectionChangedEventArgs)e); break;

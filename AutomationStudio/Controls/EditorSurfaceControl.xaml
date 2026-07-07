@@ -9,18 +9,18 @@
              d:DesignWidth="1280"
              HorizontalAlignment="Stretch"
              VerticalAlignment="Stretch"
-             Background="{StaticResource EditorRootBackgroundBrush}">
+             Background="{DynamicResource EditorRootBackgroundBrush}">
     <UserControl.Resources>
         <Style x:Key="EditorSectionCardStyle" TargetType="{x:Type Border}">
-            <Setter Property="Background" Value="{StaticResource EditorPanelCardBrush}" />
-            <Setter Property="BorderBrush" Value="{StaticResource EditorPanelBorderBrush}" />
+            <Setter Property="Background" Value="{DynamicResource EditorPanelCardBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource EditorPanelBorderBrush}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="CornerRadius" Value="10" />
             <Setter Property="Padding" Value="10" />
         </Style>
 
         <Style x:Key="EditorSectionHeaderTextStyle" TargetType="{x:Type TextBlock}">
-            <Setter Property="Foreground" Value="{StaticResource EditorTextBrightBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource EditorTextBrightBrush}" />
             <Setter Property="FontSize" Value="15" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="VerticalAlignment" Value="Center" />
@@ -30,7 +30,7 @@
             <Setter Property="Margin" Value="6,3" />
             <Setter Property="Padding" Value="0" />
             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-            <Setter Property="Foreground" Value="White" />
+            <Setter Property="Foreground" Value="{DynamicResource EditorTextBrush}" />
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderBrush" Value="Transparent" />
             <Setter Property="BorderThickness" Value="1" />
@@ -64,17 +64,17 @@
                         </Grid>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Shell" Property="Background" Value="{StaticResource EditorPanelCardHoverBrush}" />
+                                <Setter TargetName="Shell" Property="Background" Value="{DynamicResource EditorPanelCardHoverBrush}" />
                             </Trigger>
                             <Trigger Property="IsSelected" Value="True">
-                                <Setter TargetName="Shell" Property="Background" Value="{StaticResource EditorListSelectedBrush}" />
-                                <Setter TargetName="Shell" Property="BorderBrush" Value="{StaticResource EditorSelectedBorderBrush}" />
-                                <Setter TargetName="AccentBar" Property="Background" Value="{StaticResource EditorSelectedAccentBrush}" />
+                                <Setter TargetName="Shell" Property="Background" Value="{DynamicResource EditorListSelectedBrush}" />
+                                <Setter TargetName="Shell" Property="BorderBrush" Value="{DynamicResource EditorSelectedBorderBrush}" />
+                                <Setter TargetName="AccentBar" Property="Background" Value="{DynamicResource EditorSelectedAccentBrush}" />
                             </Trigger>
                             <DataTrigger Binding="{Binding IsCompileDirty}" Value="True">
-                                <Setter TargetName="Shell" Property="Background" Value="{StaticResource EditorDirtyBackgroundBrush}" />
-                                <Setter TargetName="Shell" Property="BorderBrush" Value="{StaticResource CompileDirtyBorderBrush}" />
-                                <Setter TargetName="AccentBar" Property="Background" Value="{StaticResource CompileDirtyBorderBrush}" />
+                                <Setter TargetName="Shell" Property="Background" Value="{DynamicResource EditorDirtyBackgroundBrush}" />
+                                <Setter TargetName="Shell" Property="BorderBrush" Value="{DynamicResource CompileDirtyBorderBrush}" />
+                                <Setter TargetName="AccentBar" Property="Background" Value="{DynamicResource CompileDirtyBorderBrush}" />
                             </DataTrigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter Property="Opacity" Value="0.55" />
@@ -86,8 +86,8 @@
         </Style>
 
         <Style x:Key="EditorReadonlyChipStyle" TargetType="{x:Type TextBlock}">
-            <Setter Property="Foreground" Value="{StaticResource EditorTextBrightBrush}" />
-            <Setter Property="Background" Value="{StaticResource EditorDisabledChipBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource EditorTextBrightBrush}" />
+            <Setter Property="Background" Value="{DynamicResource EditorDisabledChipBrush}" />
             <Setter Property="Padding" Value="8,4" />
             <Setter Property="Margin" Value="0,4,0,12" />
             <Setter Property="VerticalAlignment" Value="Center" />
@@ -96,20 +96,20 @@
         <Style x:Key="EditorInspectorTextBoxStyle" TargetType="{x:Type TextBox}" BasedOn="{StaticResource {x:Type TextBox}}">
             <Setter Property="MinHeight" Value="32" />
             <Setter Property="Margin" Value="0,5,0,12" />
-            <Setter Property="Background" Value="{StaticResource EditorFieldCardBrush}" />
-            <Setter Property="BorderBrush" Value="{StaticResource EditorPanelBorderBrush}" />
+            <Setter Property="Background" Value="{DynamicResource EditorFieldCardBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource EditorPanelBorderBrush}" />
             <Setter Property="Padding" Value="9,6" />
         </Style>
 
         <Style x:Key="EditorInspectorComboBoxStyle" TargetType="{x:Type ComboBox}" BasedOn="{StaticResource {x:Type ComboBox}}">
             <Setter Property="MinHeight" Value="32" />
             <Setter Property="Margin" Value="0,5,0,12" />
-            <Setter Property="Background" Value="{StaticResource EditorFieldCardBrush}" />
-            <Setter Property="BorderBrush" Value="{StaticResource EditorPanelBorderBrush}" />
+            <Setter Property="Background" Value="{DynamicResource EditorFieldCardBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource EditorPanelBorderBrush}" />
         </Style>
 
         <Style x:Key="EditorInspectorCheckBoxStyle" TargetType="{x:Type CheckBox}" BasedOn="{StaticResource {x:Type CheckBox}}">
-            <Setter Property="Foreground" Value="{StaticResource EditorTextBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource EditorTextBrush}" />
             <Setter Property="Margin" Value="0,2,0,10" />
         </Style>
 
@@ -125,9 +125,9 @@
         </Style>
 
         <Style x:Key="EditorSidebarIconButtonStyle" TargetType="{x:Type Button}">
-            <Setter Property="Foreground" Value="{StaticResource EditorTextBrightBrush}" />
-            <Setter Property="Background" Value="{StaticResource EditorFieldCardBrush}" />
-            <Setter Property="BorderBrush" Value="{StaticResource EditorPanelBorderBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource EditorTextBrightBrush}" />
+            <Setter Property="Background" Value="{DynamicResource EditorFieldCardBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource EditorPanelBorderBrush}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Padding" Value="0" />
             <Setter Property="MinWidth" Value="0" />
@@ -147,11 +147,11 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="ButtonChrome" Property="Background" Value="{StaticResource EditorPanelCardHoverBrush}" />
-                                <Setter TargetName="ButtonChrome" Property="BorderBrush" Value="{StaticResource EditorSelectedBorderBrush}" />
+                                <Setter TargetName="ButtonChrome" Property="Background" Value="{DynamicResource EditorPanelCardHoverBrush}" />
+                                <Setter TargetName="ButtonChrome" Property="BorderBrush" Value="{DynamicResource EditorSelectedBorderBrush}" />
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="ButtonChrome" Property="Background" Value="{StaticResource EditorListSelectedBrush}" />
+                                <Setter TargetName="ButtonChrome" Property="Background" Value="{DynamicResource EditorListSelectedBrush}" />
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter Property="Opacity" Value="0.45" />
@@ -165,7 +165,7 @@
         <Style x:Key="EditorFunctionPublishCheckBoxStyle" TargetType="{x:Type CheckBox}" BasedOn="{StaticResource {x:Type CheckBox}}">
             <Setter Property="Content" Value="公开" />
             <Setter Property="ToolTip" Value="公开后可被其它脚本作为函数库函数调用" />
-            <Setter Property="Foreground" Value="{StaticResource ForegroundSecondaryBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource ForegroundSecondaryBrush}" />
             <Setter Property="FontSize" Value="11" />
             <Setter Property="Margin" Value="10,0,0,0" />
             <Setter Property="VerticalAlignment" Value="Center" />
@@ -176,7 +176,7 @@
             <Setter Property="Height" Value="8" />
             <Setter Property="Margin" Value="0,0,7,0" />
             <Setter Property="CornerRadius" Value="4" />
-            <Setter Property="Background" Value="{StaticResource CompileDirtyBorderBrush}" />
+            <Setter Property="Background" Value="{DynamicResource CompileDirtyBorderBrush}" />
             <Setter Property="VerticalAlignment" Value="Center" />
             <Setter Property="Visibility" Value="Collapsed" />
             <Setter Property="ToolTip" Value="图表已修改" />
@@ -202,8 +202,8 @@
                 <Border Grid.Column="0"
                         Margin="10,10,10,10"
                         Padding="0"
-                        Background="{StaticResource EditorPanelBackgroundBrush}"
-                        BorderBrush="{StaticResource EditorPanelBorderBrush}"
+                        Background="{DynamicResource EditorPanelBackgroundBrush}"
+                        BorderBrush="{DynamicResource EditorPanelBorderBrush}"
                         BorderThickness="1"
                         CornerRadius="10">
                     <ScrollViewer VerticalScrollBarVisibility="Auto"
@@ -236,7 +236,7 @@
                                         Height="10"
                                         Margin="0,0,6,0"
                                         CornerRadius="5"
-                                        Background="{StaticResource CompileDirtyBorderBrush}"
+                                        Background="{DynamicResource CompileDirtyBorderBrush}"
                                         Visibility="Collapsed" />
                                 <Button Content="+"
                                         Width="28"
@@ -255,7 +255,7 @@
                                  Margin="-4,2,-4,0"
                                  Background="Transparent"
                                  BorderThickness="0"
-                                 Foreground="White"
+                                 Foreground="{DynamicResource EditorTextBrush}"
                                  KeyDown="GraphListBox_KeyDown"
                                  MouseDoubleClick="GraphListBox_MouseDoubleClick">
                             <ListBox.ItemContainerStyle>
@@ -340,7 +340,7 @@
                                         Height="10"
                                         Margin="0,0,6,0"
                                         CornerRadius="5"
-                                        Background="{StaticResource CompileDirtyBorderBrush}"
+                                        Background="{DynamicResource CompileDirtyBorderBrush}"
                                         Visibility="Collapsed" />
                                 <Button Content="+"
                                         Width="28"
@@ -358,7 +358,7 @@
                                  Margin="-4,2,-4,0"
                                  Background="Transparent"
                                  BorderThickness="0"
-                                 Foreground="White"
+                                 Foreground="{DynamicResource EditorTextBrush}"
                                  KeyDown="FunctionListBox_KeyDown"
                                  MouseDoubleClick="FunctionListBox_MouseDoubleClick">
                             <ListBox.ItemContainerStyle>
@@ -445,15 +445,15 @@
                               Width="5"
                               HorizontalAlignment="Stretch"
                               VerticalAlignment="Stretch"
-                              Background="{StaticResource EditorSectionHeaderBrush}"
+                              Background="{DynamicResource EditorSectionHeaderBrush}"
                               ResizeDirection="Columns"
                               ResizeBehavior="PreviousAndNext"
                               ShowsPreview="True" />
 
                 <Border Grid.Column="2"
                         Margin="0,10,10,10"
-                        Background="{StaticResource EditorCanvasBackgroundBrush}"
-                        BorderBrush="{StaticResource EditorPanelBorderBrush}"
+                        Background="{DynamicResource EditorCanvasBackgroundBrush}"
+                        BorderBrush="{DynamicResource EditorPanelBorderBrush}"
                         BorderThickness="1"
                         CornerRadius="8">
                     <Border x:Name="GraphViewport"
@@ -480,14 +480,14 @@
                                 </DrawingBrush.Transform>
                                 <DrawingBrush.Drawing>
                                     <DrawingGroup>
-                                        <GeometryDrawing Brush="{StaticResource EditorCanvasGridBackgroundBrush}">
+                                        <GeometryDrawing Brush="{DynamicResource EditorCanvasGridBackgroundBrush}">
                                             <GeometryDrawing.Geometry>
                                                 <RectangleGeometry Rect="0,0,32,32" />
                                             </GeometryDrawing.Geometry>
                                         </GeometryDrawing>
                                         <GeometryDrawing Brush="{x:Null}">
                                             <GeometryDrawing.Pen>
-                                                <Pen Brush="{StaticResource EditorCanvasGridLineBrush}" Thickness="1" />
+                                                <Pen Brush="{DynamicResource EditorCanvasGridLineBrush}" Thickness="1" />
                                             </GeometryDrawing.Pen>
                                             <GeometryDrawing.Geometry>
                                                 <GeometryGroup>
@@ -531,7 +531,7 @@
                                             </ContentControl.ContextMenu>
                                             <Grid PreviewMouseRightButtonDown="ConnectionPath_PreviewMouseRightButtonDown">
                                                 <Path Data="{Binding PathGeometry}"
-                                                      Stroke="#2BA8FF"
+                                                      Stroke="{DynamicResource EditorConnectionHitBrush}"
                                                       StrokeThickness="10"
                                                       Opacity="{Binding SelectionOpacity}"
                                                       SnapsToDevicePixels="True"
@@ -555,7 +555,7 @@
 
                             <Path x:Name="PreviewConnectionPath"
                                   Visibility="Collapsed"
-                                  Stroke="#F5F5F5"
+                                  Stroke="{DynamicResource EditorPreviewConnectionBrush}"
                                   StrokeThickness="4"
                                   StrokeStartLineCap="Round"
                                   StrokeEndLineCap="Round"
@@ -636,7 +636,7 @@
 
                                     <DataTemplate DataType="{x:Type graph:NodeBaseViewModel}">
                                         <Border Width="{Binding Width}"
-                                                Background="#20242A"
+                                                Background="{DynamicResource EditorNodeBackgroundBrush}"
                                                 BorderBrush="{Binding BorderBrush}"
                                                 BorderThickness="2"
                                                 CornerRadius="6"
@@ -770,7 +770,7 @@
                                                                         <TextBlock Text="{Binding DisplayName}"
                                                                                    Margin="6,0,0,0"
                                                                                    VerticalAlignment="Center"
-                                                                                   Foreground="{StaticResource EditorTextBrightBrush}"
+                                                                                   Foreground="{DynamicResource EditorTextBrightBrush}"
                                                                                    FontSize="12" />
                                                                     </StackPanel>
                                                                 </Button>
@@ -786,7 +786,7 @@
 
                                                     <TextBlock Grid.Column="1"
                                                                Text="{Binding Description}"
-                                                               Foreground="{StaticResource ForegroundSecondaryBrush}"
+                                                               Foreground="{DynamicResource ForegroundSecondaryBrush}"
                                                                FontSize="11"
                                                                Margin="8,0"
                                                                VerticalAlignment="Center"
@@ -815,7 +815,7 @@
                                                                         <TextBlock Text="{Binding DisplayName}"
                                                                                    Margin="0,0,6,0"
                                                                                    VerticalAlignment="Center"
-                                                                                   Foreground="{StaticResource EditorTextBrightBrush}"
+                                                                                   Foreground="{DynamicResource EditorTextBrightBrush}"
                                                                                    FontSize="12" />
                                                                         <Grid Width="12" Height="12"
                                                                               Loaded="PinAnchor_Loaded"
@@ -866,8 +866,8 @@
                                     Visibility="Collapsed"
                                     Width="330"
                                     MaxHeight="540"
-                                    Background="{StaticResource EditorPanelElevatedBrush}"
-                                    BorderBrush="{StaticResource EditorSelectedBorderBrush}"
+                                    Background="{DynamicResource EditorPanelElevatedBrush}"
+                                    BorderBrush="{DynamicResource EditorSelectedBorderBrush}"
                                     BorderThickness="1"
                                     CornerRadius="12"
                                     Style="{StaticResource EditorPanelDropShadowStyle}"
@@ -879,16 +879,16 @@
                                         <RowDefinition Height="*"/>
                                     </Grid.RowDefinitions>
                                     <Border Grid.Row="0"
-                                            Background="{StaticResource EditorChromeHighlightBrush}"
+                                            Background="{DynamicResource EditorChromeHighlightBrush}"
                                             CornerRadius="11,11,0,0"
                                             Padding="14,11,14,9">
                                         <StackPanel>
                                             <TextBlock Text="添加节点"
-                                                       Foreground="{StaticResource EditorTextBrightBrush}"
+                                                       Foreground="{DynamicResource EditorTextBrightBrush}"
                                                        FontWeight="SemiBold"
                                                        FontSize="15" />
                                             <TextBlock Text="搜索或选择要放到画布上的节点"
-                                                       Foreground="{StaticResource ForegroundSecondaryBrush}"
+                                                       Foreground="{DynamicResource ForegroundSecondaryBrush}"
                                                        FontSize="11"
                                                        Margin="0,3,0,0" />
                                         </StackPanel>
@@ -898,11 +898,11 @@
                                              Margin="12,10,12,0"
                                              Padding="10,7"
                                              MinHeight="34"
-                                             Background="{StaticResource EditorFieldCardBrush}"
-                                             Foreground="White"
-                                             BorderBrush="{StaticResource EditorSelectedBorderBrush}"
+                                             Background="{DynamicResource EditorFieldCardBrush}"
+                                             Foreground="{DynamicResource EditorTextBrush}"
+                                             BorderBrush="{DynamicResource EditorSelectedBorderBrush}"
                                              BorderThickness="1"
-                                             CaretBrush="White"
+                                             CaretBrush="{DynamicResource EditorTextBrush}"
                                              TextChanged="NodePaletteSearchBox_TextChanged"/>
                                      <ScrollViewer Grid.Row="2"
                                                    VerticalScrollBarVisibility="Auto"
@@ -924,7 +924,7 @@
                               Width="5"
                               HorizontalAlignment="Stretch"
                               VerticalAlignment="Stretch"
-                              Background="{StaticResource EditorSectionHeaderBrush}"
+                              Background="{DynamicResource EditorSectionHeaderBrush}"
                               ResizeDirection="Columns"
                               ResizeBehavior="PreviousAndNext"
                               ShowsPreview="True" />
@@ -933,8 +933,8 @@
                         Grid.Column="4"
                         Margin="0,10,10,10"
                         Padding="14"
-                        Background="{StaticResource EditorPanelCardBrush}"
-                        BorderBrush="{StaticResource EditorPanelBorderBrush}"
+                        Background="{DynamicResource EditorPanelCardBrush}"
+                        BorderBrush="{DynamicResource EditorPanelBorderBrush}"
                         BorderThickness="1"
                         CornerRadius="10">
                     <Border.Resources>
@@ -953,16 +953,16 @@
                             <TextBlock x:Name="InspectorHintTextBlock"
                                        Margin="0,8,0,14"
                                        Text="请选择一个节点进行编辑。"
-                                       Foreground="{StaticResource ForegroundSecondaryBrush}"
+                                       Foreground="{DynamicResource ForegroundSecondaryBrush}"
                                        TextWrapping="Wrap" />
                             <ContentControl x:Name="ScriptPropertiesSummaryHost"
                                             Visibility="Collapsed"
                                             Margin="0,0,0,4"
                                             HorizontalContentAlignment="Stretch" />
                             <StackPanel x:Name="NodeBasicsPanel">
-                                <TextBlock Text="节点名称" Foreground="White" />
+                                <TextBlock Text="节点名称" Foreground="{DynamicResource EditorTextBrush}" />
                                 <TextBox x:Name="NodeTitleTextBox" Margin="0,4,0,12" TextChanged="InspectorField_TextChanged" />
-                                <TextBlock Text="节点编号" Foreground="White" />
+                                <TextBlock Text="节点编号" Foreground="{DynamicResource EditorTextBrush}" />
                                 <TextBlock x:Name="NodeNumberTextBlock"
                                            Text="N001"
                                            Style="{StaticResource EditorReadonlyChipStyle}"
@@ -982,7 +982,7 @@
                                             Click="AddParameterButton_Click" />
                                     <TextBlock x:Name="ParameterInspectorTitle"
                                                Text="参数"
-                                               Foreground="White"
+                                               Foreground="{DynamicResource EditorTextBrush}"
                                                FontWeight="SemiBold"
                                                VerticalAlignment="Center" />
                                 </DockPanel>
@@ -990,29 +990,29 @@
                             </StackPanel>
 
                             <StackPanel x:Name="FindImageInspectorPanel" Visibility="Collapsed" Margin="0,0,0,12">
-                                <TextBlock Text="查找源" Foreground="White" />
+                                <TextBlock Text="查找源" Foreground="{DynamicResource EditorTextBrush}" />
                                 <ComboBox x:Name="FindImageSourceModeComboBox"
                                           Margin="0,4,0,10"
                                           SelectionChanged="FindImageSourceModeComboBox_SelectionChanged">
                                     <ComboBoxItem Content="手动配置（输入图像路径）" Tag="ManualImage" />
                                     <ComboBoxItem Content="实时截屏" Tag="RealtimeScreenshot" />
                                 </ComboBox>
-                                <TextBlock x:Name="FindImageSourcePathLabel" Text="查找源图像路径" Foreground="White" />
+                                <TextBlock x:Name="FindImageSourcePathLabel" Text="查找源图像路径" Foreground="{DynamicResource EditorTextBrush}" />
                                 <DockPanel x:Name="FindImageSourcePathPanel" Margin="0,4,0,10">
                                     <Button Content="浏览" DockPanel.Dock="Right" Padding="12,4" Click="BrowseFindImageSourcePath_Click" />
                                     <TextBox x:Name="FindImageSourcePathTextBox" Margin="0,0,8,0" TextChanged="InspectorField_TextChanged" />
                                 </DockPanel>
-                                <TextBlock Text="查找目标" Foreground="White" />
+                                <TextBlock Text="查找目标" Foreground="{DynamicResource EditorTextBrush}" />
                                 <DockPanel Margin="0,4,0,10">
                                     <Button Content="浏览" DockPanel.Dock="Right" Padding="12,4" Click="BrowseFindImagePath_Click" />
                                     <TextBox x:Name="FindImagePathTextBox" Margin="0,0,8,0" TextChanged="InspectorField_TextChanged" />
                                 </DockPanel>
-                                <TextBlock Text="相似度阈值 (%)" Foreground="White" />
+                                <TextBlock Text="相似度阈值 (%)" Foreground="{DynamicResource EditorTextBrush}" />
                                 <TextBox x:Name="FindImageThresholdTextBox" Margin="0,4,0,12" TextChanged="InspectorField_TextChanged" />
                                 <CheckBox x:Name="FindImageUseRegionCheckBox"
                                           Content="限制识别区域"
                                           Margin="0,0,0,10"
-                                          Foreground="{StaticResource EditorTextBrush}"
+                                          Foreground="{DynamicResource EditorTextBrush}"
                                           Checked="InspectorField_CheckedChanged"
                                           Unchecked="InspectorField_CheckedChanged" />
                                 <Grid Margin="0,0,0,12">
@@ -1027,24 +1027,24 @@
                                         <RowDefinition Height="Auto" />
                                         <RowDefinition Height="Auto" />
                                     </Grid.RowDefinitions>
-                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="区域 X" Foreground="White" />
-                                    <TextBlock Grid.Row="0" Grid.Column="2" Text="区域 Y" Foreground="White" />
+                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="区域 X" Foreground="{DynamicResource EditorTextBrush}" />
+                                    <TextBlock Grid.Row="0" Grid.Column="2" Text="区域 Y" Foreground="{DynamicResource EditorTextBrush}" />
                                     <TextBox x:Name="FindImageRegionXTextBox" Grid.Row="1" Grid.Column="0" Margin="0,4,0,8" TextChanged="InspectorField_TextChanged" />
                                     <TextBox x:Name="FindImageRegionYTextBox" Grid.Row="1" Grid.Column="2" Margin="0,4,0,8" TextChanged="InspectorField_TextChanged" />
-                                    <TextBlock Grid.Row="2" Grid.Column="0" Text="区域宽" Foreground="White" />
-                                    <TextBlock Grid.Row="2" Grid.Column="2" Text="区域高" Foreground="White" />
+                                    <TextBlock Grid.Row="2" Grid.Column="0" Text="区域宽" Foreground="{DynamicResource EditorTextBrush}" />
+                                    <TextBlock Grid.Row="2" Grid.Column="2" Text="区域高" Foreground="{DynamicResource EditorTextBrush}" />
                                     <TextBox x:Name="FindImageRegionWidthTextBox" Grid.Row="3" Grid.Column="0" Margin="0,4,0,0" TextChanged="InspectorField_TextChanged" />
                                     <TextBox x:Name="FindImageRegionHeightTextBox" Grid.Row="3" Grid.Column="2" Margin="0,4,0,0" TextChanged="InspectorField_TextChanged" />
                                 </Grid>
-                                <TextBlock Text="说明" Foreground="{StaticResource EditorMutedTextBrush}" FontWeight="SemiBold" />
+                                <TextBlock Text="说明" Foreground="{DynamicResource EditorMutedTextBrush}" FontWeight="SemiBold" />
                                 <TextBlock Margin="0,4,0,0"
-                                           Foreground="{StaticResource EditorMutedTextBrush}"
+                                           Foreground="{DynamicResource EditorMutedTextBrush}"
                                            Text="达到阈值即认为找到了图像。可限制屏幕识别区域；未启用时默认全屏。节点输出会提供成功 bool 和中心点 Vector2D。"
                                            TextWrapping="Wrap" />
                             </StackPanel>
 
                             <StackPanel x:Name="MouseLeftInspectorPanel" Visibility="Collapsed" Margin="0,0,0,12">
-                                <TextBlock Text="鼠标按键" Foreground="White" />
+                                <TextBlock Text="鼠标按键" Foreground="{DynamicResource EditorTextBrush}" />
                                 <ComboBox x:Name="MouseButtonComboBox" Margin="0,4,0,12" SelectionChanged="InspectorField_SelectionChanged">
                                     <ComboBoxItem Content="左键" Tag="Left" />
                                     <ComboBoxItem Content="右键" Tag="Right" />
@@ -1053,32 +1053,48 @@
                                     <ComboBoxItem Content="侧键2" Tag="XButton2" />
                                 </ComboBox>
 
-                                <TextBlock Text="操作模式" Foreground="White" />
+                                <TextBlock Text="操作模式" Foreground="{DynamicResource EditorTextBrush}" />
                                 <ComboBox x:Name="MouseClickOperationModeComboBox" Margin="0,4,0,12" SelectionChanged="InspectorField_SelectionChanged">
                                     <ComboBoxItem Content="按下" Tag="Press" />
                                     <ComboBoxItem Content="抬起" Tag="Release" />
                                     <ComboBoxItem Content="点击" Tag="Click" />
                                 </ComboBox>
 
-                                <TextBlock x:Name="MousePositionXLabel" Text="点击位置 X" Foreground="White" />
+                                <Grid Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="12" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="触发次数（0=无限）" Foreground="{DynamicResource EditorTextBrush}" />
+                                    <TextBlock Grid.Row="0" Grid.Column="2" Text="触发间隔 (ms)" Foreground="{DynamicResource EditorTextBrush}" />
+                                    <TextBox x:Name="MouseTriggerCountTextBox" Grid.Row="1" Grid.Column="0" Margin="0,4,0,0" TextChanged="InspectorField_TextChanged" />
+                                    <TextBox x:Name="MouseTriggerIntervalTextBox" Grid.Row="1" Grid.Column="2" Margin="0,4,0,0" TextChanged="InspectorField_TextChanged" />
+                                </Grid>
+
+                                <TextBlock x:Name="MousePositionXLabel" Text="点击位置 X" Foreground="{DynamicResource EditorTextBrush}" />
                                 <TextBox x:Name="MousePositionXTextBox" Margin="0,4,0,10" TextChanged="InspectorField_TextChanged" />
-                                <TextBlock x:Name="MousePositionYLabel" Text="点击位置 Y" Foreground="White" />
+                                <TextBlock x:Name="MousePositionYLabel" Text="点击位置 Y" Foreground="{DynamicResource EditorTextBrush}" />
                                 <TextBox x:Name="MousePositionYTextBox" Margin="0,4,0,10" TextChanged="InspectorField_TextChanged" />
 
-                                <TextBlock Text="说明" Foreground="{StaticResource EditorMutedTextBrush}" FontWeight="SemiBold" />
+                                <TextBlock Text="说明" Foreground="{DynamicResource EditorMutedTextBrush}" FontWeight="SemiBold" />
                                 <TextBlock Margin="0,4,0,0"
-                                           Foreground="{StaticResource EditorMutedTextBrush}"
-                                           Text="位置可手动填写，也可由前序节点的 Vector2D 输出引脚连接提供。"
+                                           Foreground="{DynamicResource EditorMutedTextBrush}"
+                                           Text="位置可手动填写，也可由前序节点的 Vector2D 输出引脚连接提供。双击可用：触发次数 2 + 间隔 80~150ms。"
                                            TextWrapping="Wrap" />
                             </StackPanel>
 
                             <StackPanel x:Name="DelayInspectorPanel" Visibility="Collapsed" Margin="0,0,0,12">
-                                <TextBlock Text="延迟时长 (ms)" Foreground="White" />
+                                <TextBlock Text="延迟时长 (ms)" Foreground="{DynamicResource EditorTextBrush}" />
                                 <TextBox x:Name="DelayMsTextBox" Margin="0,4,0,12" TextChanged="InspectorField_TextChanged" />
                             </StackPanel>
 
                             <StackPanel x:Name="IfInspectorPanel" Visibility="Collapsed" Margin="0,0,0,12">
-                                <TextBlock x:Name="IfConditionLabel" Text="结束条件" Foreground="White" />
+                                <TextBlock x:Name="IfConditionLabel" Text="结束条件" Foreground="{DynamicResource EditorTextBrush}" />
                                 <ComboBox x:Name="IfConditionComboBox" Margin="0,4,0,12" SelectionChanged="InspectorField_SelectionChanged">
                                     <ComboBoxItem Content="False" />
                                     <ComboBoxItem Content="True" />
@@ -1086,9 +1102,9 @@
                             </StackPanel>
 
                             <StackPanel x:Name="ForLoopInspectorPanel" Visibility="Collapsed" Margin="0,0,0,12">
-                                <TextBlock Text="循环次数" Foreground="White" />
+                                <TextBlock Text="循环次数" Foreground="{DynamicResource EditorTextBrush}" />
                                 <TextBox x:Name="ForLoopCountTextBox" Margin="0,4,0,10" TextChanged="InspectorField_TextChanged" />
-                                <TextBlock x:Name="ForLoopEndConditionLabel" Text="结束条件（为真时跳出）" Foreground="White" />
+                                <TextBlock x:Name="ForLoopEndConditionLabel" Text="结束条件（为真时跳出）" Foreground="{DynamicResource EditorTextBrush}" />
                                 <ComboBox x:Name="ForLoopEndConditionComboBox" Margin="0,4,0,12" SelectionChanged="InspectorField_SelectionChanged">
                                     <ComboBoxItem Content="False" />
                                     <ComboBoxItem Content="True" />
@@ -1096,22 +1112,22 @@
                             </StackPanel>
 
                             <StackPanel x:Name="WhileLoopInspectorPanel" Visibility="Collapsed" Margin="0,0,0,12">
-                                <TextBlock x:Name="WhileConditionLabel" Text="结束条件（为真时跳出）" Foreground="White" />
+                                <TextBlock x:Name="WhileConditionLabel" Text="结束条件（为真时跳出）" Foreground="{DynamicResource EditorTextBrush}" />
                                 <ComboBox x:Name="WhileLoopConditionComboBox" Margin="0,4,0,10" SelectionChanged="InspectorField_SelectionChanged">
                                     <ComboBoxItem Content="False" />
                                     <ComboBoxItem Content="True" />
                                 </ComboBox>
-                                <TextBlock Text="循环模式" Foreground="White" />
+                                <TextBlock Text="循环模式" Foreground="{DynamicResource EditorTextBrush}" />
                                 <ComboBox x:Name="WhileLoopModeComboBox" Margin="0,4,0,10" SelectionChanged="InspectorField_SelectionChanged">
                                     <ComboBoxItem Content="有限" Tag="Finite" />
                                     <ComboBoxItem Content="无限" Tag="Infinite" />
                                 </ComboBox>
-                                <TextBlock x:Name="WhileMaxIterationsLabel" Text="最大循环次数" Foreground="White" />
+                                <TextBlock x:Name="WhileMaxIterationsLabel" Text="最大循环次数" Foreground="{DynamicResource EditorTextBrush}" />
                                 <TextBox x:Name="WhileMaxIterationsTextBox" Margin="0,4,0,12" TextChanged="InspectorField_TextChanged" />
                             </StackPanel>
 
                             <StackPanel x:Name="StartProgramInspectorPanel" Visibility="Collapsed" Margin="0,0,0,12">
-                                <TextBlock Text="程序路径" Foreground="White" />
+                                <TextBlock Text="程序路径" Foreground="{DynamicResource EditorTextBrush}" />
                                 <Grid Margin="0,4,0,10">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
@@ -1123,43 +1139,43 @@
                                             Click="BrowseStartProgramPath_Click" />
                                 </Grid>
 
-                                <TextBlock Text="待响应时长 (ms)" Foreground="White" />
+                                <TextBlock Text="待响应时长 (ms)" Foreground="{DynamicResource EditorTextBrush}" />
                                 <TextBox x:Name="StartProgramWaitTimeoutTextBox" Margin="0,4,0,10" TextChanged="InspectorField_TextChanged" />
 
-                                <TextBlock Text="失败后操作" Foreground="White" />
+                                <TextBlock Text="失败后操作" Foreground="{DynamicResource EditorTextBrush}" />
                                 <ComboBox x:Name="StartProgramFailureActionComboBox" Margin="0,4,0,10" SelectionChanged="InspectorField_SelectionChanged">
                                     <ComboBoxItem Content="无" Tag="None" />
                                     <ComboBoxItem Content="尝试重启" Tag="Retry" />
                                 </ComboBox>
 
-                                <TextBlock x:Name="StartProgramRetryCountLabel" Text="重启次数" Foreground="White" />
+                                <TextBlock x:Name="StartProgramRetryCountLabel" Text="重启次数" Foreground="{DynamicResource EditorTextBrush}" />
                                 <TextBox x:Name="StartProgramRetryCountTextBox" Margin="0,4,0,12" TextChanged="InspectorField_TextChanged" />
                             </StackPanel>
 
                             <StackPanel x:Name="PrintLogInspectorPanel" Visibility="Collapsed" Margin="0,0,0,12">
-                                <TextBlock Text="功能" Foreground="{StaticResource EditorMutedTextBrush}" />
-                                <TextBlock Margin="0,4,0,10" Foreground="{StaticResource EditorMutedTextBrush}" Text="打印填入的字符串到 log 中。" TextWrapping="Wrap" />
-                                <TextBlock x:Name="PrintLogMessageLabel" Text="字符串" Foreground="White" />
+                                <TextBlock Text="功能" Foreground="{DynamicResource EditorMutedTextBrush}" />
+                                <TextBlock Margin="0,4,0,10" Foreground="{DynamicResource EditorMutedTextBrush}" Text="打印填入的字符串到 log 中。" TextWrapping="Wrap" />
+                                <TextBlock x:Name="PrintLogMessageLabel" Text="字符串" Foreground="{DynamicResource EditorTextBrush}" />
                                 <TextBox x:Name="PrintLogMessageTextBox" Margin="0,4,0,12" TextChanged="InspectorField_TextChanged" />
                             </StackPanel>
 
                             <StackPanel x:Name="SelectWindowInspectorPanel" Visibility="Collapsed" Margin="0,0,0,12">
-                                <TextBlock Text="功能" Foreground="{StaticResource EditorMutedTextBrush}" />
+                                <TextBlock Text="功能" Foreground="{DynamicResource EditorMutedTextBrush}" />
                                 <TextBlock Margin="0,4,0,10"
-                                           Foreground="{StaticResource EditorMutedTextBrush}"
+                                           Foreground="{DynamicResource EditorMutedTextBrush}"
                                            Text="按进程名查找窗口，并把窗口恢复、置前、设为前台窗口。"
                                            TextWrapping="Wrap" />
-                                <TextBlock Text="输入模式" Foreground="White" />
+                                <TextBlock Text="输入模式" Foreground="{DynamicResource EditorTextBrush}" />
                                 <ComboBox x:Name="SelectWindowInputModeComboBox" Margin="0,4,0,10" SelectionChanged="SelectWindowInputMode_SelectionChanged">
                                     <ComboBoxItem Content="手动输入" Tag="Manual" />
                                     <ComboBoxItem Content="自动获取" Tag="Auto" />
                                 </ComboBox>
                                 <StackPanel x:Name="SelectWindowManualPanel">
-                                    <TextBlock x:Name="SelectWindowProcessNameLabel" Text="进程名" Foreground="White" />
+                                    <TextBlock x:Name="SelectWindowProcessNameLabel" Text="进程名" Foreground="{DynamicResource EditorTextBrush}" />
                                     <TextBox x:Name="SelectWindowProcessNameTextBox" Margin="0,4,0,12" TextChanged="InspectorField_TextChanged" />
                                 </StackPanel>
                                 <StackPanel x:Name="SelectWindowAutoPanel" Visibility="Collapsed">
-                                    <TextBlock Text="选择窗口" Foreground="White" />
+                                    <TextBlock Text="选择窗口" Foreground="{DynamicResource EditorTextBrush}" />
                                     <Grid Margin="0,4,0,4">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*" />
@@ -1172,8 +1188,8 @@
                             </StackPanel>
 
                             <StackPanel x:Name="ToDoInspectorPanel" Visibility="Collapsed" Margin="0,0,0,12">
-                                <TextBlock Text="ToDo 目标" Foreground="{StaticResource EditorMutedTextBrush}" FontWeight="SemiBold" />
-                                <TextBlock Text="搜索节点名或编号" Foreground="White" Margin="0,10,0,0" />
+                                <TextBlock Text="ToDo 目标" Foreground="{DynamicResource EditorMutedTextBrush}" FontWeight="SemiBold" />
+                                <TextBlock Text="搜索节点名或编号" Foreground="{DynamicResource EditorTextBrush}" Margin="0,10,0,0" />
                                 <TextBox x:Name="ToDoSearchBox" Margin="0,4,0,8" TextChanged="ToDoSearchBox_TextChanged" />
                                 <ListBox x:Name="ToDoTargetListBox"
                                          Style="{StaticResource DarkDropdownListBoxStyle}"
@@ -1191,66 +1207,120 @@
                                                            FontWeight="SemiBold"
                                                            Margin="0,0,8,0" />
                                                 <TextBlock Text="{Binding Title}"
-                                                           Foreground="{StaticResource EditorTextBrightBrush}"
+                                                           Foreground="{DynamicResource EditorTextBrightBrush}"
                                                            TextTrimming="CharacterEllipsis" />
                                             </DockPanel>
                                         </DataTemplate>
                                     </ListBox.ItemTemplate>
                                 </ListBox>
-                                <TextBlock Text="节点名" Foreground="White" />
+                                <TextBlock Text="节点名" Foreground="{DynamicResource EditorTextBrush}" />
                                 <TextBox x:Name="ToDoTargetTitleTextBox" Margin="0,4,0,10" TextChanged="InspectorField_TextChanged" />
-                                <TextBlock Text="编号" Foreground="White" />
+                                <TextBlock Text="编号" Foreground="{DynamicResource EditorTextBrush}" />
                                 <TextBox x:Name="ToDoTargetNumberTextBox" Margin="0,4,0,10" TextChanged="InspectorField_TextChanged" />
                                 <CheckBox x:Name="ToDoReturnAfterTargetCheckBox"
                                           Content="目标执行完后返回 ToDo 输出"
-                                          Foreground="{StaticResource EditorTextBrush}"
+                                          Foreground="{DynamicResource EditorTextBrush}"
                                           Margin="0,0,0,10"
                                           Checked="InspectorField_CheckedChanged"
                                           Unchecked="InspectorField_CheckedChanged" />
                                 <TextBlock Text="运行时同时匹配节点名和编号；任一不匹配就停止。"
-                                           Foreground="{StaticResource StatusMutedBrush}"
+                                           Foreground="{DynamicResource StatusMutedBrush}"
                                            TextWrapping="Wrap" />
                             </StackPanel>
 
                             <StackPanel x:Name="KeyboardInspectorPanel" Visibility="Collapsed" Margin="0,0,0,12">
-                                <TextBlock Text="按键" Foreground="White" />
+                                <TextBlock Text="按键" Foreground="{DynamicResource EditorTextBrush}" />
                                 <ComboBox x:Name="KeyboardKeyComboBox" Margin="0,4,0,12" SelectionChanged="InspectorField_SelectionChanged" />
-                                <TextBlock Text="操作模式" Foreground="White" />
+                                <TextBlock Text="操作模式" Foreground="{DynamicResource EditorTextBrush}" />
                                 <ComboBox x:Name="KeyboardOperationModeComboBox" Margin="0,4,0,12" SelectionChanged="InspectorField_SelectionChanged">
                                     <ComboBoxItem Content="按下" Tag="Press" />
                                     <ComboBoxItem Content="抬起" Tag="Release" />
                                     <ComboBoxItem Content="点击" Tag="Click" />
                                 </ComboBox>
+                                <Grid Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="12" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="触发次数（0=无限）" Foreground="{DynamicResource EditorTextBrush}" />
+                                    <TextBlock Grid.Row="0" Grid.Column="2" Text="触发间隔 (ms)" Foreground="{DynamicResource EditorTextBrush}" />
+                                    <TextBox x:Name="KeyboardTriggerCountTextBox" Grid.Row="1" Grid.Column="0" Margin="0,4,0,0" TextChanged="InspectorField_TextChanged" />
+                                    <TextBox x:Name="KeyboardTriggerIntervalTextBox" Grid.Row="1" Grid.Column="2" Margin="0,4,0,0" TextChanged="InspectorField_TextChanged" />
+                                </Grid>
+                            </StackPanel>
+
+                            <StackPanel x:Name="KeyChordInspectorPanel" Visibility="Collapsed" Margin="0,0,0,12">
+                                <TextBlock Text="组合键" Foreground="{DynamicResource EditorTextBrush}" />
+                                <TextBox x:Name="KeyChordTextBox" Margin="0,4,0,8" TextChanged="InspectorField_TextChanged" />
+                                <DockPanel Margin="0,0,0,12">
+                                    <Button Content="增加"
+                                            DockPanel.Dock="Right"
+                                            Padding="12,4"
+                                            Margin="8,0,0,0"
+                                            Click="KeyChordAddButton_Click" />
+                                    <ComboBox x:Name="KeyChordKeyComboBox"
+                                              IsEditable="True"
+                                              IsTextSearchEnabled="True" />
+                                </DockPanel>
+                                <TextBlock Text="操作模式" Foreground="{DynamicResource EditorTextBrush}" />
+                                <ComboBox x:Name="KeyChordOperationModeComboBox" Margin="0,4,0,12" SelectionChanged="InspectorField_SelectionChanged">
+                                    <ComboBoxItem Content="按下" Tag="Press" />
+                                    <ComboBoxItem Content="抬起" Tag="Release" />
+                                    <ComboBoxItem Content="点击" Tag="Click" />
+                                </ComboBox>
+                                <Grid Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="12" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="触发次数（0=无限）" Foreground="{DynamicResource EditorTextBrush}" />
+                                    <TextBlock Grid.Row="0" Grid.Column="2" Text="触发间隔 (ms)" Foreground="{DynamicResource EditorTextBrush}" />
+                                    <TextBox x:Name="KeyChordTriggerCountTextBox" Grid.Row="1" Grid.Column="0" Margin="0,4,0,0" TextChanged="InspectorField_TextChanged" />
+                                    <TextBox x:Name="KeyChordTriggerIntervalTextBox" Grid.Row="1" Grid.Column="2" Margin="0,4,0,0" TextChanged="InspectorField_TextChanged" />
+                                </Grid>
+                                <TextBlock Foreground="{DynamicResource EditorMutedTextBrush}"
+                                           Text="点击模式会按下全部键、短暂停顿后反向释放；按下/抬起模式用于持续按键组合。"
+                                           TextWrapping="Wrap" />
                             </StackPanel>
 
                             <StackPanel x:Name="ScrollWheelInspectorPanel" Visibility="Collapsed" Margin="0,0,0,12">
-                                <TextBlock Text="滚轮动作" Foreground="White" />
+                                <TextBlock Text="滚轮动作" Foreground="{DynamicResource EditorTextBrush}" />
                                 <ComboBox x:Name="ScrollWheelActionComboBox" Margin="0,4,0,12" SelectionChanged="InspectorField_SelectionChanged">
                                     <ComboBoxItem Content="中键按下" Tag="Press" />
                                     <ComboBoxItem Content="中键抬起" Tag="Release" />
                                     <ComboBoxItem Content="向前滚动" Tag="ScrollForward" />
                                     <ComboBoxItem Content="向后滚动" Tag="ScrollBackward" />
                                 </ComboBox>
-                                <TextBlock Text="滚动速度 (120=一个刻度)" Foreground="White" />
+                                <TextBlock Text="滚动速度 (120=一个刻度)" Foreground="{DynamicResource EditorTextBrush}" />
                                 <TextBox x:Name="ScrollWheelSpeedTextBox" Margin="0,4,0,10" TextChanged="InspectorField_TextChanged" />
-                                <TextBlock Text="滚动间隔 (ms)" Foreground="White" />
+                                <TextBlock Text="滚动间隔 (ms)" Foreground="{DynamicResource EditorTextBrush}" />
                                 <TextBox x:Name="ScrollWheelIntervalTextBox" Margin="0,4,0,10" TextChanged="InspectorField_TextChanged" />
-                                <TextBlock Text="滚动时长 (ms, 0=永久)" Foreground="White" />
+                                <TextBlock Text="滚动时长 (ms, 0=永久)" Foreground="{DynamicResource EditorTextBrush}" />
                                 <TextBox x:Name="ScrollWheelDurationTextBox" Margin="0,4,0,12" TextChanged="InspectorField_TextChanged" />
                             </StackPanel>
 
                             <StackPanel x:Name="MouseMoveInspectorPanel" Visibility="Collapsed" Margin="0,0,0,12">
-                                <TextBlock x:Name="MouseMovePositionXLabel" Text="目标坐标 X" Foreground="White" />
+                                <TextBlock x:Name="MouseMovePositionXLabel" Text="目标坐标 X" Foreground="{DynamicResource EditorTextBrush}" />
                                 <TextBox x:Name="MouseMovePositionXTextBox" Margin="0,4,0,10" TextChanged="InspectorField_TextChanged" />
-                                <TextBlock x:Name="MouseMovePositionYLabel" Text="目标坐标 Y" Foreground="White" />
+                                <TextBlock x:Name="MouseMovePositionYLabel" Text="目标坐标 Y" Foreground="{DynamicResource EditorTextBrush}" />
                                 <TextBox x:Name="MouseMovePositionYTextBox" Margin="0,4,0,12" TextChanged="InspectorField_TextChanged" />
                             </StackPanel>
 
                             <StackPanel x:Name="CommonInspectorPanel" Visibility="Collapsed" Margin="0,0,0,12">
-                                <TextBlock Text="通用参数" Foreground="{StaticResource EditorMutedTextBrush}" FontWeight="SemiBold" />
+                                <TextBlock Text="通用参数" Foreground="{DynamicResource EditorMutedTextBrush}" FontWeight="SemiBold" />
 
                                 <StackPanel x:Name="CommonKeyChordAddPanel" Visibility="Collapsed" Margin="0,10,0,10">
-                                    <TextBlock Text="增加按键" Foreground="White" />
+                                    <TextBlock Text="增加按键" Foreground="{DynamicResource EditorTextBrush}" />
                                     <DockPanel Margin="0,4,0,0">
                                         <Button Content="增加"
                                                 DockPanel.Dock="Right"
@@ -1264,7 +1334,7 @@
                                 </StackPanel>
 
                                 <StackPanel x:Name="CommonModePanel" Visibility="Collapsed" Margin="0,10,0,10">
-                                    <TextBlock Text="目标选择模式" Foreground="White" />
+                                    <TextBlock Text="目标选择模式" Foreground="{DynamicResource EditorTextBrush}" />
                                     <ComboBox x:Name="CommonModeComboBox" Margin="0,4,0,0" SelectionChanged="CommonModeComboBox_SelectionChanged">
                                         <ComboBoxItem Content="手填进程名" Tag="Manual" />
                                         <ComboBoxItem Content="从运行窗口选择" Tag="Auto" />
@@ -1273,7 +1343,7 @@
                                 </StackPanel>
 
                                 <StackPanel x:Name="CommonWindowPickerPanel" Visibility="Collapsed" Margin="0,0,0,10">
-                                    <TextBlock Text="选择运行窗口" Foreground="White" />
+                                    <TextBlock Text="选择运行窗口" Foreground="{DynamicResource EditorTextBrush}" />
                                     <DockPanel Margin="0,4,0,0">
                                         <Button Content="刷新"
                                                 DockPanel.Dock="Right"
@@ -1286,13 +1356,13 @@
                                 </StackPanel>
 
                                 <StackPanel x:Name="CommonEnumPanel" Visibility="Collapsed" Margin="0,10,0,10">
-                                    <TextBlock x:Name="CommonEnumLabel" Text="模式" Foreground="White" />
+                                    <TextBlock x:Name="CommonEnumLabel" Text="模式" Foreground="{DynamicResource EditorTextBrush}" />
                                     <ComboBox x:Name="CommonEnumComboBox"
                                               Margin="0,4,0,0"
                                               SelectionChanged="CommonEnumComboBox_SelectionChanged" />
                                 </StackPanel>
 
-                                <TextBlock x:Name="CommonTextLabel" Text="文本 1" Foreground="White" Margin="0,10,0,0" />
+                                <TextBlock x:Name="CommonTextLabel" Text="文本 1" Foreground="{DynamicResource EditorTextBrush}" Margin="0,10,0,0" />
                                 <TextBox x:Name="CommonTextBox" Margin="0,4,0,10" TextChanged="InspectorField_TextChanged" />
                                 <Button x:Name="CommonBrowseFileButton"
                                         Content="浏览"
@@ -1301,10 +1371,10 @@
                                         Padding="12,4"
                                         Click="CommonBrowseFileButton_Click" />
 
-                                <TextBlock x:Name="CommonText2Label" Text="文本 2" Foreground="White" />
+                                <TextBlock x:Name="CommonText2Label" Text="文本 2" Foreground="{DynamicResource EditorTextBrush}" />
                                 <TextBox x:Name="CommonText2Box" Margin="0,4,0,10" TextChanged="InspectorField_TextChanged" />
 
-                                <TextBlock x:Name="CommonText3Label" Text="文本 3" Foreground="White" />
+                                <TextBlock x:Name="CommonText3Label" Text="文本 3" Foreground="{DynamicResource EditorTextBrush}" />
                                 <TextBox x:Name="CommonText3Box" Margin="0,4,0,10" TextChanged="InspectorField_TextChanged" />
 
                                 <Grid>
@@ -1319,25 +1389,25 @@
                                         <RowDefinition Height="Auto" />
                                         <RowDefinition Height="Auto" />
                                     </Grid.RowDefinitions>
-                                    <TextBlock x:Name="CommonNumberLabel" Grid.Row="0" Grid.Column="0" Text="数值 1" Foreground="White" />
-                                    <TextBlock x:Name="CommonNumber2Label" Grid.Row="0" Grid.Column="2" Text="数值 2" Foreground="White" />
+                                    <TextBlock x:Name="CommonNumberLabel" Grid.Row="0" Grid.Column="0" Text="数值 1" Foreground="{DynamicResource EditorTextBrush}" />
+                                    <TextBlock x:Name="CommonNumber2Label" Grid.Row="0" Grid.Column="2" Text="数值 2" Foreground="{DynamicResource EditorTextBrush}" />
                                     <TextBox x:Name="CommonNumberBox" Grid.Row="1" Grid.Column="0" Margin="0,4,0,10" TextChanged="InspectorField_TextChanged" />
                                     <TextBox x:Name="CommonNumber2Box" Grid.Row="1" Grid.Column="2" Margin="0,4,0,10" TextChanged="InspectorField_TextChanged" />
-                                    <TextBlock x:Name="CommonNumber3Label" Grid.Row="2" Grid.Column="0" Text="数值 3" Foreground="White" />
-                                    <TextBlock x:Name="CommonNumber4Label" Grid.Row="2" Grid.Column="2" Text="数值 4" Foreground="White" />
+                                    <TextBlock x:Name="CommonNumber3Label" Grid.Row="2" Grid.Column="0" Text="数值 3" Foreground="{DynamicResource EditorTextBrush}" />
+                                    <TextBlock x:Name="CommonNumber4Label" Grid.Row="2" Grid.Column="2" Text="数值 4" Foreground="{DynamicResource EditorTextBrush}" />
                                     <TextBox x:Name="CommonNumber3Box" Grid.Row="3" Grid.Column="0" Margin="0,4,0,10" TextChanged="InspectorField_TextChanged" />
                                     <TextBox x:Name="CommonNumber4Box" Grid.Row="3" Grid.Column="2" Margin="0,4,0,10" TextChanged="InspectorField_TextChanged" />
                                 </Grid>
 
                                 <CheckBox x:Name="CommonFlagCheckBox"
                                           Content="布尔值"
-                                          Foreground="{StaticResource EditorTextBrush}"
+                                          Foreground="{DynamicResource EditorTextBrush}"
                                           Margin="0,0,0,10"
                                           Checked="InspectorField_CheckedChanged"
                                           Unchecked="InspectorField_CheckedChanged" />
 
                                 <TextBlock x:Name="CommonHelpTextBlock"
-                                           Foreground="{StaticResource EditorMutedTextBrush}"
+                                           Foreground="{DynamicResource EditorMutedTextBrush}"
                                            TextWrapping="Wrap" />
                             </StackPanel>
                         </StackPanel>
@@ -1347,8 +1417,8 @@
                 <Border x:Name="ExecutionFrozenOverlay"
                         Grid.Column="0"
                         Grid.ColumnSpan="5"
-                        Background="#B0181D2A"
-                        BorderBrush="{StaticResource AccentBrush}"
+                        Background="{DynamicResource EditorExecutionOverlayBrush}"
+                        BorderBrush="{DynamicResource AccentBrush}"
                         BorderThickness="1"
                         CornerRadius="12"
                         Panel.ZIndex="1000"
@@ -1368,7 +1438,7 @@
                     <Grid>
                         <Rectangle Height="3"
                                    VerticalAlignment="Top"
-                                   Fill="{StaticResource AccentBrush}"
+                                   Fill="{DynamicResource AccentBrush}"
                                    Opacity="0.75"
                                    RadiusX="2"
                                    RadiusY="2">
@@ -1393,8 +1463,8 @@
                                 HorizontalAlignment="Center"
                                 VerticalAlignment="Center"
                                 Padding="30"
-                                Background="{StaticResource EditorPanelElevatedBrush}"
-                                BorderBrush="{StaticResource EditorSelectedBorderBrush}"
+                                Background="{DynamicResource EditorPanelElevatedBrush}"
+                                BorderBrush="{DynamicResource EditorSelectedBorderBrush}"
                                 BorderThickness="1"
                                 CornerRadius="18"
                                 Style="{StaticResource EditorPanelDropShadowStyle}">
@@ -1403,10 +1473,10 @@
                                       Height="74"
                                       HorizontalAlignment="Center"
                                       Margin="0,0,0,18">
-                                    <Ellipse Stroke="{StaticResource EditorPanelBorderBrush}"
+                                    <Ellipse Stroke="{DynamicResource EditorPanelBorderBrush}"
                                              StrokeThickness="7"
                                              Opacity="0.75" />
-                                    <Ellipse Stroke="{StaticResource AccentBrush}"
+                                    <Ellipse Stroke="{DynamicResource AccentBrush}"
                                              StrokeThickness="7"
                                              StrokeDashArray="2 3"
                                              StrokeStartLineCap="Round"
@@ -1431,7 +1501,7 @@
                                 </Grid>
 
                                 <TextBlock Text="正在执行脚本"
-                                           Foreground="{StaticResource EditorTextBrightBrush}"
+                                           Foreground="{DynamicResource EditorTextBrightBrush}"
                                            FontSize="28"
                                            FontWeight="Bold"
                                            HorizontalAlignment="Center">
@@ -1457,7 +1527,7 @@
                                 </TextBlock>
 
                                 <TextBlock Text="节点画布已冻结。点击顶部“停止执行”后才能继续编辑节点。"
-                                           Foreground="{StaticResource ForegroundSecondaryBrush}"
+                                           Foreground="{DynamicResource ForegroundSecondaryBrush}"
                                            FontSize="13"
                                            TextAlignment="Center"
                                            TextWrapping="Wrap"

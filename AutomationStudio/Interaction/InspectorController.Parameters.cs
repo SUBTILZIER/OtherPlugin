@@ -131,7 +131,7 @@ public sealed partial class InspectorController
         row.Children.Add(new TextBlock
         {
             Text = parameter.Name,
-            Foreground = System.Windows.Media.Brushes.White,
+            Foreground = ResourceBrush("EditorTextBrush"),
             VerticalAlignment = VerticalAlignment.Center,
             TextTrimming = TextTrimming.CharacterEllipsis,
             Margin = new Thickness(0, 0, 4, 0),
@@ -140,7 +140,7 @@ public sealed partial class InspectorController
         var typeText = new TextBlock
         {
             Text = parameter.Type.ToString(),
-            Foreground = Brush(0xB7, 0xC0, 0xCD),
+            Foreground = ResourceBrush("EditorMutedTextBrush"),
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(0, 0, 4, 0),
         };

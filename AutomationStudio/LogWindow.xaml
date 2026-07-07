@@ -6,48 +6,48 @@
         Width="900"
         Height="500"
         WindowStartupLocation="CenterOwner"
-        Background="{StaticResource AppBackgroundBrush}">
+        Background="{DynamicResource AppBackgroundBrush}">
     <Border Margin="10"
-            Background="{StaticResource EditorPanelCardBrush}"
-            BorderBrush="{StaticResource EditorPanelBorderBrush}"
+            Background="{DynamicResource EditorPanelCardBrush}"
+            BorderBrush="{DynamicResource EditorPanelBorderBrush}"
             BorderThickness="1"
             CornerRadius="12">
     <DockPanel>
         <StackPanel DockPanel.Dock="Top"
                     Orientation="Horizontal"
                     Height="42"
-                    Background="{StaticResource EditorPanelElevatedBrush}">
+                    Background="{DynamicResource EditorPanelElevatedBrush}">
             <Button Content="复制全部" Click="CopyAll_Click" Margin="0,0,8,0" Padding="12,4" />
             <Button Content="清空" Click="Clear_Click" Padding="12,4" />
-            <Border Margin="8,0,0,0" Background="{StaticResource EditorFieldCardBrush}" BorderBrush="{StaticResource EditorPanelBorderBrush}" BorderThickness="1" CornerRadius="9" Height="24" VerticalAlignment="Center">
+            <Border Margin="8,0,0,0" Background="{DynamicResource EditorFieldCardBrush}" BorderBrush="{DynamicResource EditorPanelBorderBrush}" BorderThickness="1" CornerRadius="9" Height="24" VerticalAlignment="Center">
                 <StackPanel Orientation="Horizontal">
                     <RadioButton x:Name="FilterAllRadio" Content="全部" IsChecked="True"
                                  Checked="FilterRadio_Checked"
                                  Margin="4,0" Padding="6,0" FontSize="11"
-                                 Foreground="{StaticResource ForegroundPrimaryBrush}" />
+                                 Foreground="{DynamicResource ForegroundPrimaryBrush}" />
                     <RadioButton x:Name="FilterInfoRadio" Content="信息"
                                  Checked="FilterRadio_Checked"
                                  Margin="4,0" Padding="6,0" FontSize="11"
-                                 Foreground="{StaticResource ForegroundPrimaryBrush}" />
+                                 Foreground="{DynamicResource ForegroundPrimaryBrush}" />
                     <RadioButton x:Name="FilterWarnRadio" Content="警告"
                                  Checked="FilterRadio_Checked"
                                  Margin="4,0" Padding="6,0" FontSize="11"
-                                 Foreground="{StaticResource CompileDirtyBorderBrush}" />
+                                 Foreground="{DynamicResource CompileDirtyBorderBrush}" />
                     <RadioButton x:Name="FilterErrorRadio" Content="错误"
                                  Checked="FilterRadio_Checked"
                                  Margin="4,0" Padding="6,0" FontSize="11"
-                                 Foreground="{StaticResource LogErrorBrush}" />
+                                 Foreground="{DynamicResource LogErrorBrush}" />
                 </StackPanel>
             </Border>
             <TextBlock x:Name="LogDirText"
                        Margin="16,0,0,0"
                        VerticalAlignment="Center"
-                       Foreground="{StaticResource StatusMutedBrush}"
+                       Foreground="{DynamicResource StatusMutedBrush}"
                        FontSize="11" />
         </StackPanel>
         <RichTextBox x:Name="LogRichTextBox"
-                     Background="{StaticResource EditorChromeBrush}"
-                     Foreground="{StaticResource EditorTextBrush}"
+                     Background="{DynamicResource EditorChromeBrush}"
+                     Foreground="{DynamicResource EditorTextBrush}"
                      BorderThickness="0"
                      Margin="0"
                      FontFamily="Consolas"

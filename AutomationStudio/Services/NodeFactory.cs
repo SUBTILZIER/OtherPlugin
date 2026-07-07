@@ -34,9 +34,8 @@ public sealed class NodeFactory
             NodeKind.WhileLoop => CreateWhileLoopNode(),
             NodeKind.ToDo => CreateToDoNode(),
             NodeKind.MultiThread => CreateMultiThreadNode(),
-            NodeKind.MouseDoubleClick => CreateCommonNode(NodeKind.MouseDoubleClick, "mouse_double_click", "鼠标双击"),
             NodeKind.GetMousePosition => CreateCommonNode(NodeKind.GetMousePosition, "get_mouse_position", "获取鼠标位置"),
-            NodeKind.KeyChord => CreateCommonNode(NodeKind.KeyChord, "key_chord", "组合键"),
+            NodeKind.KeyChord => CreateKeyChordNode(),
             NodeKind.WaitImage => CreateCommonNode(NodeKind.WaitImage, "wait_image", "等待图片"),
             NodeKind.WaitImageDisappear => CreateCommonNode(NodeKind.WaitImageDisappear, "wait_image_disappear", "图片消失"),
             NodeKind.Compare => CreateCommonNode(NodeKind.Compare, "compare", "比较"),
@@ -75,6 +74,9 @@ public sealed class NodeFactory
 
     public KeyboardNodeViewModel CreateKeyboardNode(double offsetX = 0, double offsetY = 0) =>
         new(CreateNodeId()) { Title = "键盘", X = 340 + offsetX, Y = 240 + offsetY };
+
+    public KeyChordNodeViewModel CreateKeyChordNode(double offsetX = 0, double offsetY = 0) =>
+        new(CreateNodeId()) { Title = "组合键", X = 380 + offsetX, Y = 280 + offsetY };
 
     public ScrollWheelNodeViewModel CreateScrollWheelNode(double offsetX = 0, double offsetY = 0) =>
         new(CreateNodeId()) { Title = "鼠标滚轮", X = 360 + offsetX, Y = 260 + offsetY };

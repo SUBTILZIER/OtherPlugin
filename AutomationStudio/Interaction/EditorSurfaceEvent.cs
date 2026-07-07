@@ -50,6 +50,7 @@ internal enum EditorSurfaceEvent
     RefreshWindowListClick,
     BrowseFindImageSourcePathClick,
     CommonKeyChordAddButtonClick,
+    KeyChordAddButtonClick,
     AddParameterButtonClick,
     CommonModeComboBoxSelectionChanged,
     CommonWindowComboBoxSelectionChanged,

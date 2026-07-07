@@ -142,9 +142,9 @@ public sealed partial class InspectorController
         comboBox.IsEnabled = !locked;
         if (locked)
         {
-            comboBox.Foreground = System.Windows.Media.Brushes.Gray;
-            comboBox.Background = Brush(0x25, 0x29, 0x30);
-            comboBox.BorderBrush = Brush(0x3A, 0x40, 0x4A);
+            comboBox.Foreground = ResourceBrush("DisabledForegroundBrush");
+            comboBox.Background = ResourceBrush("DisabledInputBackgroundBrush");
+            comboBox.BorderBrush = ResourceBrush("DisabledInputBorderBrush");
             comboBox.Items.Clear();
             comboBox.Items.Add(new WpfComboBoxItem { Content = "前置输入" });
             comboBox.SelectedIndex = 0;

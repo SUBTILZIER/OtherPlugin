@@ -82,4 +82,16 @@ public partial class MainWindow
         surface.ScriptPropertiesSummaryHost.Visibility = Visibility.Visible;
         return true;
     }
+
+    private void RefreshVisibleScriptPropertiesSummaries()
+    {
+        if (EmptyEditorPanel.Child is ScriptPropertiesSummaryControl emptySummary)
+            emptySummary.Refresh();
+
+        foreach (var session in _editorSessions)
+        {
+            if (session.Surface?.ScriptPropertiesSummaryHost.Content is ScriptPropertiesSummaryControl inspectorSummary)
+                inspectorSummary.Refresh();
+        }
+    }
 }

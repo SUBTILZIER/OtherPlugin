@@ -7,9 +7,9 @@ using System.Windows.Media;
 using DrawingPoint = System.Drawing.Point;
 using DrawingRectangle = System.Drawing.Rectangle;
 using WpfBrushes = System.Windows.Media.Brushes;
+using WpfBrush = System.Windows.Media.Brush;
 using WpfButton = System.Windows.Controls.Button;
 using WpfButtonBase = System.Windows.Controls.Primitives.ButtonBase;
-using WpfColor = System.Windows.Media.Color;
 using WpfPoint = System.Windows.Point;
 using WpfRectangle = System.Windows.Shapes.Rectangle;
 
@@ -17,12 +17,14 @@ namespace AutomationStudioWpf.Interaction;
 
 public sealed class TrayMenuWindow : Window
 {
-    private static readonly SolidColorBrush BackgroundBrush = FrozenBrush(24, 30, 38);
-    private static readonly SolidColorBrush ChromeBorderBrush = FrozenBrush(58, 72, 90);
-    private static readonly SolidColorBrush HoverBrush = FrozenBrush(45, 58, 74);
-    private static readonly SolidColorBrush PressedBrush = FrozenBrush(36, 48, 63);
-    private static readonly SolidColorBrush TextBrush = FrozenBrush(232, 237, 245);
-    private static readonly SolidColorBrush MutedBrush = FrozenBrush(150, 162, 178);
+    private static WpfBrush BackgroundBrush => ThemeResourceHelper.Brush("EditorPanelCardBrush");
+    private static WpfBrush ChromeBorderBrush => ThemeResourceHelper.Brush("EditorPanelBorderBrush");
+    private static WpfBrush HoverBrush => ThemeResourceHelper.Brush("EditorPanelCardHoverBrush");
+    private static WpfBrush PressedBrush => ThemeResourceHelper.Brush("EditorChromeHighlightBrush");
+    private static WpfBrush TextBrush => ThemeResourceHelper.Brush("EditorTextBrightBrush");
+    private static WpfBrush MutedBrush => ThemeResourceHelper.Brush("EditorMutedTextBrush");
+    private static WpfBrush AccentBrush => ThemeResourceHelper.Brush("AccentBrush");
+    private static WpfBrush DangerBrush => ThemeResourceHelper.Brush("LogErrorBrush");
     private bool _isClosing;
 
     public TrayMenuWindow(Action openPanel, Action exitApplication)
@@ -103,7 +105,7 @@ public sealed class TrayMenuWindow : Window
             Height = 8,
             RadiusX = 4,
             RadiusY = 4,
-            Fill = isDanger ? FrozenBrush(255, 107, 107) : FrozenBrush(79, 163, 255),
+            Fill = isDanger ? DangerBrush : AccentBrush,
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(2, 0, 10, 0),
         };
@@ -196,12 +198,5 @@ public sealed class TrayMenuWindow : Window
         var topLeft = transform.Transform(new WpfPoint(rectangle.Left, rectangle.Top));
         var bottomRight = transform.Transform(new WpfPoint(rectangle.Right, rectangle.Bottom));
         return new Rect(topLeft, bottomRight);
-    }
-
-    private static SolidColorBrush FrozenBrush(byte r, byte g, byte b)
-    {
-        var brush = new SolidColorBrush(WpfColor.FromRgb(r, g, b));
-        brush.Freeze();
-        return brush;
     }
 }

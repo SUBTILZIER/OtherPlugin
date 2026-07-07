@@ -216,9 +216,6 @@ public sealed class GraphValidator
                 case NodeKind.MouseMove:
                     WarnIfMissingPoint(plan, issues, node, "position", node.PositionX, node.PositionY, "鼠标移动");
                     break;
-                case NodeKind.MouseDoubleClick:
-                    WarnIfMissingPoint(plan, issues, node, "position", node.Number, node.Number2, "鼠标双击");
-                    break;
                 case NodeKind.Delay when node.DelayMs <= 0:
                     issues.Add(Warning($"延迟时长无效：{node.Title}。运行时会使用默认时长。"));
                     break;

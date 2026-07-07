@@ -3,6 +3,7 @@ using System.Drawing;
 using System.Reflection;
 using System.Windows;
 using AutomationStudioWpf.Interaction;
+using AutomationStudioWpf.Services;
 using WpfApplication = System.Windows.Application;
 using WinFormsCursor = System.Windows.Forms.Cursor;
 using WinFormsMouseButtons = System.Windows.Forms.MouseButtons;
@@ -119,6 +120,7 @@ public partial class MainWindow
         _mousePickController.Dispose();
         _scriptRunManager.Dispose();
         _scriptHotkeyService.Dispose();
+        AppThemeService.ThemeChanged -= OnAppThemeChanged;
         _trayMenuWindow?.Close();
         _trayMenuWindow = null;
         if (_notifyIcon is not null)

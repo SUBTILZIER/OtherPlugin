@@ -1,11 +1,12 @@
 using SolidColorBrush = System.Windows.Media.SolidColorBrush;
 using Color = System.Windows.Media.Color;
+using WpfApplication = System.Windows.Application;
 
 namespace AutomationStudioWpf.Graph;
 
 public static class PinBrushes
 {
-    private static readonly SolidColorBrush ExecutionBrush = FrozenBrush(244, 244, 244);
+    private static readonly SolidColorBrush ExecutionBrush = ResourceBrush("EditorExecutionPinBrush", 244, 244, 244);
     private static readonly SolidColorBrush CompletionExecutionBrush = FrozenBrush(255, 184, 72);
     private static readonly SolidColorBrush BooleanBrush = FrozenBrush(184, 45, 48);
     private static readonly SolidColorBrush Vector2DBrush = FrozenBrush(80, 196, 114);
@@ -28,5 +29,11 @@ public static class PinBrushes
         var brush = new SolidColorBrush(Color.FromRgb(r, g, b));
         brush.Freeze();
         return brush;
+    }
+
+    private static SolidColorBrush ResourceBrush(string key, byte fallbackR, byte fallbackG, byte fallbackB)
+    {
+        return WpfApplication.Current?.TryFindResource(key) as SolidColorBrush
+            ?? FrozenBrush(fallbackR, fallbackG, fallbackB);
     }
 }

@@ -31,6 +31,6 @@ public sealed class KeyboardNodeViewModel : InputNodeBase
             PressReleaseMode.Click => "点击",
             _ => "按下",
         };
-        Description = $"{Key} / {modeLabel}";
+        Description = $"{Key} / {modeLabel}\n{TriggerDescription()}";
     }
 }

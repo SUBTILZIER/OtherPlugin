@@ -13,7 +13,7 @@
         WindowStartupLocation="CenterScreen"
         WindowStyle="None"
         ResizeMode="CanResize"
-        Background="{StaticResource EditorRootBackgroundBrush}"
+        Background="{DynamicResource EditorRootBackgroundBrush}"
         SnapsToDevicePixels="True"
         UseLayoutRounding="True"
         StateChanged="Window_StateChanged"
@@ -37,7 +37,7 @@
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderBrush" Value="Transparent" />
             <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="Foreground" Value="{StaticResource ForegroundPrimaryBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource ForegroundPrimaryBrush}" />
             <Setter Property="FontSize" Value="14" />
             <Setter Property="FontFamily" Value="Segoe UI Symbol" />
             <Setter Property="HorizontalContentAlignment" Value="Center" />
@@ -55,10 +55,10 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="ChromeBorder" Property="Background" Value="#2A313B" />
+                                <Setter TargetName="ChromeBorder" Property="Background" Value="{DynamicResource EditorChromeHighlightBrush}" />
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="ChromeBorder" Property="Background" Value="#36404F" />
+                                <Setter TargetName="ChromeBorder" Property="Background" Value="{DynamicResource EditorListSelectedBrush}" />
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter Property="Opacity" Value="0.5" />
@@ -72,14 +72,14 @@
             <Setter Property="Margin" Value="0" />
         </Style>
         <Style x:Key="TopToolbarButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-            <Setter Property="MinHeight" Value="30" />
-            <Setter Property="Margin" Value="2,0" />
-            <Setter Property="Padding" Value="12,5" />
+            <Setter Property="MinHeight" Value="32" />
+            <Setter Property="Margin" Value="3,0" />
+            <Setter Property="Padding" Value="13,6" />
             <Setter Property="FontSize" Value="12" />
             <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="Foreground" Value="{StaticResource EditorTextBrightBrush}" />
-            <Setter Property="Background" Value="{StaticResource EditorToolbarGroupBrush}" />
-            <Setter Property="BorderBrush" Value="{StaticResource EditorPanelBorderBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource EditorTextBrightBrush}" />
+            <Setter Property="Background" Value="{DynamicResource EditorToolbarGroupBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource EditorPanelBorderBrush}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Template">
                 <Setter.Value>
@@ -88,8 +88,14 @@
                                 Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="7"
+                                CornerRadius="9"
                                 SnapsToDevicePixels="True">
+                            <Border.Effect>
+                                <DropShadowEffect BlurRadius="0"
+                                                  ShadowDepth="0"
+                                                  Opacity="0"
+                                                  Color="#000000" />
+                            </Border.Effect>
                             <ContentPresenter HorizontalAlignment="Center"
                                               VerticalAlignment="Center"
                                               Margin="{TemplateBinding Padding}"
@@ -97,20 +103,20 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="ButtonChrome" Property="Background" Value="{StaticResource EditorChromeHighlightBrush}" />
-                                <Setter TargetName="ButtonChrome" Property="BorderBrush" Value="{StaticResource EditorSelectedBorderBrush}" />
-                                <Setter Property="Foreground" Value="{StaticResource EditorTextBrightBrush}" />
+                                <Setter TargetName="ButtonChrome" Property="Background" Value="{DynamicResource EditorChromeHighlightBrush}" />
+                                <Setter TargetName="ButtonChrome" Property="BorderBrush" Value="{DynamicResource EditorSelectedBorderBrush}" />
+                                <Setter Property="Foreground" Value="{DynamicResource EditorTextBrightBrush}" />
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="ButtonChrome" Property="Background" Value="{StaticResource EditorListSelectedBrush}" />
-                                <Setter TargetName="ButtonChrome" Property="BorderBrush" Value="{StaticResource EditorSelectedBorderBrush}" />
+                                <Setter TargetName="ButtonChrome" Property="Background" Value="{DynamicResource EditorListSelectedBrush}" />
+                                <Setter TargetName="ButtonChrome" Property="BorderBrush" Value="{DynamicResource EditorSelectedBorderBrush}" />
                             </Trigger>
                             <Trigger Property="IsKeyboardFocused" Value="True">
-                                <Setter TargetName="ButtonChrome" Property="BorderBrush" Value="{StaticResource EditorSelectedAccentBrush}" />
+                                <Setter TargetName="ButtonChrome" Property="BorderBrush" Value="{DynamicResource EditorSelectedAccentBrush}" />
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter Property="Opacity" Value="0.45" />
-                                <Setter Property="Foreground" Value="{StaticResource EditorMutedTextBrush}" />
+                                <Setter Property="Foreground" Value="{DynamicResource EditorMutedTextBrush}" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -119,9 +125,9 @@
         </Style>
         <Style x:Key="ContentRenameTextBoxStyle" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
             <Setter Property="Visibility" Value="Collapsed" />
-            <Setter Property="Background" Value="#E6EDF5" />
-            <Setter Property="Foreground" Value="#111111" />
-            <Setter Property="BorderBrush" Value="#4FA3FF" />
+            <Setter Property="Background" Value="{DynamicResource InputBackgroundBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource ForegroundPrimaryBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Padding" Value="3,1" />
             <Setter Property="TextAlignment" Value="Center" />
@@ -135,7 +141,7 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="{x:Type Separator}">
-                        <Border Height="1" Margin="8,4" Background="{StaticResource EditorPanelBorderBrush}" />
+                        <Border Height="1" Margin="8,4" Background="{DynamicResource EditorPanelBorderBrush}" />
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
@@ -149,8 +155,8 @@
             </Style.Triggers>
         </Style>
         <Style x:Key="ContentAssetContextMenuStyle" TargetType="ContextMenu">
-            <Setter Property="Background" Value="#141922" />
-            <Setter Property="BorderBrush" Value="#435066" />
+            <Setter Property="Background" Value="{DynamicResource DropdownBackgroundBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource DropdownBorderBrush}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Padding" Value="6" />
             <Setter Property="HasDropShadow" Value="False" />
@@ -182,7 +188,7 @@
         </Style>
         <Style x:Key="ContentAssetMenuItemStyle" TargetType="MenuItem">
             <Setter Property="Background" Value="Transparent" />
-            <Setter Property="Foreground" Value="{StaticResource EditorTextBrightBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource EditorTextBrightBrush}" />
             <Setter Property="Padding" Value="12,7" />
             <Setter Property="Margin" Value="0,1" />
             <Setter Property="MinWidth" Value="190" />
@@ -215,7 +221,7 @@
                                                   VerticalAlignment="Center" />
                                 <TextBlock Grid.Column="2"
                                            Text="{TemplateBinding InputGestureText}"
-                                           Foreground="{StaticResource DropdownMutedTextBrush}"
+                                           Foreground="{DynamicResource DropdownMutedTextBrush}"
                                            FontSize="11"
                                            VerticalAlignment="Center"
                                            Margin="12,0,0,0" />
@@ -223,12 +229,12 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="MenuItemBorder" Property="Background" Value="#223040" />
-                                <Setter TargetName="MenuItemBorder" Property="BorderBrush" Value="#42526A" />
+                                <Setter TargetName="MenuItemBorder" Property="Background" Value="{DynamicResource DropdownHoverBrush}" />
+                                <Setter TargetName="MenuItemBorder" Property="BorderBrush" Value="{DynamicResource DropdownBorderBrush}" />
                             </Trigger>
                             <Trigger Property="IsHighlighted" Value="True">
-                                <Setter TargetName="MenuItemBorder" Property="Background" Value="#2B3C52" />
-                                <Setter TargetName="MenuItemBorder" Property="BorderBrush" Value="#58708D" />
+                                <Setter TargetName="MenuItemBorder" Property="Background" Value="{DynamicResource DropdownSelectedBrush}" />
+                                <Setter TargetName="MenuItemBorder" Property="BorderBrush" Value="{DynamicResource EditorSelectedBorderBrush}" />
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter Property="Opacity" Value="0.55" />
@@ -252,7 +258,7 @@
             <Setter Property="Padding" Value="7,5" />
             <Setter Property="AllowDrop" Value="True" />
             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-            <Setter Property="Foreground" Value="{StaticResource EditorTextBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource EditorTextBrush}" />
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderBrush" Value="Transparent" />
             <Setter Property="BorderThickness" Value="1" />
@@ -272,12 +278,12 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="ItemChrome" Property="Background" Value="{StaticResource EditorPanelCardHoverBrush}" />
-                                <Setter TargetName="ItemChrome" Property="BorderBrush" Value="{StaticResource EditorPanelBorderBrush}" />
+                                <Setter TargetName="ItemChrome" Property="Background" Value="{DynamicResource EditorPanelCardHoverBrush}" />
+                                <Setter TargetName="ItemChrome" Property="BorderBrush" Value="{DynamicResource EditorPanelBorderBrush}" />
                             </Trigger>
                             <Trigger Property="IsSelected" Value="True">
-                                <Setter TargetName="ItemChrome" Property="Background" Value="{StaticResource EditorListSelectedBrush}" />
-                                <Setter TargetName="ItemChrome" Property="BorderBrush" Value="{StaticResource EditorSelectedBorderBrush}" />
+                                <Setter TargetName="ItemChrome" Property="Background" Value="{DynamicResource EditorListSelectedBrush}" />
+                                <Setter TargetName="ItemChrome" Property="BorderBrush" Value="{DynamicResource EditorSelectedBorderBrush}" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -291,7 +297,7 @@
             <Setter Property="Padding" Value="7" />
             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
             <Setter Property="VerticalContentAlignment" Value="Stretch" />
-            <Setter Property="Foreground" Value="White" />
+            <Setter Property="Foreground" Value="{DynamicResource EditorTextBrush}" />
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderBrush" Value="Transparent" />
             <Setter Property="BorderThickness" Value="1" />
@@ -312,27 +318,79 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="TileChrome" Property="Background" Value="{StaticResource EditorPanelCardHoverBrush}" />
-                                <Setter TargetName="TileChrome" Property="BorderBrush" Value="{StaticResource EditorPanelBorderBrush}" />
+                                <Setter TargetName="TileChrome" Property="Background" Value="{DynamicResource EditorPanelCardHoverBrush}" />
+                                <Setter TargetName="TileChrome" Property="BorderBrush" Value="{DynamicResource EditorPanelBorderBrush}" />
+                                <Setter Property="Foreground" Value="{DynamicResource EditorTextBrightBrush}" />
                             </Trigger>
                             <Trigger Property="IsSelected" Value="True">
-                                <Setter TargetName="TileChrome" Property="Background" Value="{StaticResource EditorListSelectedBrush}" />
-                                <Setter TargetName="TileChrome" Property="BorderBrush" Value="{StaticResource EditorSelectedBorderBrush}" />
+                                <Setter TargetName="TileChrome" Property="Background" Value="{DynamicResource EditorListSelectedBrush}" />
+                                <Setter TargetName="TileChrome" Property="BorderBrush" Value="{DynamicResource EditorSelectedBorderBrush}" />
+                                <Setter Property="Foreground" Value="{DynamicResource AccentForegroundBrush}" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
         </Style>
+        <Style x:Key="ScriptEnableBadgeStyle" TargetType="{x:Type CheckBox}">
+            <Setter Property="Visibility" Value="Collapsed" />
+            <Setter Property="Width" Value="22" />
+            <Setter Property="Height" Value="22" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type CheckBox}">
+                        <Border x:Name="BadgeChrome"
+                                Width="{TemplateBinding Width}"
+                                Height="{TemplateBinding Height}"
+                                Background="{DynamicResource EditorDisabledChipBrush}"
+                                BorderBrush="{DynamicResource EditorDisabledChipBorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                SnapsToDevicePixels="True">
+                            <TextBlock x:Name="BadgeGlyph"
+                                       Text="×"
+                                       Foreground="{DynamicResource EditorMutedTextBrush}"
+                                       FontSize="13"
+                                       FontWeight="Bold"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="BadgeChrome" Property="Background" Value="{DynamicResource AccentBrush}" />
+                                <Setter TargetName="BadgeChrome" Property="BorderBrush" Value="{DynamicResource AccentHoverBrush}" />
+                                <Setter TargetName="BadgeGlyph" Property="Text" Value="✓" />
+                                <Setter TargetName="BadgeGlyph" Property="Foreground" Value="{DynamicResource AccentForegroundBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="BadgeChrome" Property="BorderBrush" Value="{DynamicResource EditorToolTipBorderBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="BadgeChrome" Property="Background" Value="{DynamicResource AccentPressedBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding ShowScriptEnableToggle}" Value="True">
+                    <Setter Property="Visibility" Value="Visible" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
         <Style x:Key="BottomPanelTitleStyle" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="{StaticResource EditorTextBrightBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource EditorTextBrightBrush}" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="Margin" Value="10,0,8,0" />
             <Setter Property="VerticalAlignment" Value="Center" />
             <Setter Property="FontSize" Value="12" />
         </Style>
         <Style TargetType="MenuItem">
-            <Setter Property="Foreground" Value="{StaticResource EditorTextBrightBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource EditorTextBrightBrush}" />
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="Padding" Value="10,6" />
             <Setter Property="MinWidth" Value="130" />
@@ -352,11 +410,11 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsHighlighted" Value="True">
-                                <Setter TargetName="MenuItemBorder" Property="Background" Value="{StaticResource EditorListSelectedBrush}" />
-                                <Setter Property="Foreground" Value="#FFFFFF" />
+                                <Setter TargetName="MenuItemBorder" Property="Background" Value="{DynamicResource EditorListSelectedBrush}" />
+                                <Setter Property="Foreground" Value="{DynamicResource AccentForegroundBrush}" />
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
-                                <Setter Property="Foreground" Value="#6E7785" />
+                                <Setter Property="Foreground" Value="{DynamicResource DisabledForegroundBrush}" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -364,11 +422,11 @@
             </Setter>
             <Style.Triggers>
                 <Trigger Property="IsHighlighted" Value="True">
-                    <Setter Property="Background" Value="{StaticResource EditorListSelectedBrush}" />
-                    <Setter Property="Foreground" Value="#FFFFFF" />
+                    <Setter Property="Background" Value="{DynamicResource EditorListSelectedBrush}" />
+                    <Setter Property="Foreground" Value="{DynamicResource AccentForegroundBrush}" />
                 </Trigger>
                 <Trigger Property="IsEnabled" Value="False">
-                    <Setter Property="Foreground" Value="#6E7785" />
+                    <Setter Property="Foreground" Value="{DynamicResource DisabledForegroundBrush}" />
                 </Trigger>
             </Style.Triggers>
         </Style>
@@ -377,7 +435,7 @@
             <Setter Property="Height" Value="8" />
             <Setter Property="Margin" Value="0,0,7,0" />
             <Setter Property="CornerRadius" Value="4" />
-            <Setter Property="Background" Value="{StaticResource CompileDirtyBorderBrush}" />
+            <Setter Property="Background" Value="{DynamicResource CompileDirtyBorderBrush}" />
             <Setter Property="VerticalAlignment" Value="Center" />
             <Setter Property="Visibility" Value="Collapsed" />
             <Setter Property="ToolTip" Value="图表已修改" />
@@ -394,8 +452,8 @@
     <DockPanel>
         <Border DockPanel.Dock="Top"
                 Height="36"
-                Background="{StaticResource EditorPanelBackgroundBrush}"
-                BorderBrush="{StaticResource EditorSectionHeaderBrush}"
+                Background="{DynamicResource EditorPanelBackgroundBrush}"
+                BorderBrush="{DynamicResource EditorSectionHeaderBrush}"
                 BorderThickness="0,0,0,1"
                 >
             <Grid Margin="10,0,8,0">
@@ -410,7 +468,7 @@
                            Margin="0,0,8,0"
                            Source="{Binding Icon, RelativeSource={RelativeSource AncestorType=Window}}" />
                     <TextBlock Text="{Binding Title, RelativeSource={RelativeSource AncestorType=Window}}"
-                               Foreground="{StaticResource EditorTextBrightBrush}"
+                               Foreground="{DynamicResource EditorTextBrightBrush}"
                                FontWeight="SemiBold"
                                FontSize="13"
                                VerticalAlignment="Center"
@@ -435,21 +493,21 @@
                             Click="WindowClose_Click"
                             ToolTip="关闭"
                             shell:WindowChrome.IsHitTestVisibleInChrome="True">
-                        <TextBlock Text="✕" FontSize="13" Foreground="{StaticResource LogErrorBrush}" />
+                        <TextBlock Text="✕" FontSize="13" Foreground="{DynamicResource LogErrorBrush}" />
                     </Button>
                 </StackPanel>
             </Grid>
         </Border>
         <Border DockPanel.Dock="Top"
-                Background="{StaticResource EditorChromeBrush}"
-                BorderBrush="{StaticResource EditorSectionHeaderBrush}"
+                Background="{DynamicResource EditorChromeBrush}"
+                BorderBrush="{DynamicResource EditorSectionHeaderBrush}"
                 BorderThickness="0,0,0,1"
                 Padding="12,6">
             <DockPanel LastChildFill="True">
                 <StackPanel Orientation="Horizontal"
                             VerticalAlignment="Center">
-                    <Border Background="{StaticResource EditorToolbarGroupBrush}"
-                            BorderBrush="{StaticResource EditorPanelBorderBrush}"
+                    <Border Background="{DynamicResource EditorToolbarGroupBrush}"
+                            BorderBrush="{DynamicResource EditorPanelBorderBrush}"
                             BorderThickness="1"
                             CornerRadius="10"
                             Padding="3">
@@ -464,8 +522,8 @@
 
                     <Border x:Name="EditorActionToolbarGroup"
                             Margin="8,0,0,0"
-                            Background="{StaticResource EditorToolbarGroupBrush}"
-                            BorderBrush="{StaticResource EditorPanelBorderBrush}"
+                            Background="{DynamicResource EditorToolbarGroupBrush}"
+                            BorderBrush="{DynamicResource EditorPanelBorderBrush}"
                             BorderThickness="1"
                             CornerRadius="10"
                             Padding="3"
@@ -474,7 +532,7 @@
                             <Border Width="1"
                                     Height="22"
                                     Margin="3,0,8,0"
-                                    Background="{StaticResource EditorToolbarSeparatorBrush}"
+                                    Background="{DynamicResource EditorToolbarSeparatorBrush}"
                                     VerticalAlignment="Center" />
                             <Button x:Name="CompileGraphButton" Style="{StaticResource TopToolbarButtonStyle}" Click="CompileGraph_Click">
                                 <StackPanel Orientation="Horizontal">
@@ -485,7 +543,7 @@
                                             Height="14"
                                             Margin="5,0,0,0"
                                             CornerRadius="7"
-                                            Background="{StaticResource CompileDirtyBorderBrush}"
+                                            Background="{DynamicResource CompileDirtyBorderBrush}"
                                             Visibility="Collapsed">
                                         <TextBlock Text="!" Foreground="#111111" FontWeight="Bold" FontSize="10" HorizontalAlignment="Center" VerticalAlignment="Center" />
                                     </Border>
@@ -498,7 +556,7 @@
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding IsExecuting, RelativeSource={RelativeSource AncestorType=Window}}" Value="True">
                                                 <Setter Property="Content" Value="&#x23F3; 执行中..." />
-                                                <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+                                                <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
                                                 <Setter Property="FontWeight" Value="Bold" />
                                                 <Setter Property="IsEnabled" Value="False" />
                                             </DataTrigger>
@@ -510,7 +568,7 @@
                                 <Button.Style>
                                     <Style TargetType="Button" BasedOn="{StaticResource TopToolbarButtonStyle}">
                                         <Setter Property="Background" Value="#8B0000" />
-                                        <Setter Property="Foreground" Value="{StaticResource LogErrorBrush}" />
+                                        <Setter Property="Foreground" Value="{DynamicResource LogErrorBrush}" />
                                         <Setter Property="FontWeight" Value="Bold" />
                                         <Style.Triggers>
                                             <Trigger Property="IsMouseOver" Value="True">
@@ -529,8 +587,8 @@
         <Border x:Name="EditorWindowBar"
                 DockPanel.Dock="Top"
                 MinHeight="42"
-                Background="{StaticResource EditorChromeBrush}"
-                BorderBrush="{StaticResource EditorSectionHeaderBrush}"
+                Background="{DynamicResource EditorChromeBrush}"
+                BorderBrush="{DynamicResource EditorSectionHeaderBrush}"
                 BorderThickness="0,0,0,1"
                 Padding="5,1"
                 Visibility="Collapsed">
@@ -556,19 +614,19 @@
                                     PreviewMouseLeftButtonUp="EditorSessionTab_PreviewMouseLeftButtonUp">
                                 <Border.Style>
                                     <Style TargetType="Border">
-                                        <Setter Property="Background" Value="{StaticResource EditorPanelCardBrush}" />
-                                        <Setter Property="BorderBrush" Value="{StaticResource EditorPanelBorderBrush}" />
+                                        <Setter Property="Background" Value="{DynamicResource EditorPanelCardBrush}" />
+                                        <Setter Property="BorderBrush" Value="{DynamicResource EditorPanelBorderBrush}" />
                                         <Style.Triggers>
                                             <Trigger Property="IsMouseOver" Value="True">
-                                                <Setter Property="Background" Value="{StaticResource EditorPanelCardHoverBrush}" />
-                                                <Setter Property="BorderBrush" Value="{StaticResource EditorSelectedBorderBrush}" />
+                                                <Setter Property="Background" Value="{DynamicResource EditorPanelCardHoverBrush}" />
+                                                <Setter Property="BorderBrush" Value="{DynamicResource EditorSelectedBorderBrush}" />
                                             </Trigger>
                                             <DataTrigger Binding="{Binding IsDirty}" Value="True">
-                                                <Setter Property="BorderBrush" Value="{StaticResource CompileDirtyBorderBrush}" />
+                                                <Setter Property="BorderBrush" Value="{DynamicResource CompileDirtyBorderBrush}" />
                                             </DataTrigger>
                                             <DataTrigger Binding="{Binding IsActive}" Value="True">
-                                                <Setter Property="Background" Value="{StaticResource EditorListSelectedBrush}" />
-                                                <Setter Property="BorderBrush" Value="{StaticResource EditorSelectedBorderBrush}" />
+                                                <Setter Property="Background" Value="{DynamicResource EditorListSelectedBrush}" />
+                                                <Setter Property="BorderBrush" Value="{DynamicResource EditorSelectedBorderBrush}" />
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
@@ -600,7 +658,7 @@
                                                 Height="8"
                                                 Margin="0,0,7,0"
                                                 CornerRadius="4"
-                                                Background="{StaticResource CompileDirtyBorderBrush}">
+                                                Background="{DynamicResource CompileDirtyBorderBrush}">
                                             <Border.Style>
                                                 <Style TargetType="Border">
                                                     <Setter Property="Visibility" Value="Collapsed" />
@@ -613,7 +671,7 @@
                                             </Border.Style>
                                         </Border>
                                         <TextBlock Text="{Binding DisplayTitle}"
-                                                   Foreground="{StaticResource EditorTextBrightBrush}"
+                                                   Foreground="{DynamicResource EditorTextBrightBrush}"
                                                    FontWeight="SemiBold"
                                                    TextTrimming="CharacterEllipsis"
                                                    VerticalAlignment="Center" />
@@ -621,7 +679,7 @@
                                     <Border Height="2"
                                             VerticalAlignment="Bottom"
                                             CornerRadius="1"
-                                            Background="{StaticResource EditorSelectedAccentBrush}">
+                                            Background="{DynamicResource EditorSelectedAccentBrush}">
                                         <Border.Style>
                                             <Style TargetType="Border">
                                                 <Setter Property="Visibility" Value="Collapsed" />
@@ -658,35 +716,35 @@
             <Border x:Name="EmptyEditorPanel"
                     Grid.Row="0"
                     Margin="10"
-                    Background="{StaticResource EditorCanvasGridBackgroundBrush}"
-                    BorderBrush="{StaticResource EditorPanelBorderBrush}"
+                    Background="{DynamicResource EditorCanvasGridBackgroundBrush}"
+                    BorderBrush="{DynamicResource EditorPanelBorderBrush}"
                     BorderThickness="1"
                     CornerRadius="12">
                 <Border Width="420"
                         Padding="28"
-                        Background="{StaticResource EditorPanelCardBrush}"
-                        BorderBrush="{StaticResource EditorPanelBorderBrush}"
+                        Background="{DynamicResource EditorPanelCardBrush}"
+                        BorderBrush="{DynamicResource EditorPanelBorderBrush}"
                         BorderThickness="1"
                         CornerRadius="14"
                         HorizontalAlignment="Center"
                         VerticalAlignment="Center">
                     <StackPanel>
                         <TextBlock Text="打开一个资产开始编辑"
-                                   Foreground="{StaticResource EditorTextBrightBrush}"
+                                   Foreground="{DynamicResource EditorTextBrightBrush}"
                                    FontSize="24"
                                    FontWeight="Bold"
                                    HorizontalAlignment="Center" />
                         <TextBlock Text="从底部内容浏览器双击脚本或函数库。也可以使用工具栏外部导入图谱。"
-                                   Foreground="{StaticResource ForegroundSecondaryBrush}"
+                                   Foreground="{DynamicResource ForegroundSecondaryBrush}"
                                    FontSize="14"
                                    TextWrapping="Wrap"
                                    TextAlignment="Center"
                                    Margin="0,12,0,0" />
                         <Border Height="1"
                                 Margin="0,20,0,16"
-                                Background="{StaticResource EditorPanelBorderBrush}" />
+                                Background="{DynamicResource EditorPanelBorderBrush}" />
                         <TextBlock Text="提示：打开多个资产后，可用上方窗口栏切换，也可以拖出为独立窗口。"
-                                    Foreground="{StaticResource EditorMutedTextBrush}"
+                                    Foreground="{DynamicResource EditorMutedTextBrush}"
                                     FontSize="12"
                                     TextWrapping="Wrap"
                                     TextAlignment="Center" />
@@ -697,7 +755,7 @@
             <GridSplitter Grid.Row="1"
                           Height="4"
                           HorizontalAlignment="Stretch"
-                          Background="{StaticResource EditorSectionHeaderBrush}"
+                          Background="{DynamicResource EditorSectionHeaderBrush}"
                           ResizeDirection="Rows" />
 
             <Grid Grid.Row="2">
@@ -709,15 +767,15 @@
 
                 <Border Grid.Column="0"
                         Margin="6,6,3,6"
-                        Background="{StaticResource EditorPanelCardBrush}"
-                        BorderBrush="{StaticResource EditorPanelBorderBrush}"
+                        Background="{DynamicResource EditorPanelCardBrush}"
+                        BorderBrush="{DynamicResource EditorPanelBorderBrush}"
                         BorderThickness="1"
                         CornerRadius="12">
                     <DockPanel>
                         <StackPanel x:Name="ContentBrowserHeaderBar"
                                     DockPanel.Dock="Top"
                                     Orientation="Horizontal"
-                                    Background="{StaticResource EditorPanelElevatedBrush}"
+                                    Background="{DynamicResource EditorPanelElevatedBrush}"
                                     Height="36">
                             <TextBlock Text="内容浏览器" Style="{StaticResource BottomPanelTitleStyle}" />
                         </StackPanel>
@@ -729,10 +787,10 @@
                             </Grid.ColumnDefinitions>
                             <ListBox x:Name="ContentFolderListBox"
                                      ItemsSource="{Binding ContentFolderItems}"
-                                     Background="{StaticResource EditorChromeBrush}"
+                                     Background="{DynamicResource EditorChromeBrush}"
                                      BorderThickness="0,0,1,0"
-                                     BorderBrush="{StaticResource EditorPanelBorderBrush}"
-                                     Foreground="White"
+                                     BorderBrush="{DynamicResource EditorPanelBorderBrush}"
+                                     Foreground="{DynamicResource EditorTextBrush}"
                                      AllowDrop="True"
                                      ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                      ScrollViewer.VerticalScrollBarVisibility="Auto"
@@ -783,7 +841,7 @@
                                                       Width="8"
                                                       Height="8"
                                                       Stretch="Uniform"
-                                                      Fill="#8FA0B5"
+                                                      Fill="{DynamicResource EditorMutedTextBrush}"
                                                       Style="{StaticResource ContentFolderToggleIconStyle}" />
                                             </Button>
                                             <Grid Grid.Column="1">
@@ -816,7 +874,7 @@
                                             <MenuItem.Icon>
                                                 <TextBlock Style="{StaticResource ContentAssetMenuIconStyle}"
                                                            Text="&#xE70F;"
-                                                           Foreground="{StaticResource EditorMutedTextBrush}" />
+                                                           Foreground="{DynamicResource EditorMutedTextBrush}" />
                                             </MenuItem.Icon>
                                         </MenuItem>
                                         <MenuItem Style="{StaticResource ContentAssetMenuItemStyle}"
@@ -826,7 +884,7 @@
                                             <MenuItem.Icon>
                                                 <TextBlock Style="{StaticResource ContentAssetMenuIconStyle}"
                                                            Text="&#xE74D;"
-                                                           Foreground="{StaticResource LogErrorBrush}" />
+                                                           Foreground="{DynamicResource LogErrorBrush}" />
                                             </MenuItem.Icon>
                                         </MenuItem>
                                     </ContextMenu>
@@ -837,15 +895,15 @@
                                           Width="4"
                                           HorizontalAlignment="Stretch"
                                           VerticalAlignment="Stretch"
-                                          Background="{StaticResource EditorPanelBorderBrush}"
+                                          Background="{DynamicResource EditorPanelBorderBrush}"
                                           ShowsPreview="True"
                                           ResizeBehavior="PreviousAndNext" />
                              <ListBox x:Name="ContentBrowserListBox"
                                   Grid.Column="2"
                                   ItemsSource="{Binding ContentVisibleItems}"
-                                  Background="{StaticResource EditorPanelCardBrush}"
+                                  Background="{DynamicResource EditorPanelCardBrush}"
                                   BorderThickness="0"
-                                  Foreground="White"
+                                  Foreground="{DynamicResource EditorTextBrush}"
                                   ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                   ScrollViewer.VerticalScrollBarVisibility="Auto"
                                   ScrollViewer.CanContentScroll="False"
@@ -879,30 +937,20 @@
                                                       IsChecked="{Binding IsScriptEnabled, Mode=OneWay}"
                                                       ToolTip="{Binding ScriptEnabledToolTip}"
                                                       Checked="ContentAssetScriptEnabledCheckBox_Changed"
-                                                      Unchecked="ContentAssetScriptEnabledCheckBox_Changed">
-                                                <CheckBox.Style>
-                                                    <Style TargetType="{x:Type CheckBox}" BasedOn="{StaticResource {x:Type CheckBox}}">
-                                                        <Setter Property="Visibility" Value="Collapsed" />
-                                                        <Setter Property="Width" Value="18" />
-                                                        <Setter Property="Height" Value="18" />
-                                                        <Setter Property="Padding" Value="0" />
-                                                        <Setter Property="Margin" Value="0" />
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding ShowScriptEnableToggle}" Value="True">
-                                                                <Setter Property="Visibility" Value="Visible" />
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </CheckBox.Style>
-                                            </CheckBox>
+                                                      Unchecked="ContentAssetScriptEnabledCheckBox_Changed"
+                                                      Style="{StaticResource ScriptEnableBadgeStyle}" />
                                         </Grid>
                                         <TextBlock Text="{Binding Name}" TextAlignment="Center" TextWrapping="Wrap" Margin="0,6,0,0">
                                             <TextBlock.Style>
                                                 <Style TargetType="TextBlock">
+                                                    <Setter Property="Foreground" Value="{DynamicResource EditorTextBrush}" />
                                                     <Setter Property="Visibility" Value="Visible" />
                                                     <Style.Triggers>
                                                         <DataTrigger Binding="{Binding IsEditing}" Value="True">
                                                             <Setter Property="Visibility" Value="Collapsed" />
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True">
+                                                            <Setter Property="Foreground" Value="{DynamicResource AccentForegroundBrush}" />
                                                         </DataTrigger>
                                                     </Style.Triggers>
                                                 </Style>
@@ -927,7 +975,7 @@
                                         <MenuItem.Icon>
                                             <TextBlock Style="{StaticResource ContentAssetMenuIconStyle}"
                                                        Text="&#xE70F;"
-                                                       Foreground="{StaticResource EditorMutedTextBrush}" />
+                                                       Foreground="{DynamicResource EditorMutedTextBrush}" />
                                         </MenuItem.Icon>
                                     </MenuItem>
                                     <MenuItem x:Name="ContentBrowserDeleteMenuItem"
@@ -938,7 +986,7 @@
                                         <MenuItem.Icon>
                                             <TextBlock Style="{StaticResource ContentAssetMenuIconStyle}"
                                                        Text="&#xE74D;"
-                                                       Foreground="{StaticResource LogErrorBrush}" />
+                                                       Foreground="{DynamicResource LogErrorBrush}" />
                                         </MenuItem.Icon>
                                     </MenuItem>
                                     <MenuItem x:Name="ContentBrowserPropertiesMenuItem"
@@ -949,7 +997,7 @@
                                         <MenuItem.Icon>
                                             <TextBlock Style="{StaticResource ContentAssetMenuIconStyle}"
                                                Text="&#xE713;"
-                                               Foreground="{StaticResource AccentBrush}" />
+                                               Foreground="{DynamicResource AccentBrush}" />
                                         </MenuItem.Icon>
                                     </MenuItem>
                                     <MenuItem x:Name="ContentBrowserToggleScriptEnabledMenuItem"
@@ -960,7 +1008,7 @@
                                         <MenuItem.Icon>
                                             <TextBlock Style="{StaticResource ContentAssetMenuIconStyle}"
                                                        Text="&#xE8FB;"
-                                                       Foreground="{StaticResource AccentBrush}" />
+                                                       Foreground="{DynamicResource AccentBrush}" />
                                         </MenuItem.Icon>
                                     </MenuItem>
                                     <Separator x:Name="ContentBrowserAssetMenuSeparator" />
@@ -987,42 +1035,42 @@
                 <GridSplitter Grid.Column="1"
                               Width="4"
                               HorizontalAlignment="Stretch"
-                              Background="{StaticResource EditorRootBackgroundBrush}"
+                              Background="{DynamicResource EditorRootBackgroundBrush}"
                               ResizeDirection="Columns" />
 
                 <Border Grid.Column="2"
                     Margin="3,6,6,6"
-                    Background="{StaticResource EditorPanelCardBrush}"
-                    BorderBrush="{StaticResource EditorPanelBorderBrush}"
+                    Background="{DynamicResource EditorPanelCardBrush}"
+                    BorderBrush="{DynamicResource EditorPanelBorderBrush}"
                     BorderThickness="1"
                     CornerRadius="12">
                 <DockPanel>
                     <StackPanel DockPanel.Dock="Top"
                                 Orientation="Horizontal"
-                                Background="{StaticResource EditorPanelElevatedBrush}"
+                                Background="{DynamicResource EditorPanelElevatedBrush}"
                                 Height="36">
                         <TextBlock Text="日志" Style="{StaticResource BottomPanelTitleStyle}" />
-                        <TextBlock x:Name="StatusTextBlock" Foreground="{StaticResource StatusMutedBrush}" Margin="16,0,0,0" VerticalAlignment="Center" FontSize="11" />
+                        <TextBlock x:Name="StatusTextBlock" Foreground="{DynamicResource StatusMutedBrush}" Margin="16,0,0,0" VerticalAlignment="Center" FontSize="11" />
                         <Border Margin="12,0,0,0"
-                                Background="{StaticResource EditorFieldCardBrush}"
-                                BorderBrush="{StaticResource EditorPanelBorderBrush}"
+                                Background="{DynamicResource EditorFieldCardBrush}"
+                                BorderBrush="{DynamicResource EditorPanelBorderBrush}"
                                 BorderThickness="1"
                                 CornerRadius="9"
                                 Height="22"
                                 VerticalAlignment="Center">
                             <StackPanel Orientation="Horizontal">
-                                <RadioButton x:Name="FilterAllRadio" Content="全部" IsChecked="True" Checked="FilterRadio_Checked" Margin="4,0" Padding="6,0" FontSize="11" Foreground="{StaticResource EditorTextBrush}" />
-                                <RadioButton x:Name="FilterInfoRadio" Content="信息" Checked="FilterRadio_Checked" Margin="4,0" Padding="6,0" FontSize="11" Foreground="{StaticResource EditorTextBrush}" />
-                                <RadioButton x:Name="FilterWarnRadio" Content="警告" Checked="FilterRadio_Checked" Margin="4,0" Padding="6,0" FontSize="11" Foreground="{StaticResource CompileDirtyBorderBrush}" />
-                                <RadioButton x:Name="FilterErrorRadio" Content="错误" Checked="FilterRadio_Checked" Margin="4,0" Padding="6,0" FontSize="11" Foreground="{StaticResource LogErrorBrush}" />
+                                <RadioButton x:Name="FilterAllRadio" Content="全部" IsChecked="True" Checked="FilterRadio_Checked" Margin="4,0" Padding="6,0" FontSize="11" Foreground="{DynamicResource EditorTextBrush}" />
+                                <RadioButton x:Name="FilterInfoRadio" Content="信息" Checked="FilterRadio_Checked" Margin="4,0" Padding="6,0" FontSize="11" Foreground="{DynamicResource EditorTextBrush}" />
+                                <RadioButton x:Name="FilterWarnRadio" Content="警告" Checked="FilterRadio_Checked" Margin="4,0" Padding="6,0" FontSize="11" Foreground="{DynamicResource CompileDirtyBorderBrush}" />
+                                <RadioButton x:Name="FilterErrorRadio" Content="错误" Checked="FilterRadio_Checked" Margin="4,0" Padding="6,0" FontSize="11" Foreground="{DynamicResource LogErrorBrush}" />
                             </StackPanel>
                         </Border>
                         <Button Content="清空" Click="ClearLog_Click" Margin="8,3,8,3" Padding="10,2" Height="24" FontSize="11" />
                     </StackPanel>
 
                     <RichTextBox x:Name="LogRichTextBox"
-                                 Background="{StaticResource EditorChromeBrush}"
-                                 Foreground="{StaticResource EditorTextBrush}"
+                                 Background="{DynamicResource EditorChromeBrush}"
+                                 Foreground="{DynamicResource EditorTextBrush}"
                                  BorderThickness="0"
                                  FontFamily="Consolas"
                                  FontSize="11"
