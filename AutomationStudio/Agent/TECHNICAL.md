@@ -95,6 +95,7 @@ Runtime / Nodes / Adapters
 ### 脚本运行管理 (`ScriptRunManager`)
 - `IsAnyRunning` 属性 + `RunningStateChanged` 事件，供 UI 绑定执行状态。
 - `StartAsync` 入口处理重复启动（PreventDuplicateRun 忽略 / 否则取消旧任务重启）。
+- `ScriptLoopMode.Duration` 的时长必须大于 0；脚本属性窗、主界面脚本属性摘要和运行入口都要兜底阻止 `0:0:0` 静默结束。
 - `StopAll()` 遍历取消所有运行中的 CancellationTokenSource。
 
 ### 托盘最小化 / 关闭策略 (`MainWindow.WindowLifecycle` + `ThemedDialogOverrides`)
@@ -430,12 +431,13 @@ ExecuteChain() → ExecuteNode() → NodeRegistry → INodeExecutor → Adapter
 - `+/-` 按钮走 `NodeBaseViewModel` 通用 dynamic pin API；删除最后一个线程输出前先清掉对应连接，最少保留 2 个线程输出。
 - `GraphRuntimeExecutor.ExecuteMultiThreadNode(...)` 为每个已连接 `exec_thread_N` 启动 branch task；未连接线程输出视为立即完成。任一分支失败则节点 `FatalStop`，全部成功后继续 `exec_completed`。
 - 每个分支用父 `RuntimeContext` 的输出快照 `Fork(...)` 出独立上下文，分支结束后只把相对快照新增/变化的输出 `Merge` 回父上下文；不同分支写同一个 `nodeId:pin` 且值不同必须 `FatalStop`，日志显示为 `节点名 编号.pin`，禁止 last-writer-wins 静默污染结果。
+- 任一分支失败、异常或输出合并冲突时必须取消 sibling branches，避免失败分支被其它长等待/无限触发分支卡住；外部用户取消仍按正常取消路径处理。
 - 纯运算节点读取前会重新求值，不能因为上下文里已有旧 output 就跳过；否则循环、多线程或函数调用中会读到旧的 `StringConcat/Boolean/Compare` 结果。
 - 鼠标、键盘、窗口类节点使用 runtime 全局设备锁串行执行；Delay、日志、找图、纯运算等仍可并行。
 - 键盘、鼠标点击、组合键统一使用 `TriggerCount` / `TriggerIntervalMs`。`TriggerCount=0` 表示无限触发，直到脚本取消；间隔只发生在两次触发之间，运行时最小夹紧到 `1ms`，避免空转。
 - 鼠标双击不再是用户可见节点。旧 `mouse_double_click` 读取时由 `NodeSerializer` 迁成 `MouseClickNodeViewModel`，`TriggerCount=2`、`TriggerIntervalMs=80`、左键点击；编译 type key 也映射到 `MouseClick`。
 - 键盘节点未设置按键时必须跳过并写 `result=false`，不能回退默认 `A`，避免误触发。
-- 鼠标点击/移动用 `HasManualPosition` 区分“未设置坐标”和“明确设置 `(0,0)`”；旧资产没有该字段时，非零坐标推断为已设置，旧 `(0,0)` 推断为未设置。
+- 鼠标点击/移动用 `HasManualPosition` 区分“未设置坐标”和“明确设置 `(0,0)`”；新建节点默认 `false`，不允许默认点击 `(960,540)`；旧资产没有该字段时，非零坐标推断为已设置，旧 `(0,0)` 推断为未设置。
 - `Delay`、等待窗口、启动程序等待、鼠标滚轮和 `WaitImage` / `WaitImageDisappear` 的长等待必须走 `CancellationWait.WaitOrThrow(...)` 或等价可取消等待；禁止用不可取消 `Thread.Sleep(intervalMs)` 卡住停止脚本。鼠标/键盘点击内部几十毫秒按下释放间隔可以保留同步等待。
 
 重要安全规则：

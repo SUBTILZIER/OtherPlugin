@@ -79,8 +79,10 @@ internal sealed class ScriptRunManager : IDisposable
         finally
         {
             if (_running.TryGetValue(asset.Id, out var current) && ReferenceEquals(current, state))
+            {
                 _running.Remove(asset.Id);
                 RunningStateChanged?.Invoke();
+            }
             cts.Dispose();
         }
     }
@@ -112,6 +114,13 @@ internal sealed class ScriptRunManager : IDisposable
 
     private async Task RunLoopAsync(ContentAssetViewModel asset, ScriptRunSettings settings, CancellationToken ct)
     {
+        if (settings.LoopMode == ScriptLoopMode.Duration && GetDuration(settings) <= TimeSpan.Zero)
+        {
+            Logger.Warn($"脚本循环时长无效：{asset.Name}。循环一段时间模式必须大于 0 秒。");
+            _setStatus($"脚本循环时长无效：{asset.Name}");
+            return;
+        }
+
         if (!await _compileScript(asset, ct))
             return;
 

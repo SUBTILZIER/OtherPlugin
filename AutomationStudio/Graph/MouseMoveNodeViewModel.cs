@@ -4,7 +4,7 @@ public sealed class MouseMoveNodeViewModel : NodeBaseViewModel
 {
     private double _positionX = 960;
     private double _positionY = 540;
-    private bool _hasManualPosition = true;
+    private bool _hasManualPosition;
 
     public MouseMoveNodeViewModel(string id) : base(id, "鼠标移动")
     {

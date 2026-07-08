@@ -306,6 +306,8 @@ public sealed class GraphRuntimeExecutor
         }
 
         Logger.Info($"多线程开始：{NodeLogLabel(node)}，连接分支 {connectedBranches.Count}/{threadCount}。");
+        using var branchCancellation = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        CancellationToken branchToken = branchCancellation.Token;
         var tasks = connectedBranches
             .Select(branch =>
             {
@@ -325,7 +327,10 @@ public sealed class GraphRuntimeExecutor
                                 baseDirectory,
                                 assets,
                                 state.CreateBranchState(),
-                                ct);
+                                branchToken);
+                            if (!result.ContinueExecution)
+                                branchCancellation.Cancel();
+
                             return new MultiThreadBranchResult(branch.Label, result, baseline, branchContext.GetChangesSince(baseline));
                         }
                         finally
@@ -333,29 +338,60 @@ public sealed class GraphRuntimeExecutor
                             branchContext.Dispose();
                         }
                     },
-                    ct);
+                    CancellationToken.None);
             })
             .ToArray();
 
+        bool branchCancellationObserved = false;
         try
         {
-            Task.WaitAll(tasks, ct);
+            Task.WaitAll(tasks);
         }
         catch (AggregateException ex)
         {
             Exception inner = ex.Flatten().InnerExceptions.FirstOrDefault(exception => exception is not OperationCanceledException)
                 ?? ex.Flatten().InnerExceptions.FirstOrDefault()
                 ?? ex;
-            if (inner is OperationCanceledException)
+            if (inner is OperationCanceledException && ct.IsCancellationRequested)
                 throw inner;
+            if (inner is OperationCanceledException)
+            {
+                branchCancellationObserved = true;
+            }
+            else
+            {
+                branchCancellation.Cancel();
+                string message = $"多线程执行失败：{NodeLogLabel(node)}：{inner.Message}";
+                Logger.Error(message);
+                return NodeExecutionResult.Fatal(message);
+            }
+        }
 
-            string message = $"多线程执行失败：{NodeLogLabel(node)}：{inner.Message}";
+        if (branchCancellationObserved && tasks.All(task => task.IsFaulted || task.IsCanceled))
+        {
+            string message = $"多线程执行失败：{NodeLogLabel(node)}：所有分支均被取消。";
             Logger.Error(message);
             return NodeExecutionResult.Fatal(message);
         }
 
         foreach (var task in tasks)
         {
+            if (task.IsFaulted)
+            {
+                Exception inner = task.Exception?.Flatten().InnerExceptions.FirstOrDefault(exception => exception is not OperationCanceledException)
+                    ?? task.Exception?.Flatten().InnerExceptions.FirstOrDefault()
+                    ?? new InvalidOperationException("未知分支错误。");
+                if (inner is OperationCanceledException)
+                    continue;
+
+                string message = $"多线程分支异常：{NodeLogLabel(node)}：{inner.Message}";
+                Logger.Error(message);
+                return NodeExecutionResult.Fatal(message);
+            }
+
+            if (task.IsCanceled)
+                continue;
+
             MultiThreadBranchResult branchResult = task.Result;
             GraphExecutionResult result = branchResult.Result;
             if (!result.ContinueExecution)
@@ -367,6 +403,7 @@ public sealed class GraphRuntimeExecutor
 
             if (!context.TryMergeChanges(branchResult.Changes, branchResult.Baseline, out string conflictKey))
             {
+                branchCancellation.Cancel();
                 string outputLabel = FormatRuntimeOutputKey(plan, conflictKey);
                 string message = $"多线程分支输出冲突：{NodeLogLabel(node)} / {branchResult.Label} 写入 {outputLabel}，但该输出已被其他分支写入不同值。";
                 Logger.Error(message);

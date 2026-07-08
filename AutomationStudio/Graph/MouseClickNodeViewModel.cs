@@ -5,7 +5,7 @@ public sealed class MouseClickNodeViewModel : InputNodeBase
     private MouseButton _mouseButton = MouseButton.Left;
     private double _positionX = 960;
     private double _positionY = 540;
-    private bool _hasManualPosition = true;
+    private bool _hasManualPosition;
 
     public MouseClickNodeViewModel(string id) : base(id, "鼠标点击")
     {
