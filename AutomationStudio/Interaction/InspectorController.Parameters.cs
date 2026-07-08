@@ -26,10 +26,10 @@ public sealed partial class InspectorController
         _addParameterButton.Visibility = Visibility.Visible;
         _parameterInspectorTitle.Text = node switch
         {
-            FunctionEntryNodeViewModel => "杈撳叆",
-            FunctionReturnNodeViewModel => "杈撳嚭",
-            CustomEventNodeViewModel => "杈撳叆",
-            _ => "鍙傛暟",
+            FunctionEntryNodeViewModel => "输入",
+            FunctionReturnNodeViewModel => "输出",
+            CustomEventNodeViewModel => "输入",
+            _ => "参数",
         };
 
         _parameterRowsPanel.Children.Clear();
@@ -40,7 +40,7 @@ public sealed partial class InspectorController
     private void LoadCallNodeInputs(NodeBaseViewModel node, IEnumerable<GraphParameterDefinition> parameters)
     {
         _addParameterButton.Visibility = Visibility.Collapsed;
-        _parameterInspectorTitle.Text = "璋冪敤杈撳叆";
+        _parameterInspectorTitle.Text = "调用输入";
         _parameterRowsPanel.Children.Clear();
         foreach (var parameter in parameters.ToList())
             _parameterRowsPanel.Children.Add(CreateCallInputRow(node, parameter));
@@ -160,7 +160,7 @@ public sealed partial class InspectorController
     {
         if (locked)
         {
-            var lockedBox = new WpfTextBox { Margin = new Thickness(0, 0, 4, 0), ToolTip = "鍓嶇疆杈撳叆" };
+            var lockedBox = new WpfTextBox { Margin = new Thickness(0, 0, 4, 0), ToolTip = "前置输入" };
             LockTextBox(lockedBox, locked: true, restoreValue: parameter.DefaultValue);
             return lockedBox;
         }

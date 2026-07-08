@@ -146,7 +146,7 @@ public static class AppThemeService
         if (!TryParseColor(settings.AccentColor, out var accent))
             TryParseColor(defaultAccent, out accent);
 
-        var selection = CreateSelectionColor(accent, settings.ThemeMode);
+        var opacity = Math.Clamp(settings.AccentOpacity, 0.18, 1.0);
         var chromeBase = settings.ThemeMode == AppThemeMode.Light
             ? WpfColor.FromRgb(0xD0, 0xD8, 0xE3)
             : WpfColor.FromRgb(0x11, 0x18, 0x21);
@@ -156,27 +156,36 @@ public static class AppThemeService
         var fieldBase = settings.ThemeMode == AppThemeMode.Light
             ? WpfColor.FromRgb(0xDC, 0xE4, 0xEE)
             : WpfColor.FromRgb(0x12, 0x19, 0x22);
+        var panelBase = settings.ThemeMode == AppThemeMode.Light
+            ? WpfColor.FromRgb(0xE6, 0xEB, 0xF2)
+            : WpfColor.FromRgb(0x17, 0x1C, 0x24);
+        var selection = CreateSelectionColor(accent, settings.ThemeMode, opacity, panelBase);
+        var accentSurface = Blend(panelBase, accent, settings.ThemeMode == AppThemeMode.Light ? 0.22 * opacity : 0.34 * opacity);
+        var accentChrome = Blend(chromeBase, accent, settings.ThemeMode == AppThemeMode.Light ? 0.18 * opacity : 0.28 * opacity);
 
         SetBrushColor("AccentBrush", accent);
         SetBrushColor("AccentHoverBrush", Lighten(accent, 18));
         SetBrushColor("AccentPressedBrush", Darken(accent, 22));
-        SetBrushColor("AccentForegroundBrush", Luminance(accent) > 160
+        SetBrushColor("AccentForegroundBrush", Luminance(selection) > 155
             ? WpfColor.FromRgb(0x1F, 0x29, 0x37)
             : WpfColor.FromRgb(0xFF, 0xFF, 0xFF));
-        SetBrushColor("EditorSelectedAccentBrush", accent);
+        SetBrushColor("EditorSelectedAccentBrush", Blend(panelBase, accent, 0.72));
         SetBrushColor("EditorToolTipBorderBrush", accent);
         SetBrushColor("EditorSelectedBorderBrush", settings.ThemeMode == AppThemeMode.Light ? Lighten(selection, 34) : Darken(selection, 12));
         SetBrushColor("EditorListSelectedBrush", selection);
         SetBrushColor("DropdownSelectedBrush", selection);
         SetBrushColor("InputBorderBrush", Blend(fieldBase, accent, 0.38));
         SetBrushColor("DropdownBorderBrush", Blend(fieldBase, accent, 0.28));
-        SetBrushColor("EditorPanelCardHoverBrush", Blend(cardBase, accent, settings.ThemeMode == AppThemeMode.Light ? 0.08 : 0.14));
-        SetBrushColor("EditorListHoverBrush", Blend(chromeBase, accent, settings.ThemeMode == AppThemeMode.Light ? 0.12 : 0.20));
-        SetBrushColor("DropdownHoverBrush", Blend(cardBase, accent, settings.ThemeMode == AppThemeMode.Light ? 0.12 : 0.20));
-        SetBrushColor("EditorChromeHighlightBrush", Blend(chromeBase, accent, settings.ThemeMode == AppThemeMode.Light ? 0.16 : 0.22));
-        SetBrushColor("EditorSectionHeaderAccentBrush", Blend(chromeBase, accent, settings.ThemeMode == AppThemeMode.Light ? 0.14 : 0.18));
-        SetBrushColor("EditorToolbarGroupBrush", Blend(chromeBase, accent, settings.ThemeMode == AppThemeMode.Light ? 0.05 : 0.08));
-        SetBrushColor("ToolbarButtonBorderBrush", Blend(chromeBase, accent, settings.ThemeMode == AppThemeMode.Light ? 0.24 : 0.20));
+        SetBrushColor("EditorPanelCardHoverBrush", Blend(cardBase, accent, (settings.ThemeMode == AppThemeMode.Light ? 0.08 : 0.14) * opacity));
+        SetBrushColor("EditorListHoverBrush", Blend(chromeBase, accent, (settings.ThemeMode == AppThemeMode.Light ? 0.12 : 0.20) * opacity));
+        SetBrushColor("DropdownHoverBrush", Blend(cardBase, accent, (settings.ThemeMode == AppThemeMode.Light ? 0.12 : 0.20) * opacity));
+        SetBrushColor("EditorChromeHighlightBrush", accentChrome);
+        SetBrushColor("EditorSectionHeaderAccentBrush", accentChrome);
+        SetBrushColor("EditorToolbarGroupBrush", Blend(chromeBase, accent, (settings.ThemeMode == AppThemeMode.Light ? 0.05 : 0.08) * opacity));
+        SetBrushColor("ToolbarButtonBorderBrush", Blend(chromeBase, accent, (settings.ThemeMode == AppThemeMode.Light ? 0.24 : 0.20) * opacity));
+        SetBrushColor("CompileDirtyBackgroundBrush", settings.ThemeMode == AppThemeMode.Light ? Blend(panelBase, WpfColor.FromRgb(0xF5, 0x9E, 0x0B), 0.20) : WpfColor.FromRgb(0x4A, 0x32, 0x16));
+        SetBrushColor("EditorDirtyBackgroundBrush", settings.ThemeMode == AppThemeMode.Light ? Blend(panelBase, WpfColor.FromRgb(0xF5, 0x9E, 0x0B), 0.18) : WpfColor.FromRgb(0x3F, 0x2A, 0x13));
+        SetBrushColor("PanelAltBackgroundBrush", settings.ThemeMode == AppThemeMode.Light ? Blend(panelBase, accentSurface, 0.16) : WpfColor.FromRgb(0x22, 0x2A, 0x35));
         ThemeChanged?.Invoke(null, EventArgs.Empty);
     }
 
@@ -249,20 +258,19 @@ public static class AppThemeService
             BlendChannel(baseColor.B, tint.B, ratio));
     }
 
-    private static WpfColor CreateSelectionColor(WpfColor accent, AppThemeMode themeMode)
+    private static WpfColor CreateSelectionColor(WpfColor accent, AppThemeMode themeMode, double opacity, WpfColor baseColor)
     {
         if (themeMode == AppThemeMode.Dark)
         {
-            var darkSelection = accent;
+            var darkSelection = Blend(baseColor, accent, 0.34 + (0.28 * opacity));
             while (Luminance(darkSelection) > 170)
                 darkSelection = Darken(darkSelection, 14);
             return darkSelection;
         }
 
-        // Keep AccentBrush exact. Only selected backgrounds need a readable, slightly deeper version.
-        var selection = Blend(accent, WpfColor.FromRgb(0x2B, 0x34, 0x44), 0.30);
-        while (Luminance(selection) > 170)
-            selection = Blend(selection, WpfColor.FromRgb(0x1F, 0x29, 0x37), 0.18);
+        var selection = Blend(baseColor, accent, 0.28 + (0.30 * opacity));
+        while (Luminance(selection) > 205)
+            selection = Blend(selection, WpfColor.FromRgb(0x1F, 0x29, 0x37), 0.08);
         return selection;
     }
 

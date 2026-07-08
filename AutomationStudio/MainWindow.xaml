@@ -567,14 +567,9 @@
                             <Button x:Name="StopExecutionButton" Content="&#x23F9; 停止执行" Click="StopExecution_Click" Visibility="Collapsed">
                                 <Button.Style>
                                     <Style TargetType="Button" BasedOn="{StaticResource TopToolbarButtonStyle}">
-                                        <Setter Property="Background" Value="#8B0000" />
-                                        <Setter Property="Foreground" Value="{DynamicResource LogErrorBrush}" />
+                                        <Setter Property="Background" Value="{DynamicResource LogErrorBrush}" />
+                                        <Setter Property="Foreground" Value="{DynamicResource AccentForegroundBrush}" />
                                         <Setter Property="FontWeight" Value="Bold" />
-                                        <Style.Triggers>
-                                            <Trigger Property="IsMouseOver" Value="True">
-                                                <Setter Property="Background" Value="#B22222" />
-                                            </Trigger>
-                                        </Style.Triggers>
                                     </Style>
                                 </Button.Style>
                             </Button>

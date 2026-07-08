@@ -82,12 +82,6 @@ public sealed partial class InspectorController
 
         switch (kind)
         {
-            case NodeKind.MouseDoubleClick:
-                SetCommonVisibility(false, false, false, true, true, false, false, false);
-                _commonNumberLabel.Text = "点击位置 X";
-                _commonNumber2Label.Text = "点击位置 Y";
-                _commonHelpTextBlock.Text = "也可连接 Vector2D 到 position 输入，引脚输入优先。";
-                break;
             case NodeKind.KeyChord:
                 SetCommonVisibility(true, false, false, true, false, false, false, false);
                 _commonTextLabel.Text = "组合预览";

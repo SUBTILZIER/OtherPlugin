@@ -307,9 +307,34 @@ public sealed class GraphRuntimeExecutor
 
         Logger.Info($"多线程开始：{NodeLogLabel(node)}，连接分支 {connectedBranches.Count}/{threadCount}。");
         var tasks = connectedBranches
-            .Select(branch => Task.Run(
-                () => ExecuteMultiThreadBranch(plan, node, branch.PinName, branch.Label, context, baseDirectory, assets, state.CreateBranchState(), ct),
-                ct))
+            .Select(branch =>
+            {
+                var baseline = context.SnapshotValues();
+                var branchContext = context.Fork(baseline);
+                return Task.Run(
+                    () =>
+                    {
+                        try
+                        {
+                            GraphExecutionResult result = ExecuteMultiThreadBranch(
+                                plan,
+                                node,
+                                branch.PinName,
+                                branch.Label,
+                                branchContext,
+                                baseDirectory,
+                                assets,
+                                state.CreateBranchState(),
+                                ct);
+                            return new MultiThreadBranchResult(branch.Label, result, baseline, branchContext.GetChangesSince(baseline));
+                        }
+                        finally
+                        {
+                            branchContext.Dispose();
+                        }
+                    },
+                    ct);
+            })
             .ToArray();
 
         try
@@ -331,10 +356,19 @@ public sealed class GraphRuntimeExecutor
 
         foreach (var task in tasks)
         {
-            GraphExecutionResult result = task.Result;
+            MultiThreadBranchResult branchResult = task.Result;
+            GraphExecutionResult result = branchResult.Result;
             if (!result.ContinueExecution)
             {
                 string message = $"多线程分支失败：{NodeLogLabel(node)}：{result.Message}";
+                Logger.Error(message);
+                return NodeExecutionResult.Fatal(message);
+            }
+
+            if (!context.TryMergeChanges(branchResult.Changes, branchResult.Baseline, out string conflictKey))
+            {
+                string outputLabel = FormatRuntimeOutputKey(plan, conflictKey);
+                string message = $"多线程分支输出冲突：{NodeLogLabel(node)} / {branchResult.Label} 写入 {outputLabel}，但该输出已被其他分支写入不同值。";
                 Logger.Error(message);
                 return NodeExecutionResult.Fatal(message);
             }
@@ -343,6 +377,12 @@ public sealed class GraphRuntimeExecutor
         Logger.Info($"多线程全部完成：{NodeLogLabel(node)}。");
         return NodeExecutionResult.Ok("多线程全部完成。", MultiThreadNodeViewModel.CompletedPinName);
     }
+
+    private sealed record MultiThreadBranchResult(
+        string Label,
+        GraphExecutionResult Result,
+        IReadOnlyDictionary<string, object> Baseline,
+        IReadOnlyDictionary<string, object> Changes);
 
     private GraphExecutionResult ExecuteMultiThreadBranch(
         GraphExecutionPlan plan,
@@ -893,6 +933,18 @@ public sealed class GraphRuntimeExecutor
         return string.IsNullOrWhiteSpace(node.NodeNumber)
             ? node.Title
             : $"{node.Title} {node.NodeNumber}";
+    }
+
+    private static string FormatRuntimeOutputKey(GraphExecutionPlan plan, string key)
+    {
+        int separator = key.IndexOf(':', StringComparison.Ordinal);
+        if (separator <= 0 || separator == key.Length - 1)
+            return key;
+
+        string nodeId = key[..separator];
+        string pinName = key[(separator + 1)..];
+        GraphRuntimeNode? node = plan.Index.GetNode(nodeId);
+        return node is null ? key : $"{NodeLogLabel(node)}.{pinName}";
     }
 
     private RuntimeContext CreateRuntimeContext()

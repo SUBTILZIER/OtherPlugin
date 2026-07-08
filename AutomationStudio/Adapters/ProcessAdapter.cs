@@ -2,6 +2,7 @@ using AutomationStudioWpf.Logging;
 using System.Diagnostics;
 using System.IO;
 using AutomationStudioWpf.Graph;
+using AutomationStudioWpf.Runtime;
 
 namespace AutomationStudioWpf.Adapters;
 
@@ -41,7 +42,7 @@ public sealed class ProcessAdapter : IProcessAdapter
             {
                 ct.ThrowIfCancellationRequested();
                 int sleepMs = Math.Min(1000, waitTimeoutMs - waited);
-                Thread.Sleep(sleepMs);
+                CancellationWait.WaitOrThrow(sleepMs, ct);
                 waited += sleepMs;
 
                 Logger.Info($"启动程序等待 #{attempt + 1}：已等待 {waited}ms / {waitTimeoutMs}ms");
@@ -62,4 +63,3 @@ public sealed class ProcessAdapter : IProcessAdapter
         return new ProcessStartResult(false, processName, $"程序启动失败：{processName}");
     }
 }
-

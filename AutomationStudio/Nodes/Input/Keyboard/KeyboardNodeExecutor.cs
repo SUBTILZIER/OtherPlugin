@@ -11,9 +11,14 @@ public sealed class KeyboardNodeExecutor : INodeExecutor
 
     public NodeExecutionResult Execute(NodeExecutionRequest request)
     {
-        string key = string.IsNullOrWhiteSpace(request.Node.Key) ? "A" : request.Node.Key;
         if (string.IsNullOrWhiteSpace(request.Node.Key))
-            Logger.Warn("键盘：未设置按键，将使用默认值 A。");
+        {
+            request.Context.Set(request.Node.Id, "result", false);
+            Logger.Warn("键盘：未设置按键，跳过并继续执行。");
+            return NodeExecutionResult.Warn($"已跳过节点：{request.Node.Title} 缺少按键");
+        }
+
+        string key = request.Node.Key;
 
         int interval = Math.Max(1, request.Node.TriggerIntervalMs);
         Logger.Info($"键盘：{key} {request.Node.OperationMode}，触发 {TriggerRepeatRunner.CountLabel(request.Node.TriggerCount)}，间隔 {interval}ms");

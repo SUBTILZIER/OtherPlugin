@@ -56,17 +56,16 @@ public partial class MainWindow
         _isReallyClosing = true;
         _trayMenuWindow?.Close();
         _trayMenuWindow = null;
-        if (_notifyIcon is not null)
-        {
-            _notifyIcon.Visible = false;
-            _notifyIcon.Dispose();
-            _notifyIcon = null;
-        }
-        _trayMenuWindow?.Close();
-        _trayMenuWindow = null;
         Close();
-        WpfApplication.Current.Shutdown();
-        Environment.Exit(0);
+        if (_isClosing)
+        {
+            WpfApplication.Current.Shutdown();
+            Environment.Exit(0);
+        }
+
+        _isReallyClosing = false;
+        if (_notifyIcon is not null)
+            _notifyIcon.Visible = true;
     }
 
     private void MinimizeToTray()
@@ -79,9 +78,17 @@ public partial class MainWindow
     private void Window_Closing(object? sender, CancelEventArgs e)
     {
         _mousePickController.Stop();
+        if (_isClosing) return;
+
+        if (!_isReallyClosing && _appSettings.WindowCloseAction == AppWindowCloseAction.MinimizeToTray)
+        {
+            e.Cancel = true;
+            MinimizeToTray();
+            return;
+        }
+
         _scriptRunManager.StopAll();
         _executionController.ReleaseAllKeys();
-        if (_isClosing) return;
 
         CommitAllSessionsToAssets(applyInspectorForActive: true);
         if (ContentBrowserItems.Any(item => item.IsDirty) ||

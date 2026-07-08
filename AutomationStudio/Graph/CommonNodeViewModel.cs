@@ -143,7 +143,6 @@ public sealed class CommonNodeViewModel : NodeBaseViewModel
     {
         Description = NodeKind switch
         {
-            NodeKind.MouseDoubleClick => $"位置 {InputLabel("position", $"({Number:0},{Number2:0})")}",
             NodeKind.GetMousePosition => "输出 position(Vector2D)",
             NodeKind.KeyChord => string.IsNullOrWhiteSpace(Text) ? "未设置组合键" : Text,
             NodeKind.WaitImage => $"源：{ImageSourceLabel()}\n目标：{InputLabel("image_path", ImageLabel())}\n超时 {TimeoutLabel}",
@@ -179,10 +178,6 @@ public sealed class CommonNodeViewModel : NodeBaseViewModel
 
         switch (NodeKind)
         {
-            case NodeKind.MouseDoubleClick:
-                AddInput("position", "点击位置", PinKind.Vector2D);
-                AddOutput("result", "结果", PinKind.Boolean);
-                break;
             case NodeKind.GetMousePosition:
                 AddOutput("position", "当前位置", PinKind.Vector2D);
                 AddOutput("result", "结果", PinKind.Boolean);

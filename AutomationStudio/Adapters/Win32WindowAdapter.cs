@@ -3,6 +3,7 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
 using AutomationStudioWpf.Logging;
+using AutomationStudioWpf.Runtime;
 
 namespace AutomationStudioWpf.Adapters;
 
@@ -60,7 +61,7 @@ public sealed class Win32WindowAdapter : IWindowAdapter
 
             long elapsedMs = Math.Max(0, Environment.TickCount64 - start);
             Logger.Info($"等待窗口检查 #{attempt}：未找到 {normalized}，已等待={elapsedMs}ms");
-            Thread.Sleep(intervalMs);
+            CancellationWait.WaitOrThrow(intervalMs, ct);
         }
 
         return new WindowSelectionResult(false, normalized, $"等待窗口超时：{normalized}");

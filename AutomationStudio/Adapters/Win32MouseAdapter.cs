@@ -3,6 +3,7 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using AutomationStudioWpf.Graph;
 using AutomationStudioWpf.Logging;
+using AutomationStudioWpf.Runtime;
 using MouseButton = AutomationStudioWpf.Graph.MouseButton;
 
 namespace AutomationStudioWpf.Adapters;
@@ -64,7 +65,7 @@ public sealed class Win32MouseAdapter : IMouseAdapter
                 {
                     ct.ThrowIfCancellationRequested();
                     mouse_event(MOUSEEVENTF_WHEEL, 0, 0, unchecked((uint)delta), UIntPtr.Zero);
-                    Thread.Sleep(intervalMs);
+                    CancellationWait.WaitOrThrow(intervalMs, ct);
                     if (durationMs > 0)
                         elapsed += intervalMs;
                     if (elapsed - lastLog >= 500 || (durationMs > 0 && elapsed >= durationMs))

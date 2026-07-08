@@ -26,8 +26,11 @@ public sealed class SettingsWindow : Window
     private readonly WpfRadioButton _lightThemeRadio;
     private readonly WpfTextBox _accentTextBox;
     private readonly WpfRectangle _accentPreview;
+    private readonly WpfTextBox _accentOpacityTextBox;
     private readonly Border _darkThemeCard;
     private readonly Border _lightThemeCard;
+    private readonly WpfRadioButton _closeMinimizeRadio;
+    private readonly WpfRadioButton _closeExitRadio;
 
     public SettingsWindow(Window owner, AppSettings currentSettings, Func<AppSettings, bool> apply)
     {
@@ -38,9 +41,9 @@ public sealed class SettingsWindow : Window
         Owner = owner;
         Title = "设置";
         Width = 720;
-        Height = 620;
+        Height = 680;
         MinWidth = 640;
-        MinHeight = 520;
+        MinHeight = 580;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         WindowStyle = WindowStyle.None;
         AllowsTransparency = true;
@@ -115,10 +118,11 @@ public sealed class SettingsWindow : Window
         themeCardBody.Children.Add(themeRows);
         content.Children.Add(themeCard);
 
-        var accentCard = BuildCard("强调色", "影响选中态、焦点边框、提示框描边和主要按钮色。格式：#RRGGBB。", out var accentCardBody);
+        var accentCard = BuildCard("强调色", "影响选中态、焦点边框、提示框描边和主要按钮色。格式：#RRGGBB；透明度会让颜色更柔和。", out var accentCardBody);
         var accentGrid = new Grid { Margin = new Thickness(0, 12, 0, 0) };
         accentGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         accentGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        accentGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         accentGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         accentGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
@@ -169,6 +173,7 @@ public sealed class SettingsWindow : Window
         resetButton.Click += (_, _) =>
         {
             _accentTextBox.Text = _lightThemeRadio.IsChecked == true ? "#7C8DFF" : "#4FA3FF";
+            SetOpacityPercent(62);
             ApplyLivePreviewIfValid();
         };
         Grid.SetColumn(resetButton, 4);
@@ -176,6 +181,44 @@ public sealed class SettingsWindow : Window
 
         _accentTextBox.TextChanged += (_, _) => ApplyLivePreviewIfValid();
         accentCardBody.Children.Add(accentGrid);
+
+        var opacityGrid = new Grid { Margin = new Thickness(0, 14, 0, 0) };
+        opacityGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        opacityGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        opacityGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        opacityGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        opacityGrid.Children.Add(BuildLabel("透明度"));
+
+        _accentOpacityTextBox = new WpfTextBox
+        {
+            Text = Math.Round(_draft.AccentOpacity * 100).ToString("0"),
+            Width = 72,
+            MinHeight = 30,
+            Margin = new Thickness(10, 0, 6, 0),
+            ToolTip = "强调色透明度百分比，范围 18-100。按 Enter 或移开焦点后应用。",
+        };
+        Grid.SetColumn(_accentOpacityTextBox, 1);
+        opacityGrid.Children.Add(_accentOpacityTextBox);
+
+        var percentText = new TextBlock
+        {
+            Text = "%",
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        SetResource(percentText, TextBlock.ForegroundProperty, "EditorMutedTextBrush");
+        Grid.SetColumn(percentText, 2);
+        opacityGrid.Children.Add(percentText);
+
+        var opacityHint = new TextBlock
+        {
+            Text = "18-100，数值越低越柔和",
+            Margin = new Thickness(12, 0, 0, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        SetResource(opacityHint, TextBlock.ForegroundProperty, "EditorMutedTextBrush");
+        Grid.SetColumn(opacityHint, 3);
+        opacityGrid.Children.Add(opacityHint);
+        accentCardBody.Children.Add(opacityGrid);
 
         var presetRow = new StackPanel
         {
@@ -191,9 +234,33 @@ public sealed class SettingsWindow : Window
         accentCardBody.Children.Add(presetRow);
         content.Children.Add(accentCard);
 
+        var closeCard = BuildCard("关闭窗口时", "控制点击主窗口右上角 × 时的行为。默认最小化到托盘，不再每次弹窗询问。", out var closeCardBody);
+        _closeMinimizeRadio = BuildOptionRadio(
+            "最小化到托盘（默认）",
+            "点击关闭按钮时隐藏主窗口，程序仍在托盘运行，脚本热键继续可用。",
+            _draft.WindowCloseAction == AppWindowCloseAction.MinimizeToTray);
+        _closeExitRadio = BuildOptionRadio(
+            "关闭软件",
+            "点击关闭按钮时直接退出程序；如有未保存资产，仍会先询问是否保存。",
+            _draft.WindowCloseAction == AppWindowCloseAction.ExitApplication);
+        closeCardBody.Children.Add(_closeMinimizeRadio);
+        closeCardBody.Children.Add(_closeExitRadio);
+        content.Children.Add(closeCard);
+
         Content = root;
         _darkThemeRadio.Checked += (_, _) => ApplyLivePreviewIfValid();
         _lightThemeRadio.Checked += (_, _) => ApplyLivePreviewIfValid();
+        _closeMinimizeRadio.Checked += (_, _) => ApplyLivePreviewIfValid();
+        _closeExitRadio.Checked += (_, _) => ApplyLivePreviewIfValid();
+        _accentOpacityTextBox.LostFocus += (_, _) => CommitOpacityText();
+        _accentOpacityTextBox.KeyDown += (_, e) =>
+        {
+            if (e.Key != Key.Enter)
+                return;
+
+            CommitOpacityText();
+            e.Handled = true;
+        };
         RefreshAccentPreview();
         UpdateThemeCards();
     }
@@ -427,6 +494,38 @@ public sealed class SettingsWindow : Window
         return label;
     }
 
+    private WpfRadioButton BuildOptionRadio(string title, string description, bool isChecked)
+    {
+        var stack = new StackPanel();
+        var titleText = new TextBlock
+        {
+            Text = title,
+            FontWeight = FontWeights.SemiBold,
+        };
+        SetResource(titleText, TextBlock.ForegroundProperty, "EditorTextBrush");
+        var descriptionText = new TextBlock
+        {
+            Text = description,
+            TextWrapping = TextWrapping.Wrap,
+            FontSize = 12,
+            Margin = new Thickness(0, 3, 0, 0),
+        };
+        SetResource(descriptionText, TextBlock.ForegroundProperty, "EditorMutedTextBrush");
+        stack.Children.Add(titleText);
+        stack.Children.Add(descriptionText);
+
+        var radio = new WpfRadioButton
+        {
+            Content = stack,
+            IsChecked = isChecked,
+            Margin = new Thickness(0, 0, 0, 12),
+            ToolTip = description,
+            VerticalContentAlignment = VerticalAlignment.Top,
+        };
+        SetResource(radio, System.Windows.Controls.Control.ForegroundProperty, "EditorTextBrush");
+        return radio;
+    }
+
     private void AddPresetButton(WpfPanel parent, string label, string color)
     {
         var button = new WpfButton
@@ -455,8 +554,11 @@ public sealed class SettingsWindow : Window
 
         _draft.ThemeMode = _lightThemeRadio.IsChecked == true ? AppThemeMode.Light : AppThemeMode.Dark;
         _draft.AccentColor = AppThemeService.ToHex(accent);
+        _draft.AccentOpacity = ReadAccentOpacity();
+        _draft.WindowCloseAction = ReadWindowCloseAction();
         _draft.Normalize();
         _accentTextBox.Text = _draft.AccentColor;
+        SetOpacityPercent(_draft.AccentOpacity * 100);
         return _apply(_draft.Clone());
     }
 
@@ -469,6 +571,8 @@ public sealed class SettingsWindow : Window
 
         _draft.ThemeMode = _lightThemeRadio.IsChecked == true ? AppThemeMode.Light : AppThemeMode.Dark;
         _draft.AccentColor = AppThemeService.ToHex(accent);
+        _draft.AccentOpacity = ReadAccentOpacity();
+        _draft.WindowCloseAction = ReadWindowCloseAction();
         _draft.Normalize();
         _apply(_draft.Clone());
     }
@@ -476,9 +580,14 @@ public sealed class SettingsWindow : Window
     private void RefreshAccentPreview()
     {
         if (AppThemeService.TryParseColor(_accentTextBox.Text, out var color))
-            _accentPreview.Fill = new SolidColorBrush(color);
+        {
+            byte alpha = (byte)Math.Round(255 * ReadAccentOpacity());
+            _accentPreview.Fill = new SolidColorBrush(System.Windows.Media.Color.FromArgb(alpha, color.R, color.G, color.B));
+        }
         else
+        {
             _accentPreview.Fill = WpfBrushes.Transparent;
+        }
     }
 
     private void OpenAccentColorPicker()
@@ -508,5 +617,39 @@ public sealed class SettingsWindow : Window
         return AppThemeService.TryParseColor(value, out var color)
             ? new SolidColorBrush(color)
             : new SolidColorBrush(Colors.Transparent);
+    }
+
+    private double ReadAccentOpacity()
+    {
+        if (double.TryParse(_accentOpacityTextBox.Text.Trim(), out var textPercent))
+            return Math.Clamp(textPercent / 100.0, 0.18, 1.0);
+
+        return Math.Clamp(_draft.AccentOpacity, 0.18, 1.0);
+    }
+
+    private AppWindowCloseAction ReadWindowCloseAction()
+    {
+        return _closeExitRadio.IsChecked == true
+            ? AppWindowCloseAction.ExitApplication
+            : AppWindowCloseAction.MinimizeToTray;
+    }
+
+    private void SetOpacityPercent(double percent)
+    {
+        var clamped = Math.Clamp(percent, 18, 100);
+        _accentOpacityTextBox.Text = Math.Round(clamped).ToString("0");
+    }
+
+    private void CommitOpacityText()
+    {
+        if (!double.TryParse(_accentOpacityTextBox.Text.Trim(), out var percent))
+        {
+            SetOpacityPercent(_draft.AccentOpacity * 100);
+            RefreshAccentPreview();
+            return;
+        }
+
+        SetOpacityPercent(percent);
+        ApplyLivePreviewIfValid();
     }
 }

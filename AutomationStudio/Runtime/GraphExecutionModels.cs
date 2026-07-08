@@ -210,6 +210,8 @@ public sealed record GraphRuntimeNode(
 
     public int TriggerIntervalMs { get; init; } = 1000;
 
+    public bool HasManualPosition { get; init; }
+
     public string? FunctionId { get; init; }
 
     public string? CustomEventId { get; init; }
@@ -254,9 +256,10 @@ public sealed record GraphRuntimeNode(
             FindImageRegionHeight = regionHeight,
         };
 
-    public static GraphRuntimeNode ForMouseClick(string id, string title, PressReleaseMode operationMode, MouseButton mouseButton, double positionX, double positionY, int triggerCount, int triggerIntervalMs) =>
+    public static GraphRuntimeNode ForMouseClick(string id, string title, PressReleaseMode operationMode, MouseButton mouseButton, double positionX, double positionY, bool hasManualPosition, int triggerCount, int triggerIntervalMs) =>
         new(id, title, NodeKind.MouseClick, null, 0, operationMode, mouseButton, positionX, positionY, 0, null, ScrollWheelAction.ScrollForward, 120, 100, 1000, 0, false, PinKind.Execution, ProgramStartFailureAction.None, 0, null)
         {
+            HasManualPosition = hasManualPosition,
             TriggerCount = Math.Max(0, triggerCount),
             TriggerIntervalMs = Math.Max(1, triggerIntervalMs),
         };
@@ -264,8 +267,11 @@ public sealed record GraphRuntimeNode(
     public static GraphRuntimeNode ForDelay(string id, string title, int delayMs) =>
         new(id, title, NodeKind.Delay, null, 0, PressReleaseMode.Press, MouseButton.Left, 0, 0, delayMs, null, ScrollWheelAction.ScrollForward, 120, 100, 1000, 0, false, PinKind.Execution, ProgramStartFailureAction.None, 0, null);
 
-    public static GraphRuntimeNode ForMouseMove(string id, string title, double positionX, double positionY) =>
-        new(id, title, NodeKind.MouseMove, null, 0, PressReleaseMode.Press, MouseButton.Left, positionX, positionY, 0, null, ScrollWheelAction.ScrollForward, 120, 100, 1000, 0, false, PinKind.Execution, ProgramStartFailureAction.None, 0, null);
+    public static GraphRuntimeNode ForMouseMove(string id, string title, double positionX, double positionY, bool hasManualPosition) =>
+        new(id, title, NodeKind.MouseMove, null, 0, PressReleaseMode.Press, MouseButton.Left, positionX, positionY, 0, null, ScrollWheelAction.ScrollForward, 120, 100, 1000, 0, false, PinKind.Execution, ProgramStartFailureAction.None, 0, null)
+        {
+            HasManualPosition = hasManualPosition,
+        };
 
     public static GraphRuntimeNode ForKeyboard(string id, string title, PressReleaseMode operationMode, string key, int triggerCount, int triggerIntervalMs) =>
         new(id, title, NodeKind.Keyboard, null, 0, operationMode, MouseButton.Left, 0, 0, 0, key, ScrollWheelAction.ScrollForward, 120, 100, 1000, 0, false, PinKind.Execution, ProgramStartFailureAction.None, 0, null)

@@ -17,7 +17,6 @@ public enum NodeKind
     StartProgram,
     PrintLog,
     SelectWindow,
-    MouseDoubleClick,
     GetMousePosition,
     KeyChord,
     WaitImage,

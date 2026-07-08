@@ -24,7 +24,7 @@ public sealed class MouseClickNodeExecutor : INodeExecutor
 
         if (!hasConnection)
         {
-            if (!HasUsablePosition(node.PositionX, node.PositionY))
+            if (!node.HasManualPosition)
             {
                 request.Context.Set(node.Id, "result", false);
                 Logger.Warn("鼠标点击：未设置点击位置，也未连接位置输入。继续执行。");
@@ -63,14 +63,6 @@ public sealed class MouseClickNodeExecutor : INodeExecutor
         request.Context.Set(node.Id, "result", true);
         return NodeExecutionResult.Ok($"鼠标{buttonLabel}{modeLabel}：({point.X},{point.Y})，触发 {TriggerRepeatRunner.CountLabel(node.TriggerCount)}");
     }
-
-    private static bool HasUsablePosition(double x, double y)
-    {
-        if (double.IsNaN(x) || double.IsNaN(y) || double.IsInfinity(x) || double.IsInfinity(y))
-            return false;
-
-        return Math.Abs(x) > 0.001 || Math.Abs(y) > 0.001;
-    }
 }
 
 public sealed class MouseMoveNodeExecutor : INodeExecutor
@@ -90,7 +82,7 @@ public sealed class MouseMoveNodeExecutor : INodeExecutor
 
         if (!hasConnection)
         {
-            if (Math.Abs(node.PositionX) < 0.001 && Math.Abs(node.PositionY) < 0.001)
+            if (!node.HasManualPosition)
             {
                 request.Context.Set(node.Id, "result", false);
                 Logger.Warn("鼠标移动：未设置目标位置，也未连接位置输入。继续执行。");

@@ -4,6 +4,7 @@ public sealed class MouseMoveNodeViewModel : NodeBaseViewModel
 {
     private double _positionX = 960;
     private double _positionY = 540;
+    private bool _hasManualPosition = true;
 
     public MouseMoveNodeViewModel(string id) : base(id, "鼠标移动")
     {
@@ -24,7 +25,10 @@ public sealed class MouseMoveNodeViewModel : NodeBaseViewModel
         set
         {
             if (SetProperty(ref _positionX, value))
+            {
+                HasManualPosition = true;
                 RefreshDescription();
+            }
         }
     }
 
@@ -34,6 +38,19 @@ public sealed class MouseMoveNodeViewModel : NodeBaseViewModel
         set
         {
             if (SetProperty(ref _positionY, value))
+            {
+                HasManualPosition = true;
+                RefreshDescription();
+            }
+        }
+    }
+
+    public bool HasManualPosition
+    {
+        get => _hasManualPosition;
+        set
+        {
+            if (SetProperty(ref _hasManualPosition, value))
                 RefreshDescription();
         }
     }
@@ -42,7 +59,9 @@ public sealed class MouseMoveNodeViewModel : NodeBaseViewModel
     {
         string posLabel = InputPins.FirstOrDefault(p => p.Name == "position")?.HasConnection == true
             ? "前置输入"
-            : $"({PositionX:0}, {PositionY:0})";
+            : HasManualPosition
+                ? $"({PositionX:0}, {PositionY:0})"
+                : "未设置位置";
         Description = posLabel;
     }
 }

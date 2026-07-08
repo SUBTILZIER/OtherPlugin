@@ -15,7 +15,7 @@ public sealed class DelayNodeExecutor : INodeExecutor
             Logger.Warn($"延迟：延迟时间无效 ({request.Node.DelayMs}ms)，将使用默认值 500ms。");
 
         Logger.Info($"延迟：{delayMs}ms");
-        Thread.Sleep(delayMs);
+        CancellationWait.WaitOrThrow(delayMs, request.CancellationToken);
         Logger.Info($"延迟完成：{delayMs}ms");
         return NodeExecutionResult.Ok($"延迟完成：{delayMs}ms");
     }

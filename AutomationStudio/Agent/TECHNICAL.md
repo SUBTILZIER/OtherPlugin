@@ -97,11 +97,12 @@ Runtime / Nodes / Adapters
 - `StartAsync` 入口处理重复启动（PreventDuplicateRun 忽略 / 否则取消旧任务重启）。
 - `StopAll()` 遍历取消所有运行中的 CancellationTokenSource。
 
-### 托盘最小化 (`MainWindow.WindowLifecycle` + `ThemedDialogOverrides`)
+### 托盘最小化 / 关闭策略 (`MainWindow.WindowLifecycle` + `ThemedDialogOverrides`)
 - `NotifyIcon`（`System.Windows.Forms`）只负责系统托盘图标和鼠标事件。
 - 左键单击恢复窗口；右键弹出项目自绘 WPF `TrayMenuWindow`（"打开面板" / "退出程序"），禁止恢复 WinForms 默认 `ContextMenuStrip`。
-- `Window_ClosingThemed` 关闭对话框固定只有三个按钮：`关闭软件` / `最小化` / `取消`，不再显示长说明，也不记忆“永远最小化到托盘”。
-- 退出时 `Application.Current.Shutdown()` + `Environment.Exit(0)` 确保进程完全结束。
+- `AppSettings.WindowCloseAction` 控制点击主窗口 `×` 的策略，默认 `MinimizeToTray`。默认关闭窗口时不弹选择对话框，直接最小化到托盘；设置里可改为 `ExitApplication`。
+- 最小化到托盘不能停止正在运行的脚本、全局热键或释放托盘资源；真正退出软件时才调用 `StopAll()`、释放按键、关闭 detached 窗口、Dispose 热键/托盘/主题事件。
+- 真正退出软件时仍要保留未保存资产确认，避免误丢数据；如果用户在保存确认里取消退出，`ExitApplication()` 不能继续 `Shutdown()` / `Environment.Exit(0)`，也不能提前销毁托盘图标。
 
 ### 工具栏执行状态 (`MainWindow.xaml` + `ExecutionController`)
 - `IsExecuting` 依赖属性绑定到 Window DataContext。
@@ -128,10 +129,13 @@ Runtime / Nodes / Adapters
 - 2026-07-06：应用级主题由 `AppSettingsService` + `AppThemeService` 管理，配置文件在 `%AppData%/AutomationStudioWpf/app-settings.json`。主题设置不属于资产数据，禁止写入脚本/函数库 JSON。
 - 主题资源只允许通过 `App.xaml` 中的 `Editor*Brush` / `Accent*Brush` 等全局 brush 进入 UI；这些 brush 必须带 `po:Freeze="False"`，运行时切换主题时更新已有 `SolidColorBrush.Color`，否则旧控件会继续拿着旧颜色。
 - 当前内置两套主题：暗色编辑器主题、亮色 Codex 风格主题。强调色必须扩散到选中态、hover、工具栏、输入边框、下拉选中、Tooltip 边框等全局状态，不允许只改设置面板预览色。
+- `AppSettings.AccentOpacity` 控制强调色混合强度，范围 `0.18-1.0`，默认 `0.62`。选中态、窗口 tab、内容浏览器资产卡片、hover 等必须使用 `AppThemeService` 按底色混合后的 `EditorListSelectedBrush` / `EditorChromeHighlightBrush`，不要直接把纯 `AccentBrush` 当大面积背景，否则颜色会太实、刺眼。
+- 设置窗口里的强调色透明度只保留数值输入，不使用 `Slider`。滑条拖动会产生高频 `ValueChanged`，每帧触发全局主题刷新，主界面会明显卡顿；数值输入按 `Enter` 或失焦后再应用。
+- `AccentForegroundBrush` 必须按最终选中底色亮度自动取深/浅字色；亮色主题下不能固定白字，否则资产名和 tab 文本会在柔和强调色上看不清。
 - 后续新增控件必须使用资源 brush，不能硬编码浅底浅字或只适配暗色；亮色主题下 hover 字体不能硬编码白色，除非背景是经过对比度处理的深色强调底。
 - 顶部工具栏的 `设置` 按钮打开 `SettingsWindow`；该窗口必须保持项目自绘窗口样式，不能使用 Windows 原生设置/消息面板。
 - `SettingsWindow` 的主题选择使用可点击预览卡片，不再使用裸 RadioButton 列表；预览卡必须展示主题背景、面板和强调色，让用户点击前就能判断效果。
-- `SettingsWindow` 主题/强调色必须实时预览到全局主界面；`保存设置` 才持久化，`取消`/关闭必须回滚到最近一次已保存/已应用设置。不要只刷新设置窗口自身。
+- `SettingsWindow` 主题/强调色必须实时预览到全局主界面；底部只保留 `应用` 一个按钮，实时预览会即时写入应用设置，`应用` 负责确认并关闭。不要恢复 `保存设置` / `取消` 双按钮。
 - `ThemedDialog` 需要读取当前主题资源，不能固定暗色；否则亮色主题下会出现视觉割裂。
 - `EditorSurfaceControl.xaml` 的左侧图表栏使用 section card + pill list item：hover、selected、compile dirty 必须分别用 `EditorPanelCardHoverBrush`、`EditorListSelectedBrush`、`EditorDirtyBackgroundBrush`，选中/脏状态用左侧 accent 条辅助识别。
 - 右侧细节面板的 header、基础节点信息、编号 chip 使用卡片层级；禁用/前置输入态使用 disabled chip/input 颜色，避免看起来像普通可编辑输入。
@@ -368,7 +372,7 @@ public abstract class NodeBaseViewModel : ObservableObject
 
 #### 当前节点定义 (38 个)
 
-`NodeRegistry.CreateDefaultDefinitions()` 当前注册 38 个菜单/运行时定义；`NodeKind.Comment` 仍是历史残留枚举，但不在 `NodeRegistry.Definitions`，旧 `comment` 图节点由 `NodeSerializer.IsRemovedNodeType()` 丢弃。`NodeKind.MouseDoubleClick` 只作为旧数据兼容枚举保留，不出现在节点菜单。
+`NodeRegistry.CreateDefaultDefinitions()` 当前注册 38 个菜单/运行时定义；`NodeKind.Comment` 仍是历史残留枚举，但不在 `NodeRegistry.Definitions`，旧 `comment` 图节点由 `NodeSerializer.IsRemovedNodeType()` 丢弃。`MouseDoubleClick` 不再保留 `NodeKind`，只保留旧 `mouse_double_click` type key 读取兼容。
 
 | 节点 | NodeKind | 分类 | 引脚 |
 |------|----------|------|------|
@@ -425,15 +429,19 @@ ExecuteChain() → ExecuteNode() → NodeRegistry → INodeExecutor → Adapter
 - `MultiThreadNodeViewModel` 是结构节点，有 `exec_in`、动态 `exec_thread_N` 输出和特殊色 `exec_completed` 输出；`ThreadOutputCount` 保存到 `NodeFileModel` / `GraphRuntimeNode`。
 - `+/-` 按钮走 `NodeBaseViewModel` 通用 dynamic pin API；删除最后一个线程输出前先清掉对应连接，最少保留 2 个线程输出。
 - `GraphRuntimeExecutor.ExecuteMultiThreadNode(...)` 为每个已连接 `exec_thread_N` 启动 branch task；未连接线程输出视为立即完成。任一分支失败则节点 `FatalStop`，全部成功后继续 `exec_completed`。
-- 分支共享 `RuntimeContext` 输出缓存；`RuntimeContext` 写读加锁，纯节点求值栈用 thread-local，避免并行分支互相误报数据环路。
+- 每个分支用父 `RuntimeContext` 的输出快照 `Fork(...)` 出独立上下文，分支结束后只把相对快照新增/变化的输出 `Merge` 回父上下文；不同分支写同一个 `nodeId:pin` 且值不同必须 `FatalStop`，日志显示为 `节点名 编号.pin`，禁止 last-writer-wins 静默污染结果。
+- 纯运算节点读取前会重新求值，不能因为上下文里已有旧 output 就跳过；否则循环、多线程或函数调用中会读到旧的 `StringConcat/Boolean/Compare` 结果。
 - 鼠标、键盘、窗口类节点使用 runtime 全局设备锁串行执行；Delay、日志、找图、纯运算等仍可并行。
 - 键盘、鼠标点击、组合键统一使用 `TriggerCount` / `TriggerIntervalMs`。`TriggerCount=0` 表示无限触发，直到脚本取消；间隔只发生在两次触发之间，运行时最小夹紧到 `1ms`，避免空转。
 - 鼠标双击不再是用户可见节点。旧 `mouse_double_click` 读取时由 `NodeSerializer` 迁成 `MouseClickNodeViewModel`，`TriggerCount=2`、`TriggerIntervalMs=80`、左键点击；编译 type key 也映射到 `MouseClick`。
+- 键盘节点未设置按键时必须跳过并写 `result=false`，不能回退默认 `A`，避免误触发。
+- 鼠标点击/移动用 `HasManualPosition` 区分“未设置坐标”和“明确设置 `(0,0)`”；旧资产没有该字段时，非零坐标推断为已设置，旧 `(0,0)` 推断为未设置。
+- `Delay`、等待窗口、启动程序等待、鼠标滚轮和 `WaitImage` / `WaitImageDisappear` 的长等待必须走 `CancellationWait.WaitOrThrow(...)` 或等价可取消等待；禁止用不可取消 `Thread.Sleep(intervalMs)` 卡住停止脚本。鼠标/键盘点击内部几十毫秒按下释放间隔可以保留同步等待。
 
 重要安全规则：
 - 输入 pin 未连接：可以使用节点本地属性。
 - 输入 pin 已连接但上游没有运行时输出：当前节点 Warn 并跳过，不回退本地属性。
-- 典型场景：找图未命中时，下游鼠标点击不会误用旧坐标或 `(0,0)`。
+- 典型场景：找图未命中时，下游鼠标点击不会误用旧坐标；只有用户明确设置 `(0,0)` 时才允许点击屏幕左上角。
 - ToDo 跳转必须同时匹配节点名和编号。空目标、找不到、匹配多项或直接自跳都会 `FatalStop`。
 
 #### Win32 API 调用
@@ -732,10 +740,10 @@ Python 参数规则：
 
 #### 新增节点策略
 - **新增范围**：鼠标、键盘、图像、逻辑、系统、调试共 22 个常用节点。
-- **保留节点**：`GetMousePosition`、`KeyChord`、`WaitImage`、`WaitImageDisappear`、`Compare`、`BooleanAnd/Or/Not`、`StringConcat`、`WaitWindow`、`CloseWindow`、`WindowExists`、`GetForegroundWindow`、`SaveScreenshot`、`ShowMessage`。`MouseDoubleClick` 已废弃为可见节点，旧图自动迁移到鼠标点击重复触发。
+- **保留节点**：`GetMousePosition`、`KeyChord`、`WaitImage`、`WaitImageDisappear`、`Compare`、`BooleanAnd/Or/Not`、`StringConcat`、`WaitWindow`、`CloseWindow`、`WindowExists`、`GetForegroundWindow`、`SaveScreenshot`、`ShowMessage`。`MouseDoubleClick` 已彻底移出可见节点和 `NodeKind`，旧图自动迁移到鼠标点击重复触发。
 - **已删除节点**：`MouseDrag`、`InputText`、`KeySequence`、`ClickImageCenter`、`SetVariable`、`Comment`。旧图加载时丢弃这些节点并写 Warn，同时过滤坏连线。
 - **UI 策略**：小型纯数据节点继续使用 `CommonNodeViewModel` + 通用属性面板；组合键等交互复杂节点拆专用 ViewModel/Inspector/Executor。
-- **Runtime 策略**：每个保留节点仍有独立 `NodeKind`，复杂节点走专用 executor，简单节点仍可走 `Nodes/Common/CommonNodeExecutors.cs`；菜单定义由 `NodeRegistry.Definitions` 生成。
+- **Runtime 策略**：每个保留节点仍有独立 `NodeKind`，复杂节点走专用 executor；纯运算节点不注册 executor，只能由 `GraphRuntimeExecutor` 按需求值；其它简单执行节点可走 `Nodes/Common/CommonNodeExecutors.cs`。菜单定义由 `NodeRegistry.Definitions` 生成。
 - **交互优化**：`KeyChord` 使用专用面板“增加按键 + 组合预览 + 操作模式 + 触发次数/间隔”；窗口类通用节点支持手填、运行窗口下拉、浏览 exe 推导进程名；`WaitImage.image_path` 可输出给后续 `FindImage.image_path`。
 - **维护规则**：如果某个通用节点后续参数变复杂，再单独拆成专属 ViewModel/Inspector 面板；不要一开始就把所有小节点拆成几十个重复类。
 
@@ -1143,7 +1151,7 @@ dotnet publish -c Release -r win-x64 \
 - `App.xaml` 是全局主题 token 源。新增 UI 优先使用 `Root/Chrome/Panel/Card/Field/Text/Muted/Border/Hover/Selected/Accent/Warning/Error/Disabled` 语义 brush；不要在页面、控件、C# 构造 UI 里散写 `#RRGGBB`。
 - `AppThemeService` 现在支持 `#RRGGBB` 和 `#AARRGGBB`，半透明遮罩类 token（例如 `EditorExecutionOverlayBrush`）也必须走 palette，而不是写死在 XAML。
 - C# 动态 UI 必须用 `ThemeResourceHelper.SetResource(...)` 或 `ThemeResourceHelper.Brush(...)`：`ScriptPropertiesWindow`、`ScriptPropertiesSummaryControl`、`SettingsWindow`、`TrayMenuWindow`、`ThemedDialog`、拖拽预览、节点菜单等都不能固定 `Brushes.White` / `new SolidColorBrush(#...)`。
-- `SettingsWindow` 的主题/强调色是实时预览：点亮色/暗色、输入合法强调色、点预设色必须立刻刷新主窗口、编辑器、内容浏览器、日志、detached 窗口和已有自绘窗口；`保存设置` 才持久化，`取消/关闭` 必须回滚到最近一次保存/应用值。
+- `SettingsWindow` 的主题/强调色是实时预览：点亮色/暗色、输入合法强调色、点预设色必须立刻刷新主窗口、编辑器、内容浏览器、日志、detached 窗口和已有自绘窗口；当前设置窗只保留 `应用`，实时预览即写入设置，`应用` 只负责关闭窗口。
 - 硬编码色白名单只允许：节点类型色、pin/连线语义色、日志 level 语义色、截图/鼠标拾取颜色预览、阴影黑色、透明色、主题 palette 本身。其它 `#[0-9A-Fa-f]{6,8}`、`Brushes.*`、`new SolidColorBrush(...)` 都需要解释或改成 token。
 - 亮色主题验收标准：主窗口上方、内容浏览器、日志、编辑器、属性面板、弹窗、菜单、Tooltip 必须同时切到浅色层级；不能出现“上白下黑”、白底白字、浅灰字贴浅底、按钮文字被背景吃掉。
 - 2026-07-07 根因补充：旧 `MainWindow.ThemeUnifier` 曾在 `OnContentRendered` 后用冻结暗色 brush 直接写内容浏览器、日志和右键菜单本地属性，导致设置窗口切到亮色后主界面仍黑。该类以后只允许安装内容浏览器交互/重命名校验等 hook，不允许再承担“统一暗色上色器”职责。

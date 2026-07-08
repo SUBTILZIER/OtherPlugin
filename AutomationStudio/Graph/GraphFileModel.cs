@@ -69,6 +69,8 @@ public sealed class NodeFileModel
 
     public double PositionY { get; set; }
 
+    public bool? HasManualPosition { get; set; }
+
     public int HoldDurationMs { get; set; } = 600;
 
     public string? MouseButton { get; set; }

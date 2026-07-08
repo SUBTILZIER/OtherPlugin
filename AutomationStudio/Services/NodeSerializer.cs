@@ -46,6 +46,7 @@ public static class NodeSerializer
                 file.OperationMode = mouseNode.OperationMode.ToString();
                 file.PositionX = mouseNode.PositionX;
                 file.PositionY = mouseNode.PositionY;
+                file.HasManualPosition = mouseNode.HasManualPosition;
                 file.MouseButton = mouseNode.MouseButton.ToString();
                 file.TriggerCount = mouseNode.TriggerCount;
                 file.TriggerIntervalMs = mouseNode.TriggerIntervalMs;
@@ -105,6 +106,7 @@ public static class NodeSerializer
             case MouseMoveNodeViewModel moveNode:
                 file.PositionX = moveNode.PositionX;
                 file.PositionY = moveNode.PositionY;
+                file.HasManualPosition = moveNode.HasManualPosition;
                 break;
 
             case PrintLogNodeViewModel printNode:
@@ -211,6 +213,7 @@ public static class NodeSerializer
                 MouseButton = Enum.TryParse<MouseButton>(file.MouseButton, true, out var button) ? button : MouseButton.Left,
                 PositionX = file.PositionX,
                 PositionY = file.PositionY,
+                HasManualPosition = ResolveManualPosition(file, file.PositionX, file.PositionY),
                 TriggerCount = NormalizeTriggerCount(file.TriggerCount),
                 TriggerIntervalMs = NormalizeTriggerInterval(file.TriggerIntervalMs),
             },
@@ -221,7 +224,7 @@ public static class NodeSerializer
                 X = file.X,
                 Y = file.Y,
                 OperationMode = Enum.TryParse<PressReleaseMode>(file.OperationMode, true, out var kbdMode) ? kbdMode : PressReleaseMode.Press,
-                Key = file.Key ?? "A",
+                Key = file.Key ?? string.Empty,
                 TriggerCount = NormalizeTriggerCount(file.TriggerCount),
                 TriggerIntervalMs = NormalizeTriggerInterval(file.TriggerIntervalMs),
             },
@@ -310,6 +313,7 @@ public static class NodeSerializer
                 Y = file.Y,
                 PositionX = file.PositionX,
                 PositionY = file.PositionY,
+                HasManualPosition = ResolveManualPosition(file, file.PositionX, file.PositionY),
             },
 
             "print_log" => new PrintLogNodeViewModel(file.Id)
@@ -331,13 +335,14 @@ public static class NodeSerializer
 
             "mouse_double_click" => new MouseClickNodeViewModel(file.Id)
             {
-                Title = string.IsNullOrWhiteSpace(file.Title) ? "鼠标点击" : file.Title,
+                Title = "鼠标点击",
                 X = file.X,
                 Y = file.Y,
                 OperationMode = PressReleaseMode.Click,
                 MouseButton = MouseButton.Left,
                 PositionX = Math.Abs(file.PositionX) > 0.001 ? file.PositionX : file.Number,
                 PositionY = Math.Abs(file.PositionY) > 0.001 ? file.PositionY : file.Number2,
+                HasManualPosition = ResolveManualPosition(file, Math.Abs(file.PositionX) > 0.001 ? file.PositionX : file.Number, Math.Abs(file.PositionY) > 0.001 ? file.PositionY : file.Number2),
                 TriggerCount = 2,
                 TriggerIntervalMs = 80,
             },
@@ -418,6 +423,7 @@ public static class NodeSerializer
                 mouseNode.Id, mouseNode.Title,
                 mouseNode.OperationMode, mouseNode.MouseButton,
                 mouseNode.PositionX, mouseNode.PositionY,
+                mouseNode.HasManualPosition,
                 mouseNode.TriggerCount, mouseNode.TriggerIntervalMs),
 
             KeyboardNodeViewModel keyboardNode => GraphRuntimeNode.ForKeyboard(
@@ -440,7 +446,8 @@ public static class NodeSerializer
 
             MouseMoveNodeViewModel moveNode => GraphRuntimeNode.ForMouseMove(
                 moveNode.Id, moveNode.Title,
-                moveNode.PositionX, moveNode.PositionY),
+                moveNode.PositionX, moveNode.PositionY,
+                moveNode.HasManualPosition),
 
             RerouteNodeViewModel rerouteNode => GraphRuntimeNode.ForReroute(rerouteNode.Id, rerouteNode.Title, rerouteNode.RoutedKind),
 
@@ -652,4 +659,10 @@ public static class NodeSerializer
 
     private static int NormalizeTriggerInterval(int intervalMs) =>
         intervalMs > 0 ? intervalMs : 1000;
+
+    private static bool ResolveManualPosition(NodeFileModel file, double x, double y) =>
+        file.HasManualPosition ?? HasNonZeroPosition(x, y);
+
+    private static bool HasNonZeroPosition(double x, double y) =>
+        Math.Abs(x) > 0.001 || Math.Abs(y) > 0.001;
 }

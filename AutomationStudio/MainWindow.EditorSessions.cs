@@ -265,20 +265,32 @@ public partial class MainWindow
         var title = new TextBlock
         {
             Text = session.DisplayTitle,
-            Foreground = AppBrush("EditorTextBrightBrush", 0xF3, 0xF7, 0xFF),
             FontWeight = FontWeights.SemiBold,
             TextTrimming = TextTrimming.CharacterEllipsis,
         };
+        ThemeResourceHelper.SetResource(title, TextBlock.ForegroundProperty, "EditorTextBrightBrush");
+
         var hint = new TextBlock
         {
             Text = "拖离标签栏创建独立窗口",
-            Foreground = AppBrush("EditorMutedTextBrush", 0x9D, 0xAC, 0xC0),
             FontSize = 11,
             Margin = new Thickness(0, 3, 0, 0),
         };
+        ThemeResourceHelper.SetResource(hint, TextBlock.ForegroundProperty, "EditorMutedTextBrush");
+
         var stack = new StackPanel();
         stack.Children.Add(title);
         stack.Children.Add(hint);
+        var previewBorder = new Border
+        {
+            Width = 220,
+            Padding = new Thickness(12, 8, 12, 8),
+            CornerRadius = new CornerRadius(6),
+            BorderThickness = new Thickness(1),
+            Child = stack,
+        };
+        ThemeResourceHelper.SetResource(previewBorder, WpfBorder.BorderBrushProperty, "AccentBrush");
+        ThemeResourceHelper.SetResource(previewBorder, WpfBorder.BackgroundProperty, "EditorToolTipBackgroundBrush");
 
         _editorSessionDragPreviewPopup = new WpfPopup
         {
@@ -286,16 +298,7 @@ public partial class MainWindow
             Placement = System.Windows.Controls.Primitives.PlacementMode.RelativePoint,
             AllowsTransparency = true,
             IsHitTestVisible = false,
-            Child = new Border
-            {
-                Width = 220,
-                Padding = new Thickness(12, 8, 12, 8),
-                CornerRadius = new CornerRadius(6),
-                BorderThickness = new Thickness(1),
-                BorderBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(94, 162, 232)),
-                Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromArgb(230, 28, 34, 42)),
-                Child = stack,
-            },
+            Child = previewBorder,
         };
         _editorSessionDragPreviewPopup.IsOpen = true;
     }
@@ -313,9 +316,7 @@ public partial class MainWindow
             stack.Children[1] is TextBlock hint)
         {
             hint.Text = willDetach ? "释放后成为独立窗口" : "留在标签栏内切换窗口";
-            hint.Foreground = willDetach
-                ? new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(111, 221, 140))
-                : new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(157, 172, 192));
+            ThemeResourceHelper.SetResource(hint, TextBlock.ForegroundProperty, willDetach ? "AccentBrush" : "EditorMutedTextBrush");
         }
     }
 

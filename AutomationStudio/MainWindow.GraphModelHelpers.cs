@@ -54,6 +54,7 @@ public partial class MainWindow
         ClickMode = node.ClickMode,
         PositionX = node.PositionX,
         PositionY = node.PositionY,
+        HasManualPosition = node.HasManualPosition,
         HoldDurationMs = node.HoldDurationMs,
         MouseButton = node.MouseButton,
         OperationMode = node.OperationMode,

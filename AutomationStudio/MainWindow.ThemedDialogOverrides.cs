@@ -166,12 +166,20 @@ public partial class MainWindow
         await _executionController.RunAsync();
     }
 
-        private void Window_ClosingThemed(object? sender, System.ComponentModel.CancelEventArgs e)
+    private void Window_ClosingThemed(object? sender, System.ComponentModel.CancelEventArgs e)
     {
-        _scriptRunManager.StopAll();
-        _executionController.ReleaseAllKeys();
         if (_isClosing) return;
 
+        _mousePickController.Stop();
+        if (!_isReallyClosing && _appSettings.WindowCloseAction == AppWindowCloseAction.MinimizeToTray)
+        {
+            e.Cancel = true;
+            MinimizeToTray();
+            return;
+        }
+
+        _scriptRunManager.StopAll();
+        _executionController.ReleaseAllKeys();
         CommitInspectorAndSnapshotAllSessions();
         if (ContentBrowserItems.Any(item => item.IsDirty) ||
             GraphListItems.Concat(FunctionListItems).Any(item => item.IsDirty))
@@ -198,33 +206,29 @@ public partial class MainWindow
         if (e.Cancel)
             return;
 
-        if (!_isReallyClosing)
+        _isReallyClosing = true;
+        _isClosing = true;
+        _finalCodePreviewWindow?.Close();
+        _finalCodePreviewWindow = null;
+        foreach (var session in _editorSessions.ToList())
         {
-            var choice = ThemedDialog.ShowCustom(
-                this,
-                string.Empty,
-                "关闭窗口",
-                MessageBoxImage.Question,
-                new ThemedDialogButton("关闭软件", MessageBoxResult.No),
-                new ThemedDialogButton("最小化", MessageBoxResult.Yes, true),
-                new ThemedDialogButton("取消", MessageBoxResult.Cancel));
-            if (choice == MessageBoxResult.Yes)
-            {
-                e.Cancel = true;
-                MinimizeToTray();
-                return;
-            }
-            if (choice == MessageBoxResult.Cancel)
-            {
-                e.Cancel = true;
-                return;
-            }
-            _isReallyClosing = true;
+            session.DetachedWindow?.CloseFromOwner();
+            session.DetachedWindow = null;
         }
 
-        _isClosing = true;
+        _mousePickController.Dispose();
         _scriptRunManager.Dispose();
         _scriptHotkeyService.Dispose();
+        AppThemeService.ThemeChanged -= OnAppThemeChanged;
+        _trayMenuWindow?.Close();
+        _trayMenuWindow = null;
+        if (_notifyIcon is not null)
+        {
+            _notifyIcon.Visible = false;
+            _notifyIcon.Dispose();
+            _notifyIcon = null;
+        }
+
         System.Windows.Application.Current.Shutdown();
     }
 

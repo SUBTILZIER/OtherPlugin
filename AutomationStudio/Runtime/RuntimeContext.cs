@@ -49,6 +49,67 @@ public sealed class RuntimeContext : IDisposable
         return false;
     }
 
+    internal IReadOnlyDictionary<string, object> SnapshotValues()
+    {
+        lock (_gate)
+        {
+            return new Dictionary<string, object>(_values, StringComparer.Ordinal);
+        }
+    }
+
+    internal RuntimeContext Fork(IReadOnlyDictionary<string, object> snapshot)
+    {
+        var fork = new RuntimeContext
+        {
+            PureNodeResolver = PureNodeResolver,
+        };
+
+        lock (fork._gate)
+        {
+            foreach (var pair in snapshot)
+                fork._values[pair.Key] = pair.Value;
+        }
+
+        return fork;
+    }
+
+    internal IReadOnlyDictionary<string, object> GetChangesSince(IReadOnlyDictionary<string, object> baseline)
+    {
+        lock (_gate)
+        {
+            return _values
+                .Where(pair => !baseline.TryGetValue(pair.Key, out object? before) || !Equals(before, pair.Value))
+                .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
+        }
+    }
+
+    internal bool TryMergeChanges(
+        IReadOnlyDictionary<string, object> changes,
+        IReadOnlyDictionary<string, object> baseline,
+        out string conflictKey)
+    {
+        lock (_gate)
+        {
+            foreach (var pair in changes)
+            {
+                bool currentExists = _values.TryGetValue(pair.Key, out object? current);
+                bool baselineExists = baseline.TryGetValue(pair.Key, out object? before);
+                bool changedSinceFork = currentExists != baselineExists || (currentExists && !Equals(current, before));
+                if (changedSinceFork && !Equals(current, pair.Value))
+                {
+                    conflictKey = pair.Key;
+                    return false;
+                }
+            }
+
+            foreach (var pair in changes)
+                _values[pair.Key] = pair.Value;
+        }
+
+        conflictKey = string.Empty;
+        return true;
+    }
+
     public IReadOnlyDictionary<string, object> GetNodeOutputs(string nodeId)
     {
         string prefix = $"{nodeId}:";
@@ -214,7 +275,7 @@ public sealed class RuntimeContext : IDisposable
 
     private void EnsurePureSourceEvaluated(GraphExecutionPlan plan, GraphRuntimeConnection? connection)
     {
-        if (connection is null || TryGetRaw(connection.SourceNodeId, connection.SourcePinName, out _))
+        if (connection is null)
             return;
         if (PureNodeResolver is null || plan.Index.GetNode(connection.SourceNodeId) is not { } sourceNode)
             return;

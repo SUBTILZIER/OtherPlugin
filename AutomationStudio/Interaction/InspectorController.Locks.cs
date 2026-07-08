@@ -61,10 +61,6 @@ public sealed partial class InspectorController
     {
         switch (node.NodeKind)
         {
-            case NodeKind.MouseDoubleClick:
-                LockTextBox(_commonNumberBox, IsInputPinConnected(node, "position"), node.Number.ToString("0.##"));
-                LockTextBox(_commonNumber2Box, IsInputPinConnected(node, "position"), node.Number2.ToString("0.##"));
-                break;
             case NodeKind.WaitImage:
             case NodeKind.WaitImageDisappear:
                 LockTextBox(_commonTextBox, IsInputPinConnected(node, "image_path"), node.Text);

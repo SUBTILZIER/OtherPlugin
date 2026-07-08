@@ -5,6 +5,7 @@ public sealed class MouseClickNodeViewModel : InputNodeBase
     private MouseButton _mouseButton = MouseButton.Left;
     private double _positionX = 960;
     private double _positionY = 540;
+    private bool _hasManualPosition = true;
 
     public MouseClickNodeViewModel(string id) : base(id, "鼠标点击")
     {
@@ -31,7 +32,10 @@ public sealed class MouseClickNodeViewModel : InputNodeBase
         set
         {
             if (SetProperty(ref _positionX, value))
+            {
+                HasManualPosition = true;
                 RefreshDescription();
+            }
         }
     }
 
@@ -41,6 +45,19 @@ public sealed class MouseClickNodeViewModel : InputNodeBase
         set
         {
             if (SetProperty(ref _positionY, value))
+            {
+                HasManualPosition = true;
+                RefreshDescription();
+            }
+        }
+    }
+
+    public bool HasManualPosition
+    {
+        get => _hasManualPosition;
+        set
+        {
+            if (SetProperty(ref _hasManualPosition, value))
                 RefreshDescription();
         }
     }
@@ -65,7 +82,9 @@ public sealed class MouseClickNodeViewModel : InputNodeBase
         };
         string posLabel = InputPins.FirstOrDefault(p => p.Name == "position")?.HasConnection == true
             ? "前置输入"
-            : $"({PositionX:0}, {PositionY:0})";
+            : HasManualPosition
+                ? $"({PositionX:0}, {PositionY:0})"
+                : "未设置位置";
         Description = $"{buttonLabel} / {modeLabel}\n{posLabel}\n{TriggerDescription()}";
     }
 }

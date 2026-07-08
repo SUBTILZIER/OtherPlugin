@@ -21,11 +21,6 @@ public sealed class CommonNodeExecutor(NodeKind nodeKind) : INodeExecutor
             NodeKind.GetMousePosition => ExecuteGetMousePosition(request),
             NodeKind.WaitImage => ExecuteWaitImage(request, waitDisappear: false),
             NodeKind.WaitImageDisappear => ExecuteWaitImage(request, waitDisappear: true),
-            NodeKind.Compare => ExecuteCompare(request),
-            NodeKind.BooleanAnd => ExecuteBoolean(request, "and"),
-            NodeKind.BooleanOr => ExecuteBoolean(request, "or"),
-            NodeKind.BooleanNot => ExecuteBoolean(request, "not"),
-            NodeKind.StringConcat => ExecuteStringConcat(request),
             NodeKind.WaitWindow => ExecuteWaitWindow(request),
             NodeKind.CloseWindow => ExecuteCloseWindow(request),
             NodeKind.WindowExists => ExecuteWindowExists(request),
@@ -112,7 +107,7 @@ public sealed class CommonNodeExecutor(NodeKind nodeKind) : INodeExecutor
                 return NodeExecutionResult.Ok("图像节点完成。");
             }
 
-            Thread.Sleep(intervalMs);
+            request.CancellationToken.WaitHandle.WaitOne(intervalMs);
         }
 
         request.Context.Set(request.Node.Id, "result", false);

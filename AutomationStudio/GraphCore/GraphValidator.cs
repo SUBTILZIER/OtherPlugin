@@ -211,10 +211,10 @@ public sealed class GraphValidator
                         issues.Add(Warning($"找图区域宽高无效：{node.Title}。运行时会跳过并继续。"));
                     break;
                 case NodeKind.MouseClick:
-                    WarnIfMissingPoint(plan, issues, node, "position", node.PositionX, node.PositionY, "鼠标点击");
+                    WarnIfMissingPoint(plan, issues, node, "position", node.HasManualPosition, "鼠标点击");
                     break;
                 case NodeKind.MouseMove:
-                    WarnIfMissingPoint(plan, issues, node, "position", node.PositionX, node.PositionY, "鼠标移动");
+                    WarnIfMissingPoint(plan, issues, node, "position", node.HasManualPosition, "鼠标移动");
                     break;
                 case NodeKind.Delay when node.DelayMs <= 0:
                     issues.Add(Warning($"延迟时长无效：{node.Title}。运行时会使用默认时长。"));
@@ -272,11 +272,10 @@ public sealed class GraphValidator
         List<GraphValidationIssue> issues,
         GraphRuntimeNode node,
         string pinName,
-        double x,
-        double y,
+        bool hasManualPosition,
         string nodeName)
     {
-        if (!IsInputConnected(plan, node.Id, pinName) && x == 0 && y == 0)
+        if (!IsInputConnected(plan, node.Id, pinName) && !hasManualPosition)
             issues.Add(Warning($"{nodeName}节点没有有效坐标：{node.Title}。运行时会跳过并继续。"));
     }
 

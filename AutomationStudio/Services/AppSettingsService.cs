@@ -10,11 +10,21 @@ public enum AppThemeMode
     Light,
 }
 
+public enum AppWindowCloseAction
+{
+    MinimizeToTray,
+    ExitApplication,
+}
+
 public sealed class AppSettings
 {
     public AppThemeMode ThemeMode { get; set; } = AppThemeMode.Dark;
 
     public string AccentColor { get; set; } = "#4FA3FF";
+
+    public double AccentOpacity { get; set; } = 0.62;
+
+    public AppWindowCloseAction WindowCloseAction { get; set; } = AppWindowCloseAction.MinimizeToTray;
 
     public bool HighContrastTooltips { get; set; } = true;
 
@@ -22,6 +32,8 @@ public sealed class AppSettings
     {
         ThemeMode = ThemeMode,
         AccentColor = AccentColor,
+        AccentOpacity = AccentOpacity,
+        WindowCloseAction = WindowCloseAction,
         HighContrastTooltips = HighContrastTooltips,
     };
 
@@ -29,6 +41,7 @@ public sealed class AppSettings
     {
         if (!AppThemeService.TryParseColor(AccentColor, out _))
             AccentColor = ThemeMode == AppThemeMode.Light ? "#7C8DFF" : "#4FA3FF";
+        AccentOpacity = Math.Clamp(AccentOpacity, 0.18, 1.0);
     }
 }
 
