@@ -40,6 +40,7 @@ internal sealed class ScriptHotkeyService : IDisposable
     private readonly DispatcherTimer _flushTimer;
     private IntPtr _keyboardHook;
     private IntPtr _mouseHook;
+    private int _triggerSuspendCount;
     private bool _disposed;
 
     public ScriptHotkeyService(Window owner, Action<ScriptHotkeyTrigger> onTrigger)
@@ -55,12 +56,14 @@ internal sealed class ScriptHotkeyService : IDisposable
         _flushTimer.Tick += (_, _) => FlushReadyPresses();
     }
 
-    public void Refresh(IEnumerable<ContentAssetViewModel> assets)
+    public ScriptHotkeyRefreshResult Refresh(IEnumerable<ContentAssetViewModel> assets)
     {
+        var assetList = assets.ToList();
+        var conflicts = Validate(assetList);
         _bindings.Clear();
         _pressStates.Clear();
         _pressWindows.Clear();
-        foreach (var asset in assets.Where(asset => asset.Kind == ContentAssetKind.Script && asset.IsScriptEnabled))
+        foreach (var asset in assetList.Where(asset => asset.Kind == ContentAssetKind.Script && asset.IsScriptEnabled))
         {
             asset.RunSettings.Normalize();
             AddBinding(asset, ScriptHotkeyAction.Start, asset.RunSettings.StartHotkey);
@@ -71,13 +74,23 @@ internal sealed class ScriptHotkeyService : IDisposable
         {
             UninstallHooks();
             _flushTimer.Stop();
+            return new ScriptHotkeyRefreshResult(conflicts, HookInstallResult.None);
         }
-        else
+
+        bool keyboardRequired = _bindings.Keys.Any(key => key.InputKind == ScriptHotkeyInputKind.Keyboard);
+        bool mouseRequired = _bindings.Keys.Any(key => key.InputKind == ScriptHotkeyInputKind.Mouse);
+        var hooks = InstallHooks(keyboardRequired, mouseRequired);
+        if (hooks.Keyboard.Installed || hooks.Mouse.Installed)
         {
-            InstallHooks();
             if (!_flushTimer.IsEnabled)
                 _flushTimer.Start();
         }
+        else
+        {
+            _flushTimer.Stop();
+        }
+
+        return new ScriptHotkeyRefreshResult(conflicts, hooks);
     }
 
     public IReadOnlyList<string> Validate(IEnumerable<ContentAssetViewModel> assets, ContentAssetViewModel? editingAsset = null, ScriptRunSettings? editingSettings = null)
@@ -118,12 +131,27 @@ internal sealed class ScriptHotkeyService : IDisposable
         return ToMatchKey(left).Equals(ToMatchKey(right));
     }
 
+    public IDisposable SuspendTriggers()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        _triggerSuspendCount++;
+        if (_triggerSuspendCount == 1)
+        {
+            _pressStates.Clear();
+            _pressedKeys.Clear();
+        }
+
+        return new TriggerSuspension(this);
+    }
+
     public void Dispose()
     {
         if (_disposed)
             return;
 
         _disposed = true;
+        _flushTimer.Stop();
+        _bindings.Clear();
         UninstallHooks();
     }
 
@@ -132,7 +160,9 @@ internal sealed class ScriptHotkeyService : IDisposable
         if (!hotkey.IsConfigured)
             return;
 
-        _bindings[ToMatchKey(hotkey)] = new ScriptHotkeyBinding(asset, action, Math.Max(1, hotkey.PressCount), hotkey.TriggerWindowMs);
+        var matchKey = ToMatchKey(hotkey);
+        if (!_bindings.TryAdd(matchKey, new ScriptHotkeyBinding(asset, action, Math.Max(1, hotkey.PressCount), hotkey.TriggerWindowMs)))
+            return;
 
         var pressKey = new ScriptHotkeyPressKey(hotkey.InputKind, hotkey.Key);
         int window = hotkey.TriggerWindowMs > 0 ? hotkey.TriggerWindowMs : 1000;
@@ -142,6 +172,9 @@ internal sealed class ScriptHotkeyService : IDisposable
 
     private void HandlePress(ScriptHotkeyPressKey key)
     {
+        if (_disposed || _triggerSuspendCount > 0)
+            return;
+
         var now = DateTime.UtcNow;
         var candidates = _bindings
             .Where(pair => pair.Key.InputKind == key.InputKind && pair.Key.Key == key.Key)
@@ -152,8 +185,29 @@ internal sealed class ScriptHotkeyService : IDisposable
         int windowMs = candidates.Max(pair => Math.Max(100, pair.Value.TriggerWindowMs));
         var window = TimeSpan.FromMilliseconds(windowMs);
 
-        if (!_pressStates.TryGetValue(key, out var state) || now - state.FirstPressAt > window)
+        if (_pressStates.TryGetValue(key, out var state))
+        {
+            var pendingHigherCounts = candidates
+                .Where(pair => pair.Key.PressCount > state.Count)
+                .ToArray();
+            if (pendingHigherCounts.Length > 0)
+            {
+                int pendingWindowMs = pendingHigherCounts.Max(pair => Math.Max(100, pair.Value.TriggerWindowMs));
+                if (now - state.FirstPressAt >= TimeSpan.FromMilliseconds(pendingWindowMs))
+                {
+                    TryTriggerPressState(key, state, candidates, now, ignoreBindingWindow: true);
+                    state = new PressState(now, 0);
+                }
+            }
+            else if (now - state.FirstPressAt > window)
+            {
+                state = new PressState(now, 0);
+            }
+        }
+        else
+        {
             state = new PressState(now, 0);
+        }
 
         state = state with { Count = state.Count + 1 };
         _pressStates[key] = state;
@@ -173,7 +227,7 @@ internal sealed class ScriptHotkeyService : IDisposable
             if (message is WM_KEYDOWN or WM_SYSKEYDOWN)
             {
                 int vkCode = Marshal.ReadInt32(lParam);
-                if (_pressedKeys.Add(vkCode))
+                if (_pressedKeys.Add(vkCode) && _triggerSuspendCount == 0)
                     _owner.Dispatcher.BeginInvoke(() => HandlePress(new ScriptHotkeyPressKey(ScriptHotkeyInputKind.Keyboard, KeyInterop.KeyFromVirtualKey(vkCode).ToString())));
             }
             else if (message is WM_KEYUP or WM_SYSKEYUP)
@@ -199,7 +253,7 @@ internal sealed class ScriptHotkeyService : IDisposable
                 WM_MOUSEWHEEL => GetWheelDirection(lParam),
                 _ => null,
             };
-            if (key is not null)
+            if (key is not null && _triggerSuspendCount == 0)
                 _owner.Dispatcher.BeginInvoke(() => HandlePress(new ScriptHotkeyPressKey(ScriptHotkeyInputKind.Mouse, key)));
         }
 
@@ -208,7 +262,7 @@ internal sealed class ScriptHotkeyService : IDisposable
 
     private void FlushReadyPresses()
     {
-        if (_pressStates.Count == 0)
+        if (_triggerSuspendCount > 0 || _pressStates.Count == 0)
             return;
 
         var now = DateTime.UtcNow;
@@ -221,6 +275,20 @@ internal sealed class ScriptHotkeyService : IDisposable
                 .ToArray();
             if (candidates.Length == 0)
             {
+                keysToRemove.Add(pressKey);
+                continue;
+            }
+
+            var higherCountCandidates = candidates
+                .Where(pair => pair.Key.PressCount > state.Count)
+                .ToArray();
+            if (higherCountCandidates.Length > 0)
+            {
+                int higherWindowMs = higherCountCandidates.Max(pair => Math.Max(100, pair.Value.TriggerWindowMs));
+                if (now - state.FirstPressAt < TimeSpan.FromMilliseconds(higherWindowMs))
+                    continue;
+
+                TryTriggerPressState(pressKey, state, candidates, now, ignoreBindingWindow: true);
                 keysToRemove.Add(pressKey);
                 continue;
             }
@@ -246,7 +314,8 @@ internal sealed class ScriptHotkeyService : IDisposable
         ScriptHotkeyPressKey key,
         PressState state,
         KeyValuePair<ScriptHotkeyMatchKey, ScriptHotkeyBinding>[] candidates,
-        DateTime now)
+        DateTime now,
+        bool ignoreBindingWindow = false)
     {
         foreach (var (matchKey, binding) in candidates)
         {
@@ -254,7 +323,7 @@ internal sealed class ScriptHotkeyService : IDisposable
                 continue;
 
             int bindingWindowMs = Math.Max(100, binding.TriggerWindowMs);
-            if (now - state.FirstPressAt > TimeSpan.FromMilliseconds(bindingWindowMs))
+            if (!ignoreBindingWindow && now - state.FirstPressAt > TimeSpan.FromMilliseconds(bindingWindowMs))
                 continue;
 
             _pressStates.Remove(key);
@@ -279,37 +348,74 @@ internal sealed class ScriptHotkeyService : IDisposable
         return delta > 0 ? "WheelForward" : "WheelBackward";
     }
 
-    private void InstallHooks()
+    private HookInstallResult InstallHooks(bool keyboardRequired, bool mouseRequired)
     {
-        if (_keyboardHook != IntPtr.Zero && _mouseHook != IntPtr.Zero)
-            return;
+        if (!keyboardRequired)
+            UninstallKeyboardHook();
+        if (!mouseRequired)
+            UninstallMouseHook();
 
         using var process = Process.GetCurrentProcess();
         using var module = process.MainModule!;
         var moduleHandle = GetModuleHandle(module.ModuleName);
-        if (_keyboardHook == IntPtr.Zero)
+        int keyboardError = 0;
+        if (keyboardRequired && _keyboardHook == IntPtr.Zero)
+        {
             _keyboardHook = SetWindowsHookEx(WH_KEYBOARD_LL, _keyboardProc, moduleHandle, 0);
-        if (_mouseHook == IntPtr.Zero)
+            if (_keyboardHook == IntPtr.Zero)
+                keyboardError = Marshal.GetLastWin32Error();
+        }
+
+        int mouseError = 0;
+        if (mouseRequired && _mouseHook == IntPtr.Zero)
+        {
             _mouseHook = SetWindowsHookEx(WH_MOUSE_LL, _mouseProc, moduleHandle, 0);
+            if (_mouseHook == IntPtr.Zero)
+                mouseError = Marshal.GetLastWin32Error();
+        }
+
+        return new HookInstallResult(
+            new HookEndpointInstallResult(keyboardRequired, _keyboardHook != IntPtr.Zero, keyboardError),
+            new HookEndpointInstallResult(mouseRequired, _mouseHook != IntPtr.Zero, mouseError));
     }
 
     private void UninstallHooks()
     {
-        if (_keyboardHook != IntPtr.Zero)
-        {
-            UnhookWindowsHookEx(_keyboardHook);
-            _keyboardHook = IntPtr.Zero;
-        }
-
-        if (_mouseHook != IntPtr.Zero)
-        {
-            UnhookWindowsHookEx(_mouseHook);
-            _mouseHook = IntPtr.Zero;
-        }
+        UninstallKeyboardHook();
+        UninstallMouseHook();
 
         _pressedKeys.Clear();
         _pressStates.Clear();
         _pressWindows.Clear();
+    }
+
+    private void UninstallKeyboardHook()
+    {
+        if (_keyboardHook == IntPtr.Zero)
+            return;
+
+        UnhookWindowsHookEx(_keyboardHook);
+        _keyboardHook = IntPtr.Zero;
+        _pressedKeys.Clear();
+    }
+
+    private void UninstallMouseHook()
+    {
+        if (_mouseHook == IntPtr.Zero)
+            return;
+
+        UnhookWindowsHookEx(_mouseHook);
+        _mouseHook = IntPtr.Zero;
+    }
+
+    private void ResumeTriggers()
+    {
+        if (_triggerSuspendCount <= 0)
+            return;
+
+        _triggerSuspendCount--;
+        if (_triggerSuspendCount == 0)
+            _pressStates.Clear();
     }
 
     private static ScriptHotkeyMatchKey ToMatchKey(ScriptHotkeySettings hotkey) =>
@@ -322,6 +428,16 @@ internal sealed class ScriptHotkeyService : IDisposable
     private readonly record struct ScriptHotkeyPressKey(ScriptHotkeyInputKind InputKind, string Key);
 
     private readonly record struct ScriptHotkeyMatchKey(ScriptHotkeyInputKind InputKind, string Key, int PressCount);
+
+    private sealed class TriggerSuspension(ScriptHotkeyService owner) : IDisposable
+    {
+        private ScriptHotkeyService? _owner = owner;
+
+        public void Dispose()
+        {
+            Interlocked.Exchange(ref _owner, null)?.ResumeTriggers();
+        }
+    }
 
     private delegate IntPtr LowLevelKeyboardProc(int nCode, IntPtr wParam, IntPtr lParam);
 

@@ -166,7 +166,8 @@ AutomationStudioWpf/
 │   ├── NodeSerializer.cs        # 节点序列化/反序列化
 │   ├── NodeClipboardService.cs  # 复制粘贴服务
 │   ├── NodeFactory.cs           # 节点工厂
-│   └── PythonAutoInstaller.cs   # Python 环境检测与安装
+│   ├── PythonEnvironmentService.cs # Python 唯一环境检测与安装
+│   └── AtomicJsonFileStore.cs   # 原子 JSON 保存与备份恢复
 ├── Interaction/                 # 交互控制器
 │   ├── ExecutionController.cs   # 执行、取消、校验、Python 检查
 │   ├── GraphListController.cs   # 图谱列表、切换、删除、重命名

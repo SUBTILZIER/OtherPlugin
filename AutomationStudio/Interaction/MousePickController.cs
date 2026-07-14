@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Windows;
+using AutomationStudioWpf.Logging;
 
 namespace AutomationStudioWpf.Interaction;
 
@@ -27,6 +28,7 @@ internal sealed class MousePickController : IDisposable
     private int _pendingX;
     private int _pendingY;
     private ScreenPickSample _lastSample;
+    private readonly HashSet<int> _reportedHookErrors = [];
 
     public MousePickController(Window owner, Action<string> setStatus)
     {
@@ -50,6 +52,13 @@ internal sealed class MousePickController : IDisposable
         if (IsActive || _disposed)
             return;
 
+        var hookResult = InstallHook();
+        if (hookResult.Failed)
+        {
+            ReportHookFailure(hookResult);
+            return;
+        }
+
         ScreenPixelSampler.Begin();
         _lastSample = ScreenPixelSampler.Sample();
         _lastHookX = _lastSample.X;
@@ -58,7 +67,6 @@ internal sealed class MousePickController : IDisposable
         _overlay.Update(_lastSample);
         _overlay.Show();
 
-        InstallHook();
         IsActive = true;
         _setStatus("鼠标拾取中：左键复制，右键退出。");
     }
@@ -156,7 +164,14 @@ internal sealed class MousePickController : IDisposable
 
         _isPromptOpen = false;
         if (IsActive && !_disposed)
-            InstallHook();
+        {
+            var hookResult = InstallHook();
+            if (hookResult.Failed)
+            {
+                Stop("鼠标拾取监听恢复失败，已退出拾取模式。");
+                ReportHookFailure(hookResult);
+            }
+        }
     }
 
     private IntPtr HookCallback(int nCode, IntPtr wParam, IntPtr lParam)
@@ -214,15 +229,27 @@ internal sealed class MousePickController : IDisposable
         return CallNextHookEx(_hook, nCode, wParam, lParam);
     }
 
-    private void InstallHook()
+    private HookEndpointInstallResult InstallHook()
     {
         if (_hook != IntPtr.Zero)
-            return;
+            return new HookEndpointInstallResult(true, true, 0);
 
         using var process = Process.GetCurrentProcess();
         using var module = process.MainModule;
         var moduleHandle = module is null ? IntPtr.Zero : GetModuleHandle(module.ModuleName);
         _hook = SetWindowsHookEx(WH_MOUSE_LL, _hookProc, moduleHandle, 0);
+        int errorCode = _hook == IntPtr.Zero ? Marshal.GetLastWin32Error() : 0;
+        return new HookEndpointInstallResult(true, _hook != IntPtr.Zero, errorCode);
+    }
+
+    private void ReportHookFailure(HookEndpointInstallResult result)
+    {
+        string message = result.FormatFailure("鼠标拾取监听");
+        Logger.Error(message);
+        _setStatus(message);
+        int key = result.ErrorCode == 0 ? -1 : result.ErrorCode;
+        if (_reportedHookErrors.Add(key))
+            ThemedDialog.Show(_owner, message, "鼠标拾取不可用", MessageBoxButton.OK, MessageBoxImage.Error);
     }
 
     private void UninstallHook()

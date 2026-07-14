@@ -29,6 +29,10 @@
                             UseAeroCaptionButtons="False" />
     </shell:WindowChrome.WindowChrome>
     <Window.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/AutomationStudioWpf;component/Themes/EditorSharedStyles.xaml" />
+            </ResourceDictionary.MergedDictionaries>
         <Style x:Key="TitleBarButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
             <Setter Property="Width" Value="44" />
             <Setter Property="Height" Value="28" />
@@ -430,24 +434,7 @@
                 </Trigger>
             </Style.Triggers>
         </Style>
-        <Style x:Key="GraphItemDirtyGlyphStyle" TargetType="{x:Type Border}">
-            <Setter Property="Width" Value="8" />
-            <Setter Property="Height" Value="8" />
-            <Setter Property="Margin" Value="0,0,7,0" />
-            <Setter Property="CornerRadius" Value="4" />
-            <Setter Property="Background" Value="{DynamicResource CompileDirtyBorderBrush}" />
-            <Setter Property="VerticalAlignment" Value="Center" />
-            <Setter Property="Visibility" Value="Collapsed" />
-            <Setter Property="ToolTip" Value="图表已修改" />
-            <Style.Triggers>
-                <DataTrigger Binding="{Binding IsDirty}" Value="True">
-                    <Setter Property="Visibility" Value="Visible" />
-                </DataTrigger>
-                <DataTrigger Binding="{Binding IsEditing}" Value="True">
-                    <Setter Property="Visibility" Value="Collapsed" />
-                </DataTrigger>
-            </Style.Triggers>
-        </Style>
+        </ResourceDictionary>
     </Window.Resources>
     <DockPanel>
         <Border DockPanel.Dock="Top"

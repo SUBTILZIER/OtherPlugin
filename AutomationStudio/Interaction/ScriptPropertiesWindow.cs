@@ -38,6 +38,7 @@ public sealed class ScriptPropertiesWindow : Window
     private static WpfBrush ErrorBrush => ThemeResourceHelper.Brush("LogErrorBrush");
 
     private readonly ScriptRunSettings _settings;
+    private readonly HotkeyCaptureCoordinator _hotkeyCaptureCoordinator;
     private readonly RadioButton _countRadio = new() { Content = "按次数循环" };
     private readonly RadioButton _untilStoppedRadio = new() { Content = "循环到按终止键为止" };
     private readonly RadioButton _durationRadio = new() { Content = "循环一段时间" };
@@ -54,8 +55,13 @@ public sealed class ScriptPropertiesWindow : Window
     private readonly TextBox _stopTriggerWindowBox = CreateTextBox("1000", 64);
     private readonly TextBlock _errorText = new();
 
-    public ScriptPropertiesWindow(Window owner, string assetName, ScriptRunSettings settings)
+    internal ScriptPropertiesWindow(
+        Window owner,
+        string assetName,
+        ScriptRunSettings settings,
+        HotkeyCaptureCoordinator hotkeyCaptureCoordinator)
     {
+        _hotkeyCaptureCoordinator = hotkeyCaptureCoordinator;
         Owner = owner;
         Title = $"脚本属性 - {assetName}";
         Width = 840;
@@ -209,6 +215,12 @@ public sealed class ScriptPropertiesWindow : Window
             return;
         }
 
+        if (_settings.RequiresStopHotkey)
+        {
+            _errorText.Text = "循环到终止键模式必须配置终止热键";
+            return;
+        }
+
         if (_settings.StartHotkey.IsConfigured &&
             _settings.StopHotkey.IsConfigured &&
             ScriptHotkeyService.SameHotkey(_settings.StartHotkey, _settings.StopHotkey))
@@ -222,12 +234,12 @@ public sealed class ScriptPropertiesWindow : Window
 
     private void CaptureHotkey(ScriptHotkeySettings target, TextBlock label)
     {
-        var window = new ScriptHotkeyCaptureWindow(this);
-        if (window.ShowDialog() != true || window.Result is null)
+        var result = _hotkeyCaptureCoordinator.Capture(this);
+        if (result is null)
             return;
 
-        target.InputKind = window.Result.InputKind;
-        target.Key = window.Result.Key;
+        target.InputKind = result.InputKind;
+        target.Key = result.Key;
         RefreshHotkeyText(target, label);
     }
 

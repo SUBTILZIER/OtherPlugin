@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.IO;
 using System.Threading;
 using System.Windows.Threading;
+using System.Diagnostics;
 using AutomationStudioWpf.Collections;
 
 namespace AutomationStudioWpf.Logging;
@@ -9,6 +10,8 @@ namespace AutomationStudioWpf.Logging;
 public static class Logger
 {
     private const int MaxUiEntries = 5000;
+    private const int LogRetentionDays = 5;
+    private const long MaxLogDirectoryBytes = 128L * 1024 * 1024;
 
     private static readonly string LogDir = Path.Combine(AppContext.BaseDirectory, "saved", "log");
     private static readonly object _lock = new();
@@ -22,6 +25,7 @@ public static class Logger
     static Logger()
     {
         Directory.CreateDirectory(LogDir);
+        _ = Task.Run(CleanupOldLogs);
     }
 
     public static void Info(string message) => Write(LogLevel.Info, message);
@@ -52,7 +56,7 @@ public static class Logger
         {
             try
             {
-                string logFile = Path.Combine(LogDir, $"Log_{DateTime.Now:yyyy_MM_dd_HH_mm}.txt");
+                string logFile = CurrentLogFilePath(DateTime.Now);
                 File.AppendAllText(logFile, $"[{entry.Timestamp}] [{LevelLabel(entry.Level)}] {entry.Message}{Environment.NewLine}");
             }
             catch
@@ -61,14 +65,100 @@ public static class Logger
             }
         }
 
-        QueueEntryForUi(entry);
-
-        // Also add to active capture scope for structured summaries.
+        // Captured node-internal entries feed the structured node block only.
+        // They still reach the log file above, but must not duplicate in the UI.
         if (!bypassCapture && _activeCapture.Value is { } capture)
+        {
             capture.Add(entry);
+            return;
+        }
+
+        QueueEntryForUi(entry);
     }
 
     public static string GetLogDirectory() => LogDir;
+
+    private static string CurrentLogFilePath(DateTime localTime) =>
+        Path.Combine(LogDir, $"Log_{localTime:yyyy_MM_dd_HH}.txt");
+
+    private static void CleanupOldLogs()
+    {
+        lock (_lock)
+        {
+            try
+            {
+                Directory.CreateDirectory(LogDir);
+                string currentLogPath = Path.GetFullPath(CurrentLogFilePath(DateTime.Now));
+                DateTime cutoffUtc = DateTime.UtcNow.AddDays(-LogRetentionDays);
+                var files = Directory
+                    .EnumerateFiles(LogDir, "Log_*.txt", SearchOption.TopDirectoryOnly)
+                    .Select(path => new FileInfo(path))
+                    .OrderBy(file => file.LastWriteTimeUtc)
+                    .ToList();
+
+                foreach (FileInfo file in files.Where(file =>
+                             !IsCurrentLog(file, currentLogPath) &&
+                             file.LastWriteTimeUtc < cutoffUtc))
+                {
+                    TryDeleteLog(file);
+                }
+
+                files = files.Where(file => file.Exists).OrderBy(file => file.LastWriteTimeUtc).ToList();
+                long totalBytes = files.Sum(file => SafeLength(file));
+                foreach (FileInfo file in files)
+                {
+                    if (totalBytes <= MaxLogDirectoryBytes)
+                        break;
+                    if (IsCurrentLog(file, currentLogPath))
+                        continue;
+
+                    long length = SafeLength(file);
+                    if (TryDeleteLog(file))
+                        totalBytes = Math.Max(0, totalBytes - length);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"日志清理失败：{ex.Message}");
+            }
+        }
+    }
+
+    private static bool IsCurrentLog(FileInfo file, string currentLogPath) =>
+        string.Equals(file.FullName, currentLogPath, StringComparison.OrdinalIgnoreCase);
+
+    private static long SafeLength(FileInfo file)
+    {
+        try
+        {
+            return file.Exists ? file.Length : 0;
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    private static bool TryDeleteLog(FileInfo file)
+    {
+        try
+        {
+            file.Delete();
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"日志文件清理失败：{file.FullName}：{ex.Message}");
+            return false;
+        }
+    }
+
+    public static void ClearUiEntries()
+    {
+        lock (_uiLock)
+            _pendingUiEntries.Clear();
+        Entries.Clear();
+    }
 
     private static void QueueEntryForUi(LogEntry entry)
     {
@@ -132,6 +222,7 @@ public static class Logger
         private readonly object _gate = new();
         private readonly List<LogEntry> _entries = [];
         private bool _disposed;
+        private bool _summarized;
 
         internal LogCaptureScope(LogCaptureScope? parent)
         {
@@ -157,6 +248,12 @@ public static class Logger
             }
         }
 
+        public void MarkSummarized()
+        {
+            lock (_gate)
+                _summarized = true;
+        }
+
         public void Dispose()
         {
             if (_disposed)
@@ -165,6 +262,12 @@ public static class Logger
             _disposed = true;
             if (ReferenceEquals(_activeCapture.Value, this))
                 _activeCapture.Value = _parent;
+
+            List<LogEntry> entriesToReplay;
+            lock (_gate)
+                entriesToReplay = _summarized ? [] : [.. _entries];
+            foreach (LogEntry entry in entriesToReplay)
+                QueueEntryForUi(entry);
         }
     }
 }

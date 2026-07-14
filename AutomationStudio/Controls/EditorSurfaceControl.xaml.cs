@@ -20,6 +20,13 @@ public partial class EditorSurfaceControl : WpfUserControl
             typeof(EditorSurfaceControl),
             new PropertyMetadata(false));
 
+    public static readonly DependencyProperty ExecutionFreezeMessageProperty =
+        DependencyProperty.Register(
+            nameof(ExecutionFreezeMessage),
+            typeof(string),
+            typeof(EditorSurfaceControl),
+            new PropertyMetadata("按 Esc 或顶部停止按钮结束调试。"));
+
     public EditorSurfaceControl()
     {
         InitializeComponent();
@@ -29,6 +36,12 @@ public partial class EditorSurfaceControl : WpfUserControl
     {
         get => (bool)GetValue(IsExecutionFrozenProperty);
         set => SetValue(IsExecutionFrozenProperty, value);
+    }
+
+    public string ExecutionFreezeMessage
+    {
+        get => (string)GetValue(ExecutionFreezeMessageProperty);
+        set => SetValue(ExecutionFreezeMessageProperty, value);
     }
 
     public EditorSessionViewModel? Session { get; private set; }

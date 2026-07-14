@@ -160,6 +160,11 @@ public sealed class ScriptRunSettings
 
     public ScriptHotkeySettings StopHotkey { get; set; } = new();
 
+    public bool RequiresStopHotkey =>
+        LoopMode == ScriptLoopMode.UntilStopped &&
+        StartHotkey?.IsConfigured == true &&
+        StopHotkey?.IsConfigured != true;
+
     public ScriptRunSettings Clone() => new()
     {
         LoopMode = LoopMode,
@@ -419,6 +424,7 @@ public sealed record CallableCustomEventItem(
 public sealed class GraphLibraryService
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
+    private bool _writesBlockedByLoadFailure;
 
     public string LibraryPath { get; }
 
@@ -438,11 +444,25 @@ public sealed class GraphLibraryService
 
     public GraphLibraryState Load()
     {
-        if (!File.Exists(LibraryPath))
+        if (!File.Exists(LibraryPath) && !File.Exists(LibraryPath + ".bak"))
             return new GraphLibraryState();
 
-        string json = File.ReadAllText(LibraryPath);
-        return JsonSerializer.Deserialize<GraphLibraryState>(json) ?? new GraphLibraryState();
+        try
+        {
+            var readResult = AtomicJsonFileStore.Read<GraphLibraryState>(LibraryPath, JsonOptions);
+            _writesBlockedByLoadFailure = readResult.RepairError is not null;
+            if (readResult.RecoveredFromBackup && readResult.PrimaryFileRepaired)
+                Logging.Logger.Warn($"资产库已从备份恢复，并修复主文件：{LibraryPath}");
+            else if (readResult.RepairError is not null)
+                Logging.Logger.Error($"资产库已从备份读取，但主文件修复失败，本次运行禁止覆盖：{readResult.RepairError.Message}");
+            return readResult.Value;
+        }
+        catch (Exception ex)
+        {
+            _writesBlockedByLoadFailure = true;
+            Logging.Logger.Error($"资产库读取失败，已阻止覆盖原文件：{ex.Message}");
+            return new GraphLibraryState();
+        }
     }
 
     public void Save(IEnumerable<GraphListItemViewModel> graphs, string? selectedId)
@@ -465,7 +485,8 @@ public sealed class GraphLibraryService
             Functions = ToItems(functions).ToList(),
         };
 
-        File.WriteAllText(LibraryPath, JsonSerializer.Serialize(state, JsonOptions));
+        EnsureWritesAllowed();
+        AtomicJsonFileStore.Write(LibraryPath, state, JsonOptions);
     }
 
     public void SaveContentLibrary(IEnumerable<ContentAssetViewModel> assets, string? selectedContentId)
@@ -476,7 +497,14 @@ public sealed class GraphLibraryService
             ContentAssets = assets.Select(ToContentAssetModel).ToList(),
         };
 
-        File.WriteAllText(LibraryPath, JsonSerializer.Serialize(state, JsonOptions));
+        EnsureWritesAllowed();
+        AtomicJsonFileStore.Write(LibraryPath, state, JsonOptions);
+    }
+
+    private void EnsureWritesAllowed()
+    {
+        if (_writesBlockedByLoadFailure)
+            throw new InvalidOperationException($"资产库主文件无法安全恢复。为避免覆盖原数据，本次运行已禁止保存：{LibraryPath}");
     }
 
     public ObservableCollection<ContentAssetViewModel> LoadContentLibrary()
@@ -543,6 +571,7 @@ public sealed class GraphLibraryService
         RunSettings = asset.Kind == ContentAssetKind.Script
             ? asset.RunSettings?.Clone() ?? new ScriptRunSettings()
             : null,
+        IsScriptEnabled = asset.Kind == ContentAssetKind.Script ? asset.IsScriptEnabled : null,
     };
 
     private static ContentAssetViewModel ToContentAssetViewModel(ContentAssetModel asset)
@@ -556,6 +585,7 @@ public sealed class GraphLibraryService
             EventGraphs = new ObservableCollection<GraphListItemViewModel>(ToEventGraphViewModels(asset.EventGraphs, "Unnamed Event Graph")),
             Functions = new ObservableCollection<GraphListItemViewModel>(ToViewModels(asset.Functions, GraphAssetKind.Function, "Unnamed Function")),
             RunSettings = asset.RunSettings?.Clone() ?? new ScriptRunSettings(),
+            IsScriptEnabled = asset.Kind == ContentAssetKind.Script && (asset.IsScriptEnabled ?? true),
         };
         viewModel.RunSettings.Normalize();
         return viewModel;
@@ -714,4 +744,6 @@ public sealed class ContentAssetModel
     public List<GraphLibraryItem> Functions { get; set; } = [];
 
     public ScriptRunSettings? RunSettings { get; set; }
+
+    public bool? IsScriptEnabled { get; set; }
 }

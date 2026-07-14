@@ -132,14 +132,34 @@ public partial class MainWindow
 
     private void PersistAssetLibrary()
     {
-        _graphLibraryService.SaveContentLibrary(ContentBrowserItems, _activeContentAsset?.Id);
-        if (_scriptHotkeyService is not null)
-            RefreshScriptHotkeys();
+        TryPersistAssetLibrary(showPrompt: false);
     }
 
-    private void SaveAllAssets()
+    private bool TryPersistAssetLibrary(bool showPrompt)
+    {
+        try
+        {
+            _graphLibraryService.SaveContentLibrary(ContentBrowserItems, _activeContentAsset?.Id);
+            if (_scriptHotkeyService is not null)
+                RefreshScriptHotkeys();
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Logger.Error($"保存资产库失败：{ex.Message}");
+            SetStatus("保存资产库失败，未清除脏标记。");
+            if (showPrompt)
+                ThemedDialog.Show(this, ex.Message, "保存失败", MessageBoxButton.OK, MessageBoxImage.Error);
+            return false;
+        }
+    }
+
+    private bool SaveAllAssets()
     {
         CommitAllSessionsToAssets(applyInspectorForActive: true);
+        if (!TryPersistAssetLibrary(showPrompt: true))
+            return false;
+
         foreach (var item in ContentBrowserItems
                      .Where(asset => asset.Kind != ContentAssetKind.Folder)
                      .SelectMany(asset => asset.EventGraphs.Concat(asset.Functions))
@@ -153,10 +173,10 @@ public partial class MainWindow
             item.IsDirty = false;
         foreach (var session in _editorSessions)
             SyncSessionGraphStateFromAsset(session);
-        PersistAssetLibrary();
         UpdateGraphSectionVisibility();
         UpdateEditorSessionChrome();
         SetStatus($"已保存全部内容资产：{ContentBrowserItems.Count} 个。");
+        return true;
     }
 
     private bool EnsureCompiledBeforeSave()

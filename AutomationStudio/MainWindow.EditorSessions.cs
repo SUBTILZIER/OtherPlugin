@@ -177,7 +177,7 @@ public partial class MainWindow
 
     private bool TryActivateLoadedMainTabSession(EditorSessionViewModel session)
     {
-        if (_executionController?.IsRunning == true)
+        if (_executionController?.IsManualDebugRunning == true)
         {
             SetStatus("执行中，不能切换编辑窗口。");
             return true;

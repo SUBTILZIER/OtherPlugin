@@ -100,6 +100,28 @@ public partial class MainWindow
         ContentBrowserListBox.GiveFeedback += ContentBrowserEnhanced_GiveFeedback;
     }
 
+    private void DetachContentBrowserEnhancedInteractions()
+    {
+        if (!_contentBrowserEnhancedInteractionsInstalled)
+            return;
+
+        ContentBrowserDeleteMenuItem.Click -= DeleteSelectedContentAssetsMenuItem_Click;
+        ContentBrowserRenameMenuItem.Click -= RenameSelectedContentAssetMenuItem_Click;
+        if (ContentBrowserListBox.ContextMenu is not null)
+            ContentBrowserListBox.ContextMenu.Opened -= ContentBrowserContextMenu_EnhancedOpened;
+        ContentBrowserBodyGrid.RemoveHandler(WpfUIElement.PreviewMouseLeftButtonDownEvent, new WpfMouseButtonEventHandler(ContentBrowserEnhanced_PreviewMouseLeftButtonDown));
+        ContentBrowserBodyGrid.RemoveHandler(WpfUIElement.PreviewMouseRightButtonDownEvent, new WpfMouseButtonEventHandler(ContentBrowserEnhanced_PreviewMouseRightButtonDown));
+        ContentBrowserBodyGrid.RemoveHandler(WpfUIElement.PreviewMouseMoveEvent, new WpfMouseEventHandler(ContentBrowserEnhanced_PreviewMouseMove));
+        ContentBrowserBodyGrid.RemoveHandler(WpfUIElement.PreviewMouseLeftButtonUpEvent, new WpfMouseButtonEventHandler(ContentBrowserEnhanced_PreviewMouseLeftButtonUp));
+        ContentBrowserBodyGrid.RemoveHandler(WpfDragDrop.PreviewDragOverEvent, new WpfDragEventHandler(ContentBrowserEnhanced_PreviewDragOver));
+        ContentBrowserBodyGrid.RemoveHandler(WpfDragDrop.PreviewDropEvent, new WpfDragEventHandler(ContentBrowserEnhanced_PreviewDrop));
+        ContentBrowserListBox.RemoveHandler(WpfKeyboard.PreviewKeyDownEvent, new WpfKeyEventHandler(ContentBrowserEnhanced_PreviewKeyDown));
+        ContentBrowserListBox.GiveFeedback -= ContentBrowserEnhanced_GiveFeedback;
+        StopContentDragPreview();
+        EndContentBoxSelection();
+        _contentBrowserEnhancedInteractionsInstalled = false;
+    }
+
     private void ContentBrowserEnhanced_PreviewMouseLeftButtonDown(object sender, WpfMouseButtonEventArgs e)
     {
         if (e.OriginalSource is not WpfDependencyObject source || !IsVisualInside(ContentBrowserListBox, source))
@@ -622,6 +644,9 @@ public partial class MainWindow
         var targets = GetTopLevelContentAssets(GetSelectedContentAssetList());
         if (targets.Count == 0)
             return false;
+
+        if (!CanDeleteContentAssets(targets))
+            return true;
 
         string message = targets.Count == 1
             ? $"是否删除：{targets[0].Name}？"

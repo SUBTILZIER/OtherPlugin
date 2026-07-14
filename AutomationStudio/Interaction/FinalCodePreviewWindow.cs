@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using WpfContextMenu = System.Windows.Controls.ContextMenu;
 using WpfFontFamily = System.Windows.Media.FontFamily;
@@ -130,6 +131,19 @@ internal sealed class FinalCodePreviewWindow : Window
         _textBox.SelectionOpacity = 0.35;
         _textBox.IsUndoEnabled = false;
         _textBox.SpellCheck.IsEnabled = false;
+        _textBox.InputBindings.Add(new KeyBinding(ApplicationCommands.Copy, Key.C, ModifierKeys.Control));
+        _textBox.CommandBindings.Add(new CommandBinding(
+            ApplicationCommands.Copy,
+            (_, e) =>
+            {
+                CopySelection();
+                e.Handled = true;
+            },
+            (_, e) =>
+            {
+                e.CanExecute = !string.IsNullOrEmpty(_textBox.SelectedText);
+                e.Handled = true;
+            }));
         _textBox.ContextMenu = BuildContextMenu();
 
         root.Children.Add(_textBox);
@@ -143,8 +157,14 @@ internal sealed class FinalCodePreviewWindow : Window
         ThemeResourceHelper.SetResource(menu, WpfContextMenu.BorderBrushProperty, "DropdownBorderBrush");
         ThemeResourceHelper.SetResource(menu, WpfContextMenu.ForegroundProperty, "DropdownTextBrush");
         menu.Items.Add(CreateMenuItem("全选", (_, _) => _textBox.SelectAll()));
-        menu.Items.Add(CreateMenuItem("复制", (_, _) => _textBox.Copy()));
+        menu.Items.Add(CreateMenuItem("复制", (_, _) => CopySelection()));
         return menu;
+    }
+
+    private void CopySelection()
+    {
+        if (!string.IsNullOrEmpty(_textBox.SelectedText))
+            ClipboardHelper.TrySetText(_textBox.SelectedText);
     }
 
     private static WpfMenuItem CreateMenuItem(string header, RoutedEventHandler click)

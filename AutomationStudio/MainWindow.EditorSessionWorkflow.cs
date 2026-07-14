@@ -81,7 +81,7 @@ public partial class MainWindow
         GraphAssetKind? targetKind = null,
         bool showInHost = true)
     {
-        if (_executionController?.IsRunning == true)
+        if (_executionController?.IsManualDebugRunning == true)
         {
             SetStatus("执行中，不能切换编辑窗口。");
             return;

@@ -44,9 +44,6 @@ public partial class MainWindow
         _themedDialogOverridesInstalled = true;
         InstallContentBrowserEnhancedInteractions();
 
-        Closing -= Window_Closing;
-        Closing += Window_ClosingThemed;
-
         RunGraphButton.Click -= RunGraph_Click;
         RunGraphButton.Click += RunGraph_ClickThemed;
 
@@ -164,72 +161,6 @@ public partial class MainWindow
 
         CommitInspectorAndSnapshotAllSessions();
         await _executionController.RunAsync();
-    }
-
-    private void Window_ClosingThemed(object? sender, System.ComponentModel.CancelEventArgs e)
-    {
-        if (_isClosing) return;
-
-        _mousePickController.Stop();
-        if (!_isReallyClosing && _appSettings.WindowCloseAction == AppWindowCloseAction.MinimizeToTray)
-        {
-            e.Cancel = true;
-            MinimizeToTray();
-            return;
-        }
-
-        _scriptRunManager.StopAll();
-        _executionController.ReleaseAllKeys();
-        CommitInspectorAndSnapshotAllSessions();
-        if (ContentBrowserItems.Any(item => item.IsDirty) ||
-            GraphListItems.Concat(FunctionListItems).Any(item => item.IsDirty))
-        {
-            var result = ThemedDialog.ShowCustom(
-                this,
-                "存在未保存资产，是否保存？",
-                "是否保存",
-                MessageBoxImage.Question,
-                new ThemedDialogButton("保存", MessageBoxResult.Yes, true),
-                new ThemedDialogButton("不保存", MessageBoxResult.No),
-                new ThemedDialogButton("取消", MessageBoxResult.Cancel));
-
-            if (result == MessageBoxResult.Cancel)
-            {
-                e.Cancel = true;
-                return;
-            }
-
-            if (result == MessageBoxResult.Yes)
-                SaveAllAssets();
-        }
-
-        if (e.Cancel)
-            return;
-
-        _isReallyClosing = true;
-        _isClosing = true;
-        _finalCodePreviewWindow?.Close();
-        _finalCodePreviewWindow = null;
-        foreach (var session in _editorSessions.ToList())
-        {
-            session.DetachedWindow?.CloseFromOwner();
-            session.DetachedWindow = null;
-        }
-
-        _mousePickController.Dispose();
-        _scriptRunManager.Dispose();
-        _scriptHotkeyService.Dispose();
-        AppThemeService.ThemeChanged -= OnAppThemeChanged;
-        _trayMenuWindow?.Close();
-        _trayMenuWindow = null;
-        if (_notifyIcon is not null)
-        {
-            _notifyIcon.Visible = false;
-            _notifyIcon.Dispose();
-            _notifyIcon = null;
-        }
-
-        System.Windows.Application.Current.Shutdown();
     }
 
     private bool EnsureCompiledBeforeSaveThemed()
@@ -374,6 +305,9 @@ public partial class MainWindow
         var targets = GetTopLevelContentAssets(GetSelectedContentAssetList());
         if (targets.Count == 0)
             return false;
+
+        if (!CanDeleteContentAssets(targets))
+            return true;
 
         string message = targets.Count == 1
             ? $"是否删除：{targets[0].Name}？"

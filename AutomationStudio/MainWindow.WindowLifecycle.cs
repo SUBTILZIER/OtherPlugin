@@ -4,6 +4,7 @@ using System.Reflection;
 using System.Windows;
 using AutomationStudioWpf.Interaction;
 using AutomationStudioWpf.Services;
+using AutomationStudioWpf.Adapters;
 using WpfApplication = System.Windows.Application;
 using WinFormsCursor = System.Windows.Forms.Cursor;
 using WinFormsMouseButtons = System.Windows.Forms.MouseButtons;
@@ -58,10 +59,7 @@ public partial class MainWindow
         _trayMenuWindow = null;
         Close();
         if (_isClosing)
-        {
             WpfApplication.Current.Shutdown();
-            Environment.Exit(0);
-        }
 
         _isReallyClosing = false;
         if (_notifyIcon is not null)
@@ -77,8 +75,8 @@ public partial class MainWindow
 
     private void Window_Closing(object? sender, CancelEventArgs e)
     {
-        _mousePickController.Stop();
-        if (_isClosing) return;
+        if (_isClosing)
+            return;
 
         if (!_isReallyClosing && _appSettings.WindowCloseAction == AppWindowCloseAction.MinimizeToTray)
         {
@@ -87,13 +85,14 @@ public partial class MainWindow
             return;
         }
 
-        _scriptRunManager.StopAll();
-        _executionController.ReleaseAllKeys();
-
-        CommitAllSessionsToAssets(applyInspectorForActive: true);
+        CommitInspectorAndSnapshotAllSessions();
         if (ContentBrowserItems.Any(item => item.IsDirty) ||
             GraphListItems.Concat(FunctionListItems).Any(item => item.IsDirty))
         {
+            bool resumeMousePickOnCancel = _mousePickController.IsActive;
+            if (resumeMousePickOnCancel)
+                _mousePickController.Stop();
+
             var result = ThemedDialog.ShowCustom(
                 this,
                 "存在未保存资产，是否保存？",
@@ -105,17 +104,32 @@ public partial class MainWindow
             if (result == MessageBoxResult.Cancel)
             {
                 e.Cancel = true;
+                if (resumeMousePickOnCancel)
+                    _mousePickController.Start();
                 return;
             }
 
-            if (result == MessageBoxResult.Yes)
-                SaveAllAssets();
+            if (result == MessageBoxResult.Yes && !SaveAllAssets())
+            {
+                e.Cancel = true;
+                if (resumeMousePickOnCancel)
+                    _mousePickController.Start();
+                return;
+            }
         }
 
         if (e.Cancel)
             return;
 
+        _isReallyClosing = true;
         _isClosing = true;
+        RuntimeShutdownGate.BeginShutdown();
+        _mousePickController.Stop();
+        _scriptRunManager.StopAll(ScriptRunStopReason.ApplicationExit);
+        _executionController.Cancel(ExecutionStopReason.ApplicationExit);
+        _pythonEnvironmentService.TerminateAllProcessesImmediately();
+        _executionController.ReleaseAllInputs();
+        DisposeWindowSubscriptions();
         _finalCodePreviewWindow?.Close();
         _finalCodePreviewWindow = null;
         foreach (var session in _editorSessions.ToList())
@@ -127,7 +141,6 @@ public partial class MainWindow
         _mousePickController.Dispose();
         _scriptRunManager.Dispose();
         _scriptHotkeyService.Dispose();
-        AppThemeService.ThemeChanged -= OnAppThemeChanged;
         _trayMenuWindow?.Close();
         _trayMenuWindow = null;
         if (_notifyIcon is not null)

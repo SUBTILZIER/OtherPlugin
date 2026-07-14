@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Collections.Specialized;
 using AutomationStudioWpf.Controls;
 using AutomationStudioWpf.Graph;
 using AutomationStudioWpf.Interaction;
@@ -18,7 +19,7 @@ public partial class MainWindow
     {
         AttachActiveEditorService(_editorService);
 
-        Logger.Entries.CollectionChanged += (_, e) => _logPanelController.HandleEntriesChanged(e);
+        Logger.Entries.CollectionChanged += LoggerEntries_CollectionChanged;
         AppThemeService.ThemeChanged += OnAppThemeChanged;
 
         Closing += Window_Closing;
@@ -50,6 +51,11 @@ public partial class MainWindow
             CompileScriptAssetForRunAsync,
             GetRuntimeCallableFunctionsForAsset,
             (asset, functions, ct) => _executionController.RunScriptAssetOnceAsync(asset, functions, ct),
+            SetStatus);
+        _hotkeyCaptureCoordinator = new HotkeyCaptureCoordinator(
+            this,
+            _scriptHotkeyService,
+            () => (_executionController?.IsManualDebugRunning ?? false) || _scriptRunManager.IsAnyHotkeyRunActive,
             SetStatus);
         _scriptRunManager.RunningStateChanged += OnScriptRunningStateChanged;
 
@@ -109,14 +115,18 @@ public partial class MainWindow
 
     private void RebuildExecutionController()
     {
+        if (_executionController is not null)
+            _executionController.ExecutionStateChanged -= OnExecutionStateChanged;
+
         _executionController = new ExecutionController(
             this,
             _editorService,
-            new Runtime.GraphRuntimeExecutor(nodeRegistry: _nodeRegistry, adapters: new Adapters.RuntimeAdapters()),
+            _runtimeExecutor,
             new GraphCore.GraphValidator(),
             RunGraphButton,
             GetRuntimeCallableFunctions,
-            SetStatus);
+            SetStatus,
+            _pythonEnvironmentService.EnsureReadyAsync);
         _executionController.ExecutionStateChanged += OnExecutionStateChanged;
     }
 
@@ -362,7 +372,7 @@ public partial class MainWindow
 
     private bool ActivateEditorSessionForSurfaceInteraction(EditorSessionViewModel session)
     {
-        if (_executionController?.IsRunning == true)
+        if (_executionController?.IsManualDebugRunning == true)
         {
             SetStatus("执行中，不能切换编辑窗口。");
             return false;

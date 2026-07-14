@@ -1,7 +1,15 @@
 using AutomationStudioWpf.Logging;
 using AutomationStudioWpf.Services;
+using AutomationStudioWpf.Adapters;
 
 namespace AutomationStudioWpf.Interaction;
+
+internal enum ScriptRunStopReason
+{
+    GlobalHotkey,
+    Toolbar,
+    ApplicationExit,
+}
 
 internal sealed class ScriptRunManager : IDisposable
 {
@@ -12,7 +20,9 @@ internal sealed class ScriptRunManager : IDisposable
     private readonly Dictionary<string, ScriptRunState> _running = new(StringComparer.Ordinal);
     private bool _disposed;
     public event Action? RunningStateChanged;
-    public bool IsAnyRunning => _running.Count > 0;
+    public bool IsAnyHotkeyRunActive => _running.Count > 0;
+
+    public bool IsHotkeyRunActive(ContentAssetViewModel asset) => _running.ContainsKey(asset.Id);
 
     public ScriptRunManager(
         Func<ContentAssetViewModel, CancellationToken, Task<bool>> compileScript,
@@ -26,13 +36,21 @@ internal sealed class ScriptRunManager : IDisposable
         _setStatus = setStatus;
     }
 
-    public async Task StartAsync(ContentAssetViewModel asset)
+    public async Task StartFromHotkeyAsync(ContentAssetViewModel asset)
     {
-        if (_disposed || asset.Kind != ContentAssetKind.Script)
+        if (_disposed || RuntimeShutdownGate.IsShutdownStarted || asset.Kind != ContentAssetKind.Script || !asset.IsScriptEnabled)
             return;
 
         var settings = asset.RunSettings.Clone();
         settings.Normalize();
+        if (settings.LoopMode == ScriptLoopMode.UntilStopped && !settings.StopHotkey.IsConfigured)
+        {
+            string message = $"脚本未启动：{asset.Name} 的循环到终止键模式必须配置终止热键。";
+            Logger.Warn(message);
+            _setStatus(message);
+            return;
+        }
+
         if (_running.TryGetValue(asset.Id, out var existing))
         {
             if (settings.PreventDuplicateRun)
@@ -51,6 +69,10 @@ internal sealed class ScriptRunManager : IDisposable
                 }
                 catch (OperationCanceledException)
                 {
+                }
+                catch (Exception ex)
+                {
+                    Logger.Warn($"等待旧脚本结束时发现异常，继续重启：{asset.Name}：{ex.Message}");
                 }
             }
         }
@@ -87,20 +109,31 @@ internal sealed class ScriptRunManager : IDisposable
         }
     }
 
-    public void Stop(ContentAssetViewModel asset)
+    public void StopFromHotkey(ContentAssetViewModel asset)
     {
         if (_running.TryGetValue(asset.Id, out var state))
         {
+            Logger.Info($"终止热键请求停止脚本：{asset.Name}");
             state.Cancellation.Cancel();
             _setStatus($"正在停止脚本：{asset.Name}");
         }
     }
 
-    public void StopAll()
+    public void StopAll(ScriptRunStopReason reason)
     {
-        RunningStateChanged?.Invoke();
+        if (_running.Count == 0)
+            return;
+
+        string reasonText = reason switch
+        {
+            ScriptRunStopReason.Toolbar => "顶部停止按钮",
+            ScriptRunStopReason.ApplicationExit => "应用退出",
+            _ => "终止热键",
+        };
+        Logger.Info($"{reasonText}请求停止全部热键脚本。");
         foreach (var state in _running.Values.ToList())
             state.Cancellation.Cancel();
+        _setStatus("正在停止热键脚本...");
     }
 
     public void Dispose()
@@ -109,7 +142,7 @@ internal sealed class ScriptRunManager : IDisposable
             return;
 
         _disposed = true;
-        StopAll();
+        StopAll(ScriptRunStopReason.ApplicationExit);
     }
 
     private async Task RunLoopAsync(ContentAssetViewModel asset, ScriptRunSettings settings, CancellationToken ct)
@@ -124,24 +157,51 @@ internal sealed class ScriptRunManager : IDisposable
         if (!await _compileScript(asset, ct))
             return;
 
+        TimeSpan duration = GetDuration(settings);
+        using var durationCancellation = settings.LoopMode == ScriptLoopMode.Duration
+            ? CancellationTokenSource.CreateLinkedTokenSource(ct)
+            : null;
+        if (durationCancellation is not null)
+            durationCancellation.CancelAfter(duration);
+        CancellationToken runToken = durationCancellation?.Token ?? ct;
+
         var startedAt = DateTime.UtcNow;
         int iteration = 0;
-        while (!ct.IsCancellationRequested)
+        try
         {
-            iteration++;
-            if (settings.LoopMode == ScriptLoopMode.Count && iteration > settings.LoopCount)
-                break;
+            while (!runToken.IsCancellationRequested)
+            {
+                iteration++;
+                if (settings.LoopMode == ScriptLoopMode.Count && iteration > settings.LoopCount)
+                    break;
 
-            if (settings.LoopMode == ScriptLoopMode.Duration && DateTime.UtcNow - startedAt >= GetDuration(settings))
-                break;
+                if (settings.LoopMode == ScriptLoopMode.Duration && DateTime.UtcNow - startedAt >= duration)
+                    break;
 
-            Logger.Info($"脚本循环开始：{asset.Name} 第 {iteration} 次");
-            var result = await _runOnce(asset, _getFunctions(asset), ct);
-            if (!result.Success)
-                break;
+                Logger.Info($"脚本循环开始：{asset.Name} 第 {iteration} 次");
+                var result = await _runOnce(asset, _getFunctions(asset), runToken);
+                if (!result.Success)
+                    break;
 
-            if (settings.LoopMode == ScriptLoopMode.Count && iteration >= settings.LoopCount)
-                break;
+                if (settings.LoopMode == ScriptLoopMode.Count && iteration >= settings.LoopCount)
+                    break;
+            }
+        }
+        catch (OperationCanceledException) when (durationCancellation?.IsCancellationRequested == true && !ct.IsCancellationRequested)
+        {
+            Logger.Info($"脚本运行时长已到：{asset.Name}");
+            _setStatus($"脚本运行时长已到：{asset.Name}");
+            return;
+        }
+
+        if (ct.IsCancellationRequested)
+            ct.ThrowIfCancellationRequested();
+
+        if (durationCancellation?.IsCancellationRequested == true)
+        {
+            Logger.Info($"脚本运行时长已到：{asset.Name}");
+            _setStatus($"脚本运行时长已到：{asset.Name}");
+            return;
         }
 
         _setStatus($"脚本执行结束：{asset.Name}");

@@ -28,6 +28,7 @@ public sealed class ScriptPropertiesSummaryControl : WpfUserControl
 
     private readonly ContentAssetViewModel _asset;
     private readonly Func<ContentAssetViewModel, ScriptRunSettings, bool> _saveAction;
+    private readonly HotkeyCaptureCoordinator _hotkeyCaptureCoordinator;
     private readonly ScriptRunSettings _draft;
     private readonly WpfRadioButton _countRadio = new() { Content = "按次数循环" };
     private readonly WpfRadioButton _untilStoppedRadio = new() { Content = "循环到按终止键为止" };
@@ -45,10 +46,14 @@ public sealed class ScriptPropertiesSummaryControl : WpfUserControl
     private readonly WpfTextBox _stopTriggerWindowBox = TextBox("1000", 70);
     private readonly TextBlock _statusText = new();
 
-    public ScriptPropertiesSummaryControl(ContentAssetViewModel asset, Func<ContentAssetViewModel, ScriptRunSettings, bool> saveAction)
+    internal ScriptPropertiesSummaryControl(
+        ContentAssetViewModel asset,
+        Func<ContentAssetViewModel, ScriptRunSettings, bool> saveAction,
+        HotkeyCaptureCoordinator hotkeyCaptureCoordinator)
     {
         _asset = asset;
         _saveAction = saveAction;
+        _hotkeyCaptureCoordinator = hotkeyCaptureCoordinator;
         _draft = asset.RunSettings.Clone();
         _draft.Normalize();
         HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch;
@@ -151,6 +156,13 @@ public sealed class ScriptPropertiesSummaryControl : WpfUserControl
         {
             SetResource(_statusText, TextBlock.ForegroundProperty, "LogErrorBrush");
             _statusText.Text = "循环时长不能为 0。";
+            return;
+        }
+
+        if (_draft.RequiresStopHotkey)
+        {
+            SetResource(_statusText, TextBlock.ForegroundProperty, "LogErrorBrush");
+            _statusText.Text = "循环到终止键模式必须配置终止热键。";
             return;
         }
 
@@ -284,12 +296,12 @@ public sealed class ScriptPropertiesSummaryControl : WpfUserControl
     private void CaptureHotkey(ScriptHotkeySettings target, TextBlock label)
     {
         var owner = Window.GetWindow(this);
-        var window = owner is null ? new ScriptHotkeyCaptureWindow(new Window()) : new ScriptHotkeyCaptureWindow(owner);
-        if (window.ShowDialog() != true || window.Result is null)
+        var result = _hotkeyCaptureCoordinator.Capture(owner);
+        if (result is null)
             return;
 
-        target.InputKind = window.Result.InputKind;
-        target.Key = window.Result.Key;
+        target.InputKind = result.InputKind;
+        target.Key = result.Key;
         label.Text = target.Key;
     }
 

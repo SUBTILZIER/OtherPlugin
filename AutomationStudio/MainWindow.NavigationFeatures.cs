@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Media;
 using System.Windows.Threading;
 using AutomationStudioWpf.Graph;
+using AutomationStudioWpf.Interaction;
 using AutomationStudioWpf.Services;
 using WpfBrush = System.Windows.Media.Brush;
 using WpfBrushes = System.Windows.Media.Brushes;
@@ -36,6 +37,8 @@ public partial class MainWindow
     private bool _navigationFeaturesInstalled;
     private bool _autoFitGraphQueued;
     private bool _autoFitRenderingAttached;
+    private EditorSessionViewModel? _autoFitSession;
+    private GraphListItemViewModel? _autoFitGraph;
     private bool _suppressAutoFitOnGraphLoad;
     private bool _assetCompileButtonStateQueued;
     private ObservableCollection<GraphListItemViewModel>? _attachedGraphListItems;
@@ -168,6 +171,8 @@ public partial class MainWindow
             return;
 
         _autoFitGraphQueued = true;
+        _autoFitSession = _activeEditorSession;
+        _autoFitGraph = _activeAssetController?.ActiveItem;
         _autoFitStableFrames = 0;
         _autoFitFramesRemaining = AutoFitMaxRenderFrames;
         if (_autoFitRenderingAttached)
@@ -181,6 +186,16 @@ public partial class MainWindow
     {
         if (!_autoFitGraphQueued)
         {
+            DetachAutoFitRendering();
+            return;
+        }
+
+        if (!ReferenceEquals(_autoFitSession, _activeEditorSession) ||
+            !ReferenceEquals(_autoFitGraph, _activeAssetController?.ActiveItem))
+        {
+            _autoFitGraphQueued = false;
+            _autoFitSession = null;
+            _autoFitGraph = null;
             DetachAutoFitRendering();
             return;
         }
@@ -201,7 +216,13 @@ public partial class MainWindow
         DetachAutoFitRendering();
         Dispatcher.BeginInvoke(new Action(() =>
         {
+            if (!ReferenceEquals(_autoFitSession, _activeEditorSession) ||
+                !ReferenceEquals(_autoFitGraph, _activeAssetController?.ActiveItem))
+                return;
+
             _autoFitGraphQueued = false;
+            _autoFitSession = null;
+            _autoFitGraph = null;
             FitGraphToView();
         }), DispatcherPriority.ApplicationIdle);
     }
@@ -231,6 +252,29 @@ public partial class MainWindow
 
         CompositionTarget.Rendering -= AutoFitGraphWhenLayoutIsReady;
         _autoFitRenderingAttached = false;
+    }
+
+    private void DetachNavigationFeatureHandlers()
+    {
+        Loaded -= MainWindow_NavigationFeaturesLoaded;
+        if (!_navigationFeaturesInstalled)
+            return;
+
+        ContentBrowserItems.CollectionChanged -= GraphCollections_AssetCompileStateChanged;
+        ContentVisibleItems.CollectionChanged -= ContentVisibleItems_SearchRefreshRequested;
+        if (_attachedGraphListItems is not null)
+            _attachedGraphListItems.CollectionChanged -= GraphCollections_AssetCompileStateChanged;
+        if (_attachedFunctionListItems is not null)
+            _attachedFunctionListItems.CollectionChanged -= GraphCollections_AssetCompileStateChanged;
+        _attachedGraphListItems = null;
+        _attachedFunctionListItems = null;
+
+        RemoveHandler(WpfUIElement.PreviewMouseLeftButtonDownEvent, new WpfMouseButtonEventHandler(GraphCallableNode_PreviewMouseLeftButtonDown));
+        RemoveHandler(WpfKeyboard.PreviewKeyDownEvent, new System.Windows.Input.KeyEventHandler(MainWindow_NavigationPreviewKeyDown));
+        ContentBrowserListBox.PreviewKeyDown -= ContentBrowserListBox_NavigationPreviewKeyDown;
+        if (_contentBrowserSearchBox is not null)
+            _contentBrowserSearchBox.TextChanged -= ContentBrowserSearchBox_TextChanged;
+        _navigationFeaturesInstalled = false;
     }
 
     private void InstallContentBrowserSearchBox()

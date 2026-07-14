@@ -107,7 +107,7 @@ public sealed class CommonNodeExecutor(NodeKind nodeKind) : INodeExecutor
                 return NodeExecutionResult.Ok("图像节点完成。");
             }
 
-            request.CancellationToken.WaitHandle.WaitOne(intervalMs);
+            CancellationWait.WaitOrThrow(intervalMs, request.CancellationToken);
         }
 
         request.Context.Set(request.Node.Id, "result", false);

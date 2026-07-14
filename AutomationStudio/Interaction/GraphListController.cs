@@ -7,6 +7,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
 using AutomationStudioWpf.Graph;
+using AutomationStudioWpf.Logging;
 using AutomationStudioWpf.Services;
 using OpenFileDialog = Microsoft.Win32.OpenFileDialog;
 using SaveFileDialog = Microsoft.Win32.SaveFileDialog;
@@ -18,6 +19,7 @@ namespace AutomationStudioWpf.Interaction;
 
 public sealed class GraphListController
 {
+    private static readonly JsonSerializerOptions ImportJsonOptions = new();
     private readonly Window _owner;
     private readonly GraphEditorService _editorService;
     private readonly GraphLibraryService _libraryService;
@@ -185,10 +187,11 @@ public sealed class GraphListController
     public void SaveAll()
     {
         SnapshotActive();
+        Persist();
+
         foreach (var item in _items)
             item.IsDirty = false;
 
-        Persist();
         _setStatus($"已保存全部{_displayName}：{_items.Count} 个。");
     }
 
@@ -233,9 +236,12 @@ public sealed class GraphListController
 
     public void ImportFile(string path)
     {
-        string json = File.ReadAllText(path);
-        var graph = JsonSerializer.Deserialize<GraphFileModel>(json)
-            ?? throw new InvalidOperationException("图谱文件解析失败。");
+        var readResult = AtomicJsonFileStore.Read<GraphFileModel>(path, ImportJsonOptions);
+        var graph = readResult.Value;
+        if (readResult.RecoveredFromBackup && readResult.PrimaryFileRepaired)
+            Logger.Warn($"外部图谱已从备份恢复，并修复主文件：{path}");
+        else if (readResult.RepairError is not null)
+            Logger.Error($"外部图谱已从备份读取，但原路径修复失败：{readResult.RepairError.Message}");
 
         string name = string.IsNullOrWhiteSpace(graph.Name)
             ? Path.GetFileNameWithoutExtension(path)

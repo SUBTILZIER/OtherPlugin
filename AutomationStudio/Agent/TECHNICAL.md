@@ -18,6 +18,7 @@
 - 编译 / 保存 / 运行：session snapshot、active asset 编译、函数库保存防丢图。
 - 连线 / 路由点：`Connections` 持久化、`ConnectionPaths` 视觉路径、命中和批量更新。
 - 节点规则：执行节点/纯运算节点、多线程、ToDo、函数调用、参数默认值。
+- 稳定性 / 数据安全：多线程取消、Python 唯一环境、原子 JSON 保存、关闭顺序、有界 Undo。
 - 验证 / 文档门禁：构建、启动探针、Git、CodeGraph、本地-only smoke。
 
 ## 文档迁移记录
@@ -72,8 +73,10 @@ Runtime / Nodes / Adapters
 - 每个执行节点结束后，`GraphRuntimeExecutor` 会把标准执行记录写入 `RuntimeContext` 临时缓冲区：`__executed`、`__status`、`__success`、`__message`、`__next_pin`；有 `result` 输出 pin 但 executor 未写时会兜底写入。纯运算节点按需求值成功后也写入同一缓冲。`__*` 内部键不显示在结构化日志返回结果里。
 - 数据 `Reroute` 对 runtime 输入解析是透明节点：raw resolver 会沿数据转接点继续追溯上游真实输出，支持上上游/更远上游通过 reroute 供值。
 - 执行日志由 `GraphRuntimeExecutor.ExecuteNode(...)` 统一捕获节点内部细碎日志，并输出“执行节点 / 名称 / 耗时 / 执行结果 / 返回结果 / 详情”块；`Logger.Timestamp` 只保留 `HH:mm:ss`。
+- capture 期间的节点内部日志只写日志文件并进入结构化块，不得再单独排入 UI；`Logger.WriteDirect(...)` 仅用于最终结构化块，避免同一节点重复两份可见日志。
 - 日志面板和独立日志窗口共用 `LogEntryDocumentRenderer`；UI 视觉上按 `[时间] [LEVEL] ` 前缀宽度做多行对齐，但复制文本保持原始内容，不补缩进空格。
 - 日志复制和鼠标拾取复制都走 `ClipboardHelper.TrySetText(...)`，遇到 `CLIPBRD_E_CANT_OPEN` 只重试/提示，不允许崩溃进程。
+- 所有只读文本窗口（含“显示最终代码”）也必须拦截 `ApplicationCommands.Copy` 并走 `ClipboardHelper`；禁止直接调用未保护的 `TextBox.Copy()`。
 - 查询节点的 `False` 是业务结果，不是执行警告；例如 `WindowExists` 不存在、`FindImage` 未命中时写 `result=False` 且日志级别保持 INFO，只有配置错误、路径无效或执行失败才 WARN/ERROR。
 - `FindImageNodeExecutor` 不再把 Python 原始 stderr/stdout 整段刷进日志；`Python/find_image.py` 通过 `np.fromfile(...) + cv2.imdecode(...)` 读取模板/截图，避免 Windows 中文路径失效。
 
@@ -83,8 +86,11 @@ Runtime / Nodes / Adapters
 ### 全局热键服务 (`ScriptHotkeyService`)
 - `WH_KEYBOARD_LL` / `WH_MOUSE_LL` 全局低层级钩子，不依赖窗口焦点。
 - 支持键盘按键、鼠标按钮（左/右/中/侧键X1X2）、鼠标滚轮（WM_MOUSEWHEEL，delta>0→WheelForward，delta<0→WheelBackward）。
-- 每个绑定独立 `TriggerWindowMs`（100-10000ms），在时间窗内累计按下次数，达到 `PressCount` 后立即触发；不再等待时间窗结束。
+- 每个绑定独立 `TriggerWindowMs`（100-10000ms），在时间窗内累计按下次数；达到次数且没有更高次数候选时立即触发。
 - `ToMatchKey` 为三元组 (InputKind, Key, PressCount)；时间窗不参与匹配键，独立使用。
+- 同一物理按键存在更高按下次数绑定时，低次数动作必须等高次数候选的时间窗结束后再触发；timer 不得在首个 80ms tick 提前触发单击，破坏双击/多击绑定。
+- 热键捕获统一走 `HotkeyCaptureCoordinator`。捕获前调用 `ScriptHotkeyService.SuspendTriggers()`；捕获期间保留 hook 但禁止触发绑定，进入/退出均清空按次计数，恢复必须放在 `finally`。手动调试或任意热键脚本运行时禁止进入捕获。
+- keyboard/mouse hook 按实际绑定类型分别安装。`SetWindowsHookEx` 返回零时必须保留 `Marshal.GetLastWin32Error()`，写 ERROR、状态栏和主题提示；一个 hook 失败不能卸掉另一个成功 hook，同一错误本次运行只提示一次。
 
 ### 热键属性窗 (`ScriptPropertiesWindow`)
 - 热键行固定列布局，避免按钮遮挡文字：`启动热键 | 按键 [keyBadge] | 修改 | 按下次数 [TextBox] | 清空`。
@@ -93,10 +99,25 @@ Runtime / Nodes / Adapters
 - `ScriptHotkeyCaptureWindow` 支持键盘、鼠标按钮、鼠标滚轮捕获；`_captured` 防双重 `DialogResult`。
 
 ### 脚本运行管理 (`ScriptRunManager`)
-- `IsAnyRunning` 属性 + `RunningStateChanged` 事件，供 UI 绑定执行状态。
-- `StartAsync` 入口处理重复启动（PreventDuplicateRun 忽略 / 否则取消旧任务重启）。
+- `ScriptRunManager` 只拥有全局热键运行；`ExecutionController` 只拥有工具栏手动调试。使用 `IsAnyHotkeyRunActive` / `IsManualDebugRunning` 区分来源，禁止用一个笼统状态互相取消。
+- `StartFromHotkeyAsync` 入口处理重复启动（PreventDuplicateRun 忽略 / 否则取消旧任务重启）；`StopFromHotkey(asset)` 只停止对应资产。
 - `ScriptLoopMode.Duration` 的时长必须大于 0；脚本属性窗、主界面脚本属性摘要和运行入口都要兜底阻止 `0:0:0` 静默结束。
-- `StopAll()` 遍历取消所有运行中的 CancellationTokenSource。
+- `UntilStopped` 配置了启动热键时必须同时配置终止热键；属性窗阻止保存，运行入口再次兜底拒绝启动。
+- 热键脚本运行期间禁止关闭该资产的“脚本启用”开关，否则刷新绑定会卸载终止热键；必须先用终止热键或顶部停止按钮结束运行。
+- 运行中的脚本资产禁止删除；单选、多选、右键和快捷键删除入口必须统一走运行态保护，避免终止绑定和运行资产引用失效。
+- 热键脚本运行期间禁止修改热键与循环设置；配置刷新不能替换正在使用的终止绑定。旧资产若存在冲突绑定，首个绑定生效，其余冲突项跳过并记录 warning，禁止静默覆盖。
+- 热键提示音必须在后台任务播放；不得在 UI Dispatcher 上同步 `Console.Beep`。`Duration` 到时必须取消当前执行，不只是阻止下一轮循环。
+- `StopAll(reason)` 只用于顶部停止按钮和应用真正退出。顶部按钮按产品规则同时停止手动调试与全部热键脚本。
+- `Esc` 只调用 `ExecutionController.Cancel(EscapeDebug)`；绝不调用 `ScriptRunManager.Stop/StopAll`。没有手动调试且没有其它编辑器取消动作时，不得无条件吞掉 `Esc`。
+
+### 并行执行输入所有权
+- `MainWindow` 生命周期内只能有一套共享 `RuntimeAdapters` / `GraphRuntimeExecutor`。切 tab 重建 `ExecutionController` 时只替换 editor service，禁止重建 runtime；否则全局设备锁与同键引用计数会被拆成多份。
+- 每次 `GraphRuntimeExecutor.Execute()` 必须通过 `RuntimeAdapters.BeginExecutionInputScope()` 建立唯一 execution scope；多线程 branch 继承同一 scope。
+- `Win32KeyboardAdapter` / `Win32MouseAdapter` 按 scope 记录持有的键和鼠标按钮，并对同一输入做引用计数。一个执行结束只能释放自己的 ownership，不能打断并行热键脚本。
+- 未知键名必须明确失败，禁止回退为 `A` 或任何其它真实按键；旧资产或手改 JSON 不能产生隐式输入。
+- `ExecutionController.Cancel(...)` 只取消手动 token，不直接调用全局 `ReleaseAllInputs()`；scope 在执行退出的 `finally` 路径自动释放本次输入。
+- `ReleaseAllInputs()` 是应用退出的紧急清理入口，不得用于普通 `Esc` 或单脚本终止热键。
+- 所有 `Process.GetProcesses*()` / `Process.Start()` 返回对象必须 Dispose；窗口轮询和启动程序等待属于高频路径，遗漏会累积 OS 句柄。
 
 ### 托盘最小化 / 关闭策略 (`MainWindow.WindowLifecycle` + `ThemedDialogOverrides`)
 - `NotifyIcon`（`System.Windows.Forms`）只负责系统托盘图标和鼠标事件。
@@ -107,6 +128,7 @@ Runtime / Nodes / Adapters
 
 ### 工具栏执行状态 (`MainWindow.xaml` + `ExecutionController`)
 - `IsExecuting` 依赖属性绑定到 Window DataContext。
+- `IsExecuting` 必须由 `IsManualDebugRunning || IsAnyHotkeyRunActive` 唯一计算；任一来源结束时都重新合并，不能让热键事件直接覆盖手动状态。
 - XAML DataTrigger：执行时 RunGraphButton 变 "⏳ 执行中..."、蓝色加粗、禁用；StopExecutionButton 红色显示。
 - `ExecutionController.ExecutionStateChanged` 回调 + `ScriptRunManager.RunningStateChanged` 事件合并驱动。
 - `SetRunButtonRunning/RestoreRunButton` 只发事件，不直接操作按钮（避免与 Style 冲突）。
@@ -342,12 +364,13 @@ public class NodeFactory
 5. 对应 `INodeExecutor`
 6. `NodeRegistry.CreateDefaultDefinitions()` 和执行器注册
 
-#### PythonAutoInstaller
-Python 环境检测与安装指引：
-- 检测 Python 安装位置
+#### PythonEnvironmentService
+Python 环境检测与安装指引统一由共享服务负责：
+- 检测并缓存唯一的 `ValidatedPythonPath`
 - 检查必要依赖库（cv2, PIL, numpy）
 - 弹出可复制的安装命令对话框
 - 支持阿里云 PyPI 镜像
+- 环境检查与实际脚本执行必须使用同一个解释器
 
 ### 2. Graph 层（节点模型）
 
@@ -507,7 +530,8 @@ static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int x, int 
 
 #### 日志存储
 - 内存：`ObservableCollection<LogEntry>` 用于实时显示
-- 文件：`saved/log/Log_yyyy_MM_dd_HH_mm.txt`
+- 文件：`saved/log/Log_yyyy_MM_dd_HH.txt`，按小时写入。
+- 启动时后台清理且只匹配 `Log_*.txt`：先删除超过 5 天的文件，再按最旧顺序压缩到目录总量 128 MiB 内；当前小时文件永不删除。清理失败只写调试诊断，不得影响启动或递归调用 Logger。
 
 #### 日志面板交互
 - 主窗口日志显示控件是只读 `RichTextBox`；`LogPanelController.HandleEntriesChanged(...)` 对新增日志增量追加段落，切过滤器/Reset 时才由 `Refresh()` 重建带颜色的 `FlowDocument`。
@@ -623,7 +647,7 @@ public sealed class MyNodeViewModel : NodeBaseViewModel
 ### 添加新的 Python 功能
 
 1. 在 `Python/` 目录添加脚本
-2. 在 `PythonAutoInstaller.cs` 添加依赖检查
+2. 在 `Services/PythonEnvironmentService.cs` 添加依赖检查
 3. 在 `Adapters/PythonScriptAdapter.cs` 复用 JSON 临时文件调用
 4. 在插件节点 executor 中调用 `IPythonScriptAdapter.RunJsonScript`
 
@@ -1166,3 +1190,46 @@ dotnet publish -c Release -r win-x64 \
 - `SettingsWindow` 底部只保留 `应用` 一个按钮；实时预览仍即时生效，`应用` 只负责确认并关闭。不要再恢复 `保存设置` / `取消` 双按钮和回滚流程，避免交互重复。
 - 用户自选强调色必须原样写入 `AccentBrush`，不要为了可读性直接暗化用户选择的颜色。需要深一点的选中底色时，单独派生 `EditorListSelectedBrush` / `DropdownSelectedBrush`；按钮文字色通过亮度在深/浅前景间切换。
 - `ScriptPropertiesSummaryControl` 属于 C# 动态 UI，必须用 `SetResourceReference` 绑定主题 token；不要在创建时把 `Brush` 取出来赋给 `Background/Foreground/BorderBrush`，否则亮/暗主题切换后空白画布里的脚本属性摘要会保留旧主题色。
+
+## 2026-07-13：运行稳定性 / 数据安全收口
+
+### 多线程业务值与执行失败
+- `False`、`0`、空字符串是正常业务输出，不代表 branch 失败。`WarnButContinue` 也不取消 sibling branches。
+- 只有 `FatalStop`、未捕获异常、不同 branch 写同一 `nodeId:pin` 且值不同，才使多线程整体失败并取消其它 branch；用户取消单独记录为取消，不记录成错误。
+- 所有 branch 必须从同一父 context baseline `Fork(...)`。branch 正常完成后立即把变化合并回父 context；fatal branch 的部分输出禁止合并。全部 branch 成功后才执行 `exec_completed`。
+- runtime 输出是本次执行缓存，不是永久变量。节点重算前必须清除自身上一轮输出；函数调用输出与 CustomEvent 入口参数不得复用旧值。fork/merge 必须同时合并新增、变化和删除，避免父 context 保留已清理的旧输出。
+- branch wrapper 捕获 fatal/异常后必须先取消 linked token，再返回结果；禁止等 `Task.WaitAll(...)` 结束后才取消，否则无限触发或长等待 sibling 会卡住整体。
+
+### Python 唯一环境与进程清理
+- `PythonEnvironmentService` 是 Python 路径和依赖检测的唯一入口。环境检测与 `PythonScriptAdapter` 实际执行必须使用同一个 `ValidatedPythonPath`，禁止各自扫描解释器。
+- 环境 semaphore、解释器探测、依赖检查、Python 脚本执行都必须接受 `CancellationToken`。
+- 只允许缓存验证成功的环境；失败结果下次运行必须重检。解释器启动抛出 `Win32Exception` 时必须 `Invalidate()`，禁止持续复用失效路径。
+- Python 超时、用户取消或执行异常时，必须 `Kill(entireProcessTree: true)` 并等待退出；stdout/stderr 收尾后才能删除临时请求 JSON。参数使用 `ProcessStartInfo.ArgumentList`，避免中文和空格路径转义错误。
+- 如果进程树无法确认退出，禁止删除仍可能被子进程读取的请求 JSON；保留文件并记录 error，避免用“清理临时文件”掩盖孤儿进程。
+- Python adapter 必须向 `PythonEnvironmentService` 登记活动进程；应用真正退出时同步终止全部登记进程。禁止用 `Environment.Exit(...)` 抢在取消清理前强退。
+
+### 原子 JSON 保存
+- `AtomicJsonFileStore` 统一负责资产库、应用设置和外部图谱文件：同目录临时文件、UTF-8 无 BOM、`Flush(true)`、`File.Replace`、保留 `.bak`。
+- 主文件损坏/缺失且 `.bak` 有效时，读取结果必须包含“来自备份 / 主文件是否修复 / 修复错误”；恢复后使用不覆盖有效 `.bak` 的原子 replace 立即修主文件。
+- 主文件修复失败仍允许使用备份数据，但同一完整路径必须加入本次运行写锁；外部图谱可“另存为”新路径。主文件和备份都损坏时同样阻止原路径保存，禁止用空模型覆盖原数据。
+- 显式保存失败不得清除 dirty；自动持久化失败只写日志和状态，不能崩溃进程。
+- 脚本 `IsScriptEnabled` 必须随内容资产持久化；旧资产缺字段时按启用处理。任何保存入口都只能在持久化成功后清 dirty。
+
+### 关闭顺序
+- 主窗口只保留一个 `Window_Closing` handler。最小化到托盘不能停止脚本、热键或 detached session。
+- 真正退出时必须先 snapshot 和询问未保存内容；用户取消后保持脚本、热键、窗口和按键状态。只有确认退出后才能停止脚本、取消执行、释放键鼠、关闭 detached 窗口并 dispose hook。
+- 鼠标拾取会拦截对话框点击：显示关闭确认前可临时停止，但用户取消关闭或保存失败时必须恢复拾取。
+- 确认真正退出后采用立即清理：设置 `_isClosing`，启动 `RuntimeShutdownGate`，取消手动/热键任务，立即向全部登记 Python 进程树发送 Kill，最后释放全部键鼠。gate 只阻止新按下/移动/滚动，不能阻止 key-up/mouse-up 清理。
+- 关闭确认取消前禁止启动 shutdown gate，也禁止停止脚本或释放输入。禁止恢复 `Environment.Exit(...)` 强退路径。
+
+### 事件与资源解绑
+- 真正退出必须调用 `DisposeWindowSubscriptions()`：解绑 `Logger.Entries`、`AppThemeService.ThemeChanged`、运行状态、active editor service、session、内容浏览器和图表集合事件。
+- `CompositionTarget.Rendering` 属于静态事件；退出时无条件调用 `DetachAutoFitRendering()`。最小化到托盘或取消关闭时不得解绑。
+- 可重建的 `ExecutionController` 在替换前必须解绑旧 `ExecutionStateChanged`；禁止匿名 handler 订阅 static/长寿命事件，否则无法可靠移除。
+
+### Undo 与结构边界
+- `GraphCommandService` 快照保存序列化 JSON，before/after 各序列化一次；Undo/Redo 各自最多 100 条、估算总容量最多 64 MiB，超限删除最旧记录。
+- Undo/Redo 必须先成功恢复目标快照，再移动历史栈；恢复失败时尝试回滚当前快照并保留历史项，禁止先弹栈造成永久丢失。
+- `GraphRuntimeExecutor` 按 `MultiThread`、`Functions`、`Logging` partial 拆分；`FinalCodePreviewGenerator` 按 `ControlFlow`、`Expressions` partial 拆分。拆分只允许移动代码，不得改变运行语义。
+- `Themes/EditorSharedStyles.xaml` 保存主窗口与编辑 surface 共用状态样式；`Themes/EditorSurfaceStyles.xaml` 保存 surface 通用控件样式。页面 XAML 继续持有布局、`x:Name`、事件和 Binding，禁止在资源拆分时改交互语义。
+- 延迟 auto-fit 必须绑定触发时的 session 和 graph；回调执行前目标已变化则取消，禁止旧图的渲染回调缩放新 tab。

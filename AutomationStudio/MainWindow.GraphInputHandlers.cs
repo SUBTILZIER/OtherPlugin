@@ -276,15 +276,23 @@ public partial class MainWindow
     {
         if (e.Key == Key.Escape)
         {
-            if (_mousePickController.IsActive)
+            bool handled = _executionController.Cancel(ExecutionStopReason.EscapeDebug);
+            if (!handled && _mousePickController.IsActive)
+            {
                 _mousePickController.Stop("已退出鼠标拾取。");
-            else if (_executionController.IsRunning)
-                _executionController.Cancel();
-            else if (_pinConnectionController.IsConnecting)
+                handled = true;
+            }
+            else if (!handled && _pinConnectionController.IsConnecting)
+            {
                 _pinConnectionController.Cancel("已取消连线。");
+                handled = true;
+            }
 
-            e.Handled = true;
-            return;
+            if (handled)
+            {
+                e.Handled = true;
+                return;
+            }
         }
 
         var surface = TryGetActiveEditorSurface();

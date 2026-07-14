@@ -81,7 +81,7 @@ public sealed class LogPanelController
 
     public void Clear()
     {
-        Logger.Entries.Clear();
+        Logger.ClearUiEntries();
         _logTextBox.Document.Blocks.Clear();
     }
 

@@ -10,6 +10,7 @@ namespace AutomationStudioWpf.Runtime;
 /// </summary>
 public sealed class RuntimeContext : IDisposable
 {
+    private static readonly object RemovedValueMarker = new();
     private readonly object _gate = new();
     private readonly Dictionary<string, object> _values = [];
     private readonly ThreadLocal<HashSet<string>> _activePureNodes = new(() => new HashSet<string>(StringComparer.Ordinal));
@@ -49,6 +50,22 @@ public sealed class RuntimeContext : IDisposable
         return false;
     }
 
+    internal void Remove(string nodeId, string pinName)
+    {
+        lock (_gate)
+            _values.Remove(MakeKey(nodeId, pinName));
+    }
+
+    internal void RemoveNodeOutputs(string nodeId)
+    {
+        string prefix = $"{nodeId}:";
+        lock (_gate)
+        {
+            foreach (string key in _values.Keys.Where(key => key.StartsWith(prefix, StringComparison.Ordinal)).ToList())
+                _values.Remove(key);
+        }
+    }
+
     internal IReadOnlyDictionary<string, object> SnapshotValues()
     {
         lock (_gate)
@@ -77,9 +94,17 @@ public sealed class RuntimeContext : IDisposable
     {
         lock (_gate)
         {
-            return _values
-                .Where(pair => !baseline.TryGetValue(pair.Key, out object? before) || !Equals(before, pair.Value))
-                .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
+            var changes = new Dictionary<string, object>(StringComparer.Ordinal);
+            foreach (var pair in _values)
+            {
+                if (!baseline.TryGetValue(pair.Key, out object? before) || !Equals(before, pair.Value))
+                    changes[pair.Key] = pair.Value;
+            }
+
+            foreach (string removedKey in baseline.Keys.Where(key => !_values.ContainsKey(key)))
+                changes[removedKey] = RemovedValueMarker;
+
+            return changes;
         }
     }
 
@@ -92,10 +117,12 @@ public sealed class RuntimeContext : IDisposable
         {
             foreach (var pair in changes)
             {
+                bool removesValue = ReferenceEquals(pair.Value, RemovedValueMarker);
                 bool currentExists = _values.TryGetValue(pair.Key, out object? current);
                 bool baselineExists = baseline.TryGetValue(pair.Key, out object? before);
                 bool changedSinceFork = currentExists != baselineExists || (currentExists && !Equals(current, before));
-                if (changedSinceFork && !Equals(current, pair.Value))
+                bool matchesBranch = removesValue ? !currentExists : currentExists && Equals(current, pair.Value);
+                if (changedSinceFork && !matchesBranch)
                 {
                     conflictKey = pair.Key;
                     return false;
@@ -103,7 +130,12 @@ public sealed class RuntimeContext : IDisposable
             }
 
             foreach (var pair in changes)
-                _values[pair.Key] = pair.Value;
+            {
+                if (ReferenceEquals(pair.Value, RemovedValueMarker))
+                    _values.Remove(pair.Key);
+                else
+                    _values[pair.Key] = pair.Value;
+            }
         }
 
         conflictKey = string.Empty;

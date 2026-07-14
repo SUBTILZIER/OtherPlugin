@@ -8,29 +8,35 @@ using MouseButton = AutomationStudioWpf.Graph.MouseButton;
 
 namespace AutomationStudioWpf.Adapters;
 
-public sealed class Win32MouseAdapter : IMouseAdapter
+public sealed class Win32MouseAdapter : IMouseAdapter, IExecutionScopedInputAdapter
 {
+    private readonly object _gate = new();
+    private readonly Dictionary<Guid, HashSet<MouseButton>> _pressedButtonsByExecution = [];
+    private readonly Dictionary<MouseButton, int> _buttonHoldCounts = [];
+
     public void MoveTo(Point point)
     {
+        RuntimeShutdownGate.ThrowIfShutdownStarted();
         SetCursorPos(point.X, point.Y);
     }
 
     public void ExecuteButton(MouseButton button, PressReleaseMode mode)
     {
+        if (mode != PressReleaseMode.Release)
+            RuntimeShutdownGate.ThrowIfShutdownStarted();
+
         (uint downFlag, uint upFlag, uint xButtonData) = GetMouseEventFlags(button);
 
         switch (mode)
         {
             case PressReleaseMode.Click:
-                mouse_event(downFlag, 0, 0, xButtonData, UIntPtr.Zero);
-                Thread.Sleep(50);
-                mouse_event(upFlag, 0, 0, xButtonData, UIntPtr.Zero);
+                ClickButton(button, downFlag, upFlag, xButtonData);
                 break;
             case PressReleaseMode.Press:
-                mouse_event(downFlag, 0, 0, xButtonData, UIntPtr.Zero);
+                PressButton(RuntimeExecutionInputContext.CurrentExecutionId, button, downFlag, xButtonData);
                 break;
             case PressReleaseMode.Release:
-                mouse_event(upFlag, 0, 0, xButtonData, UIntPtr.Zero);
+                ReleaseButton(RuntimeExecutionInputContext.CurrentExecutionId, button, upFlag, xButtonData);
                 break;
         }
     }
@@ -44,13 +50,16 @@ public sealed class Win32MouseAdapter : IMouseAdapter
 
     public void ExecuteScroll(ScrollWheelAction action, int speed, int intervalMs, int durationMs, CancellationToken ct)
     {
+        if (action != ScrollWheelAction.Release)
+            RuntimeShutdownGate.ThrowIfShutdownStarted();
+
         switch (action)
         {
             case ScrollWheelAction.Press:
-                mouse_event(MOUSEEVENTF_MIDDLEDOWN, 0, 0, 0, UIntPtr.Zero);
+                PressButton(RuntimeExecutionInputContext.CurrentExecutionId, MouseButton.Middle, MOUSEEVENTF_MIDDLEDOWN, 0);
                 break;
             case ScrollWheelAction.Release:
-                mouse_event(MOUSEEVENTF_MIDDLEUP, 0, 0, 0, UIntPtr.Zero);
+                ReleaseButton(RuntimeExecutionInputContext.CurrentExecutionId, MouseButton.Middle, MOUSEEVENTF_MIDDLEUP, 0);
                 break;
             case ScrollWheelAction.ScrollForward:
             case ScrollWheelAction.ScrollBackward:
@@ -64,6 +73,7 @@ public sealed class Win32MouseAdapter : IMouseAdapter
                 while (durationMs == 0 || elapsed < durationMs)
                 {
                     ct.ThrowIfCancellationRequested();
+                    RuntimeShutdownGate.ThrowIfShutdownStarted();
                     mouse_event(MOUSEEVENTF_WHEEL, 0, 0, unchecked((uint)delta), UIntPtr.Zero);
                     CancellationWait.WaitOrThrow(intervalMs, ct);
                     if (durationMs > 0)
@@ -78,6 +88,105 @@ public sealed class Win32MouseAdapter : IMouseAdapter
                 break;
             }
         }
+    }
+
+    void IExecutionScopedInputAdapter.ReleaseExecution(Guid executionId) => ReleaseExecution(executionId);
+
+    void IExecutionScopedInputAdapter.ReleaseAllExecutions() => ReleaseAllExecutions();
+
+    private void ClickButton(MouseButton button, uint downFlag, uint upFlag, uint xButtonData)
+    {
+        lock (_gate)
+        {
+            RuntimeShutdownGate.ThrowIfShutdownStarted();
+            mouse_event(downFlag, 0, 0, xButtonData, UIntPtr.Zero);
+            Thread.Sleep(50);
+            mouse_event(upFlag, 0, 0, xButtonData, UIntPtr.Zero);
+            if (!RuntimeShutdownGate.IsShutdownStarted && _buttonHoldCounts.GetValueOrDefault(button) > 0)
+                mouse_event(downFlag, 0, 0, xButtonData, UIntPtr.Zero);
+        }
+    }
+
+    private void PressButton(Guid executionId, MouseButton button, uint downFlag, uint xButtonData)
+    {
+        lock (_gate)
+        {
+            RuntimeShutdownGate.ThrowIfShutdownStarted();
+            if (!_pressedButtonsByExecution.TryGetValue(executionId, out var pressedButtons))
+            {
+                pressedButtons = [];
+                _pressedButtonsByExecution[executionId] = pressedButtons;
+            }
+
+            if (!pressedButtons.Add(button))
+            {
+                mouse_event(downFlag, 0, 0, xButtonData, UIntPtr.Zero);
+                return;
+            }
+
+            int holdCount = _buttonHoldCounts.GetValueOrDefault(button);
+            if (holdCount == 0)
+                mouse_event(downFlag, 0, 0, xButtonData, UIntPtr.Zero);
+            _buttonHoldCounts[button] = holdCount + 1;
+        }
+    }
+
+    private void ReleaseButton(Guid executionId, MouseButton button, uint upFlag, uint xButtonData)
+    {
+        lock (_gate)
+        {
+            if (_pressedButtonsByExecution.TryGetValue(executionId, out var pressedButtons) && pressedButtons.Remove(button))
+            {
+                if (pressedButtons.Count == 0)
+                    _pressedButtonsByExecution.Remove(executionId);
+                DecrementHold(button);
+                return;
+            }
+
+            if (_buttonHoldCounts.GetValueOrDefault(button) == 0)
+                mouse_event(upFlag, 0, 0, xButtonData, UIntPtr.Zero);
+        }
+    }
+
+    private void ReleaseExecution(Guid executionId)
+    {
+        lock (_gate)
+        {
+            if (!_pressedButtonsByExecution.Remove(executionId, out var pressedButtons))
+                return;
+
+            foreach (MouseButton button in pressedButtons)
+                DecrementHold(button);
+        }
+    }
+
+    private void ReleaseAllExecutions()
+    {
+        lock (_gate)
+        {
+            foreach (MouseButton button in _buttonHoldCounts.Keys.ToList())
+            {
+                var (_, upFlag, xButtonData) = GetMouseEventFlags(button);
+                mouse_event(upFlag, 0, 0, xButtonData, UIntPtr.Zero);
+            }
+
+            _pressedButtonsByExecution.Clear();
+            _buttonHoldCounts.Clear();
+        }
+    }
+
+    private void DecrementHold(MouseButton button)
+    {
+        int holdCount = _buttonHoldCounts.GetValueOrDefault(button);
+        if (holdCount <= 1)
+        {
+            _buttonHoldCounts.Remove(button);
+            var (_, upFlag, xButtonData) = GetMouseEventFlags(button);
+            mouse_event(upFlag, 0, 0, xButtonData, UIntPtr.Zero);
+            return;
+        }
+
+        _buttonHoldCounts[button] = holdCount - 1;
     }
 
     private static (uint downFlag, uint upFlag, uint xButtonData) GetMouseEventFlags(MouseButton button)

@@ -46,6 +46,16 @@ public partial class MainWindow
         InstallContentAssetRenameValidation();
     }
 
+    private void DetachUnifiedThemeInteractionFixes()
+    {
+        if (!_unifiedThemeInstalled)
+            return;
+
+        ContextMenuOpening -= MainWindow_ContextMenuOpeningTheme;
+        ContentFolderListBox.RemoveHandler(WpfUIElement.PreviewMouseLeftButtonDownEvent, new WpfMouseButtonEventHandler(ContentFolderTree_PreviewMouseLeftButtonDownFix));
+        _unifiedThemeInstalled = false;
+    }
+
     private void MainWindow_ContextMenuOpeningTheme(object sender, WpfContextMenuEventArgs e)
     {
         Dispatcher.BeginInvoke(new Action(ApplyContextMenuResourceReferences), DispatcherPriority.ContextIdle);

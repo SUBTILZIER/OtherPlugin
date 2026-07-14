@@ -122,7 +122,7 @@ public sealed class GraphEditorService
 
         var file = ExportGraphModel("自动化蓝图图谱");
 
-        File.WriteAllText(path, JsonSerializer.Serialize(file, _jsonOptions));
+        AtomicJsonFileStore.Write(path, file, _jsonOptions);
         CurrentGraphPath = path;
         StatusChanged?.Invoke($"图谱已保存：{Path.GetFileName(path)}");
     }
@@ -153,14 +153,13 @@ public sealed class GraphEditorService
 
     public void LoadGraph(string path)
     {
-        var json = File.ReadAllText(path);
-        var file = JsonSerializer.Deserialize<GraphFileModel>(json);
-        if (file is null)
-        {
-            throw new InvalidOperationException("图谱文件解析失败。");
-        }
+        var readResult = AtomicJsonFileStore.Read<GraphFileModel>(path, _jsonOptions);
+        if (readResult.RecoveredFromBackup && readResult.PrimaryFileRepaired)
+            StatusChanged?.Invoke($"图谱已从备份恢复，并修复主文件：{Path.GetFileName(path)}");
+        else if (readResult.RepairError is not null)
+            StatusChanged?.Invoke($"图谱已从备份读取，但原路径修复失败；请使用另存为：{readResult.RepairError.Message}");
 
-        LoadFromModel(file);
+        LoadFromModel(readResult.Value);
         CurrentGraphPath = path;
         StatusChanged?.Invoke($"图谱已加载：{Path.GetFileName(path)}");
     }

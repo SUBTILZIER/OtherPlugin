@@ -11,12 +11,30 @@ public sealed class Win32WindowAdapter : IWindowAdapter
 {
     public List<string> GetRunningWindowNames()
     {
-        return Process.GetProcesses()
-            .Where(p => p.MainWindowHandle != IntPtr.Zero && !string.IsNullOrWhiteSpace(p.MainWindowTitle))
-            .Select(p => p.ProcessName)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(n => n, StringComparer.OrdinalIgnoreCase)
-            .ToList();
+        Process[] processes = Process.GetProcesses();
+        try
+        {
+            var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (Process process in processes)
+            {
+                try
+                {
+                    if (process.MainWindowHandle != IntPtr.Zero && !string.IsNullOrWhiteSpace(process.MainWindowTitle))
+                        names.Add(process.ProcessName);
+                }
+                catch
+                {
+                    // Processes may exit while being enumerated.
+                }
+            }
+
+            return names.OrderBy(name => name, StringComparer.OrdinalIgnoreCase).ToList();
+        }
+        finally
+        {
+            foreach (Process process in processes)
+                process.Dispose();
+        }
     }
 
     public WindowSelectionResult SelectWindowByProcessName(string processName)
@@ -25,8 +43,7 @@ public sealed class Win32WindowAdapter : IWindowAdapter
         if (string.IsNullOrWhiteSpace(normalized))
             return new WindowSelectionResult(false, string.Empty, "进程名为空。");
 
-        var process = Process.GetProcessesByName(normalized)
-            .FirstOrDefault(p => p.MainWindowHandle != IntPtr.Zero);
+        using Process? process = FindWindowProcess(normalized);
 
         if (process is null)
             return new WindowSelectionResult(false, normalized, $"未找到进程窗口：{normalized}");
@@ -73,8 +90,7 @@ public sealed class Win32WindowAdapter : IWindowAdapter
         if (string.IsNullOrWhiteSpace(normalized))
             return new WindowSelectionResult(false, string.Empty, "进程名为空。");
 
-        var process = Process.GetProcessesByName(normalized)
-            .FirstOrDefault(p => p.MainWindowHandle != IntPtr.Zero);
+        using Process? process = FindWindowProcess(normalized);
         if (process is null)
             return new WindowSelectionResult(false, normalized, $"未找到进程窗口：{normalized}");
 
@@ -88,7 +104,8 @@ public sealed class Win32WindowAdapter : IWindowAdapter
         if (string.IsNullOrWhiteSpace(normalized))
             return new WindowSelectionResult(false, string.Empty, "进程名为空。");
 
-        bool exists = Process.GetProcessesByName(normalized).Any(p => p.MainWindowHandle != IntPtr.Zero);
+        using Process? process = FindWindowProcess(normalized);
+        bool exists = process is not null;
         return new WindowSelectionResult(exists, normalized, exists ? $"窗口存在：{normalized}" : $"窗口不存在：{normalized}");
     }
 
@@ -102,7 +119,8 @@ public sealed class Win32WindowAdapter : IWindowAdapter
         string processName = string.Empty;
         try
         {
-            processName = Process.GetProcessById((int)pid).ProcessName;
+            using Process process = Process.GetProcessById((int)pid);
+            processName = process.ProcessName;
         }
         catch
         {
@@ -121,6 +139,38 @@ public sealed class Win32WindowAdapter : IWindowAdapter
         return normalized.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)
             ? Path.GetFileNameWithoutExtension(normalized)
             : normalized;
+    }
+
+    private static Process? FindWindowProcess(string processName)
+    {
+        Process[] processes = Process.GetProcessesByName(processName);
+        Process? match = null;
+        try
+        {
+            foreach (Process process in processes)
+            {
+                try
+                {
+                    if (process.MainWindowHandle == IntPtr.Zero)
+                        continue;
+                    match = process;
+                    break;
+                }
+                catch
+                {
+                    // Processes may exit while being enumerated.
+                }
+            }
+            return match;
+        }
+        finally
+        {
+            foreach (Process process in processes)
+            {
+                if (!ReferenceEquals(process, match))
+                    process.Dispose();
+            }
+        }
     }
 
     [DllImport("user32.dll")]

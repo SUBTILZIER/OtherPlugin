@@ -35,7 +35,7 @@ public sealed class ProcessAdapter : IProcessAdapter
                 UseShellExecute = true,
                 CreateNoWindow = false,
             };
-            Process? proc = Process.Start(psi);
+            using Process? proc = Process.Start(psi);
             int waited = 0;
 
             while (waited < waitTimeoutMs)

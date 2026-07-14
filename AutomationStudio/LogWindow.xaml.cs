@@ -97,7 +97,7 @@ public partial class LogWindow : Window
 
     private void Clear_Click(object sender, RoutedEventArgs e)
     {
-        Logger.Entries.Clear();
+        Logger.ClearUiEntries();
         LogRichTextBox.Document.Blocks.Clear();
     }
 

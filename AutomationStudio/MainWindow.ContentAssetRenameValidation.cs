@@ -60,6 +60,23 @@ public partial class MainWindow
             ConfigureContentAssetRenameTextBox(textBox);
     }
 
+    private void DetachContentAssetRenameValidation()
+    {
+        if (!_contentAssetRenameValidationInstalled)
+            return;
+
+        RemoveHandler(FrameworkElement.LoadedEvent, new RoutedEventHandler(ContentAssetRenameTextBox_Loaded));
+        RemoveHandler(WpfTextBoxBase.TextChangedEvent, new WpfTextChangedEventHandler(ContentAssetRenameTextBox_TextChangedValidated));
+        RemoveHandler(UIElement.PreviewKeyDownEvent, new WpfKeyEventHandler(ContentAssetRenameTextBox_PreviewKeyDownValidated));
+        RemoveHandler(WpfKeyboard.PreviewLostKeyboardFocusEvent, new WpfKeyboardFocusChangedEventHandler(ContentAssetRenameTextBox_PreviewLostKeyboardFocusValidated));
+        PreviewMouseDown -= ContentAssetRenameValidation_WindowPreviewMouseDown;
+        foreach (var popup in _contentRenameErrorPopups.Values)
+            popup.IsOpen = false;
+        _contentRenameErrorPopups.Clear();
+        _contentRenameOriginalBorderBrushes.Clear();
+        _contentAssetRenameValidationInstalled = false;
+    }
+
     private void ContentAssetRenameTextBox_Loaded(object sender, RoutedEventArgs e)
     {
         if (e.OriginalSource is WpfTextBox textBox)

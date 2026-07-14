@@ -21,7 +21,7 @@ public partial class MainWindow
             return false;
 
         asset.RunSettings.Normalize();
-        var dialog = new ScriptPropertiesWindow(this, asset.Name, asset.RunSettings);
+        var dialog = new ScriptPropertiesWindow(this, asset.Name, asset.RunSettings, _hotkeyCaptureCoordinator);
         if (dialog.ShowDialog() != true)
             return false;
 
@@ -30,6 +30,17 @@ public partial class MainWindow
 
     private bool ApplyScriptRunSettings(ContentAssetViewModel asset, ScriptRunSettings newSettings)
     {
+        if (_scriptRunManager.IsHotkeyRunActive(asset))
+        {
+            ThemedDialog.Show(
+                this,
+                "脚本运行期间不能修改热键或循环设置。请先使用终止热键或顶部停止按钮结束脚本。",
+                "脚本正在运行",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            return false;
+        }
+
         newSettings.Normalize();
         var conflicts = _scriptHotkeyService.Validate(ContentBrowserItems, asset, newSettings);
         if (conflicts.Count > 0)
@@ -70,7 +81,33 @@ public partial class MainWindow
 
     private void RefreshScriptHotkeys()
     {
-        _scriptHotkeyService.Refresh(ContentBrowserItems);
+        var refreshResult = _scriptHotkeyService.Refresh(ContentBrowserItems);
+
+        foreach (string conflict in refreshResult.Conflicts)
+            Logging.Logger.Warn(conflict);
+
+        var hookFailures = new List<string>();
+        if (refreshResult.Hooks.Keyboard.Failed)
+            hookFailures.Add(refreshResult.Hooks.Keyboard.FormatFailure("键盘全局热键监听"));
+        if (refreshResult.Hooks.Mouse.Failed)
+            hookFailures.Add(refreshResult.Hooks.Mouse.FormatFailure("鼠标全局热键监听"));
+
+        var newFailures = hookFailures
+            .Where(message => _reportedHookFailures.Add(message))
+            .ToArray();
+        foreach (string failure in newFailures)
+            Logging.Logger.Error(failure);
+
+        if (newFailures.Length > 0)
+        {
+            string message = string.Join(Environment.NewLine, newFailures);
+            SetStatus("部分全局热键监听安装失败。");
+            ThemedDialog.Show(this, message, "全局热键不可用", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        else if (refreshResult.Conflicts.Count > 0)
+        {
+            SetStatus("存在热键冲突；冲突项未注册。请修改脚本属性。");
+        }
     }
 
     private void HandleScriptHotkey(ScriptHotkeyTrigger trigger)
@@ -80,13 +117,27 @@ public partial class MainWindow
 
         if (trigger.Action == ScriptHotkeyAction.Stop)
         {
-            Console.Beep(400, 300);
-            _scriptRunManager.Stop(trigger.Asset);
+            PlayHotkeyTone(400, 300);
+            _scriptRunManager.StopFromHotkey(trigger.Asset);
             return;
         }
 
-        Console.Beep(800, 150);
-        _ = _scriptRunManager.StartAsync(trigger.Asset);
+        PlayHotkeyTone(800, 150);
+        _ = _scriptRunManager.StartFromHotkeyAsync(trigger.Asset);
+    }
+
+    private static void PlayHotkeyTone(int frequency, int durationMs)
+    {
+        _ = Task.Run(() =>
+        {
+            try
+            {
+                Console.Beep(frequency, durationMs);
+            }
+            catch (Exception)
+            {
+            }
+        });
     }
 
     private async Task<bool> CompileScriptAssetForRunAsync(ContentAssetViewModel asset, CancellationToken ct)

@@ -5,8 +5,16 @@ using AutomationStudioWpf.GraphCore;
 using AutomationStudioWpf.Logging;
 using AutomationStudioWpf.Runtime;
 using AutomationStudioWpf.Services;
+using AutomationStudioWpf.Adapters;
 
 namespace AutomationStudioWpf.Interaction;
+
+internal enum ExecutionStopReason
+{
+    EscapeDebug,
+    Toolbar,
+    ApplicationExit,
+}
 
 public sealed class ExecutionController
 {
@@ -17,15 +25,19 @@ public sealed class ExecutionController
     private readonly System.Windows.Controls.Button _runButton;
     private readonly Func<IEnumerable<CallableGraphItem>> _getFunctions;
     private readonly Action<string> _setStatus;
+    private readonly Func<IProgress<string>, CancellationToken, Task<bool>> _ensurePythonReady;
 
-    private CancellationTokenSource? _executionCts;public ExecutionController(
+    private CancellationTokenSource? _executionCts;
+
+    public ExecutionController(
         Window owner,
         GraphEditorService editorService,
         GraphRuntimeExecutor runtimeExecutor,
         GraphValidator graphValidator,
         System.Windows.Controls.Button runButton,
         Func<IEnumerable<CallableGraphItem>> getFunctions,
-        Action<string> setStatus)
+        Action<string> setStatus,
+        Func<IProgress<string>, CancellationToken, Task<bool>> ensurePythonReady)
     {
         _owner = owner;
         _editorService = editorService;
@@ -34,10 +46,16 @@ public sealed class ExecutionController
         _runButton = runButton;
         _getFunctions = getFunctions;
         _setStatus = setStatus;
+        _ensurePythonReady = ensurePythonReady;
     }
 
     public async Task RunAsync()
     {
+        if (RuntimeShutdownGate.IsShutdownStarted)
+        {
+            _setStatus("应用正在退出，不能启动脚本。");
+            return;
+        }
         if (_executionCts is not null)
         {
             _setStatus("脚本正在运行，不能重复执行。");
@@ -47,6 +65,7 @@ public sealed class ExecutionController
         try
         {
             _executionCts = new CancellationTokenSource();
+            var ct = _executionCts.Token;
             SetRunButtonRunning();
 
             var plan = _editorService.BuildExecutionPlan();
@@ -58,7 +77,7 @@ public sealed class ExecutionController
 
             if (plan.Nodes.Any(n => n.NodeKind is NodeKind.FindImage or NodeKind.WaitImage or NodeKind.WaitImageDisappear))
             {
-                bool pythonReady = await PythonAutoInstaller.EnsurePythonAsync(new Progress<string>(_setStatus));
+                bool pythonReady = await _ensurePythonReady(new Progress<string>(_setStatus), ct);
                 if (!pythonReady)
                 {
                     _setStatus("Python 环境未就绪，执行已取消。");
@@ -67,14 +86,12 @@ public sealed class ExecutionController
             }
 
             _setStatus("执行开始...");
-            var ct = _executionCts.Token;
             var result = await Task.Run(() => _runtimeExecutor.Execute(plan, baseDirectory, assetLibrary, ct), ct);
             _setStatus(result.Message);
         }
         catch (OperationCanceledException)
         {
             Logger.Info("===== 执行已取消=====");
-            ReleaseAllKeys();
             _setStatus("执行已取消。");
         }
         catch (Exception ex)
@@ -84,7 +101,6 @@ public sealed class ExecutionController
         }
         finally
         {
-            ReleaseAllKeys();
             _executionCts = null;
             RestoreRunButton();
         }
@@ -95,6 +111,7 @@ public sealed class ExecutionController
         IEnumerable<CallableGraphItem> functions,
         CancellationToken externalCancellationToken)
     {
+        RuntimeShutdownGate.ThrowIfShutdownStarted();
         if (asset.Kind != ContentAssetKind.Script)
             return new GraphExecutionResult(false, "只能执行脚本资产。", false);
 
@@ -113,7 +130,7 @@ public sealed class ExecutionController
 
         if (plan.Nodes.Any(n => n.NodeKind is NodeKind.FindImage or NodeKind.WaitImage or NodeKind.WaitImageDisappear))
         {
-            bool pythonReady = await PythonAutoInstaller.EnsurePythonAsync(new Progress<string>(_setStatus));
+            bool pythonReady = await _ensurePythonReady(new Progress<string>(_setStatus), externalCancellationToken);
             if (!pythonReady)
                 return new GraphExecutionResult(false, "Python 环境未就绪，执行已取消。", false);
         }
@@ -161,20 +178,27 @@ public sealed class ExecutionController
         return new GraphExecutionPlan(runtimeNodes, runtimeConnections);
     }
 
-    public void ReleaseAllKeys() => _runtimeExecutor.ReleaseAllKeys();
+    public void ReleaseAllInputs() => _runtimeExecutor.ReleaseAllInputs();
 
     public Action<bool>? ExecutionStateChanged;
-    public bool IsRunning => _executionCts is not null;
+    public bool IsManualDebugRunning => _executionCts is not null;
 
-    public void Cancel()
+    internal bool Cancel(ExecutionStopReason reason)
     {
         if (_executionCts is null)
-            return;
+            return false;
 
-        Logger.Info("===== 用户取消执行 (ESC) =====");
+        string reasonText = reason switch
+        {
+            ExecutionStopReason.EscapeDebug => "用户取消手动调试 (ESC)",
+            ExecutionStopReason.Toolbar => "用户通过顶部按钮停止手动调试",
+            ExecutionStopReason.ApplicationExit => "应用退出，停止手动调试",
+            _ => "停止手动调试",
+        };
+        Logger.Info($"===== {reasonText} =====");
         _executionCts.Cancel();
-        ReleaseAllKeys();
         _setStatus("正在停止执行...");
+        return true;
     }
 
     private string ResolveBaseDirectory()

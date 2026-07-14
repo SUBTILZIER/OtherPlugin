@@ -217,6 +217,7 @@ public partial class MainWindow
             return;
 
         SetScriptAssetEnabled(asset, checkBox.IsChecked == true);
+        checkBox.IsChecked = asset.IsScriptEnabled;
         e.Handled = true;
     }
 
@@ -224,6 +225,19 @@ public partial class MainWindow
     {
         if (asset.Kind != ContentAssetKind.Script || asset.IsScriptEnabled == enabled)
             return;
+
+        if (!enabled && _scriptRunManager.IsHotkeyRunActive(asset))
+        {
+            SetStatus($"脚本正在运行，请先使用终止热键或顶部停止按钮：{asset.Name}");
+            ThemedDialog.Show(
+                this,
+                "脚本运行期间不能关闭热键监听。请先使用终止热键或顶部“停止执行”按钮结束脚本。",
+                "脚本正在运行",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            UpdateScriptEnabledMenuItem(asset);
+            return;
+        }
 
         asset.IsScriptEnabled = enabled;
         if (enabled)
@@ -525,6 +539,9 @@ public partial class MainWindow
 
         _contentBrowserContextTargetAsset = null;
         _contentBrowserContextTargetsAsset = false;
+        if (!CanDeleteContentAssets([item]))
+            return;
+
         var result = ThemedDialog.ShowCustom(
             this,
             $"是否删除：{item.Name}？",
@@ -542,6 +559,28 @@ public partial class MainWindow
         CloseEditorSessionsForAssetIds(deletingIds);
         RefreshContentBrowserViews();
         PersistAssetLibrary();
+    }
+
+    private bool CanDeleteContentAssets(IReadOnlyCollection<ContentAssetViewModel> targets)
+    {
+        var running = targets
+            .Where(item =>
+                _scriptRunManager.IsHotkeyRunActive(item) ||
+                (_executionController.IsManualDebugRunning &&
+                 string.Equals(_activeEditorSession?.ContentAsset.Id, item.Id, StringComparison.Ordinal)))
+            .ToList();
+        if (running.Count == 0)
+            return true;
+
+        string names = string.Join("、", running.Select(item => item.Name));
+        SetStatus($"运行中的脚本不能删除：{names}");
+        ThemedDialog.Show(
+            this,
+            $"请先停止以下脚本，再删除资产：\n{string.Join(Environment.NewLine, running.Select(item => "- " + item.Name))}",
+            "脚本正在运行",
+            MessageBoxButton.OK,
+            MessageBoxImage.Information);
+        return false;
     }
 
     private void MoveOrCopyContentAsset(ContentAssetViewModel source, string? targetFolderId)

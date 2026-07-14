@@ -40,7 +40,10 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private readonly GraphLibraryService _graphLibraryService = new();
     private readonly CallableGraphResolver _callableGraphResolver = new();
     private readonly GraphCompileService _graphCompileService;
+    private readonly PythonEnvironmentService _pythonEnvironmentService = new();
     private readonly NodeRegistry _nodeRegistry = NodeRegistry.CreateDefault();
+    private readonly Adapters.RuntimeAdapters _runtimeAdapters;
+    private readonly Runtime.GraphRuntimeExecutor _runtimeExecutor;
     private readonly ObservableCollection<EditorSessionViewModel> _editorSessions = [];
     private readonly ObservableCollection<EditorSessionViewModel> _mainEditorSessions = [];
     private readonly ObservableCollection<GraphListItemViewModel> _emptyGraphListItems = [];
@@ -69,7 +72,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private GraphImportDropController _graphImportDropController = null!;
     private MousePickController _mousePickController = null!;
     private ScriptHotkeyService _scriptHotkeyService = null!;
+    private HotkeyCaptureCoordinator _hotkeyCaptureCoordinator = null!;
     private ScriptRunManager _scriptRunManager = null!;
+    private readonly HashSet<string> _reportedHookFailures = new(StringComparer.Ordinal);
     private FinalCodePreviewWindow? _finalCodePreviewWindow;
     private ContentAssetViewModel? _activeContentAsset;
     private string? _currentContentFolderId;
@@ -105,6 +110,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         LoadAppSettings();
         DataContext = this;
         _graphCompileService = new GraphCompileService(_callableGraphResolver);
+        _runtimeAdapters = new Adapters.RuntimeAdapters(_pythonEnvironmentService);
+        _runtimeExecutor = new Runtime.GraphRuntimeExecutor(_runtimeAdapters, _nodeRegistry);
         InitializeComponent();
         Icon = WindowIconHelper.AppIcon;
         InitializeControllers();
@@ -135,41 +142,53 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     {
         Dispatcher.InvokeAsync(() =>
         {
-            IsExecuting = _scriptRunManager.IsAnyRunning || (_executionController?.IsRunning ?? false);
+            bool isManualDebugRunning = _executionController?.IsManualDebugRunning ?? false;
+            bool isHotkeyRunActive = _scriptRunManager.IsAnyHotkeyRunActive;
+            IsExecuting = isManualDebugRunning || isHotkeyRunActive;
             UpdateExecutionFreezeState();
             StopExecutionButton.Visibility = IsExecuting ? Visibility.Visible : Visibility.Collapsed;
+            StopExecutionButton.ToolTip = isManualDebugRunning && isHotkeyRunActive
+                ? "停止手动调试和全部热键脚本"
+                : isHotkeyRunActive
+                    ? "停止全部热键脚本"
+                    : "停止手动调试";
             UpdateEditorToolbarVisibility();
         });
     }
 
     private void StopExecution_Click(object sender, RoutedEventArgs e)
     {
-        _scriptRunManager.StopAll();
-        _executionController?.Cancel();
+        _scriptRunManager.StopAll(ScriptRunStopReason.Toolbar);
+        _executionController?.Cancel(ExecutionStopReason.Toolbar);
     }
 
     private void OnExecutionStateChanged(bool isRunning) { UpdateExecutionUI(); }
-    private void OnScriptRunningStateChanged()
-    {
-        Dispatcher.InvokeAsync(() =>
-        {
-            IsExecuting = _scriptRunManager.IsAnyRunning;
-            UpdateExecutionFreezeState();
-            StopExecutionButton.Visibility = IsExecuting ? Visibility.Visible : Visibility.Collapsed;
-            UpdateEditorToolbarVisibility();
-        });
-    }
+    private void OnScriptRunningStateChanged() => UpdateExecutionUI();
 
     private void UpdateExecutionFreezeState()
     {
+        bool isManualDebugRunning = _executionController?.IsManualDebugRunning ?? false;
+        bool isHotkeyRunActive = _scriptRunManager.IsAnyHotkeyRunActive;
+        string message = isManualDebugRunning && isHotkeyRunActive
+            ? "Esc 仅停止手动调试；终止热键停止对应脚本；顶部停止按钮停止全部。"
+            : isHotkeyRunActive
+                ? "请使用对应终止热键或顶部停止按钮结束脚本。"
+                : "按 Esc 或顶部停止按钮结束调试。";
+
         foreach (var session in _editorSessions)
         {
             if (session.Surface is { } surface)
+            {
                 surface.IsExecutionFrozen = IsExecuting;
+                surface.ExecutionFreezeMessage = message;
+            }
         }
 
         if (_bootstrapEditorSurface is { } bootstrapSurface)
+        {
             bootstrapSurface.IsExecutionFrozen = IsExecuting;
+            bootstrapSurface.ExecutionFreezeMessage = message;
+        }
     }
     private void EnsureCanvasLargeEnough()
     {

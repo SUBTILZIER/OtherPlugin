@@ -9,8 +9,12 @@
              d:DesignWidth="1280"
              HorizontalAlignment="Stretch"
              VerticalAlignment="Stretch"
-             Background="{DynamicResource EditorRootBackgroundBrush}">
+    Background="{DynamicResource EditorRootBackgroundBrush}">
     <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/AutomationStudioWpf;component/Themes/EditorSurfaceStyles.xaml" />
+            </ResourceDictionary.MergedDictionaries>
         <Style x:Key="EditorSectionCardStyle" TargetType="{x:Type Border}">
             <Setter Property="Background" Value="{DynamicResource EditorPanelCardBrush}" />
             <Setter Property="BorderBrush" Value="{DynamicResource EditorPanelBorderBrush}" />
@@ -85,110 +89,7 @@
             </Setter>
         </Style>
 
-        <Style x:Key="EditorReadonlyChipStyle" TargetType="{x:Type TextBlock}">
-            <Setter Property="Foreground" Value="{DynamicResource EditorTextBrightBrush}" />
-            <Setter Property="Background" Value="{DynamicResource EditorDisabledChipBrush}" />
-            <Setter Property="Padding" Value="8,4" />
-            <Setter Property="Margin" Value="0,4,0,12" />
-            <Setter Property="VerticalAlignment" Value="Center" />
-        </Style>
-
-        <Style x:Key="EditorInspectorTextBoxStyle" TargetType="{x:Type TextBox}" BasedOn="{StaticResource {x:Type TextBox}}">
-            <Setter Property="MinHeight" Value="32" />
-            <Setter Property="Margin" Value="0,5,0,12" />
-            <Setter Property="Background" Value="{DynamicResource EditorFieldCardBrush}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource EditorPanelBorderBrush}" />
-            <Setter Property="Padding" Value="9,6" />
-        </Style>
-
-        <Style x:Key="EditorInspectorComboBoxStyle" TargetType="{x:Type ComboBox}" BasedOn="{StaticResource {x:Type ComboBox}}">
-            <Setter Property="MinHeight" Value="32" />
-            <Setter Property="Margin" Value="0,5,0,12" />
-            <Setter Property="Background" Value="{DynamicResource EditorFieldCardBrush}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource EditorPanelBorderBrush}" />
-        </Style>
-
-        <Style x:Key="EditorInspectorCheckBoxStyle" TargetType="{x:Type CheckBox}" BasedOn="{StaticResource {x:Type CheckBox}}">
-            <Setter Property="Foreground" Value="{DynamicResource EditorTextBrush}" />
-            <Setter Property="Margin" Value="0,2,0,10" />
-        </Style>
-
-        <Style x:Key="EditorPanelDropShadowStyle" TargetType="{x:Type Border}">
-            <Setter Property="Effect">
-                <Setter.Value>
-                    <DropShadowEffect ShadowDepth="8"
-                                      BlurRadius="24"
-                                      Opacity="0.36"
-                                      Color="#000000" />
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style x:Key="EditorSidebarIconButtonStyle" TargetType="{x:Type Button}">
-            <Setter Property="Foreground" Value="{DynamicResource EditorTextBrightBrush}" />
-            <Setter Property="Background" Value="{DynamicResource EditorFieldCardBrush}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource EditorPanelBorderBrush}" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="Padding" Value="0" />
-            <Setter Property="MinWidth" Value="0" />
-            <Setter Property="MinHeight" Value="0" />
-            <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="{x:Type Button}">
-                        <Border x:Name="ButtonChrome"
-                                Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="7">
-                            <ContentPresenter HorizontalAlignment="Center"
-                                              VerticalAlignment="Center"
-                                              RecognizesAccessKey="True" />
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="ButtonChrome" Property="Background" Value="{DynamicResource EditorPanelCardHoverBrush}" />
-                                <Setter TargetName="ButtonChrome" Property="BorderBrush" Value="{DynamicResource EditorSelectedBorderBrush}" />
-                            </Trigger>
-                            <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="ButtonChrome" Property="Background" Value="{DynamicResource EditorListSelectedBrush}" />
-                            </Trigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter Property="Opacity" Value="0.45" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style x:Key="EditorFunctionPublishCheckBoxStyle" TargetType="{x:Type CheckBox}" BasedOn="{StaticResource {x:Type CheckBox}}">
-            <Setter Property="Content" Value="公开" />
-            <Setter Property="ToolTip" Value="公开后可被其它脚本作为函数库函数调用" />
-            <Setter Property="Foreground" Value="{DynamicResource ForegroundSecondaryBrush}" />
-            <Setter Property="FontSize" Value="11" />
-            <Setter Property="Margin" Value="10,0,0,0" />
-            <Setter Property="VerticalAlignment" Value="Center" />
-        </Style>
-
-        <Style x:Key="GraphItemDirtyGlyphStyle" TargetType="{x:Type Border}">
-            <Setter Property="Width" Value="8" />
-            <Setter Property="Height" Value="8" />
-            <Setter Property="Margin" Value="0,0,7,0" />
-            <Setter Property="CornerRadius" Value="4" />
-            <Setter Property="Background" Value="{DynamicResource CompileDirtyBorderBrush}" />
-            <Setter Property="VerticalAlignment" Value="Center" />
-            <Setter Property="Visibility" Value="Collapsed" />
-            <Setter Property="ToolTip" Value="图表已修改" />
-            <Style.Triggers>
-                <DataTrigger Binding="{Binding IsDirty}" Value="True">
-                    <Setter Property="Visibility" Value="Visible" />
-                </DataTrigger>
-                <DataTrigger Binding="{Binding IsEditing}" Value="True">
-                    <Setter Property="Visibility" Value="Collapsed" />
-                </DataTrigger>
-            </Style.Triggers>
-        </Style>
+        </ResourceDictionary>
     </UserControl.Resources>
             <Grid x:Name="EditorGrid">
                 <Grid.ColumnDefinitions>
@@ -1526,7 +1427,7 @@
                                     </TextBlock.Style>
                                 </TextBlock>
 
-                                <TextBlock Text="节点画布已冻结。点击顶部“停止执行”后才能继续编辑节点。"
+                                <TextBlock Text="{Binding ExecutionFreezeMessage, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
                                            Foreground="{DynamicResource ForegroundSecondaryBrush}"
                                            FontSize="13"
                                            TextAlignment="Center"

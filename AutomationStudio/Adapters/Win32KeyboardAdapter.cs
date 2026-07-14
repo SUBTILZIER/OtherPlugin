@@ -3,41 +3,130 @@ using AutomationStudioWpf.Graph;
 
 namespace AutomationStudioWpf.Adapters;
 
-public sealed class Win32KeyboardAdapter : IKeyboardAdapter
+public sealed class Win32KeyboardAdapter : IKeyboardAdapter, IExecutionScopedInputAdapter
 {
-    private readonly HashSet<byte> _pressedKeys = [];
+    private readonly object _gate = new();
+    private readonly Dictionary<Guid, HashSet<byte>> _pressedKeysByExecution = [];
+    private readonly Dictionary<byte, int> _keyHoldCounts = [];
 
     public void ExecuteKey(string key, PressReleaseMode mode)
     {
+        if (mode != PressReleaseMode.Release)
+            RuntimeShutdownGate.ThrowIfShutdownStarted();
+
         byte vkCode = MapKeyToVirtualKeyCode(key);
+        if (vkCode == 0)
+            throw new ArgumentException($"不支持的键盘按键：{key}", nameof(key));
 
         switch (mode)
         {
             case PressReleaseMode.Click:
-                SendKey(vkCode, false);
-                Thread.Sleep(50);
-                SendKey(vkCode, true);
+                ClickKey(vkCode);
                 break;
             case PressReleaseMode.Press:
-                SendKey(vkCode, false);
-                lock (_pressedKeys) { _pressedKeys.Add(vkCode); }
+                PressKey(RuntimeExecutionInputContext.CurrentExecutionId, vkCode);
                 break;
             case PressReleaseMode.Release:
-                SendKey(vkCode, true);
-                lock (_pressedKeys) { _pressedKeys.Remove(vkCode); }
+                ReleaseKey(RuntimeExecutionInputContext.CurrentExecutionId, vkCode);
                 break;
         }
     }
 
-    public void ReleaseAllKeys()
-    {
-        lock (_pressedKeys)
-        {
-            foreach (byte vk in _pressedKeys)
-                SendKey(vk, true);
+    public void ReleaseAllKeys() => ReleaseAllExecutions();
 
-            _pressedKeys.Clear();
+    void IExecutionScopedInputAdapter.ReleaseExecution(Guid executionId) => ReleaseExecution(executionId);
+
+    void IExecutionScopedInputAdapter.ReleaseAllExecutions() => ReleaseAllExecutions();
+
+    private void ClickKey(byte vkCode)
+    {
+        lock (_gate)
+        {
+            RuntimeShutdownGate.ThrowIfShutdownStarted();
+            SendKey(vkCode, false);
+            Thread.Sleep(50);
+            SendKey(vkCode, true);
+            if (!RuntimeShutdownGate.IsShutdownStarted && _keyHoldCounts.GetValueOrDefault(vkCode) > 0)
+                SendKey(vkCode, false);
         }
+    }
+
+    private void PressKey(Guid executionId, byte vkCode)
+    {
+        lock (_gate)
+        {
+            RuntimeShutdownGate.ThrowIfShutdownStarted();
+            if (!_pressedKeysByExecution.TryGetValue(executionId, out var pressedKeys))
+            {
+                pressedKeys = [];
+                _pressedKeysByExecution[executionId] = pressedKeys;
+            }
+
+            if (!pressedKeys.Add(vkCode))
+            {
+                SendKey(vkCode, false);
+                return;
+            }
+
+            int holdCount = _keyHoldCounts.GetValueOrDefault(vkCode);
+            if (holdCount == 0)
+                SendKey(vkCode, false);
+            _keyHoldCounts[vkCode] = holdCount + 1;
+        }
+    }
+
+    private void ReleaseKey(Guid executionId, byte vkCode)
+    {
+        lock (_gate)
+        {
+            if (_pressedKeysByExecution.TryGetValue(executionId, out var pressedKeys) && pressedKeys.Remove(vkCode))
+            {
+                if (pressedKeys.Count == 0)
+                    _pressedKeysByExecution.Remove(executionId);
+                DecrementHold(vkCode);
+                return;
+            }
+
+            if (_keyHoldCounts.GetValueOrDefault(vkCode) == 0)
+                SendKey(vkCode, true);
+        }
+    }
+
+    private void ReleaseExecution(Guid executionId)
+    {
+        lock (_gate)
+        {
+            if (!_pressedKeysByExecution.Remove(executionId, out var pressedKeys))
+                return;
+
+            foreach (byte vkCode in pressedKeys)
+                DecrementHold(vkCode);
+        }
+    }
+
+    private void ReleaseAllExecutions()
+    {
+        lock (_gate)
+        {
+            foreach (byte vkCode in _keyHoldCounts.Keys.ToList())
+                SendKey(vkCode, true);
+
+            _pressedKeysByExecution.Clear();
+            _keyHoldCounts.Clear();
+        }
+    }
+
+    private void DecrementHold(byte vkCode)
+    {
+        int holdCount = _keyHoldCounts.GetValueOrDefault(vkCode);
+        if (holdCount <= 1)
+        {
+            _keyHoldCounts.Remove(vkCode);
+            SendKey(vkCode, true);
+            return;
+        }
+
+        _keyHoldCounts[vkCode] = holdCount - 1;
     }
 
     private static void SendKey(byte vkCode, bool keyUp)
@@ -85,7 +174,7 @@ public sealed class Win32KeyboardAdapter : IKeyboardAdapter
             "NUMPAD5" => 0x65, "NUMPAD6" => 0x66, "NUMPAD7" => 0x67, "NUMPAD8" => 0x68, "NUMPAD9" => 0x69,
             "ADD" => 0x6B, "SUBTRACT" => 0x6D, "MULTIPLY" => 0x6A, "DIVIDE" => 0x6F, "DECIMAL" => 0x6E,
             "LWIN" => 0x5B, "RWIN" => 0x5C, "APPS" => 0x5D,
-            _ => 0x41,
+            _ => 0,
         };
     }
 

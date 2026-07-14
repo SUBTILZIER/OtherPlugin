@@ -1,6 +1,7 @@
 using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using AutomationStudioWpf.Logging;
 
 namespace AutomationStudioWpf.Services;
 
@@ -56,6 +57,7 @@ public sealed class AppSettingsService
     };
 
     private readonly string _settingsPath;
+    private bool _writesBlockedByLoadFailure;
 
     public AppSettingsService()
     {
@@ -69,16 +71,23 @@ public sealed class AppSettingsService
     {
         try
         {
-            if (!File.Exists(_settingsPath))
+            if (!File.Exists(_settingsPath) && !File.Exists(_settingsPath + ".bak"))
                 return new AppSettings();
 
-            var json = File.ReadAllText(_settingsPath);
-            var settings = JsonSerializer.Deserialize<AppSettings>(json, JsonOptions) ?? new AppSettings();
+            var readResult = AtomicJsonFileStore.Read<AppSettings>(_settingsPath, JsonOptions);
+            var settings = readResult.Value;
+            _writesBlockedByLoadFailure = readResult.RepairError is not null;
+            if (readResult.RecoveredFromBackup && readResult.PrimaryFileRepaired)
+                Logger.Warn($"设置已从备份恢复，并修复主文件：{_settingsPath}");
+            else if (readResult.RepairError is not null)
+                Logger.Error($"设置已从备份读取，但主文件修复失败，本次运行禁止覆盖：{readResult.RepairError.Message}");
             settings.Normalize();
             return settings;
         }
-        catch
+        catch (Exception ex)
         {
+            _writesBlockedByLoadFailure = true;
+            Logger.Error($"设置读取失败，已阻止覆盖原文件：{ex.Message}");
             return new AppSettings();
         }
     }
@@ -86,8 +95,9 @@ public sealed class AppSettingsService
     public void Save(AppSettings settings)
     {
         settings.Normalize();
+        if (_writesBlockedByLoadFailure)
+            throw new InvalidOperationException($"设置主文件无法安全恢复。为避免覆盖原数据，本次运行已禁止保存：{_settingsPath}");
         Directory.CreateDirectory(Path.GetDirectoryName(_settingsPath)!);
-        var json = JsonSerializer.Serialize(settings, JsonOptions);
-        File.WriteAllText(_settingsPath, json);
+        AtomicJsonFileStore.Write(_settingsPath, settings, JsonOptions);
     }
 }

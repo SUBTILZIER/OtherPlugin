@@ -9,7 +9,7 @@ namespace AutomationStudioWpf;
 public partial class MainWindow
 {
     private ScriptPropertiesSummaryControl CreateScriptPropertiesSummary(ContentAssetViewModel asset) =>
-        new(asset, ApplyScriptRunSettings);
+        new(asset, ApplyScriptRunSettings, _hotkeyCaptureCoordinator);
 
     private void ShowContentAssetPreviewIfIdle(ContentAssetViewModel? asset)
     {

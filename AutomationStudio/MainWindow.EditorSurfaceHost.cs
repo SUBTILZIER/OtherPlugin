@@ -65,6 +65,16 @@ public partial class MainWindow
         ConfigureEditorSurface(session);
     }
 
+    private void DetachEditorSurfaceHostSessionTracking()
+    {
+        if (!_editorSurfaceHostSessionTrackingInstalled)
+            return;
+
+        _editorSessions.CollectionChanged -= EditorSurfaceHost_EditorSessionsChanged;
+        _editorSurfaceHostTrackedSessions.Clear();
+        _editorSurfaceHostSessionTrackingInstalled = false;
+    }
+
     private void UntrackEditorSurfaceHostSession(EditorSessionViewModel session)
     {
         _editorSurfaceHostTrackedSessions.Remove(session);
