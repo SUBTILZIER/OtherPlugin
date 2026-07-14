@@ -17,6 +17,7 @@
         <SolidColorBrush x:Key="AccentHoverBrush" Color="#65B3FF" po:Freeze="False" />
         <SolidColorBrush x:Key="AccentPressedBrush" Color="#357AD8" po:Freeze="False" />
         <SolidColorBrush x:Key="AccentForegroundBrush" Color="#FFFFFF" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorSelectionTextBrush" Color="#F3F7FF" po:Freeze="False" />
         <SolidColorBrush x:Key="InputBackgroundBrush" Color="#232B36" po:Freeze="False" />
         <SolidColorBrush x:Key="InputBorderBrush" Color="#3C4A5C" po:Freeze="False" />
         <SolidColorBrush x:Key="DisabledInputBackgroundBrush" Color="#1A2028" po:Freeze="False" />
@@ -35,6 +36,7 @@
         <SolidColorBrush x:Key="StatusMutedBrush" Color="#8793A4" po:Freeze="False" />
         <SolidColorBrush x:Key="LogErrorBrush" Color="#FF6B6B" po:Freeze="False" />
         <SolidColorBrush x:Key="EditorRootBackgroundBrush" Color="#10151D" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorWindowBorderBrush" Color="#303A48" po:Freeze="False" />
         <SolidColorBrush x:Key="EditorPanelBackgroundBrush" Color="#171C24" po:Freeze="False" />
         <SolidColorBrush x:Key="EditorPanelBorderBrush" Color="#293241" po:Freeze="False" />
         <SolidColorBrush x:Key="EditorPanelStrongBorderBrush" Color="#354255" po:Freeze="False" />
@@ -405,7 +407,7 @@
                             </Trigger>
                             <Trigger Property="IsSelected" Value="True">
                                 <Setter TargetName="Border" Property="Background" Value="{DynamicResource DropdownSelectedBrush}" />
-                                <Setter Property="Foreground" Value="{DynamicResource AccentForegroundBrush}" />
+                                <Setter Property="Foreground" Value="{DynamicResource EditorSelectionTextBrush}" />
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter Property="Foreground" Value="{DynamicResource DisabledForegroundBrush}" />
@@ -439,7 +441,7 @@
                             </Trigger>
                             <Trigger Property="IsSelected" Value="True">
                                 <Setter TargetName="Border" Property="Background" Value="{DynamicResource DropdownSelectedBrush}" />
-                                <Setter Property="Foreground" Value="{DynamicResource AccentForegroundBrush}" />
+                                <Setter Property="Foreground" Value="{DynamicResource EditorSelectionTextBrush}" />
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter Property="Foreground" Value="{DynamicResource DisabledForegroundBrush}" />

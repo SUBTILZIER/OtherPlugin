@@ -76,7 +76,6 @@
                                 <Setter TargetName="AccentBar" Property="Background" Value="{DynamicResource EditorSelectedAccentBrush}" />
                             </Trigger>
                             <DataTrigger Binding="{Binding IsCompileDirty}" Value="True">
-                                <Setter TargetName="Shell" Property="Background" Value="{DynamicResource EditorDirtyBackgroundBrush}" />
                                 <Setter TargetName="Shell" Property="BorderBrush" Value="{DynamicResource CompileDirtyBorderBrush}" />
                                 <Setter TargetName="AccentBar" Property="Background" Value="{DynamicResource CompileDirtyBorderBrush}" />
                             </DataTrigger>

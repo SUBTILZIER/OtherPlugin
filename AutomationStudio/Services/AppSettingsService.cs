@@ -41,7 +41,7 @@ public sealed class AppSettings
     public void Normalize()
     {
         if (!AppThemeService.TryParseColor(AccentColor, out _))
-            AccentColor = ThemeMode == AppThemeMode.Light ? "#7C8DFF" : "#4FA3FF";
+            AccentColor = "#4FA3FF";
         AccentOpacity = Math.Clamp(AccentOpacity, 0.18, 1.0);
     }
 }

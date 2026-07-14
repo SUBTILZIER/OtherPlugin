@@ -329,7 +329,7 @@
                             <Trigger Property="IsSelected" Value="True">
                                 <Setter TargetName="TileChrome" Property="Background" Value="{DynamicResource EditorListSelectedBrush}" />
                                 <Setter TargetName="TileChrome" Property="BorderBrush" Value="{DynamicResource EditorSelectedBorderBrush}" />
-                                <Setter Property="Foreground" Value="{DynamicResource AccentForegroundBrush}" />
+                                <Setter Property="Foreground" Value="{DynamicResource EditorSelectionTextBrush}" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -415,7 +415,7 @@
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsHighlighted" Value="True">
                                 <Setter TargetName="MenuItemBorder" Property="Background" Value="{DynamicResource EditorListSelectedBrush}" />
-                                <Setter Property="Foreground" Value="{DynamicResource AccentForegroundBrush}" />
+                                <Setter Property="Foreground" Value="{DynamicResource EditorSelectionTextBrush}" />
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter Property="Foreground" Value="{DynamicResource DisabledForegroundBrush}" />
@@ -427,7 +427,7 @@
             <Style.Triggers>
                 <Trigger Property="IsHighlighted" Value="True">
                     <Setter Property="Background" Value="{DynamicResource EditorListSelectedBrush}" />
-                    <Setter Property="Foreground" Value="{DynamicResource AccentForegroundBrush}" />
+                    <Setter Property="Foreground" Value="{DynamicResource EditorSelectionTextBrush}" />
                 </Trigger>
                 <Trigger Property="IsEnabled" Value="False">
                     <Setter Property="Foreground" Value="{DynamicResource DisabledForegroundBrush}" />
@@ -436,6 +436,9 @@
         </Style>
         </ResourceDictionary>
     </Window.Resources>
+    <Border BorderBrush="{DynamicResource EditorWindowBorderBrush}"
+            BorderThickness="1"
+            SnapsToDevicePixels="True">
     <DockPanel>
         <Border DockPanel.Dock="Top"
                 Height="36"
@@ -932,7 +935,7 @@
                                                             <Setter Property="Visibility" Value="Collapsed" />
                                                         </DataTrigger>
                                                         <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True">
-                                                            <Setter Property="Foreground" Value="{DynamicResource AccentForegroundBrush}" />
+                                                            <Setter Property="Foreground" Value="{DynamicResource EditorSelectionTextBrush}" />
                                                         </DataTrigger>
                                                     </Style.Triggers>
                                                 </Style>
@@ -1065,4 +1068,5 @@
             </Grid>
         </Grid>
     </DockPanel>
+    </Border>
 </Window>

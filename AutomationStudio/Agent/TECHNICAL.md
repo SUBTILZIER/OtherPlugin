@@ -738,7 +738,9 @@ Python 参数规则：
 - `PinConnectionController` maps visual `ConnectionPathViewModel` back to backing `ConnectionViewModel` for double-click, Alt-click, and context-menu reroute insertion by sampling the visible Bezier geometry.
 - Delete/Backspace on a selected visible path removes all backing connections in that visual path as one undoable command. Reroute nodes are not deleted automatically.
 - Active visible geometry is `ConnectionSplinePlanner.BuildGeometry(...)`. `ConnectionChain` / `ConnectionChainFinder` and `SplineTangentCalculator` are currently not called by XAML-bound paths.
-- Tight/backward reroute layouts currently do not reproduce the old loop issue; do not change `ConnectionSplinePlanner` without a new concrete repro.
+- 2026-07-14 路由点圆角规则：无 reroute 的两点连线保留原有距离约束出线；多点路径先固定输入/输出端点，用 2-opt 仅重排内部视觉 waypoint，消除拖拽形成的蝴蝶结交叉，再使用相邻方向角平分切线生成 G1 连续圆角。该重排只影响视觉顺序；reroute 仍是 runtime 透明节点，拓扑、JSON 和执行语义不变。
+- 控制柄同时受相邻最短线段、转角缩放和当前 span 投影预算约束；完整曲线采样发现自交时按 `1/.75/.5/.25/0` 逐级降低圆角，最终退化为已消交叉的直段。禁止通过放大 Bezier 强行圆角导致绕圈，也禁止交叉检测失败时返回空路径。
+- 实现仍保持“每个 backing connection 对应一个 `BezierSegment`”，否则 `ConnectionPathViewModel.FindNearestConnection(...)` 的可见曲线命中数量会错位。视觉 waypoint 被消交叉重排后，segment index 仍只用于映射同一条透明 reroute chain 的 backing connection；插入任一处的运行语义等价。紧凑、反向、蝴蝶结和多 reroute 布局必须通过本地定向回归后才能调整参数。
 
 #### NodeDefinition metadata
 - `Runtime/NodeDefinition.cs` now exposes `SearchTags`, `InspectorSchemaKey`, `DefaultValues`, and `ValidationHints`.
@@ -1182,10 +1184,9 @@ dotnet publish -c Release -r win-x64 \
 - 亮色主题验收标准：主窗口上方、内容浏览器、日志、编辑器、属性面板、弹窗、菜单、Tooltip 必须同时切到浅色层级；不能出现“上白下黑”、白底白字、浅灰字贴浅底、按钮文字被背景吃掉。
 - 2026-07-07 根因补充：旧 `MainWindow.ThemeUnifier` 曾在 `OnContentRendered` 后用冻结暗色 brush 直接写内容浏览器、日志和右键菜单本地属性，导致设置窗口切到亮色后主界面仍黑。该类以后只允许安装内容浏览器交互/重命名校验等 hook，不允许再承担“统一暗色上色器”职责。
 - 主题切换事件由 `AppThemeService.ThemeChanged` 广播；主窗口负责刷新日志 FlowDocument、detached 子窗口、最终代码窗口和少量代码生成 UI。XAML 主题 token 使用 `DynamicResource`，避免已创建控件拿着旧资源不刷新。
-- 2026-07-07 亮色风格修正：亮色主题按 Codex 风格使用中性灰白层级（灰背景、白卡片、冷灰边框），禁止偏黄/米黄底色；`ContentAssetTileContainerStyle` 的资产名必须显式绑定 `EditorTextBrush`，选中态切 `AccentForegroundBrush`，不能再固定白字；`ThemedDialog` 按钮必须属于同一视觉族，默认按钮只用强调边框/轻微高亮区分，不允许“一个白按钮 + 一个整块蓝按钮”的割裂样式。
+- 亮色主题按 Codex 风格使用中性灰白层级（灰背景、近白卡片、中性灰边框），禁止偏黄、偏蓝的大面积底色；`ContentAssetTileContainerStyle` 的资产名必须显式绑定 `EditorTextBrush`，选中态使用 `EditorSelectionTextBrush`，不能固定白字；`ThemedDialog` 按钮必须属于同一视觉族，默认按钮只用强调边框/轻微高亮区分。
 - 2026-07-07 亮色二次修正：亮色不能大面积纯白刺眼，主背景/画布/日志/内容区优先用低亮度冷灰白；正文文字用灰黑，不用纯黑。执行 pin/执行连线必须走 `EditorExecutionPinBrush`，亮色下为深灰，避免白线在浅色画布上不可见；连接命中高亮和预览线分别走 `EditorConnectionHitBrush`、`EditorPreviewConnectionBrush`。
-- 2026-07-07 亮色三次修正：用户反馈 `#F8FAFC/#FFFFFF` 面积过大仍刺眼。亮色默认再压暗到柔和雾灰：应用背景约 `#E7EBF0`，主面板约 `#EEF2F6`，画布约 `#E9EEF4`，卡片约 `#F3F6FA`。后续别把大面积背景恢复成纯白或近纯白。
-- 2026-07-07 亮色四次修正：用户反馈画布仍刺眼，亮色主题继续压到低亮冷灰层级：应用背景约 `#DDE3EA`，主面板约 `#E6EBF2`，画布约 `#D6DEE9`，网格约 `#DCE4EE/#BFCBDA`。原则：亮色不是纯白主题，而是 Codex 风格柔和灰白主题；大面积区域优先灰，不用白。
+- 2026-07-14 最终亮色基线：不要用“整体继续压暗”修刺眼问题，那会形成脏蓝灰。应用背景使用中性灰约 `#ECEEED`，主面板约 `#F5F6F5`，卡片约 `#F7F8F7`；节点画布是例外，使用更深的 `#C5CDCA/#D0D7D5`，保证白色节点和深色连线清楚。主窗口用独立 `EditorWindowBorderBrush` 深灰外框。强调色只用于边框、窄 accent 和轻染选中底；选中底最多混入约 17% 强调色，禁止整块高饱和蓝色铺面。
 - `SettingsWindow` 默认尺寸不得太小，当前目标约 `720x620` 且允许 resize；内容多时滚动，不要把设置项挤没。强调色必须支持项目内自绘色盘（`AccentColorPickerWindow`），禁止调用 Windows 原生颜色面板。
 - `SettingsWindow` 底部只保留 `应用` 一个按钮；实时预览仍即时生效，`应用` 只负责确认并关闭。不要再恢复 `保存设置` / `取消` 双按钮和回滚流程，避免交互重复。
 - 用户自选强调色必须原样写入 `AccentBrush`，不要为了可读性直接暗化用户选择的颜色。需要深一点的选中底色时，单独派生 `EditorListSelectedBrush` / `DropdownSelectedBrush`；按钮文字色通过亮度在深/浅前景间切换。

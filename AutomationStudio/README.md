@@ -1,12 +1,12 @@
 # AutomationStudioWpf
 
-## Current Notes (2026-06-27)
+## Current Notes (2026-07-14)
 
 - 2026-07-02: Long-term technical notes now live only in `AutomationStudio/Agent/TECHNICAL.md`. Start from its outline, then read only the relevant section.
 - Visual wires bind to `GraphEditorService.ConnectionPaths`; persisted graph data and runtime execution still use `GraphEditorService.Connections`.
-- `ConnectionPathViewModel` aggregates linear reroute chains only for drawing. Reroute order follows the real `Connections` chain, not point distance, so moving route nodes does not reorder or jump the wire.
-- `ConnectionSplinePlanner` is the active visible-wire geometry builder. Single backing connections use one cubic Bezier; aggregated reroute chains use per-segment spline handles scaled from neighboring point distance.
-- Current tight/backward reroute layouts are covered as no-loop regressions; do not rewrite `ConnectionSplinePlanner` unless a new concrete repro appears.
+- `ConnectionPathViewModel` aggregates linear reroute chains only for drawing. Persisted topology and runtime execution still follow the real `Connections` chain; reroute nodes remain runtime-transparent.
+- `ConnectionSplinePlanner` is the active visible-wire geometry builder. Single backing connections preserve the constrained cubic Bezier behavior. Multi-reroute paths keep source/target fixed, visually uncross interior waypoints with 2-opt, then generate distance-constrained G1-continuous curves.
+- The complete rendered curve is checked for self-intersection. Smoothness is reduced adaptively and the final fallback is an uncrossed straight path, so tight/backward/bow-tie reroute dragging cannot create loops or crossed wires. One Bezier segment is still emitted per backing connection for visible-curve hit testing.
 - Double-clicking a visible wire inserts a reroute node by sampling the visible curve back to the nearest backing `ConnectionViewModel`; Alt-click still removes the nearest backing connection.
 - `GraphEditorService.RunBatchedEdit(...)` batches connection mutations so `ConnectionPaths` rebuild and `GraphChanged` fire once per composed edit.
 - Runtime lookup uses an internal lazy `GraphExecutionIndex`; `GraphExecutionPlan` constructor/schema stay unchanged.

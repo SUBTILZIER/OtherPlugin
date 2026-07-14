@@ -112,7 +112,7 @@ public sealed class SettingsWindow : Window
         _darkThemeCard = BuildThemeChoiceCard("暗色", "高对比编辑器", "#10151D", "#151B23", "#4FA3FF", _darkThemeRadio);
         Grid.SetColumn(_darkThemeCard, 0);
         themeRows.Children.Add(_darkThemeCard);
-        _lightThemeCard = BuildThemeChoiceCard("亮色", "Codex 柔和灰白", "#DDE3EA", "#E6EBF2", "#7C8DFF", _lightThemeRadio);
+        _lightThemeCard = BuildThemeChoiceCard("亮色", "Codex 中性灰白", "#ECEEED", "#F7F8F7", "#4FA3FF", _lightThemeRadio);
         Grid.SetColumn(_lightThemeCard, 2);
         themeRows.Children.Add(_lightThemeCard);
         themeCardBody.Children.Add(themeRows);
@@ -172,7 +172,7 @@ public sealed class SettingsWindow : Window
         };
         resetButton.Click += (_, _) =>
         {
-            _accentTextBox.Text = _lightThemeRadio.IsChecked == true ? "#7C8DFF" : "#4FA3FF";
+            _accentTextBox.Text = "#4FA3FF";
             SetOpacityPercent(62);
             ApplyLivePreviewIfValid();
         };
