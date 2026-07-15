@@ -61,8 +61,7 @@ public sealed class AppSettingsService
 
     public AppSettingsService()
     {
-        var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-        var folder = Path.Combine(appData, "AutomationStudioWpf");
+        string folder = ApplicationPaths.RoamingDataRoot;
         Directory.CreateDirectory(folder);
         _settingsPath = Path.Combine(folder, "app-settings.json");
     }

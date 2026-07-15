@@ -25,6 +25,8 @@ public sealed class PythonScriptAdapter : IPythonScriptAdapter
 
     public PythonScriptResult RunJsonScript(string scriptPath, object payload, TimeSpan timeout, CancellationToken ct)
     {
+        ct.ThrowIfCancellationRequested();
+        _environment.ThrowIfProcessStartBlocked();
         if (!File.Exists(scriptPath))
             return new PythonScriptResult(false, -1, string.Empty, string.Empty, $"Python 脚本不存在：{scriptPath}");
 
@@ -43,17 +45,21 @@ public sealed class PythonScriptAdapter : IPythonScriptAdapter
                 StartInfo = new ProcessStartInfo
                 {
                     FileName = pythonExe,
+                    WorkingDirectory = Path.GetDirectoryName(pythonExe) ?? AppContext.BaseDirectory,
                     UseShellExecute = false,
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
                     CreateNoWindow = true,
                 },
             };
+            ConfigureIsolatedPythonEnvironment(process.StartInfo);
+            process.StartInfo.ArgumentList.Add("-I");
             process.StartInfo.ArgumentList.Add(scriptPath);
             process.StartInfo.ArgumentList.Add(requestPath);
 
-            process.Start();
-            processRegistration = _environment.RegisterProcess(process);
+            processRegistration = _environment.StartOwnedProcess(
+                process,
+                $"Python 脚本：{Path.GetFileName(scriptPath)}");
             outputTask = process.StandardOutput.ReadToEndAsync();
             errorTask = process.StandardError.ReadToEndAsync();
             DateTime deadline = DateTime.UtcNow.Add(timeout);
@@ -107,6 +113,15 @@ public sealed class PythonScriptAdapter : IPythonScriptAdapter
                 Logging.Logger.Error($"Python 子进程未能终止，已保留请求文件：{requestPath}");
             }
         }
+    }
+
+    private static void ConfigureIsolatedPythonEnvironment(ProcessStartInfo startInfo)
+    {
+        startInfo.Environment["PYTHONNOUSERSITE"] = "1";
+        startInfo.Environment["PYTHONDONTWRITEBYTECODE"] = "1";
+        startInfo.Environment["PYTHONUTF8"] = "1";
+        startInfo.Environment.Remove("PYTHONPATH");
+        startInfo.Environment.Remove("PYTHONHOME");
     }
 
     private static bool TerminateAndDrain(Process process, Task<string>? outputTask, Task<string>? errorTask)

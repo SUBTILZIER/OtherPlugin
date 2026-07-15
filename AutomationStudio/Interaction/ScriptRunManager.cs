@@ -109,14 +109,15 @@ internal sealed class ScriptRunManager : IDisposable
         }
     }
 
-    public void StopFromHotkey(ContentAssetViewModel asset)
+    public bool StopFromHotkey(ContentAssetViewModel asset)
     {
-        if (_running.TryGetValue(asset.Id, out var state))
-        {
-            Logger.Info($"终止热键请求停止脚本：{asset.Name}");
-            state.Cancellation.Cancel();
-            _setStatus($"正在停止脚本：{asset.Name}");
-        }
+        if (!_running.TryGetValue(asset.Id, out var state) || state.Cancellation.IsCancellationRequested)
+            return false;
+
+        Logger.Info($"终止热键请求停止脚本：{asset.Name}");
+        state.Cancellation.Cancel();
+        _setStatus($"正在停止脚本：{asset.Name}");
+        return true;
     }
 
     public void StopAll(ScriptRunStopReason reason)

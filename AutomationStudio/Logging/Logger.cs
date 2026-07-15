@@ -4,6 +4,7 @@ using System.Threading;
 using System.Windows.Threading;
 using System.Diagnostics;
 using AutomationStudioWpf.Collections;
+using AutomationStudioWpf.Services;
 
 namespace AutomationStudioWpf.Logging;
 
@@ -13,7 +14,6 @@ public static class Logger
     private const int LogRetentionDays = 5;
     private const long MaxLogDirectoryBytes = 128L * 1024 * 1024;
 
-    private static readonly string LogDir = Path.Combine(AppContext.BaseDirectory, "saved", "log");
     private static readonly object _lock = new();
     private static readonly object _uiLock = new();
     private static readonly List<LogEntry> _pendingUiEntries = [];
@@ -24,7 +24,6 @@ public static class Logger
 
     static Logger()
     {
-        Directory.CreateDirectory(LogDir);
         _ = Task.Run(CleanupOldLogs);
     }
 
@@ -56,6 +55,7 @@ public static class Logger
         {
             try
             {
+                Directory.CreateDirectory(LogDirectory);
                 string logFile = CurrentLogFilePath(DateTime.Now);
                 File.AppendAllText(logFile, $"[{entry.Timestamp}] [{LevelLabel(entry.Level)}] {entry.Message}{Environment.NewLine}");
             }
@@ -76,10 +76,12 @@ public static class Logger
         QueueEntryForUi(entry);
     }
 
-    public static string GetLogDirectory() => LogDir;
+    public static string GetLogDirectory() => LogDirectory;
+
+    private static string LogDirectory => ApplicationPaths.LogDirectory;
 
     private static string CurrentLogFilePath(DateTime localTime) =>
-        Path.Combine(LogDir, $"Log_{localTime:yyyy_MM_dd_HH}.txt");
+        Path.Combine(LogDirectory, $"Log_{localTime:yyyy_MM_dd_HH}.txt");
 
     private static void CleanupOldLogs()
     {
@@ -87,11 +89,11 @@ public static class Logger
         {
             try
             {
-                Directory.CreateDirectory(LogDir);
+                Directory.CreateDirectory(LogDirectory);
                 string currentLogPath = Path.GetFullPath(CurrentLogFilePath(DateTime.Now));
                 DateTime cutoffUtc = DateTime.UtcNow.AddDays(-LogRetentionDays);
                 var files = Directory
-                    .EnumerateFiles(LogDir, "Log_*.txt", SearchOption.TopDirectoryOnly)
+                    .EnumerateFiles(LogDirectory, "Log_*.txt", SearchOption.TopDirectoryOnly)
                     .Select(path => new FileInfo(path))
                     .OrderBy(file => file.LastWriteTimeUtc)
                     .ToList();

@@ -1,10 +1,8 @@
 using System.ComponentModel;
-using System.Drawing;
-using System.Reflection;
 using System.Windows;
+using AutomationStudioWpf.Adapters;
 using AutomationStudioWpf.Interaction;
 using AutomationStudioWpf.Services;
-using AutomationStudioWpf.Adapters;
 using WpfApplication = System.Windows.Application;
 using WinFormsCursor = System.Windows.Forms.Cursor;
 using WinFormsMouseButtons = System.Windows.Forms.MouseButtons;
@@ -16,6 +14,7 @@ public partial class MainWindow
 {
     private WinFormsNotifyIcon? _notifyIcon;
     private TrayMenuWindow? _trayMenuWindow;
+    private int _exitCleanupStarted;
 
     private void SetupNotifyIcon()
     {
@@ -43,13 +42,29 @@ public partial class MainWindow
         _trayMenuWindow.ShowNear(WinFormsCursor.Position, this);
     }
 
-    private void RestoreFromTray()
+    private void RestoreFromTray() => ActivatePrimaryWindow();
+
+    internal void ActivateFromSecondInstance() => ActivatePrimaryWindow();
+
+    internal void RequestShutdownForUpdate()
+    {
+        _isReallyClosing = true;
+        Close();
+        if (!_isClosing)
+            _isReallyClosing = false;
+    }
+
+    private void ActivatePrimaryWindow()
     {
         _trayMenuWindow?.Close();
         _trayMenuWindow = null;
         Show();
-        WindowState = WindowState.Normal;
+        if (WindowState == WindowState.Minimized)
+            WindowState = WindowState.Normal;
         Activate();
+        Topmost = true;
+        Topmost = false;
+        Focus();
     }
 
     private void ExitApplication()
@@ -93,9 +108,9 @@ public partial class MainWindow
             if (resumeMousePickOnCancel)
                 _mousePickController.Stop();
 
-            var result = ThemedDialog.ShowCustom(
+            MessageBoxResult result = ThemedDialog.ShowCustom(
                 this,
-                "存在未保存资产，是否保存？",
+                "存在未保存的资产，是否保存？",
                 "是否保存",
                 MessageBoxImage.Question,
                 new ThemedDialogButton("保存", MessageBoxResult.Yes, true),
@@ -123,6 +138,14 @@ public partial class MainWindow
 
         _isReallyClosing = true;
         _isClosing = true;
+        CleanupForApplicationExit();
+    }
+
+    private void CleanupForApplicationExit()
+    {
+        if (Interlocked.Exchange(ref _exitCleanupStarted, 1) != 0)
+            return;
+
         RuntimeShutdownGate.BeginShutdown();
         _mousePickController.Stop();
         _scriptRunManager.StopAll(ScriptRunStopReason.ApplicationExit);
@@ -132,7 +155,7 @@ public partial class MainWindow
         DisposeWindowSubscriptions();
         _finalCodePreviewWindow?.Close();
         _finalCodePreviewWindow = null;
-        foreach (var session in _editorSessions.ToList())
+        foreach (EditorSessionViewModel session in _editorSessions.ToList())
         {
             session.DetachedWindow?.CloseFromOwner();
             session.DetachedWindow = null;
@@ -141,6 +164,7 @@ public partial class MainWindow
         _mousePickController.Dispose();
         _scriptRunManager.Dispose();
         _scriptHotkeyService.Dispose();
+        _pythonEnvironmentService.Dispose();
         _trayMenuWindow?.Close();
         _trayMenuWindow = null;
         if (_notifyIcon is not null)
@@ -149,5 +173,12 @@ public partial class MainWindow
             _notifyIcon.Dispose();
             _notifyIcon = null;
         }
+    }
+
+    internal void EmergencyStopRuntimeForApplicationExit()
+    {
+        _isReallyClosing = true;
+        _isClosing = true;
+        CleanupForApplicationExit();
     }
 }

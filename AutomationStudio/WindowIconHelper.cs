@@ -1,5 +1,4 @@
 using System.Drawing;
-using System.IO;
 using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Media;
@@ -16,38 +15,51 @@ public static class WindowIconHelper
 
     public static Icon TrayIcon => (Icon)TrayIconValue.Value.Clone();
 
-    public static string IconPath => Path.Combine(AppContext.BaseDirectory, "Resources", "AutomationStudio.ico");
-
     private static ImageSource CreateAppIcon()
     {
         try
         {
-            if (File.Exists(IconPath))
-            {
-                using var stream = File.OpenRead(IconPath);
-                var frame = BitmapFrame.Create(stream, BitmapCreateOptions.None, BitmapCacheOption.OnLoad);
-                frame.Freeze();
-                return frame;
-            }
+            using Icon? icon = ExtractEmbeddedIcon();
+            if (icon is not null)
+                return CreateImageSource(icon);
         }
         catch
         {
         }
 
-        return Imaging.CreateBitmapSourceFromHIcon(SystemIcons.Application.Handle, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
+        return CreateImageSource(SystemIcons.Application);
     }
 
     private static Icon CreateTrayIconInternal()
     {
         try
         {
-            if (File.Exists(IconPath))
-                return new Icon(IconPath);
+            Icon? icon = ExtractEmbeddedIcon();
+            if (icon is not null)
+                return icon;
         }
         catch
         {
         }
 
         return (Icon)SystemIcons.Application.Clone();
+    }
+
+    private static Icon? ExtractEmbeddedIcon()
+    {
+        string? executablePath = Environment.ProcessPath;
+        return string.IsNullOrWhiteSpace(executablePath)
+            ? null
+            : Icon.ExtractAssociatedIcon(executablePath);
+    }
+
+    private static ImageSource CreateImageSource(Icon icon)
+    {
+        var source = Imaging.CreateBitmapSourceFromHIcon(
+            icon.Handle,
+            Int32Rect.Empty,
+            BitmapSizeOptions.FromEmptyOptions());
+        source.Freeze();
+        return source;
     }
 }

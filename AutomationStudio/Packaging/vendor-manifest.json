@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "runtime": {
+    "pythonVersion": "3.14.6",
+    "architecture": "win-x64",
+    "packages": {
+      "opencv-python-headless": "4.13.0.92",
+      "numpy": "2.4.6",
+      "Pillow": "12.2.0"
+    }
+  },
+  "artifacts": [
+    {
+      "id": "python-embed",
+      "version": "3.14.6",
+      "fileName": "python-3.14.6-embed-amd64.zip",
+      "url": "https://www.python.org/ftp/python/3.14.6/python-3.14.6-embed-amd64.zip",
+      "sha256": "df901e84a896ff1ee720ad03377e0c8d8c2244fda79808aeeaff6316df1cb75c",
+      "license": "PSF-2.0",
+      "kind": "python"
+    },
+    {
+      "id": "opencv-python-headless",
+      "version": "4.13.0.92",
+      "fileName": "opencv_python_headless-4.13.0.92-cp37-abi3-win_amd64.whl",
+      "url": "https://files.pythonhosted.org/packages/4a/90/b338326131ccb2aaa3c2c85d00f41822c0050139a4bfe723cfd95455bd2d/opencv_python_headless-4.13.0.92-cp37-abi3-win_amd64.whl",
+      "sha256": "77a82fe35ddcec0f62c15f2ba8a12ecc2ed4207c17b0902c7a3151ae29f37fb6",
+      "license": "Apache-2.0",
+      "kind": "wheel"
+    },
+    {
+      "id": "numpy",
+      "version": "2.4.6",
+      "fileName": "numpy-2.4.6-cp314-cp314-win_amd64.whl",
+      "url": "https://files.pythonhosted.org/packages/df/ac/46de6dda46478f7942f839e094970be2d4a861e005c4b3bf07c92e291a09/numpy-2.4.6-cp314-cp314-win_amd64.whl",
+      "sha256": "b507f5c4c1d508876d1819b6bf9a49d365b96320b5d4993426b33a23ca4b8261",
+      "license": "BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0",
+      "kind": "wheel"
+    },
+    {
+      "id": "pillow",
+      "version": "12.2.0",
+      "fileName": "pillow-12.2.0-cp314-cp314-win_amd64.whl",
+      "url": "https://files.pythonhosted.org/packages/cd/8b/601e6566b957ca50e28725cb6c355c59c2c8609751efbecd980db44e0349/pillow-12.2.0-cp314-cp314-win_amd64.whl",
+      "sha256": "4e6c62e9d237e9b65fac06857d511e90d8461a32adcc1b9065ea0c0fa3a28150",
+      "license": "MIT-CMU",
+      "kind": "wheel"
+    }
+  ]
+}

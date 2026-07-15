@@ -129,18 +129,7 @@ public partial class MainWindow
 
     private void ApplyAssetCompileButtonState()
     {
-        if (CompileGraphButton is null || CompileButtonText is null || CompileDirtyIcon is null)
-            return;
-
-        bool dirty = ActiveContentAssetHasCompileDirtyGraphs();
-        CompileButtonText.Text = dirty ? "编译*" : "编译";
-        CompileDirtyIcon.Visibility = dirty ? Visibility.Visible : Visibility.Collapsed;
-        CompileGraphButton.Background = dirty
-            ? AppBrush("CompileDirtyBackgroundBrush", 0x4B, 0x36, 0x1C)
-            : AppBrush("ToolbarButtonBackgroundBrush", 0x20, 0x24, 0x2B);
-        CompileGraphButton.BorderBrush = dirty
-            ? AppBrush("CompileDirtyBorderBrush", 0xD6, 0x8A, 0x22)
-            : AppBrush("ToolbarButtonBorderBrush", 0x2E, 0x34, 0x40);
+        IsActiveAssetCompileDirty = ActiveContentAssetHasCompileDirtyGraphs();
     }
 
     private WpfBrush AppBrush(string key, byte r, byte g, byte b)

@@ -433,9 +433,7 @@ public sealed class GraphLibraryService
         string? dir = Environment.GetEnvironmentVariable("AUTOMATION_STUDIO_LIBRARY_DIR");
         if (string.IsNullOrWhiteSpace(dir))
         {
-            dir = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                "AutomationStudioWpf");
+            dir = ApplicationPaths.RoamingDataRoot;
         }
 
         Directory.CreateDirectory(dir);

@@ -19,6 +19,7 @@
 - 连线 / 路由点：`Connections` 持久化、`ConnectionPaths` 视觉路径、命中和批量更新。
 - 节点规则：执行节点/纯运算节点、多线程、ToDo、函数调用、参数默认值。
 - 稳定性 / 数据安全：多线程取消、Python 唯一环境、原子 JSON 保存、关闭顺序、有界 Undo。
+- 发布 / 安装：只读安装目录、私有 Python、崩溃报告、单实例升级 IPC、签名与 Inno 安装器。
 - 验证 / 文档门禁：构建、启动探针、Git、CodeGraph、本地-only smoke。
 
 ## 文档迁移记录
@@ -91,6 +92,8 @@ Runtime / Nodes / Adapters
 - 同一物理按键存在更高按下次数绑定时，低次数动作必须等高次数候选的时间窗结束后再触发；timer 不得在首个 80ms tick 提前触发单击，破坏双击/多击绑定。
 - 热键捕获统一走 `HotkeyCaptureCoordinator`。捕获前调用 `ScriptHotkeyService.SuspendTriggers()`；捕获期间保留 hook 但禁止触发绑定，进入/退出均清空按次计数，恢复必须放在 `finally`。手动调试或任意热键脚本运行时禁止进入捕获。
 - keyboard/mouse hook 按实际绑定类型分别安装。`SetWindowsHookEx` 返回零时必须保留 `Marshal.GetLastWin32Error()`，写 ERROR、状态栏和主题提示；一个 hook 失败不能卸掉另一个成功 hook，同一错误本次运行只提示一次。
+- 启动热键对启用脚本常驻注册；终止热键只在对应资产存在活跃 `ScriptRunManager` 热键任务时注册。`RunningStateChanged` 必须立即刷新绑定，手动调试不能启用终止热键。
+- `StopFromHotkey(asset)` 只有首次接受活跃任务的取消请求时返回 `true`；停止蜂鸣必须放在该返回值之后。空闲、已取消或过期回调不得发声。
 
 ### 热键属性窗 (`ScriptPropertiesWindow`)
 - 热键行固定列布局，避免按钮遮挡文字：`启动热键 | 按键 [keyBadge] | 修改 | 按下次数 [TextBox] | 清空`。
@@ -120,6 +123,7 @@ Runtime / Nodes / Adapters
 - 所有 `Process.GetProcesses*()` / `Process.Start()` 返回对象必须 Dispose；窗口轮询和启动程序等待属于高频路径，遗漏会累积 OS 句柄。
 
 ### 托盘最小化 / 关闭策略 (`MainWindow.WindowLifecycle` + `ThemedDialogOverrides`)
+- `SingleInstanceCoordinator` 在 `App.OnStartup()` 创建主实例 mutex 和激活 event。同一 Windows 登录会话的后续进程只通知主实例恢复/置前，然后无条件退出；不得因通知失败降级为多开。主窗口尚未创建时要保留 pending activation，`App.OnExit()` 统一释放内核句柄。
 - `NotifyIcon`（`System.Windows.Forms`）只负责系统托盘图标和鼠标事件。
 - 左键单击恢复窗口；右键弹出项目自绘 WPF `TrayMenuWindow`（"打开面板" / "退出程序"），禁止恢复 WinForms 默认 `ContextMenuStrip`。
 - `AppSettings.WindowCloseAction` 控制点击主窗口 `×` 的策略，默认 `MinimizeToTray`。默认关闭窗口时不弹选择对话框，直接最小化到托盘；设置里可改为 `ExitApplication`。
@@ -189,7 +193,7 @@ Runtime / Nodes / Adapters
 ┌─────────────────────────────────────────────────────────────┐
 │                      Presentation Layer                      │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐  │
-│  │ MainWindow   │  │ LogWindow    │  │ PythonInstaller  │  │
+│  │ MainWindow   │  │ LogWindow    │  │ ThemedDialog     │  │
 │  └──────────────┘  └──────────────┘  └──────────────────┘  │
 └──────────────────────────┬──────────────────────────────────┘
                            │
@@ -203,8 +207,8 @@ Runtime / Nodes / Adapters
 │  │ NodeSerializer   │  │ NodeFactory      │                 │
 │  └──────────────────┘  └──────────────────┘                 │
 │  ┌──────────────────┐                                       │
-│  │ PythonAuto       │                                       │
-│  │ Installer        │                                       │
+│  │ PythonEnvironment│                                       │
+│  │ Service          │                                       │
 │  └──────────────────┘                                       │
 └──────────────────────────┬──────────────────────────────────┘
                            │
@@ -312,11 +316,12 @@ public class GraphEditorService
 - `MainWindow.GraphInputHandlers.cs` 承接画布、节点、pin、节点菜单和快捷键输入；`MainWindow.GraphListHandlers.cs` 承接事件图/函数列表、分组展开和公开到库入口；`MainWindow.EditorSurfaceControllers.cs` 承接 surface controller 初始化、active surface lookup 和 typed surface event dispatch；`MainWindow.EditorSessionWorkflow.cs` 承接资产打开/切换/关闭、session 提交和 callable 解析入口；`MainWindow.AssetCommands.cs` 承接工具栏新建、打开、保存、编译、运行按钮入口；`MainWindow.ContentBrowserCommands.cs` 承接内容浏览器基础命令和目录投影刷新；`MainWindow.InspectorHandlers.cs` 承接属性面板事件转发；`MainWindow.LogAndImportHandlers.cs` 承接日志按钮和拖拽导入入口；`MainWindow.WindowLifecycle.cs` 承接关闭/退出保护；`MainWindow.GraphModelHelpers.cs` 承接 graph/node DTO clone 与入口标题 helper；`MainWindow.VisualTreeHelpers.cs` 承接 WPF visual/focus tree helper。不要把这些 handler 重新堆回 `MainWindow.xaml.cs`。
 - `InspectorController.cs` 只保留属性面板 `LoadNode()` / `ApplyChanges()` 主分发和构造注入；参数行在 `InspectorController.Parameters.cs`，通用小节点在 `InspectorController.CommonNodes.cs`，找图/窗口/程序/键盘辅助在 `InspectorController.SystemNodes.cs`，前置输入锁定和灰态在 `InspectorController.Locks.cs`，ToDo 目标选择在 `InspectorController.ToDo.cs`。
 - `DarkContextMenuStyle`、`DarkDropdownListBoxStyle`、`DarkDropdownListBoxItemStyle` 和 editor surface 常用 brush 是 `App.xaml` 共享资源；不要在 `MainWindow.xaml` 或 `EditorSurfaceControl.xaml` 复制结构色。
-- 节点 header、pin、日志级别、编译按钮和弹窗常用 brush 使用静态冻结 brush 复用；不要在高频 getter / 日志追加 / dirty 刷新里反复 `new SolidColorBrush(...)`。
+- 节点 header、pin、日志级别和弹窗常用 brush 应复用；不要在高频 getter / 日志追加 / dirty 刷新里反复 `new SolidColorBrush(...)`。编译按钮是主题控件，禁止由 C# 写本地 brush 或暗色 fallback。
 - 顶部工具栏的鼠标拾取是编辑器工具，不是运行时节点能力：`MousePickController` 使用 `WH_MOUSE_LL` 全局 mouse hook，`MousePickOverlayWindow` 显示跟随浮窗，`MousePickChoiceWindow` 是非模态复制选择窗，`ScreenPixelSampler` 用 `GetCursorPos` / `GetDC` / `GetPixel` 采样屏幕像素。拾取只在鼠标坐标变化时采样/更新，静止时复用上一帧；浮窗和选择窗必须按当前显示器工作区自适应位置。复制坐标/颜色后退出拾取，取消则继续；拾取结束、窗口关闭或 `Esc` 必须 unhook、释放 DC、关闭 overlay。
 - session 关闭只 snapshot 回 `ContentAssetViewModel` 并移除编辑窗口，不删除资产。删除内容浏览器资产时会关闭所有指向该资产的 session，避免悬空编辑窗口。
 - 保存、退出、编译前使用 `CommitInspectorAndSnapshotAllSessions()` / `CommitAllSessionsToAssets()`，保证多窗口编辑内容参与引用同步和校验。
 - 工具栏编译是 active-asset scoped，走 `GraphCompileService.CompileAsset(...)`：脚本会编译该资产内事件图和函数；函数库会编译该库内全部函数。`GraphCompileService.CompileGraph(...)` 仍保留为 current-graph scoped 内部能力，但工具栏不使用它。
+- 工具栏编译视觉只由 `IsActiveAssetCompileDirty` 驱动：C# 更新布尔状态；XAML DataTrigger 使用 `DynamicResource` 切换文字、提示图标、背景和边框。禁止重新在 `ApplyAssetCompileButtonState()` 里直接设置颜色，否则主题切换或资源查找失败会出现黑色按钮。
 - 执行图谱前如果存在任何 `IsCompileDirty` 图，`EnsureCompiledBeforeRun()` 会自动走 `CompileAllAssets(...)`；编译失败不执行，编译成功后必须同步清掉图列表黄点和工具栏 `编译*`。
 - `GraphCompileService` 每个 compile 入口只构建一次 asset id lookup，并传给下游校验。新增校验时复用该索引，不要在每层 `Validate*` 里重复 `ToDictionary(...)`。
 - 编译成功后要把 `ContentAssetViewModel` 中清掉的 graph dirty/compile dirty 同步回对应 session 图列表，并刷新窗口栏、section badge 和工具栏编译状态；保存不是清 compile dirty UI 的唯一路径。
@@ -530,7 +535,7 @@ static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int x, int 
 
 #### 日志存储
 - 内存：`ObservableCollection<LogEntry>` 用于实时显示
-- 文件：`saved/log/Log_yyyy_MM_dd_HH.txt`，按小时写入。
+- 文件：`%LocalAppData%/AutomationStudioWpf/Logs/Log_yyyy_MM_dd_HH.txt`，按小时写入；LocalAppData 不可写时回退 `%TEMP%/AutomationStudioWpf`。
 - 启动时后台清理且只匹配 `Log_*.txt`：先删除超过 5 天的文件，再按最旧顺序压缩到目录总量 128 MiB 内；当前小时文件永不删除。清理失败只写调试诊断，不得影响启动或递归调用 Logger。
 
 #### 日志面板交互
@@ -553,8 +558,8 @@ static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int x, int 
 - 进程间通信开销
 
 **解决方案：**
-- 内置 Python 安装包
-- 自动环境检测与安装指引
+- Release 安装包内置隔离 Python 3.14.6 与固定版本 OpenCV/NumPy/Pillow。
+- `PythonEnvironmentService` 只验证私有解释器；Release 禁止扫描系统 Python、WindowsApps alias 或联网安装。
 
 ### 2. 为什么选择 MVVM 架构？
 
@@ -598,15 +603,13 @@ await Task.Run(() => _runtimeExecutor.Execute(plan, baseDirectory, ct), ct);
 ### 1. 找图功能无法使用
 
 **检查清单：**
-- Python 是否安装：`python --version`
-- 依赖库是否安装：`python -c "import cv2; import PIL; import numpy"`
+- 安装目录 `Runtime/Python/python.exe` 是否存在。
+- `Runtime/Python/runtime-manifest.json` 是否与应用要求版本一致。
+- 私有解释器能否执行 `-I -c "import cv2; import PIL; import numpy"`。
 - 图片路径是否正确（支持相对路径和绝对路径）
 
 **解决方案：**
-运行安装命令：
-```bash
-pip install opencv-python pillow numpy -i https://mirrors.aliyun.com/pypi/simple/
-```
+使用同版本安装器执行“修复”或重新安装。Release 不联网修复，也不回退用户机器上的 Python。
 
 ### 2. 执行时节点无响应
 
@@ -1068,21 +1071,12 @@ Python 参数规则：
 
 ## 构建与发布
 
-### 开发构建
-```bash
-dotnet build
-dotnet run
-```
-
-### 发布单文件版本
-```bash
-dotnet publish -c Release -r win-x64 \
-  --self-contained true \
-  /p:PublishSingleFile=true \
-  /p:IncludeNativeLibrariesForSelfExtract=true
-```
-
-输出位置：`bin/Release/net8.0-windows/win-x64/publish/`
+- 开发构建：`dotnet build .\AutomationStudioWpf.csproj`。
+- 正式发布只允许 `Packaging/build-release.ps1`：Windows x64、.NET 8 自包含、多文件、不裁剪、不做单文件。
+- 发布脚本固定私有 Python/三方 wheel 版本与 SHA256，分离 PDB，生成 notices、build manifest 和 SHA256 清单。
+- 正式公开包必须传 `-CertificateThumbprint`；`-AllowUnsigned` 只用于明确标记的本地测试包。
+- 安装器使用 Inno Setup 6，当前用户安装到 `%LocalAppData%/Programs/AutomationStudio`，不请求管理员权限。
+- 完整命令和输出目录见 README；技术约束见下方“发布 / 安装稳定性”。
 
 ## 版本历史
 
@@ -1203,11 +1197,16 @@ dotnet publish -c Release -r win-x64 \
 
 ### Python 唯一环境与进程清理
 - `PythonEnvironmentService` 是 Python 路径和依赖检测的唯一入口。环境检测与 `PythonScriptAdapter` 实际执行必须使用同一个 `ValidatedPythonPath`，禁止各自扫描解释器。
+- 所有 Python 相关进程只能通过 `PythonEnvironmentService.StartOwnedProcess(...)` 启动；包括 `where.exe`、`python --version`、依赖 import probe 和正式脚本。禁止新增裸 `Process.Start()` 后不登记的 Python 路径。
+- 首次启动 Python 时创建带 `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` 的 Windows Job Object，并把进程加入其中。正常退出会显式 kill + wait；应用崩溃或被强制结束时，Job handle 关闭会兜底终止已登记进程及其后代。
+- 拒绝使用 `Microsoft/WindowsApps` 的 Python execution alias。该别名可能经 broker 转发到其它进程，所有权不稳定；只允许直接、已验证的 `python.exe`。
+- 进程启动、加入 Job、写入活动表必须走统一临界路径。退出开始后 `_acceptProcesses=false`，任何刚启动但尚未登记的进程必须立即被 kill，禁止漏进程竞态。
 - 环境 semaphore、解释器探测、依赖检查、Python 脚本执行都必须接受 `CancellationToken`。
 - 只允许缓存验证成功的环境；失败结果下次运行必须重检。解释器启动抛出 `Win32Exception` 时必须 `Invalidate()`，禁止持续复用失效路径。
 - Python 超时、用户取消或执行异常时，必须 `Kill(entireProcessTree: true)` 并等待退出；stdout/stderr 收尾后才能删除临时请求 JSON。参数使用 `ProcessStartInfo.ArgumentList`，避免中文和空格路径转义错误。
 - 如果进程树无法确认退出，禁止删除仍可能被子进程读取的请求 JSON；保留文件并记录 error，避免用“清理临时文件”掩盖孤儿进程。
 - Python adapter 必须向 `PythonEnvironmentService` 登记活动进程；应用真正退出时同步终止全部登记进程。禁止用 `Environment.Exit(...)` 抢在取消清理前强退。
+- `MainWindow.Window_Closing` 是正常清理入口，`App.OnExit` 还必须再次 dispose 主窗口服务与共享服务，作为窗口关闭流程被绕过时的兜底；这些入口必须保持幂等。
 
 ### 原子 JSON 保存
 - `AtomicJsonFileStore` 统一负责资产库、应用设置和外部图谱文件：同目录临时文件、UTF-8 无 BOM、`Flush(true)`、`File.Replace`、保留 `.bak`。
@@ -1218,6 +1217,7 @@ dotnet publish -c Release -r win-x64 \
 
 ### 关闭顺序
 - 主窗口只保留一个 `Window_Closing` handler。最小化到托盘不能停止脚本、热键或 detached session。
+- 默认关闭策略是最小化到托盘：点击标题栏 `X` 后进程仍在运行，运行中的 Python 也会继续，这是“未退出”而不是进程泄漏。只有托盘“退出程序”或设置为“关闭软件”才进入真正退出清理。
 - 真正退出时必须先 snapshot 和询问未保存内容；用户取消后保持脚本、热键、窗口和按键状态。只有确认退出后才能停止脚本、取消执行、释放键鼠、关闭 detached 窗口并 dispose hook。
 - 鼠标拾取会拦截对话框点击：显示关闭确认前可临时停止，但用户取消关闭或保存失败时必须恢复拾取。
 - 确认真正退出后采用立即清理：设置 `_isClosing`，启动 `RuntimeShutdownGate`，取消手动/热键任务，立即向全部登记 Python 进程树发送 Kill，最后释放全部键鼠。gate 只阻止新按下/移动/滚动，不能阻止 key-up/mouse-up 清理。
@@ -1227,6 +1227,41 @@ dotnet publish -c Release -r win-x64 \
 - 真正退出必须调用 `DisposeWindowSubscriptions()`：解绑 `Logger.Entries`、`AppThemeService.ThemeChanged`、运行状态、active editor service、session、内容浏览器和图表集合事件。
 - `CompositionTarget.Rendering` 属于静态事件；退出时无条件调用 `DetachAutoFitRendering()`。最小化到托盘或取消关闭时不得解绑。
 - 可重建的 `ExecutionController` 在替换前必须解绑旧 `ExecutionStateChanged`；禁止匿名 handler 订阅 static/长寿命事件，否则无法可靠移除。
+
+### 发布 / 安装稳定性（2026-07-15）
+
+#### 目录所有权
+- `ApplicationPaths.InstallRoot` 即 `AppContext.BaseDirectory`，只读；运行时禁止在此创建日志、缓存、临时 JSON、自动截图或设置。
+- 资产和设置继续放 `%AppData%/AutomationStudioWpf`，保持旧用户兼容。
+- 日志、崩溃报告、缓存和自动截图放 `%LocalAppData%/AutomationStudioWpf`；不可写时回退 `%TEMP%/AutomationStudioWpf`，目录失败不得阻止应用启动。
+- 手动指定的绝对截图路径保持用户选择；相对截图路径必须解析到 `ApplicationPaths.AutoScreenshotDirectory`，不能依赖进程当前目录。
+- 启动后台清理超过 24 小时的 `automation_studio_*.json`；自动截图保留 7 天且总量不超过 512 MiB。
+
+#### 私有 Python 供应链
+- Release 只认安装目录 `Runtime/Python/python.exe`，禁止扫描系统 Python、WindowsApps alias、用户 site-packages 或在线安装。
+- 当前固定：Python 3.14.6 embeddable x64、opencv-python-headless 4.13.0.92、NumPy 2.4.6、Pillow 12.2.0。URL、版本、SHA256、许可证只维护在 `Packaging/vendor-manifest.json`。
+- `Packaging/build-private-python.ps1` 必须校验每个下载 SHA256，配置 `python314._pth`，开放 `Lib/site-packages`，删除缓存/精确测试目录，并执行真实 import probe。
+- 运行时必须设置 `PYTHONNOUSERSITE=1`、`PYTHONDONTWRITEBYTECODE=1`、`PYTHONUTF8=1`，移除 `PYTHONPATH/PYTHONHOME`，并使用 `-I`。
+- 私有运行时缺失、manifest 不匹配或 import 失败时，禁用找图并提示修复/重装；不得联网修复或偷偷回退系统 Python。
+
+#### 发布产物
+- 唯一正式入口是 `Packaging/build-release.ps1`。目标固定 `win-x64`、`SelfContained=true`、`PublishSingleFile=false`、`PublishTrimmed=false`。
+- 正式构建要求 AutomationStudio 工作树干净；`-AllowDirty` 仅供本地 staging 验证。
+- PDB 必须移出安装 stage 到 `symbols/`。stage 必须生成 `THIRD-PARTY-NOTICES.txt`、`vendor-manifest.json`；release 根生成 `build-manifest.json` 和 `SHA256SUMS.txt`。
+- 无证书时脚本默认失败。`-AllowUnsigned` 只能生成明确标记的测试包；正式公开发布必须对应用 EXE 和安装器做 Authenticode SHA256 签名与时间戳。
+- 托盘/窗口图标从 EXE 内嵌图标读取；禁止恢复 `Resources/AutomationStudio.ico` 输出旁车依赖。`2.png/icon.png/tray_icon.jpg` 已删除，不能重新打包。
+
+#### 单实例与升级
+- `SingleInstanceCoordinator` 使用当前 Windows 会话内的命名 Mutex；重复启动只发 Activate 命令并退出，绝不降级多开。
+- `--shutdown-for-update` 使用独立命名事件通知主实例真正退出，不走最小化到托盘。无主实例时命令进程直接成功退出，不创建 UI。
+- 升级退出仍必须 snapshot 并显示未保存确认。用户取消时主进程保留；Inno `PrepareToInstall` 最多等待 60 秒，超时返回错误并中止，禁止覆盖运行中的文件。
+- Inno AppId 固定 `{DA1B9FE1-FE96-460D-8C7E-E5F4E71338AD}`，当前用户安装到 `%LocalAppData%/Programs/AutomationStudio`；卸载默认保留 AppData 用户数据。
+
+#### 崩溃与紧急清理
+- `CrashReporter` 捕获 Dispatcher、AppDomain 和未观察 Task 异常，报告写入 LocalAppData，包含版本、OS、架构和完整堆栈。
+- Dispatcher 未处理异常视为不可恢复：先启动 shutdown gate、停止脚本、杀登记 Python、释放键鼠/hook，再显示主题错误并退出；禁止捕获后继续运行损坏状态。
+- `Window_Closing`、崩溃路径、`App.OnExit` 共用幂等 `CleanupForApplicationExit()`；禁止复制另一套清理顺序。
+- Job Object 仍是强制结束/进程崩溃时的 Python 兜底；正常退出必须先显式 kill + wait，不能只依赖操作系统回收。
 
 ### Undo 与结构边界
 - `GraphCommandService` 快照保存序列化 JSON，before/after 各序列化一次；Undo/Redo 各自最多 100 条、估算总容量最多 64 MiB，超限删除最旧记录。

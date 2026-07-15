@@ -1,366 +1,149 @@
-# AutomationStudioWpf
+# AutomationStudio
 
-## Current Notes (2026-07-14)
+Windows 10/11 x64 的可视化桌面自动化编辑器。使用节点、执行线和数据线编排脚本；支持脚本资产、函数库、多窗口编辑、全局热键、并行分支和 OpenCV 找图。
 
-- 2026-07-02: Long-term technical notes now live only in `AutomationStudio/Agent/TECHNICAL.md`. Start from its outline, then read only the relevant section.
-- Visual wires bind to `GraphEditorService.ConnectionPaths`; persisted graph data and runtime execution still use `GraphEditorService.Connections`.
-- `ConnectionPathViewModel` aggregates linear reroute chains only for drawing. Persisted topology and runtime execution still follow the real `Connections` chain; reroute nodes remain runtime-transparent.
-- `ConnectionSplinePlanner` is the active visible-wire geometry builder. Single backing connections preserve the constrained cubic Bezier behavior. Multi-reroute paths keep source/target fixed, visually uncross interior waypoints with 2-opt, then generate distance-constrained G1-continuous curves.
-- The complete rendered curve is checked for self-intersection. Smoothness is reduced adaptively and the final fallback is an uncrossed straight path, so tight/backward/bow-tie reroute dragging cannot create loops or crossed wires. One Bezier segment is still emitted per backing connection for visible-curve hit testing.
-- Double-clicking a visible wire inserts a reroute node by sampling the visible curve back to the nearest backing `ConnectionViewModel`; Alt-click still removes the nearest backing connection.
-- `GraphEditorService.RunBatchedEdit(...)` batches connection mutations so `ConnectionPaths` rebuild and `GraphChanged` fire once per composed edit.
-- Runtime lookup uses an internal lazy `GraphExecutionIndex`; `GraphExecutionPlan` constructor/schema stay unchanged.
-- Non-reroute nodes get reusable per-graph numbers: event `N###`, function `Fun###`. Deleting a node frees its number for the next created node.
-- `ToDo` jumps within the current graph by matching both target node title and node number. The inspector has a search box plus result list, and an option to return to `ToDo.exec_out` after the target chain finishes.
-- `ToDo` direct self-jump is invalid. Return-after-target mode executes the target chain with `stopBeforeNodeId` set to the source ToDo, so a target chain that naturally reaches the same ToDo returns to the source `exec_out` instead of looping.
-- ToDo inspector selections are committed into the active `GraphFileModel` before compile/save/run. Static dropdown targets persist as `TargetNodeTitle` / `TargetNodeNumber` / `TargetNodeId`; connected `target_title` / `target_number` pins can still override at runtime.
-- The main log panel is a read-only `RichTextBox`: drag-select text freely, `Ctrl+A` selects the filtered log text, and `Ctrl+C` copies selected text without triggering graph-node copy. Runtime execution logs are grouped per node with second-level timestamps; multi-line entries keep visual prefix alignment, while copied text stays raw.
-- Current content browser supports folder tree, current-folder tiles, multi-select, box select, drag move/copy, copy/paste, rename/delete, double-click asset open, recursive fuzzy search under the current folder, and `Ctrl+B` locate-to-real-folder.
-- Content browser folder/tree and search projections batch-refresh `ContentFolderItems` / `ContentVisibleItems` with `RangeObservableCollection.ReplaceAll(...)`, avoiding per-asset UI collection-change storms in large folders.
-- Logger UI updates batch pending entries into `Logger.Entries` with `RangeObservableCollection.AddRange(...)`; the main log panel and log window append new paragraphs incrementally instead of rebuilding the whole log per entry.
-- Double-clicking a `FunctionCallNodeViewModel` opens the owning script/function-library asset and loads the target function graph by stable id.
-- The editor keeps one `EditorSessionViewModel` and one full `EditorSurfaceControl` per opened asset. Detached windows host their own editable surface directly; the main window keeps the last visible tab surface and only shows `EmptyEditorPanel` when no main tab remains.
-- Toolbar compile is active-asset scoped: scripts compile all event/function graphs in that asset, and function libraries compile all functions in that library. `执行图谱` enters a running state and blocks repeat clicks until finish/fail/cancel restores it.
-- Multi-window dirty, compile, and graph/controller state is session-scoped through `SetSessionActiveGraphController(...)`, so one asset cannot leak yellow dirty markers or snapshots into another.
-- Toolbar `显示最终代码` opens a read-only pseudo-code preview for the current active graph snapshot. It expands resolvable function/custom-event bodies, follows static data inputs and function return outputs, and uses recursion/depth guards without changing runtime, JSON, or dirty state.
-- Reroute nodes use centered anchors and a UE-style yellow selection glow/ring for click and box selection feedback.
-- `GraphCommandService` records graph-edit snapshots for Undo/Redo. Ctrl+Z undoes graph edits; Ctrl+Y or Ctrl+Shift+Z redoes them.
-- Visible wires can be selected, highlighted, deleted with Delete/Backspace, or edited through the wire context menu.
-- Node palette search now matches display name, category, type key, `NodeKind`, and generated `NodeDefinition.SearchTags`; recent created node kinds appear first.
-- Node display names are user-facing and concise: the start node shows `开始运行`, and default node titles omit the redundant `节点` suffix, such as `延迟`, `找图`, `分支`.
-- Function-library calls keep the palette grouped by library asset name, but the node title on the canvas shows only the function name, such as `函数233`, not `函数库1/函数233`.
-- Node dragging and arrow-key nudging snap to the 20px grid by default; hold Alt for 1px precision movement.
-- `多线程` is an execution node with dynamic `线程N` outputs and a distinct `全部完成` output. Connected branches run in parallel; `全部完成` runs after all branches finish. Mouse/keyboard/window nodes are serialized by a global runtime lock when used inside parallel branches.
-- `ScriptHotkeyService` registers global low-level keyboard and mouse hooks (WH_KEYBOARD_LL / WH_MOUSE_LL) so scripts can be started or stopped by external hotkeys without the editor window being focused.
-- `ScriptRunManager` manages script run lifecycle: compile → execute with loop count / until-stopped / duration modes. It enforces single-instance-per-asset, reports running status to the toolbar, and handles hotkey dispatch.
-- `ScriptPropertiesWindow` is a themed dark WPF dialog for configuring per-script run settings (loop mode, start/stop hotkeys, press count, trigger time window). Hotkey conflicts are validated before save. All controls have Chinese ToolTip explanations.
-- `ScriptHotkeyCaptureWindow` handles mouse wheel (WheelForward/WheelBackward) in addition to keyboard and mouse buttons. A `_captured` guard prevents double-capture from WPF re-entrant events.
-- Closing the main window shows only three themed choices: `关闭软件`, `最小化`, and `取消`; no persistent minimize preference is kept.
-- `NotifyIcon` lives in the system tray: left-click restores window, right-click opens the themed tray menu with "打开面板" and "退出程序".
-- Hotkey triggers play distinct `Console.Beep` tones: start = 800Hz/150ms, stop = 400Hz/300ms.
-- `ExecutionController.SetRunButtonRunning/RestoreRunButton` fire `ExecutionStateChanged` callback; `ScriptRunManager` exposes `IsAnyRunning` + `RunningStateChanged` event. MainWindow combines both into `IsExecuting` DP, which drives toolbar button styles via XAML DataTrigger.
-- `StopExecutionButton` (red, bold) appears only during execution; click calls `_scriptRunManager.StopAll()` + `_executionController.Cancel()` (equivalent to Esc).
-- Mouse middle button (`MouseButton.Middle`) added across enum, XAML combo, ViewModel, executor, and Win32 adapter.
+长期架构、踩坑和发布规则只维护在 [Agent/TECHNICAL.md](Agent/TECHNICAL.md)。开发前先读其“大纲 / 索引”，命中相关主题后再细读对应章节。
 
-UE4 风格的 WPF 蓝图节点编辑器 — 用于桌面自动化脚本编排。
+## 主要功能
 
-## 功能
+- 节点式脚本：鼠标、键盘、组合键、窗口、进程、延迟、循环、条件、截图、找图、字符串/布尔运算。
+- 脚本与函数库：脚本含主事件图、辅助事件图和私有函数；函数库可公开函数供脚本调用。
+- 多编辑窗口：主窗口标签页与独立窗口并存，每个 session 自持编辑 surface、图状态、Undo 和 dirty 状态。
+- 多线程节点：并行执行动态分支；全部成功后执行“全部完成”。业务值 `False` 不等于执行失败。
+- ToDo 跳转：在同一图内按“节点名 + 节点编号”定位执行目标。
+- 全局热键：启用的脚本可配置启动/终止热键、按下次数和触发窗口；热键启动脚本只能由对应终止热键或顶部停止按钮停止。
+- 脚本循环：按次数、运行到终止、按时长运行；支持禁止重复运行。
+- 内容浏览器：文件夹、模糊搜索、多选、框选、复制粘贴、拖拽移动、重命名、`Ctrl+B` 定位。
+- 执行日志：INFO/WARN/ERROR 过滤、结构化节点执行块、复制、LocalAppData 文件保留与容量清理。
+- 暗色/亮色主题：应用级主题和强调色，主窗口、编辑器、弹窗、菜单、托盘同步更新。
+- 鼠标拾取：全屏坐标和像素颜色拾取。
+- 最终代码：显示当前图的只读伪代码执行逻辑。
+- 旧宏数据兼容：旧宏资产/节点会被忽略；项目不再提供宏库功能。
 
-- **节点式编程**: 拖拽节点，连线构建自动化流程
-- **多种节点类型**: 鼠标点击/移动、键盘/组合键、滚轮、延迟、找图(OpenCV)、条件分支、循环、多线程、窗口操作、截图、弹窗、找图等待、布尔/字符串逻辑、比较
-- **Python 图像识别**: 通过 Python OpenCV `TM_CCOEFF_NORMED` 模板匹配找图
-- **资产系统**: 脚本、函数库 — 支持公开到库、私有函数、自定义事件
-- **内容浏览器**: 文件夹树 + 瓦片视图，支持递归模糊搜索、多选、框选、复制粘贴、拖拽移动/复制到文件夹、`Ctrl+B` 定位
-- **多编辑窗口**: 工具栏下方窗口栏管理主窗口标签页，支持切换、关闭、关闭右侧、关闭所有、拖出为独立窗口；独立窗口不再占用主窗口标签
-- **主题设置**: 工具栏 `设置` 可切换暗色主题 / Codex 风格亮色主题，并自定义全局强调色；主题配置独立保存，不写入脚本资产
-- **鼠标拾取**: 顶部工具栏可进入全屏拾取模式，鼠标移动时显示坐标和屏幕颜色，支持复制坐标或颜色；复制后自动退出
-- **多格式兼容**: 支持鼠标左键/右键/中键/侧键、键盘按键、滚轮前滚/后滚
-- **重复触发**: 键盘、鼠标点击、组合键支持触发次数和触发间隔；双击用“鼠标点击 + 次数 2 + 80~150ms 间隔”
-- **日志系统**: 内嵌日志面板 + 独立日志窗口，分级过滤(INFO/WARN/ERROR)，增量刷新、自动文件持久化，支持复制，多行日志视觉对齐
-- **蓝图编辑器体验**: 框选、组拖动、复制粘贴、对齐、缩放平移、路由节点、边缘自动平移(EdgePan)、快捷键
-- **自动环境检测**: 首次执行前后台检测并缓存 Python 环境结果，提供安装指引；找图脚本对 Windows 中文路径做了兼容处理
-- **执行前校验**: 检查节点可达性、参数缺失、连线唯一性、循环/坏图
-- **ToDo 跳转**: 用节点名 + 编号在同图内跳转，可选目标执行完后返回
-- **全局热键启动**: 右键脚本资产 → 属性，配置键盘/鼠标快捷键；无需编辑器前置即可启动/停止脚本
-- **执行控制**: 支持按次数循环、循环到终止键、按时长循环；运行状态实时显示；热键冲突校验
-- **热键配置**: 启动/终止热键独立配置，支持按键、按下次数、触发时间阈值（毫秒）；鼠标滚轮前滚/后滚可设为热键
-- **提示音反馈**: 热键触发时播放区分音调（启动高音/终止低音），无需看屏幕即可感知脚本状态
-- **托盘最小化**: 关闭窗口只显示 `关闭软件 / 最小化 / 取消` 三个选择；托盘右键使用项目暗色菜单
-- **执行中工具栏**: 执行时按钮变蓝"⏳ 执行中..."，出现红色"⏹ 停止执行"按钮；点击停止等效按 Esc
+## 基本使用
 
-## 使用
+1. 在底部内容浏览器创建或打开脚本。
+2. 在左侧选择事件图/函数，右键画布添加节点。
+3. 连接执行引脚和数据引脚，在右侧细节面板编辑参数。
+4. 点击“编译”编译当前资产全部图。
+5. 点击“执行脚本”；未编译内容会先自动编译。
+6. 手动调试可用 `Esc` 或顶部停止按钮取消。
+7. 全局热键启动的脚本使用对应终止热键停止；`Esc` 不影响此类运行。
 
-1. 底部内容浏览器打开/创建脚本资产
-2. 左侧事件图/函数列表添加节点
-3. 右键画布打开节点菜单添加节点
-4. 拖拽输出引脚到输入引脚连线
-5. 右侧属性面板编辑节点参数
-6. 点击"执行图谱"运行；如有未编译图会先自动编译，失败才停止执行；运行中按钮会显示执行中并防止重复点击
-7. 按 Esc 停止执行
-8. 点击"鼠标拾取"可查看/复制当前屏幕坐标与颜色；左键弹复制选项，复制后退出，取消继续拾取，右键退出
-9. 右键脚本资产 → 属性，可配置全局热键（支持鼠标滚轮）、触发时间阈值、循环执行等运行参数；所有属性有悬停 ToolTip 说明
-10. 配置热键后，无需编辑器前置即可通过热键启动/停止对应脚本；启动/终止热键触发时有区分提示音
-11. 关闭窗口时可选关闭软件、最小化或取消；托盘右键菜单为项目暗色风格，包含"打开面板/退出程序"
-12. 执行图谱时工具栏出现红色停止按钮，点击可随时终止执行
-
-## 快捷键
+## 常用快捷键
 
 | 快捷键 | 功能 |
-|--------|------|
-| Delete | 删除选中节点 |
-| Ctrl+C | 复制选中节点；日志面板焦点内复制选中文本 |
-| Ctrl+V | 粘贴节点(到鼠标位置)；内容浏览器焦点内粘贴资产 |
-| Ctrl+A | 日志面板焦点内全选当前过滤后的日志文本 |
-| Ctrl+B | 内容浏览器焦点内定位选中资产真实目录；无选中结果时定位当前打开资产 |
-| Q | 横向对齐(居中对齐Y) |
-| Shift+Alt+S | 纵向对齐(居中对齐X) |
-| F | 缩放到节点全览 |
-| Esc | 取消连线 / 停止执行 / 退出鼠标拾取 |
-| Alt+点击连线 | 断开连接 |
-| 双击连线 | 生成路由节点 |
-| 右键拖动>3px | 平移画布 |
+|---|---|
+| `Delete` | 删除选中节点/连线 |
+| `Ctrl+C / Ctrl+V` | 复制/粘贴节点；日志焦点内复制文本 |
+| `Ctrl+Z / Ctrl+Y` | Undo / Redo |
+| `Ctrl+A` | 日志焦点内全选过滤结果 |
+| `Ctrl+B` | 内容浏览器定位真实目录 |
+| `F` | 当前图缩放到节点全览 |
+| `Esc` | 取消连线、退出拾取、停止手动调试 |
+| `Alt+单击连线` | 删除最近 backing connection |
+| 双击连线 | 插入路由点 |
+| 右键拖动 | 平移画布 |
 | 滚轮 | 缩放画布 |
 
-## 资产系统
+## 最终用户环境
 
-### 脚本 (Script)
-- 包含事件图和私有函数
-- 事件图可添加自定义事件 (CustomEvent / CustomEventCall)
-- 只有事件图能直接执行
+- Windows 10 1809+ / Windows 11，x64。
+- 正式安装包为 .NET 8 自包含多文件发布。
+- 安装包内置隔离 Python 3.14.6、OpenCV、NumPy、Pillow。
+- 用户无需安装 .NET、Python、pip，也无需联网下载找图依赖。
+- 私有 Python 损坏时，找图功能会提示修复/重装；不会回退系统 Python。
 
-### 函数库 (FunctionLibrary)
-- 全局库，库内函数勾选"公开到库"后才对其他脚本可见
-- 脚本只能调用本脚本私有项 + 已公开的库项
-- 节点菜单按函数库资产名分组显示公开函数；添加到画布后的调用节点只显示函数名，不显示库名前缀
+## 数据目录
 
-### 内容浏览器
-- 左侧文件夹树，右侧瓦片视图
-- 支持文件夹内新建脚本/函数库/文件夹
-- 支持多选、框选、`Ctrl+C` / `Ctrl+V` 复制粘贴资产
-- 资产拖拽到文件夹支持移动/复制，拖拽时有半透明预览
-- 顶部搜索框按当前目录递归列出匹配资产/文件夹，支持空格关键字、路径片段、模糊匹配和不区分大小写
-- 搜索结果可双击打开；选中搜索结果或资产后 `Ctrl+B` 会清空搜索并定位到真实父目录
-- 画布中双击函数调用节点，会按 stable id 打开被调用函数所在资产并切到对应编辑面板
+安装目录视为只读，不保存日志、缓存或用户资产。
 
-## 环境要求
+| 数据 | 位置 |
+|---|---|
+| 资产库、应用设置 | `%AppData%\AutomationStudioWpf` |
+| 日志 | `%LocalAppData%\AutomationStudioWpf\Logs` |
+| 崩溃报告 | `%LocalAppData%\AutomationStudioWpf\CrashReports` |
+| 自动截图缓存 | `%LocalAppData%\AutomationStudioWpf\Temp\Screenshots` |
+| 私有 Python | 安装目录 `Runtime\Python`（只读） |
 
-### 必需
-- .NET 8.0 Runtime
-- Windows 10/11
-
-### 可选（用于找图功能）
-- Python 3.11+
-- OpenCV Python (`opencv-python`)
-- Pillow (`pillow`)
-- NumPy (`numpy`)
-
-### 自动安装
-首次执行图谱前，程序会在后台检测并缓存 Python 环境结果。如果未安装，会弹出提示窗口，提供可复制的安装命令：
-
-```bash
-pip install opencv-python pillow numpy -i https://mirrors.aliyun.com/pypi/simple/
-```
-
-## 项目结构
-
-```
-AutomationStudioWpf/
-├── Graph/                       # 节点模型层
-│   ├── NodeBaseViewModel.cs     # 抽象节点基类
-│   ├── InputNodeBase.cs         # 输入类节点基类
-│   ├── PinViewModel.cs          # 引脚模型
-│   ├── ConnectionViewModel.cs   # 连线模型
-│   ├── ConnectionPathViewModel.cs # 可见连线路径聚合
-│   ├── ConnectionSplinePlanner.cs # 可见连线几何
-│   ├── *NodeViewModel.cs        # 各节点类型实现
-│   ├── GraphTypes.cs            # 枚举定义
-│   └── GraphFileModel.cs        # 文件模型
-├── Runtime/                     # 执行引擎
-│   ├── GraphRuntimeExecutor.cs  # 执行调度 + 结构节点
-│   └── GraphExecutionModels.cs  # 运行时数据模型 + internal lazy index
-├── Services/                    # 业务服务层
-│   ├── GraphEditorService.cs    # 图谱编辑核心逻辑 + 批量连接变更
-│   ├── GraphCommandService.cs   # Undo/Redo 快照命令
-│   ├── GraphLibraryService.cs   # 图谱/资产库持久化
-│   ├── GraphCompileService.cs   # 编译同步与校验
-│   ├── NodeSerializer.cs        # 节点序列化/反序列化
-│   ├── NodeClipboardService.cs  # 复制粘贴服务
-│   ├── NodeFactory.cs           # 节点工厂
-│   ├── PythonEnvironmentService.cs # Python 唯一环境检测与安装
-│   └── AtomicJsonFileStore.cs   # 原子 JSON 保存与备份恢复
-├── Interaction/                 # 交互控制器
-│   ├── ExecutionController.cs   # 执行、取消、校验、Python 检查
-│   ├── GraphListController.cs   # 图谱列表、切换、删除、重命名
-│   ├── EditorSessionViewModel.cs # 多编辑窗口 session 状态
-│   ├── EditorSurfaceContext.cs  # per-session surface 上下文
-│   ├── EditorSurfaceHostController.cs # surface 宿主控制器
-│   ├── DetachedEditorWindow.cs  # 独立编辑窗口宿主
-│   ├── ContentBrowserIndex.cs   # 内容浏览器 lookup/path/search 缓存
-│   ├── CanvasPanZoomController.cs  # 平移、缩放、EdgePan
-│   ├── NodeDragSelectionController.cs  # 拖动、框选、复制粘贴、对齐
-│   ├── PinConnectionController.cs  # 连线、断线、路由节点
-│   ├── InspectorController.cs   # 属性面板主入口、Load/Apply 主分发
-│   ├── InspectorController.Parameters.cs # 函数/事件参数面板
-│   ├── InspectorController.CommonNodes.cs # 通用小节点面板
-│   ├── InspectorController.SystemNodes.cs # 找图/键盘/窗口/程序启动辅助
-│   ├── InspectorController.Locks.cs # 前置输入锁定与灰态
-│   ├── InspectorController.ToDo.cs # ToDo 目标选择面板逻辑
-│   ├── NodePaletteController.cs # 右键节点菜单
-│   ├── ScriptHotkeyService.cs   # 全局热键服务 (WH_KEYBOARD_LL/WH_MOUSE_LL)
-│   ├── ScriptRunManager.cs      # 脚本运行生命周期管理
-│   ├── ScriptPropertiesWindow.cs # 脚本运行属性配置窗口
-│   ├── LogPanelController.cs    # 日志过滤、增量刷新
-│   └── GraphImportDropController.cs  # JSON 图谱拖拽导入
-├── Logging/                     # 日志模块
-│   ├── Logger.cs                # 存储 + 文件写入
-│   ├── LogEntry.cs              # 日志条目模型
-│   ├── LogLevel.cs              # 级别枚举
-│   └── LoggingModule.cs         # 过滤 + 着色
-├── Controls/
-│   ├── EditorSurfaceControl.xaml(.cs) # session 自持完整编辑 surface
-│   └── EditorSurfaceControl.InspectorEvents.cs # 详情面板事件转发
-├── Python/                      # Python 脚本
-│   ├── find_image.py            # OpenCV 找图
-│   └── Installer/               # Python 安装包
-├── Adapters/                    # Win32/Python 能力封装
-│   ├── IMouseAdapter.cs         # 鼠标操作
-│   ├── IKeyboardAdapter.cs      # 键盘操作
-│   ├── IWindowAdapter.cs        # 窗口操作
-│   ├── IScreenshotAdapter.cs    # 截图
-│   └── PythonScriptAdapter.cs   # Python JSON 文件通信
-├── Nodes/                       # 节点注册与分类执行器
-│   └── NodeRegistry.cs          # 节点定义 + 执行器入口
-├── MainWindow.xaml(.cs)         # 主窗口 + partial 交互扩展
-├── MainWindow.AssetCommands.cs  # 新建/打开/保存/编译/运行按钮入口
-├── MainWindow.ContentBrowserCommands.cs # 内容浏览器基础 CRUD、目录刷新、路径索引入口
-├── MainWindow.InspectorHandlers.cs # 属性面板事件转发
-├── MainWindow.GraphInputHandlers.cs # 画布、节点、pin、节点菜单输入事件
-├── MainWindow.GraphListHandlers.cs # 事件图/函数列表、分组展开、公开到库入口
-├── MainWindow.EditorSurfaceControllers.cs # surface controller 初始化与事件分发
-├── MainWindow.EditorSessionWorkflow.cs # 资产打开/切换/关闭与 session 提交
-├── MainWindow.GraphModelHelpers.cs # graph/node DTO clone 与入口标题同步 helper
-├── MainWindow.LogAndImportHandlers.cs # 日志与拖拽导入入口
-├── MainWindow.VisualTreeHelpers.cs # WPF visual/focus tree helpers
-├── MainWindow.WindowLifecycle.cs # 窗口关闭与退出流程
-├── MainWindow.ScriptRunSettings.cs # 脚本属性窗口入口与热键分发
-├── MainWindow.EditorSessions.cs # 多窗口标签/独立窗口交互
-├── MainWindow.EditorSessionState.cs # session dirty/snapshot/compile 目标状态
-├── MainWindow.EditorSurfaceHost.cs # surface 宿主
-├── LogWindow.xaml(.cs)          # 独立日志窗口
-└── App.xaml(.cs)                # 应用程序入口
-```
+LocalAppData 不可写时，运行时诊断目录回退到 `%TEMP%\AutomationStudioWpf`。卸载默认保留 AppData 用户资产和设置。
 
 ## 开发
 
-```bash
-# 构建
-dotnet build
+要求：
 
-# 运行
-dotnet run
+- .NET 8 SDK。
+- Windows x64。
+- 生成安装器时需要 Inno Setup 6。
+- 正式公开发布需要代码签名证书。
 
-# 发布（单文件）
-dotnet publish -c Release -r win-x64 --self-contained true /p:PublishSingleFile=true
-
-# 必要验证
-dotnet build .\AutomationStudioWpf.csproj -o .\bin\CodexBuildCheck
-git diff --check
+```powershell
+dotnet build .\AutomationStudioWpf.csproj
 dotnet run --project .\AutomationStudioWpf.csproj
-
-# Tests/CodexSmoke 是本地-only，可按需保留，但 Git 不跟踪、不提交
-
-# CodeGraph sync
-& 'C:\Users\Administrator\nodejs\node-v20.18.1-win-x64\codegraph.cmd' sync
 ```
 
-## 日志位置
+`Tests/CodexSmoke` 仅本地使用，已被 Git 忽略，不得提交。
 
-日志文件保存在程序目录下的 `saved/log/` 文件夹中，按时间命名：
+## 发布
+
+正式发布：
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass `
+  -File .\Packaging\build-release.ps1 `
+  -Version 1.0.0 `
+  -CertificateThumbprint <CERT_THUMBPRINT>
 ```
-saved/log/Log_2026_05_28_22_11.txt
+
+本地 unsigned staging/安装器测试必须显式声明：
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass `
+  -File .\Packaging\build-release.ps1 `
+  -Version 1.0.0 `
+  -AllowUnsigned
 ```
 
-## 最近更新
+- 工作树默认必须干净；本地临时验证可显式加 `-AllowDirty`。
+- 只验证 publish staging、暂不编译安装器时加 `-SkipInstaller`。
+- 首次构建会按 `Packaging/vendor-manifest.json` 下载并校验固定 SHA256；缓存后可离线重复构建。
+- 输出位于 `Packaging/artifacts/release/<version>/`，该目录不提交 Git。
+- `stage/` 是自包含多文件目录，`Runtime/Python` 是私有运行时，`symbols/` 单独保存 PDB。
+- 正式构建不得使用 `-AllowUnsigned`；安装器和应用 EXE 必须签名。
 
-### v1.2.11 (2026-06-26)
-- **Added**: Global hotkey service (`ScriptHotkeyService`) with low-level keyboard/mouse hooks — start or stop scripts without focusing the editor window.
-- **Added**: Per-script run settings window (`ScriptPropertiesWindow`) for configuring loop mode, start/stop hotkeys, press count, and trigger time window.
-- **Added**: Script run lifecycle manager (`ScriptRunManager`) with single-instance enforcement, toolbar status reporting, and hotkey conflict validation.
-- **Added**: Inspector controller split into focused partial files: `InspectorController.Parameters.cs`, `InspectorController.CommonNodes.cs`.
-- **Added**: MainWindow partials: `MainWindow.AssetCommands.cs`, `MainWindow.GraphInputHandlers.cs`, `MainWindow.ScriptRunSettings.cs`.
-- **Changed**: Runtime logs improved; node display names refined for clarity.
-- **Changed**: Editor/runtime flows stabilized and UI resources polished after multi-window session refactor.
+安装器：
 
-### v1.2.10 (2026-06-12)
-- **Fixed**: Global window handlers now use safe active-surface lookup or no-op when no editor surface exists, avoiding startup/no-session crashes.
-- **Changed**: Main window graph input handlers and asset command handlers were split into focused partial files without changing graph JSON, connection routing, or function-library save semantics.
-- **Changed**: Inspector parameter/common/system-node/field-lock helpers were split into focused `InspectorController.*.cs` partials; `InspectorController.cs` keeps load/apply dispatch.
-- **Optimized**: Compile validation reuses a per-run asset lookup, and content browser search caches flattened searchable text/path until the asset browser refreshes.
-- **Optimized**: Content browser lookup/tree/path/search data now goes through internal `ContentBrowserIndex`; log colors are centralized in `LoggingModule.GetLevelBrush(...)`.
-- **Changed**: Content browser base commands and folder/tree refresh logic moved from `MainWindow.xaml.cs` to `MainWindow.ContentBrowserCommands.cs`; inspector event forwarding moved to `MainWindow.InspectorHandlers.cs`; multi-select remains in `MainWindow.ContentBrowserMultiSelect.cs`.
-- **Changed**: Graph/function list handlers moved from `MainWindow.xaml.cs` to `MainWindow.GraphListHandlers.cs`; shared editor surface colors now use `App.xaml` brush resources where possible.
-- **Changed**: Editor surface controller setup, session open/close workflow, and graph DTO helpers moved out of `MainWindow.xaml.cs` into focused partial files.
+- 当前用户安装到 `%LocalAppData%\Programs\AutomationStudio`，无需管理员权限。
+- 同一 AppId 原位升级。
+- 升级会通过 `--shutdown-for-update` 请求现有实例安全退出。
+- 用户取消未保存资产确认或 60 秒内未退出时，安装中止，不覆盖运行文件。
+- 不提供联网自动更新。
 
-### v1.2.9 (2026-06-12)
-- **Fixed**: Function-library sessions now keep their active function controller in the owning `EditorSurfaceContext`, so switching to another asset no longer drops unsaved function nodes or reloads default entry/return graphs.
-- **Fixed**: Active-asset compile/run checks now resolve the current graph controller from the active editor session, avoiding stale global `_activeAssetController` state in multi-window workflows.
-- **Changed**: Session dirty/snapshot/compile helpers moved to `MainWindow.EditorSessionState.cs`; ToDo inspector and editor-surface inspector event forwarding now live in small partial files.
-- **Changed**: Dark context menu and dropdown list styles are shared from `App.xaml`, not duplicated per window/surface.
+## 项目结构
 
-### v1.2.8 (2026-06-11)
-- **Changed**: Documentation was consolidated; durable technical notes now live only in `Agent/TECHNICAL.md`.
-- **Changed**: Each editor session now owns a complete `EditorSurfaceControl`; detached windows host their own editable surface directly, and inactive detached preview/legacy region moving has been removed from the active path.
-- **Fixed**: Surface activation is now lightweight and per-session controller state is preserved, so main tabs and detached windows no longer steal each other's graph/list/canvas state.
-- **Fixed**: Detaching a session no longer blanks the main host; the main window keeps the last main tab surface, and the empty fallback panel only shows when no main tabs remain.
-- **Changed**: Removed the old project skill path; use `Agent/TECHNICAL.md` as the technical source of truth.
+```text
+AutomationStudio/
+├─ Adapters/          Win32、Python、截图等系统能力
+├─ Agent/             唯一长期技术文档
+├─ Controls/          每 session 的 EditorSurfaceControl
+├─ Graph/             节点、pin、connection、文件模型
+├─ Interaction/       编辑器与窗口交互 controller
+├─ Logging/           UI/文件日志
+├─ Nodes/             节点定义与 executor
+├─ Packaging/         私有 Python、publish、Inno、供应链清单
+├─ Python/            find_image.py
+├─ Runtime/           图执行器与临时运行上下文
+├─ Services/          编译、保存、环境、单实例、路径、崩溃保护
+└─ Themes/            共享主题资源
+```
 
-### v1.2.7 (2026-06-09)
-- **Added**: UE-style editor window bar. Open assets stay as sessions; reopening an asset focuses the existing session instead of replacing the current editor.
-- **Added**: Session right-click actions: close, detach, close all, close right. Detached sessions move the active editor surface into a standalone WPF window and are hidden from the main window bar.
-- **Changed**: Removed main-window MDI frames; dragging a tab inside the main window keeps it as a tab, dragging outside creates a standalone window.
-- **Changed**: Toolbar compile is active-asset scoped; non-active assets keep `IsCompileDirty` until compiled or saved via compile-all.
+## 必要验证
 
-### v1.2.6 (2026-06-09)
-- **Added**: Content browser recursive fuzzy search under the current folder, including keyword/path matching and search-result double-click open.
-- **Added**: `Ctrl+B` content browser locate. It clears search, enters the asset's real parent folder, selects the asset, and can also locate the currently opened asset.
-- **Added**: Function call-node double-click navigation by stable graph id. Same-asset functions switch panels directly; library targets open the owning library asset before loading the target graph.
-- **Improved**: Content browser UE-style interaction now includes multi-select, box select, asset copy/paste, multi-delete, drag preview, and themed dialogs.
+```powershell
+dotnet build .\AutomationStudioWpf.csproj -o .\bin\CodexBuildCheck
+dotnet build .\AutomationStudioWpf.csproj
+git diff --check -- AutomationStudio
+codegraph.cmd sync
+```
 
-### v1.2.5 (2026-06-08)
-- **Added**: Reusable per-graph node numbers (`N###` / `Fun###`) shown in node headers and inspector.
-- **Added**: `ToDo` jump node resolves targets by node title + node number, with inspector search/pick UI and optional return-after-target mode.
-- **Improved**: Runtime/validation reachability understands static ToDo jump targets; compile/save/run commits inspector edits first, and compile can backfill static ToDo title/number from `TargetNodeId`.
-- **Improved**: Log panel uses read-only `RichTextBox` selection so `Ctrl+A` / `Ctrl+C` copy log text instead of graph nodes.
-- **Improved**: ToDo return-after-target mode stops the target sub-chain before re-entering the source ToDo, then continues from the source `exec_out`; direct self-jump remains invalid.
-
-### v1.2.4 (2026-06-08)
-- **Improved**: Visible wire hit-testing now samples the rendered Bezier geometry before mapping back to backing connections.
-- **Improved**: Connection add/remove/reroute edits batch `ConnectionPaths` rebuild and `GraphChanged` notifications through `GraphEditorService.RunBatchedEdit(...)`.
-- **Improved**: Runtime execution/input lookup uses an internal lazy `GraphExecutionIndex` without changing graph JSON or `GraphExecutionPlan` construction.
-
-### v1.2.3 (2026-06-08)
-- **Changed**: Audited CodeGraph and documentation against current local code.
-- **Note**: CodeGraph runtime database/log files remain local through `.codegraph/.gitignore`; they are synced but not committed.
-
-### v1.2.2 (2026-06-06)
-- **Added**: `GraphCommandService` snapshot-based Undo/Redo for graph edit actions.
-- **Added**: Selectable visual wire paths with blue UE-style highlight, Delete/Backspace removal, and right-click actions for delete/add reroute.
-- **Improved**: Node move UX with 20px grid snapping, arrow-key nudging, Shift fast nudge, and Alt precision movement.
-- **Added**: `NodeDefinition` metadata for search tags, inspector schema key, default values, and validation hints.
-- **Improved**: Node palette search now matches category/type key/kind/tags and shows recent node kinds.
-
-### v1.2.1 (2026-06-06)
-- **Changed**: Reroute-backed wires aggregate into visible paths; tight/backward layouts currently do not reproduce the old loop issue.
-- **Changed**: Visual wire rendering uses `ConnectionPaths`; graph persistence/runtime still use `Connections`.
-- **Changed**: Reroute chain draw order follows the actual connection chain, not distance sorting.
-- **Fixed**: Double-clicking aggregated visual wires inserts a reroute node again.
-- **Improved**: Reroute selection now has a stronger UE-style glow/ring.
-- **Note**: Optional local reroute repro helpers can load an external `graph.json`; they remain local-only and untracked.
-
-### v1.2.0 (2026-06-05)
-- **新增**: 内容浏览器 — 文件夹树 + 瓦片视图，资产拖拽管理
-- **新增**: 脚本/函数库资产系统，支持"公开到库"硬隔离
-- **新增**: 自定义事件 (CustomEvent / CustomEventCall)
-- **新增**: 执行前校验 — 节点可达性、参数缺失、连线唯一性
-- **新增**: 边缘自动平移 (EdgePan) — 拖动到视口边界自动滚动
-- **新增**: 阶段 5 常用节点（鼠标点击重复触发/位置、组合键、等待图、等待窗口、布尔/字符串逻辑、截图、弹窗等）
-- **新增**: 找图节点支持可选识别区域
-- **重构**: 属性面板下沉到 InspectorController
-- **重构**: 9 个 Interaction Controller 解耦 UI 与业务
-- **优化**: 删除 6 个冗余节点 (MouseDrag/InputText/KeySequence/ClickImageCenter/SetVariable/Comment)
-- **修复**: 事件图/函数画布隔离
-- **修复**: XAML 初始化事件 NullReference
-- **修复**: WPF/WinForms 类型歧义
-
-### v1.1.0 (2026-05-28)
-- **重构**: MainWindow.xaml.cs 拆分职责到 Services 层
-- **新增**: Python 环境自动检测与安装指引
-- **新增**: 日志可复制功能
-- **优化**: 警告日志显示为黄色，更醒目
-- **优化**: 使用阿里云 PyPI 镜像，国内访问更快
-- **修复**: 节点属性命名混乱问题（DelayMs 误用）
-- **修复**: 旧日志窗口重复创建问题
-
-## 许可证
-
-MIT License
+发布前还需在干净 Windows 10/11 x64 VM 验证：离线标准用户安装、中文用户名、只读安装目录、单实例、找图、热键、升级、卸载、残留进程、Defender、版本、SHA256 和签名状态。

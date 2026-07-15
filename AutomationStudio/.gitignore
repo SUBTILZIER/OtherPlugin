@@ -3,6 +3,9 @@ obj/
 Tests/CodexSmoke/
 .idea/
 .codegraph/
+Packaging/.cache/
+Packaging/artifacts/
+artifacts/
 .claude/
 *.user
 *.suo

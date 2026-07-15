@@ -92,6 +92,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     // 运行状态
     private bool _isClosing;
     private bool _isExecuting;
+    private bool _isActiveAssetCompileDirty;
 
     public bool IsExecuting
     {
@@ -156,6 +157,19 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         });
     }
 
+    public bool IsActiveAssetCompileDirty
+    {
+        get => _isActiveAssetCompileDirty;
+        private set
+        {
+            if (_isActiveAssetCompileDirty == value)
+                return;
+
+            _isActiveAssetCompileDirty = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsActiveAssetCompileDirty)));
+        }
+    }
+
     private void StopExecution_Click(object sender, RoutedEventArgs e)
     {
         _scriptRunManager.StopAll(ScriptRunStopReason.Toolbar);
@@ -163,7 +177,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     }
 
     private void OnExecutionStateChanged(bool isRunning) { UpdateExecutionUI(); }
-    private void OnScriptRunningStateChanged() => UpdateExecutionUI();
+    private void OnScriptRunningStateChanged()
+    {
+        if (!_isClosing)
+            RefreshScriptHotkeys();
+        UpdateExecutionUI();
+    }
 
     private void UpdateExecutionFreezeState()
     {

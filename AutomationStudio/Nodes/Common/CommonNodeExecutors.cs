@@ -6,6 +6,7 @@ using AutomationStudioWpf.Graph;
 using AutomationStudioWpf.Interaction;
 using AutomationStudioWpf.Logging;
 using AutomationStudioWpf.Runtime;
+using AutomationStudioWpf.Services;
 using Point = System.Drawing.Point;
 
 namespace AutomationStudioWpf.Nodes.Common;
@@ -241,7 +242,7 @@ public sealed class CommonNodeExecutor(NodeKind nodeKind) : INodeExecutor
     {
         string safeNodeId = string.Concat(request.Node.Id.Select(ch => char.IsLetterOrDigit(ch) || ch == '_' ? ch : '_'));
         string fileName = $"screenshot_{safeNodeId}_{DateTime.Now:yyyyMMdd_HHmmss_fff}.png";
-        return Path.Combine(AppContext.BaseDirectory, "Temp", "Screenshots", fileName);
+        return Path.Combine(ApplicationPaths.AutoScreenshotDirectory, fileName);
     }
 
     private static NodeExecutionResult ExecuteShowMessage(NodeExecutionRequest request)

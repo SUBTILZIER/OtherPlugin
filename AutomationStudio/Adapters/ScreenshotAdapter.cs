@@ -2,6 +2,7 @@ using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
 using System.Windows.Forms;
+using AutomationStudioWpf.Services;
 
 namespace AutomationStudioWpf.Adapters;
 
@@ -18,8 +19,12 @@ public sealed class ScreenshotAdapter : IScreenshotAdapter
                 ? new Rectangle(x, y, width, height)
                 : SystemInformation.VirtualScreen;
 
-            string fullPath = Path.GetFullPath(path);
-            Directory.CreateDirectory(Path.GetDirectoryName(fullPath) ?? AppContext.BaseDirectory);
+            string fullPath = Path.IsPathRooted(path)
+                ? Path.GetFullPath(path)
+                : Path.GetFullPath(Path.Combine(ApplicationPaths.AutoScreenshotDirectory, path));
+            string directory = Path.GetDirectoryName(fullPath)
+                ?? throw new InvalidOperationException("截图保存路径缺少目录。");
+            Directory.CreateDirectory(directory);
 
             using var bitmap = new Bitmap(bounds.Width, bounds.Height);
             using Graphics graphics = Graphics.FromImage(bitmap);

@@ -81,7 +81,9 @@ public partial class MainWindow
 
     private void RefreshScriptHotkeys()
     {
-        var refreshResult = _scriptHotkeyService.Refresh(ContentBrowserItems);
+        var refreshResult = _scriptHotkeyService.Refresh(
+            ContentBrowserItems,
+            asset => _scriptRunManager.IsHotkeyRunActive(asset));
 
         foreach (string conflict in refreshResult.Conflicts)
             Logging.Logger.Warn(conflict);
@@ -117,8 +119,8 @@ public partial class MainWindow
 
         if (trigger.Action == ScriptHotkeyAction.Stop)
         {
-            PlayHotkeyTone(400, 300);
-            _scriptRunManager.StopFromHotkey(trigger.Asset);
+            if (_scriptRunManager.StopFromHotkey(trigger.Asset))
+                PlayHotkeyTone(400, 300);
             return;
         }
 

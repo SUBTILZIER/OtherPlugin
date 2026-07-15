@@ -349,13 +349,6 @@ public partial class MainWindow
 
     private void UpdateCompileButtonState()
     {
-        if (CompileGraphButton is null)
-            return;
-
-        bool dirty = ActiveContentAssetHasCompileDirtyGraphs();
-        CompileButtonText.Text = dirty ? "编译*" : "编译";
-        CompileDirtyIcon.Visibility = dirty ? Visibility.Visible : Visibility.Collapsed;
-        ThemeResourceHelper.SetResource(CompileGraphButton, System.Windows.Controls.Control.BackgroundProperty, dirty ? "CompileDirtyBackgroundBrush" : "EditorToolbarGroupBrush");
-        ThemeResourceHelper.SetResource(CompileGraphButton, System.Windows.Controls.Control.BorderBrushProperty, dirty ? "CompileDirtyBorderBrush" : "EditorPanelBorderBrush");
+        QueueAssetCompileButtonStateUpdate();
     }
 }

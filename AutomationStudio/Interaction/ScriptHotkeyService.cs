@@ -56,7 +56,9 @@ internal sealed class ScriptHotkeyService : IDisposable
         _flushTimer.Tick += (_, _) => FlushReadyPresses();
     }
 
-    public ScriptHotkeyRefreshResult Refresh(IEnumerable<ContentAssetViewModel> assets)
+    public ScriptHotkeyRefreshResult Refresh(
+        IEnumerable<ContentAssetViewModel> assets,
+        Func<ContentAssetViewModel, bool> isStopHotkeyActive)
     {
         var assetList = assets.ToList();
         var conflicts = Validate(assetList);
@@ -67,7 +69,8 @@ internal sealed class ScriptHotkeyService : IDisposable
         {
             asset.RunSettings.Normalize();
             AddBinding(asset, ScriptHotkeyAction.Start, asset.RunSettings.StartHotkey);
-            AddBinding(asset, ScriptHotkeyAction.Stop, asset.RunSettings.StopHotkey);
+            if (isStopHotkeyActive(asset))
+                AddBinding(asset, ScriptHotkeyAction.Stop, asset.RunSettings.StopHotkey);
         }
 
         if (_bindings.Count == 0)

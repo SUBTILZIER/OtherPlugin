@@ -1,0 +1,37 @@
+AutomationStudio Third-Party Notices
+====================================
+
+This distribution contains third-party software. The exact bundled versions and
+artifact hashes are recorded in Packaging/vendor-manifest.json and in the build
+manifest shipped with each release.
+
+.NET Runtime
+------------
+Copyright (c) .NET Foundation and Contributors
+Licensed under the MIT License.
+https://github.com/dotnet/runtime/blob/main/LICENSE.TXT
+
+Python
+------
+Copyright (c) Python Software Foundation
+Licensed under the Python Software Foundation License Version 2.
+https://docs.python.org/3/license.html
+
+OpenCV / opencv-python-headless
+-------------------------------
+OpenCV is licensed under Apache-2.0. The Python packaging project also includes
+its own notices and third-party components. Exact license files from the bundled
+wheel are appended below during release assembly.
+
+NumPy
+-----
+NumPy and bundled numerical libraries use multiple permissive licenses. Exact
+license files from the bundled wheel are appended below during release assembly.
+
+Pillow
+------
+Pillow is licensed under the HPND License (also identified as MIT-CMU). Exact
+license files from the bundled wheel are appended below during release assembly.
+
+Bundled License Texts
+=====================
