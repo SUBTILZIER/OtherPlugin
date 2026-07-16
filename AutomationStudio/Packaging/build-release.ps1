@@ -54,6 +54,7 @@ function Find-InnoCompiler() {
     }
 
     $candidates = @(
+        (Join-Path $env:LOCALAPPDATA 'Programs\Inno Setup 6\ISCC.exe'),
         (Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'),
         (Join-Path $env:ProgramFiles 'Inno Setup 6\ISCC.exe')
     )
@@ -84,6 +85,23 @@ function Sign-File([string]$Path, [string]$SignTool) {
         $Path)
 }
 
+function Assert-PackagingDependencies() {
+    $manifest = Get-Content -LiteralPath $vendorManifest -Raw -Encoding UTF8 | ConvertFrom-Json
+    foreach ($dependency in $manifest.packagingDependencies) {
+        foreach ($file in $dependency.files) {
+            $path = Join-Path $projectRoot $file.path
+            if (-not (Test-Path -LiteralPath $path)) {
+                throw "Packaging dependency missing: $($file.path)"
+            }
+
+            $actual = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($actual -ne ([string]$file.sha256).ToLowerInvariant()) {
+                throw "Packaging dependency SHA256 mismatch: $($file.path)"
+            }
+        }
+    }
+}
+
 function Write-ThirdPartyNotices([string]$RuntimeRoot, [string]$OutputPath) {
     $builder = New-Object Text.StringBuilder
     [void]$builder.AppendLine([IO.File]::ReadAllText($noticesTemplate))
@@ -91,6 +109,13 @@ function Write-ThirdPartyNotices([string]$RuntimeRoot, [string]$OutputPath) {
     [void]$builder.AppendLine('Bundled artifact manifest')
     [void]$builder.AppendLine('-------------------------')
     [void]$builder.AppendLine([IO.File]::ReadAllText($vendorManifest))
+
+    $innoTranslationLicense = Join-Path $projectRoot 'Packaging\InnoLanguages\LICENSE'
+    [void]$builder.AppendLine()
+    [void]$builder.AppendLine(('=' * 78))
+    [void]$builder.AppendLine('Inno Setup Chinese Simplified Translation - MIT License')
+    [void]$builder.AppendLine(('=' * 78))
+    [void]$builder.AppendLine([IO.File]::ReadAllText($innoTranslationLicense))
 
     $licenseFiles = Get-ChildItem -LiteralPath $RuntimeRoot -Recurse -File |
         Where-Object { $_.Name -match '^(LICENSE|LICENCE|COPYING|NOTICE)(\..*)?$' } |
@@ -111,6 +136,32 @@ function Write-ThirdPartyNotices([string]$RuntimeRoot, [string]$OutputPath) {
     [IO.File]::WriteAllText($OutputPath, $builder.ToString(), (New-Object Text.UTF8Encoding($false)))
 }
 
+function Assert-ReleaseStage([string]$StageRoot) {
+    $forbiddenPattern = '(?i)(^|[\\/])(bin|obj|Tests|CodexSmoke|\.cache)([\\/]|$)'
+    foreach ($entry in Get-ChildItem -LiteralPath $StageRoot -Recurse -Force) {
+        $relative = $entry.FullName.Substring($StageRoot.Length).TrimStart('\', '/')
+        if ($relative -match $forbiddenPattern) {
+            throw "Forbidden release-stage path: $relative"
+        }
+        if ($entry.Name -match '(?i)(\.pdb|\.pyc|\.pyo)$' -or $entry.Name -eq '__pycache__') {
+            throw "Forbidden release-stage file: $relative"
+        }
+    }
+}
+
+function Remove-PythonCaches([string]$RuntimeRoot) {
+    Get-ChildItem -LiteralPath $RuntimeRoot -Recurse -Directory -Force -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -eq '__pycache__' } |
+        Sort-Object { $_.FullName.Length } -Descending |
+        ForEach-Object { Remove-Item -LiteralPath $_.FullName -Recurse -Force -ErrorAction SilentlyContinue }
+
+    Get-ChildItem -LiteralPath $RuntimeRoot -Recurse -File -Force -ErrorAction SilentlyContinue |
+        Where-Object { $_.Extension -in '.pyc', '.pyo' } |
+        ForEach-Object { Remove-Item -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue }
+}
+
+Invoke-Checked 'git' @('-C', $repositoryRoot, 'diff', '--check', '--', 'AutomationStudio')
+
 $dirty = & git -C $repositoryRoot status --porcelain -- AutomationStudio
 if ($LASTEXITCODE -ne 0) {
     throw 'Unable to inspect Git worktree.'
@@ -121,6 +172,8 @@ if (-not $AllowDirty -and $dirty) {
 if ([string]::IsNullOrWhiteSpace($CertificateThumbprint) -and -not $AllowUnsigned) {
     throw 'No signing certificate supplied. Use -CertificateThumbprint for a release or explicitly pass -AllowUnsigned for a test package.'
 }
+
+Assert-PackagingDependencies
 
 Remove-DirectorySafe $releaseRoot $artifactsRoot
 New-Item -ItemType Directory -Path $stageDirectory -Force | Out-Null
@@ -162,6 +215,7 @@ $pythonExe = Join-Path $runtimeDirectory 'python.exe'
 Invoke-Checked $pythonExe @(
     '-I', '-c',
     "import sys,cv2,numpy,PIL; assert sys.version_info[:3] == (3,14,6); assert cv2.__version__ == '4.13.0'; assert numpy.__version__ == '2.4.6'; assert PIL.__version__ == '12.2.0'")
+Remove-PythonCaches $runtimeDirectory
 
 $applicationExe = Join-Path $stageDirectory 'AutomationStudioWpf.exe'
 if (-not (Test-Path -LiteralPath $applicationExe)) {
@@ -173,6 +227,7 @@ if (-not (Test-Path -LiteralPath (Join-Path $stageDirectory 'Python\find_image.p
 if (Get-ChildItem -LiteralPath $stageDirectory -Filter *.pdb -File -Recurse) {
     throw 'PDB files remain in installer stage.'
 }
+Assert-ReleaseStage $stageDirectory
 
 $signTool = $null
 if (-not [string]::IsNullOrWhiteSpace($CertificateThumbprint)) {
@@ -212,6 +267,11 @@ $hashTargets = @($applicationExe, $pythonExe)
 if ($installerPath) {
     $hashTargets += $installerPath
 }
+
+$isSigned = -not [string]::IsNullOrWhiteSpace($CertificateThumbprint)
+if (-not $isSigned -and $installerPath -and ([IO.Path]::GetFileNameWithoutExtension($installerPath) -notmatch '(?i)-UNSIGNED$')) {
+    throw 'Unsigned installer must include the -UNSIGNED suffix.'
+}
 $hashLines = foreach ($target in $hashTargets) {
     $hash = (Get-FileHash -LiteralPath $target -Algorithm SHA256).Hash.ToLowerInvariant()
     "$hash  $([IO.Path]::GetFileName($target))"
@@ -229,7 +289,7 @@ $buildManifest = [ordered]@{
     selfContained = $true
     singleFile = $false
     trimmed = $false
-    signed = -not [string]::IsNullOrWhiteSpace($CertificateThumbprint)
+    signed = $isSigned
     builtAtUtc = [DateTime]::UtcNow.ToString('O')
     gitCommit = (& git -C $repositoryRoot rev-parse HEAD).Trim()
     dirty = [bool]$dirty

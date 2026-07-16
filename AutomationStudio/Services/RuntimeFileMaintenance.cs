@@ -30,8 +30,20 @@ internal static class RuntimeFileMaintenance
     private static void CleanupPythonRequests()
     {
         DateTime cutoffUtc = DateTime.UtcNow - PythonRequestRetention;
+        CleanupDirectory(ApplicationPaths.PythonRequestDirectory, cutoffUtc);
         foreach (string path in Directory.EnumerateFiles(
                      Path.GetTempPath(),
+                     "automation_studio_*.json",
+                     SearchOption.TopDirectoryOnly))
+        {
+            TryDeleteIfOlderThan(path, cutoffUtc);
+        }
+    }
+
+    private static void CleanupDirectory(string directory, DateTime cutoffUtc)
+    {
+        foreach (string path in Directory.EnumerateFiles(
+                     directory,
                      "automation_studio_*.json",
                      SearchOption.TopDirectoryOnly))
         {

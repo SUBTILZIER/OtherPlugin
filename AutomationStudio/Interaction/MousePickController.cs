@@ -97,6 +97,17 @@ internal sealed class MousePickController : IDisposable
         Stop();
     }
 
+    internal void EmergencyStopWithoutUi()
+    {
+        _disposed = true;
+        IsActive = false;
+        _leftButtonCaptured = false;
+        _isPromptOpen = false;
+        _updateQueued = false;
+        UninstallHook();
+        ScreenPixelSampler.End();
+    }
+
     private void UpdateSampleAt(int x, int y)
     {
         _updateQueued = false;
@@ -176,8 +187,10 @@ internal sealed class MousePickController : IDisposable
 
     private IntPtr HookCallback(int nCode, IntPtr wParam, IntPtr lParam)
     {
-        if (nCode >= 0 && IsActive && !_isPromptOpen)
+        if (nCode >= 0 && IsActive && !_isPromptOpen && !_disposed)
         {
+            try
+            {
             var message = wParam.ToInt32();
             var hook = Marshal.PtrToStructure<MSLLHOOKSTRUCT>(lParam);
 
@@ -192,7 +205,7 @@ internal sealed class MousePickController : IDisposable
                     if (!_updateQueued)
                     {
                         _updateQueued = true;
-                        _owner.Dispatcher.BeginInvoke(() => UpdateSampleAt(_pendingX, _pendingY));
+                        PostToOwner(() => UpdateSampleAt(_pendingX, _pendingY));
                     }
                 }
 
@@ -205,7 +218,7 @@ internal sealed class MousePickController : IDisposable
                 _lastHookX = hook.pt.X;
                 _lastHookY = hook.pt.Y;
                 _lastSample = ScreenPixelSampler.SampleAt(hook.pt.X, hook.pt.Y);
-                _owner.Dispatcher.BeginInvoke(() => _overlay?.Update(_lastSample));
+                PostToOwner(() => _overlay?.Update(_lastSample));
                 return new IntPtr(1);
             }
 
@@ -215,14 +228,19 @@ internal sealed class MousePickController : IDisposable
                 _lastHookX = hook.pt.X;
                 _lastHookY = hook.pt.Y;
                 var sample = ScreenPixelSampler.SampleAt(hook.pt.X, hook.pt.Y);
-                _owner.Dispatcher.BeginInvoke(() => ShowCopyDialog(sample));
+                PostToOwner(() => ShowCopyDialog(sample));
                 return new IntPtr(1);
             }
 
             if (message is WM_RBUTTONDOWN or WM_RBUTTONUP)
             {
-                _owner.Dispatcher.BeginInvoke(() => Stop("已退出鼠标拾取。"));
+                PostToOwner(() => Stop("已退出鼠标拾取。"));
                 return new IntPtr(1);
+            }
+            }
+            catch (Exception ex)
+            {
+                Logger.Error($"鼠标拾取 Hook 回调失败：{ex.Message}");
             }
         }
 
@@ -242,6 +260,34 @@ internal sealed class MousePickController : IDisposable
         return new HookEndpointInstallResult(true, _hook != IntPtr.Zero, errorCode);
     }
 
+    private void PostToOwner(Action action)
+    {
+        if (_disposed || _owner.Dispatcher.HasShutdownStarted || _owner.Dispatcher.HasShutdownFinished)
+            return;
+
+        try
+        {
+            _owner.Dispatcher.BeginInvoke(new Action(() =>
+            {
+                if (_disposed || _owner.Dispatcher.HasShutdownStarted || _owner.Dispatcher.HasShutdownFinished)
+                    return;
+
+                try
+                {
+                    action();
+                }
+                catch (Exception ex)
+                {
+                    Logger.Error($"鼠标拾取 UI 回调失败：{ex.Message}");
+                    Stop("鼠标拾取已停止。" );
+                }
+            }));
+        }
+        catch (InvalidOperationException)
+        {
+        }
+    }
+
     private void ReportHookFailure(HookEndpointInstallResult result)
     {
         string message = result.FormatFailure("鼠标拾取监听");
@@ -257,7 +303,8 @@ internal sealed class MousePickController : IDisposable
         if (_hook == IntPtr.Zero)
             return;
 
-        UnhookWindowsHookEx(_hook);
+        if (!UnhookWindowsHookEx(_hook))
+            Logger.Warn($"鼠标拾取 Hook 卸载失败，Win32 错误码：{Marshal.GetLastWin32Error()}");
         _hook = IntPtr.Zero;
     }
 

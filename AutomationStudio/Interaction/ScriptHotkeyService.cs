@@ -158,6 +158,16 @@ internal sealed class ScriptHotkeyService : IDisposable
         UninstallHooks();
     }
 
+    internal void EmergencyStopWithoutUi()
+    {
+        _disposed = true;
+        _bindings.Clear();
+        _pressStates.Clear();
+        _pressWindows.Clear();
+        _pressedKeys.Clear();
+        UninstallHooks();
+    }
+
     private void AddBinding(ContentAssetViewModel asset, ScriptHotkeyAction action, ScriptHotkeySettings hotkey)
     {
         if (!hotkey.IsConfigured)
@@ -224,20 +234,27 @@ internal sealed class ScriptHotkeyService : IDisposable
 
     private IntPtr KeyboardHookCallback(int nCode, IntPtr wParam, IntPtr lParam)
     {
-        if (nCode >= 0)
+        try
         {
-            int message = wParam.ToInt32();
-            if (message is WM_KEYDOWN or WM_SYSKEYDOWN)
+            if (nCode >= 0 && !_disposed)
             {
-                int vkCode = Marshal.ReadInt32(lParam);
-                if (_pressedKeys.Add(vkCode) && _triggerSuspendCount == 0)
-                    _owner.Dispatcher.BeginInvoke(() => HandlePress(new ScriptHotkeyPressKey(ScriptHotkeyInputKind.Keyboard, KeyInterop.KeyFromVirtualKey(vkCode).ToString())));
+                int message = wParam.ToInt32();
+                if (message is WM_KEYDOWN or WM_SYSKEYDOWN)
+                {
+                    int vkCode = Marshal.ReadInt32(lParam);
+                    if (_pressedKeys.Add(vkCode) && _triggerSuspendCount == 0)
+                        PostToOwner(() => HandlePress(new ScriptHotkeyPressKey(ScriptHotkeyInputKind.Keyboard, KeyInterop.KeyFromVirtualKey(vkCode).ToString())));
+                }
+                else if (message is WM_KEYUP or WM_SYSKEYUP)
+                {
+                    int vkCode = Marshal.ReadInt32(lParam);
+                    _pressedKeys.Remove(vkCode);
+                }
             }
-            else if (message is WM_KEYUP or WM_SYSKEYUP)
-            {
-                int vkCode = Marshal.ReadInt32(lParam);
-                _pressedKeys.Remove(vkCode);
-            }
+        }
+        catch (Exception ex)
+        {
+            Logging.Logger.Error($"键盘热键 Hook 回调失败：{ex.Message}");
         }
 
         return CallNextHookEx(_keyboardHook, nCode, wParam, lParam);
@@ -245,19 +262,26 @@ internal sealed class ScriptHotkeyService : IDisposable
 
     private IntPtr MouseHookCallback(int nCode, IntPtr wParam, IntPtr lParam)
     {
-        if (nCode >= 0)
+        try
         {
-            string? key = wParam.ToInt32() switch
+            if (nCode >= 0 && !_disposed)
             {
-                WM_LBUTTONDOWN => "Left",
-                WM_RBUTTONDOWN => "Right",
-                WM_MBUTTONDOWN => "Middle",
-                WM_XBUTTONDOWN => GetXButton(lParam),
-                WM_MOUSEWHEEL => GetWheelDirection(lParam),
-                _ => null,
-            };
-            if (key is not null && _triggerSuspendCount == 0)
-                _owner.Dispatcher.BeginInvoke(() => HandlePress(new ScriptHotkeyPressKey(ScriptHotkeyInputKind.Mouse, key)));
+                string? key = wParam.ToInt32() switch
+                {
+                    WM_LBUTTONDOWN => "Left",
+                    WM_RBUTTONDOWN => "Right",
+                    WM_MBUTTONDOWN => "Middle",
+                    WM_XBUTTONDOWN => GetXButton(lParam),
+                    WM_MOUSEWHEEL => GetWheelDirection(lParam),
+                    _ => null,
+                };
+                if (key is not null && _triggerSuspendCount == 0)
+                    PostToOwner(() => HandlePress(new ScriptHotkeyPressKey(ScriptHotkeyInputKind.Mouse, key)));
+            }
+        }
+        catch (Exception ex)
+        {
+            Logging.Logger.Error($"鼠标热键 Hook 回调失败：{ex.Message}");
         }
 
         return CallNextHookEx(_mouseHook, nCode, wParam, lParam);
@@ -265,7 +289,7 @@ internal sealed class ScriptHotkeyService : IDisposable
 
     private void FlushReadyPresses()
     {
-        if (_triggerSuspendCount > 0 || _pressStates.Count == 0)
+        if (_disposed || _triggerSuspendCount > 0 || _pressStates.Count == 0)
             return;
 
         var now = DateTime.UtcNow;
@@ -397,7 +421,8 @@ internal sealed class ScriptHotkeyService : IDisposable
         if (_keyboardHook == IntPtr.Zero)
             return;
 
-        UnhookWindowsHookEx(_keyboardHook);
+        if (!UnhookWindowsHookEx(_keyboardHook))
+            Logging.Logger.Warn($"键盘热键 Hook 卸载失败，Win32 错误码：{Marshal.GetLastWin32Error()}");
         _keyboardHook = IntPtr.Zero;
         _pressedKeys.Clear();
     }
@@ -407,7 +432,8 @@ internal sealed class ScriptHotkeyService : IDisposable
         if (_mouseHook == IntPtr.Zero)
             return;
 
-        UnhookWindowsHookEx(_mouseHook);
+        if (!UnhookWindowsHookEx(_mouseHook))
+            Logging.Logger.Warn($"鼠标热键 Hook 卸载失败，Win32 错误码：{Marshal.GetLastWin32Error()}");
         _mouseHook = IntPtr.Zero;
     }
 
@@ -419,6 +445,33 @@ internal sealed class ScriptHotkeyService : IDisposable
         _triggerSuspendCount--;
         if (_triggerSuspendCount == 0)
             _pressStates.Clear();
+    }
+
+    private void PostToOwner(Action action)
+    {
+        if (_disposed || _owner.Dispatcher.HasShutdownStarted || _owner.Dispatcher.HasShutdownFinished)
+            return;
+
+        try
+        {
+            _owner.Dispatcher.BeginInvoke(new Action(() =>
+            {
+                if (_disposed || _owner.Dispatcher.HasShutdownStarted || _owner.Dispatcher.HasShutdownFinished)
+                    return;
+
+                try
+                {
+                    action();
+                }
+                catch (Exception ex)
+                {
+                    Logging.Logger.Error($"全局热键 UI 回调失败：{ex.Message}");
+                }
+            }));
+        }
+        catch (InvalidOperationException)
+        {
+        }
     }
 
     private static ScriptHotkeyMatchKey ToMatchKey(ScriptHotkeySettings hotkey) =>

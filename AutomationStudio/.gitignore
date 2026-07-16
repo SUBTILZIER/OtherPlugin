@@ -5,6 +5,7 @@ Tests/CodexSmoke/
 .codegraph/
 Packaging/.cache/
 Packaging/artifacts/
+Packaging/verify-release.ps1
 artifacts/
 .claude/
 *.user

@@ -1,5 +1,16 @@
 # AutomationStudio
 
+## Release Stability Rules
+
+- Release target is Windows x64, .NET 8 self-contained multi-file, not trimmed and not single-file.
+- Bundled Python is the only Python used by a Release package. New Python request JSON files go to `%LocalAppData%\AutomationStudioWpf\Temp\PythonRequests`; the install directory is read-only.
+- Internal Python starts suspended, is assigned to the Job Object, and is resumed only after ownership succeeds. Cancellation, timeout, failure, and shutdown kill the process tree and use bounded output draining.
+- The `启动程序` node starts a user-owned external process. AutomationStudio does not close that process during normal exit or upgrade.
+- Assets/settings use `%AppData%\AutomationStudioWpf` when writable, otherwise one process-wide `%LocalAppData%\AutomationStudioWpf\Data` fallback. Logs, crash reports, screenshots, and Python requests use LocalAppData.
+- The installer sends `--shutdown-for-update`, checks exit code `0`, waits for the single-instance mutex and private Python processes to disappear, and aborts on timeout or user cancellation.
+- Unsigned local packages must use `-UNSIGNED` in the installer filename and contain `signed=false` in `build-manifest.json`.
+- `Packaging\verify-release.ps1` is local-only and ignored by Git. A clean Windows 10/11 x64 VM is still required for final Defender and offline-install validation.
+
 Windows 10/11 x64 的可视化桌面自动化编辑器。使用节点、执行线和数据线编排脚本；支持脚本资产、函数库、多窗口编辑、全局热键、并行分支和 OpenCV 找图。
 
 长期架构、踩坑和发布规则只维护在 [Agent/TECHNICAL.md](Agent/TECHNICAL.md)。开发前先读其“大纲 / 索引”，命中相关主题后再细读对应章节。
@@ -60,13 +71,13 @@ Windows 10/11 x64 的可视化桌面自动化编辑器。使用节点、执行�
 
 | 数据 | 位置 |
 |---|---|
-| 资产库、应用设置 | `%AppData%\AutomationStudioWpf` |
+| 资产库、应用设置 | `%AppData%\AutomationStudioWpf`；不可写时 `%LocalAppData%\AutomationStudioWpf\Data` |
 | 日志 | `%LocalAppData%\AutomationStudioWpf\Logs` |
 | 崩溃报告 | `%LocalAppData%\AutomationStudioWpf\CrashReports` |
 | 自动截图缓存 | `%LocalAppData%\AutomationStudioWpf\Temp\Screenshots` |
 | 私有 Python | 安装目录 `Runtime\Python`（只读） |
 
-LocalAppData 不可写时，运行时诊断目录回退到 `%TEMP%\AutomationStudioWpf`。卸载默认保留 AppData 用户资产和设置。
+LocalAppData 不可写时，运行时诊断目录才回退到 `%TEMP%\AutomationStudioWpf`；安装目录永远不作为写入目录。卸载默认保留用户资产和设置。
 
 ## 开发
 
@@ -74,7 +85,8 @@ LocalAppData 不可写时，运行时诊断目录回退到 `%TEMP%\AutomationStu
 
 - .NET 8 SDK。
 - Windows x64。
-- 生成安装器时需要 Inno Setup 6。
+- 生成安装器时需要 Inno Setup 6；可执行
+  `winget install --id JRSoftware.InnoSetup --exact --scope user` 安装当前用户版本。
 - 正式公开发布需要代码签名证书。
 
 ```powershell
@@ -107,6 +119,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass `
 - 工作树默认必须干净；本地临时验证可显式加 `-AllowDirty`。
 - 只验证 publish staging、暂不编译安装器时加 `-SkipInstaller`。
 - 首次构建会按 `Packaging/vendor-manifest.json` 下载并校验固定 SHA256；缓存后可离线重复构建。
+- 简体中文 Inno 语言文件已固定版本、SHA256 和许可证并随仓库维护；构建不依赖 Inno 可选语言目录。
 - 输出位于 `Packaging/artifacts/release/<version>/`，该目录不提交 Git。
 - `stage/` 是自包含多文件目录，`Runtime/Python` 是私有运行时，`symbols/` 单独保存 PDB。
 - 正式构建不得使用 `-AllowUnsigned`；安装器和应用 EXE 必须签名。
@@ -114,6 +127,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass `
 安装器：
 
 - 当前用户安装到 `%LocalAppData%\Programs\AutomationStudio`，无需管理员权限。
+- 安装向导使用内置简体中文语言文件。
 - 同一 AppId 原位升级。
 - 升级会通过 `--shutdown-for-update` 请求现有实例安全退出。
 - 用户取消未保存资产确认或 60 秒内未退出时，安装中止，不覆盖运行文件。

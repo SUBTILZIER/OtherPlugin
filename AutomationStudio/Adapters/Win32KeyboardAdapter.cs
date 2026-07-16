@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Runtime.InteropServices;
 using AutomationStudioWpf.Graph;
 
@@ -148,7 +149,8 @@ public sealed class Win32KeyboardAdapter : IKeyboardAdapter, IExecutionScopedInp
                 dwExtraInfo = IntPtr.Zero,
             },
         };
-        SendInput(1, new[] { input }, Marshal.SizeOf<INPUT64>());
+        if (SendInput(1, new[] { input }, Marshal.SizeOf<INPUT64>()) != 1)
+            throw new Win32Exception(Marshal.GetLastWin32Error(), "SendInput keyboard event failed.");
     }
 
     private static byte MapKeyToVirtualKeyCode(string? key)

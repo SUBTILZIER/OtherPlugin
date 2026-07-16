@@ -181,4 +181,15 @@ public partial class MainWindow
         _isClosing = true;
         CleanupForApplicationExit();
     }
+
+    internal void EmergencyStopRuntimeWithoutUi()
+    {
+        RuntimeShutdownGate.BeginShutdown();
+        try { _scriptRunManager.CancelAllWithoutUi(); } catch { }
+        try { _executionController.CancelWithoutUi(); } catch { }
+        try { _pythonEnvironmentService.TerminateAllProcessesImmediately(); } catch { }
+        try { _executionController.ReleaseAllInputs(); } catch { }
+        try { _mousePickController.EmergencyStopWithoutUi(); } catch { }
+        try { _scriptHotkeyService.EmergencyStopWithoutUi(); } catch { }
+    }
 }

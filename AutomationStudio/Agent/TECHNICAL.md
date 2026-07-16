@@ -535,7 +535,7 @@ static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int x, int 
 
 #### 日志存储
 - 内存：`ObservableCollection<LogEntry>` 用于实时显示
-- 文件：`%LocalAppData%/AutomationStudioWpf/Logs/Log_yyyy_MM_dd_HH.txt`，按小时写入；LocalAppData 不可写时回退 `%TEMP%/AutomationStudioWpf`。
+- 文件：`%LocalAppData%/AutomationStudioWpf/Logs/Log_yyyy_MM_dd_HH.txt`，按小时写入；只有 LocalAppData 本身不可创建时才回退 `%TEMP%/AutomationStudioWpf`。
 - 启动时后台清理且只匹配 `Log_*.txt`：先删除超过 5 天的文件，再按最旧顺序压缩到目录总量 128 MiB 内；当前小时文件永不删除。清理失败只写调试诊断，不得影响启动或递归调用 Logger。
 
 #### 日志面板交互
@@ -1228,12 +1228,12 @@ Python 参数规则：
 - `CompositionTarget.Rendering` 属于静态事件；退出时无条件调用 `DetachAutoFitRendering()`。最小化到托盘或取消关闭时不得解绑。
 - 可重建的 `ExecutionController` 在替换前必须解绑旧 `ExecutionStateChanged`；禁止匿名 handler 订阅 static/长寿命事件，否则无法可靠移除。
 
-### 发布 / 安装稳定性（2026-07-15）
+### 发布 / 安装稳定性（2026-07-16）
 
 #### 目录所有权
 - `ApplicationPaths.InstallRoot` 即 `AppContext.BaseDirectory`，只读；运行时禁止在此创建日志、缓存、临时 JSON、自动截图或设置。
-- 资产和设置继续放 `%AppData%/AutomationStudioWpf`，保持旧用户兼容。
-- 日志、崩溃报告、缓存和自动截图放 `%LocalAppData%/AutomationStudioWpf`；不可写时回退 `%TEMP%/AutomationStudioWpf`，目录失败不得阻止应用启动。
+- 资产和设置优先放 `%AppData%/AutomationStudioWpf`；不可写时本进程固定落 `%LocalAppData%/AutomationStudioWpf/Data`，不在单次保存失败后切换根目录。
+- 日志、崩溃报告、缓存、自动截图和 Python 请求放 `%LocalAppData%/AutomationStudioWpf`；只有 LocalAppData 根目录不可创建时诊断文件才回退 `%TEMP%/AutomationStudioWpf`，目录失败不得阻止应用启动。
 - 手动指定的绝对截图路径保持用户选择；相对截图路径必须解析到 `ApplicationPaths.AutoScreenshotDirectory`，不能依赖进程当前目录。
 - 启动后台清理超过 24 小时的 `automation_studio_*.json`；自动截图保留 7 天且总量不超过 512 MiB。
 
@@ -1250,12 +1250,22 @@ Python 参数规则：
 - PDB 必须移出安装 stage 到 `symbols/`。stage 必须生成 `THIRD-PARTY-NOTICES.txt`、`vendor-manifest.json`；release 根生成 `build-manifest.json` 和 `SHA256SUMS.txt`。
 - 无证书时脚本默认失败。`-AllowUnsigned` 只能生成明确标记的测试包；正式公开发布必须对应用 EXE 和安装器做 Authenticode SHA256 签名与时间戳。
 - 托盘/窗口图标从 EXE 内嵌图标读取；禁止恢复 `Resources/AutomationStudio.ico` 输出旁车依赖。`2.png/icon.png/tray_icon.jpg` 已删除，不能重新打包。
+- `Find-InnoCompiler()` 必须同时查找当前用户 `%LocalAppData%/Programs/Inno Setup 6/ISCC.exe` 和系统 Program Files 安装位置；不能假设 Inno 只能按机器安装。
+- 简体中文 Inno 语言文件固定在 `Packaging/InnoLanguages/ChineseSimplified.isl`，来源 commit、SHA256 和 MIT 许可证记录在 `Packaging/vendor-manifest.json`。发布前必须先校验仓库内语言文件；禁止依赖构建机 `compiler:Languages` 下未必安装的可选文件。
+- `THIRD-PARTY-NOTICES.txt` 必须包含简体中文 Inno 翻译许可证；语言文件或许可证缺失、哈希不一致时发布立即失败。
 
 #### 单实例与升级
 - `SingleInstanceCoordinator` 使用当前 Windows 会话内的命名 Mutex；重复启动只发 Activate 命令并退出，绝不降级多开。
 - `--shutdown-for-update` 使用独立命名事件通知主实例真正退出，不走最小化到托盘。无主实例时命令进程直接成功退出，不创建 UI。
 - 升级退出仍必须 snapshot 并显示未保存确认。用户取消时主进程保留；Inno `PrepareToInstall` 最多等待 60 秒，超时返回错误并中止，禁止覆盖运行中的文件。
 - Inno AppId 固定 `{DA1B9FE1-FE96-460D-8C7E-E5F4E71338AD}`，当前用户安装到 `%LocalAppData%/Programs/AutomationStudio`；卸载默认保留 AppData 用户数据。
+
+#### 本机发布验收（2026-07-16）
+- `Packaging/build-release.ps1 -Version 1.0.0 -AllowDirty -AllowUnsigned` 已完整通过，生成 92.76 MiB 的明确未签名测试安装器、build manifest 和 SHA256 清单；该结果不能替代正式签名。
+- 对脚本生成的安装器执行静默安装、运行中原位升级和卸载均成功；安装后共 1253 个文件，应用文件版本为 `1.0.0.0`。
+- 连续启动 5 次只保留 1 个应用进程；`--shutdown-for-update` 后应用和私有 Python 均为 0 个残留进程。
+- 卸载前后 `%AppData%/AutomationStudioWpf` 文件数保持 4，确认默认保留用户数据。
+- 当前机器 Windows Defender 服务不可用，`Get-MpComputerStatus` 返回 `HRESULT 0x800106ba`，因此 Defender 扫描仍是干净 Windows 10/11 x64 VM 的发布前阻塞项，不能标记为已通过。
 
 #### 崩溃与紧急清理
 - `CrashReporter` 捕获 Dispatcher、AppDomain 和未观察 Task 异常，报告写入 LocalAppData，包含版本、OS、架构和完整堆栈。
@@ -1269,3 +1279,33 @@ Python 参数规则：
 - `GraphRuntimeExecutor` 按 `MultiThread`、`Functions`、`Logging` partial 拆分；`FinalCodePreviewGenerator` 按 `ControlFlow`、`Expressions` partial 拆分。拆分只允许移动代码，不得改变运行语义。
 - `Themes/EditorSharedStyles.xaml` 保存主窗口与编辑 surface 共用状态样式；`Themes/EditorSurfaceStyles.xaml` 保存 surface 通用控件样式。页面 XAML 继续持有布局、`x:Name`、事件和 Binding，禁止在资源拆分时改交互语义。
 - 延迟 auto-fit 必须绑定触发时的 session 和 graph；回调执行前目标已变化则取消，禁止旧图的渲染回调缩放新 tab。
+# Release Stability Addendum (2026-07-16)
+
+This section is the source of truth for packaging and process-lifecycle work. Read it before changing release, Python, Hook, shutdown, or persistence code.
+
+## Process Ownership
+
+- Only AutomationStudio's internal Python processes are owned by `PythonEnvironmentService` and its Job Object. User programs launched by the `启动程序` node are intentionally external and are not closed by application exit or upgrade.
+- `OwnedProcessLauncher` creates internal processes suspended, assigns them to the Job Object, then resumes them. No code may reintroduce `Process.Start()` followed by delayed Job assignment for Python.
+- Cancellation/timeout/failure order is: cancel token, kill the entire process tree, bounded `WaitForExit`, bounded stdout/stderr drain, confirm `HasExited`, then delete the request JSON. If exit cannot be confirmed, keep the request file and log PID/path.
+- New Python request files live in `%LocalAppData%\AutomationStudioWpf\Temp\PythonRequests`; old `%TEMP%\automation_studio_*.json` files are cleanup-only compatibility input. The install directory is read-only.
+
+## Data and Upgrade Safety
+
+- `ApplicationPaths.UserDataRoot` is resolved once per process: writable `%AppData%\AutomationStudioWpf`, otherwise `%LocalAppData%\AutomationStudioWpf\Data`. Do not switch roots after an individual save failure.
+- `AtomicJsonFileStore` remains the only JSON persistence path: UTF-8 without BOM, flush, same-volume replace, one `.bak`, and no overwrite when both primary and backup recovery are unsafe.
+- Inno upgrade must receive `--shutdown-for-update`, require process exit code `0`, wait for the single-instance mutex and private Python processes, and abort after 60 seconds. It must never kill the main process or overwrite files while it is alive.
+- Unsigned packages are allowed only for local validation. Their filename must end in `-UNSIGNED.exe` and `build-manifest.json` must contain `signed=false`.
+
+## Hook and Shutdown Rules
+
+- `ScriptHotkeyService` and `MousePickController` set disposed/shutdown state before unhooking. Hook callbacks never throw and never post to a Dispatcher whose shutdown has started or finished.
+- Dispatcher callbacks must re-check disposed/session state at execution time. Unhook failures log the Win32 error once; they must not trigger a second UI dialog loop.
+- `CleanupForApplicationExit()` is the single normal-exit cleanup order. Minimize-to-tray and cancelled close do not start `RuntimeShutdownGate` and do not stop scripts or release input ownership.
+- Crash handling may use `RuntimeEmergencyCleanup` for non-UI runtime resources. Non-UI exception handlers must not call WPF window methods or enqueue work onto a dead Dispatcher.
+
+## Release Gate
+
+- `Packaging\build-release.ps1` is the only release staging entry. It checks `git diff --check`, fixed vendor hashes, no `bin/obj/Tests/.cache/PDB/pyc` in stage, and unsigned naming/manifest consistency.
+- `Packaging\verify-release.ps1` is local-only and ignored by Git. It validates private Python, repeated startup single-instance behavior, `--shutdown-for-update`, no private Python residue, and uninstall. It must refuse to touch an existing installation unless explicitly extended for a controlled test.
+- Current machine Defender is unavailable (`0x800106ba`); this is not a pass. Final release requires a clean Windows 10/11 x64 VM with offline install, read-only install directory, Chinese/space paths, upgrade cancellation, and Defender checks.

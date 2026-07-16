@@ -13,7 +13,7 @@ internal sealed class SingleInstanceCoordinator : IDisposable
     private const string MutexName = @"Local\SUBTILZIER.AutomationStudioWpf.SingleInstance";
     private const string ActivationEventName = @"Local\SUBTILZIER.AutomationStudioWpf.Activate";
     private const string ShutdownForUpdateEventName = @"Local\SUBTILZIER.AutomationStudioWpf.ShutdownForUpdate";
-    private static readonly TimeSpan ActivationSignalTimeout = TimeSpan.FromSeconds(2);
+    private static readonly TimeSpan ActivationSignalTimeout = TimeSpan.FromSeconds(5);
     private static readonly TimeSpan ActivationRetryDelay = TimeSpan.FromMilliseconds(50);
 
     private Mutex? _mutex;
@@ -42,35 +42,43 @@ internal sealed class SingleInstanceCoordinator : IDisposable
         }
 
         _ownsMutex = true;
-        _activationEvent = new EventWaitHandle(
-            initialState: false,
-            EventResetMode.AutoReset,
-            ActivationEventName);
-        _activationRegistration = ThreadPool.RegisterWaitForSingleObject(
-            _activationEvent,
-            (_, timedOut) =>
-            {
-                if (!timedOut && !_disposed)
-                    ActivationRequested?.Invoke();
-            },
-            state: null,
-            Timeout.Infinite,
-            executeOnlyOnce: false);
-        _shutdownForUpdateEvent = new EventWaitHandle(
-            initialState: false,
-            EventResetMode.AutoReset,
-            ShutdownForUpdateEventName);
-        _shutdownForUpdateRegistration = ThreadPool.RegisterWaitForSingleObject(
-            _shutdownForUpdateEvent,
-            (_, timedOut) =>
-            {
-                if (!timedOut && !_disposed)
-                    ShutdownForUpdateRequested?.Invoke();
-            },
-            state: null,
-            Timeout.Infinite,
-            executeOnlyOnce: false);
-        return true;
+        try
+        {
+            _activationEvent = new EventWaitHandle(
+                initialState: false,
+                EventResetMode.AutoReset,
+                ActivationEventName);
+            _activationRegistration = ThreadPool.RegisterWaitForSingleObject(
+                _activationEvent,
+                (_, timedOut) =>
+                {
+                    if (!timedOut && !_disposed)
+                        ActivationRequested?.Invoke();
+                },
+                state: null,
+                Timeout.Infinite,
+                executeOnlyOnce: false);
+            _shutdownForUpdateEvent = new EventWaitHandle(
+                initialState: false,
+                EventResetMode.AutoReset,
+                ShutdownForUpdateEventName);
+            _shutdownForUpdateRegistration = ThreadPool.RegisterWaitForSingleObject(
+                _shutdownForUpdateEvent,
+                (_, timedOut) =>
+                {
+                    if (!timedOut && !_disposed)
+                        ShutdownForUpdateRequested?.Invoke();
+                },
+                state: null,
+                Timeout.Infinite,
+                executeOnlyOnce: false);
+            return true;
+        }
+        catch
+        {
+            Dispose();
+            throw;
+        }
     }
 
     public bool SignalPrimary(SingleInstanceCommand command = SingleInstanceCommand.Activate)

@@ -137,6 +137,12 @@ internal sealed class ScriptRunManager : IDisposable
         _setStatus("正在停止热键脚本...");
     }
 
+    internal void CancelAllWithoutUi()
+    {
+        foreach (ScriptRunState state in _running.Values.ToList())
+            state.Cancellation.Cancel();
+    }
+
     public void Dispose()
     {
         if (_disposed)

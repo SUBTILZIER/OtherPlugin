@@ -108,18 +108,24 @@ internal sealed class PythonEnvironmentService : IDisposable
         }
     }
 
-    internal IDisposable StartOwnedProcess(Process process, string purpose)
+    internal OwnedProcessHandle StartOwnedProcess(ProcessStartInfo startInfo, string purpose)
     {
         ThrowIfProcessStartBlocked();
+        OwnedProcessHandle owned = OwnedProcessHandle.Launch(startInfo);
+        IDisposable? registration = null;
         try
         {
-            if (!process.Start())
-                throw new InvalidOperationException($"无法启动子进程：{purpose}。");
-            return RegisterProcess(process, purpose);
+            registration = RegisterProcess(owned.Process, purpose);
+            owned.AttachRegistration(registration);
+            registration = null;
+            owned.Resume();
+            return owned;
         }
         catch
         {
-            TerminateProcess(process);
+            registration?.Dispose();
+            TerminateProcess(owned.Process);
+            owned.Dispose();
             throw;
         }
     }
@@ -408,34 +414,33 @@ internal sealed class PythonEnvironmentService : IDisposable
     {
         ct.ThrowIfCancellationRequested();
         ThrowIfProcessStartBlocked();
-        using var process = new Process
+        var startInfo = new ProcessStartInfo
         {
-            StartInfo = new ProcessStartInfo
-            {
-                FileName = "where.exe",
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                CreateNoWindow = true,
-            },
+            FileName = "where.exe",
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true,
         };
-        process.StartInfo.ArgumentList.Add("python.exe");
+        startInfo.ArgumentList.Add("python.exe");
 
         try
         {
-            using var registration = StartOwnedProcess(process, "Python 路径查找");
-            while (!process.WaitForExit(100))
+            using OwnedProcessHandle owned = StartOwnedProcess(startInfo, "Python path lookup");
+            Task<string> outputTask = owned.StandardOutput!.ReadToEndAsync();
+            Task<string> errorTask = owned.StandardError!.ReadToEndAsync();
+            while (!owned.Process.WaitForExit(100))
             {
                 if (ct.IsCancellationRequested)
                 {
-                    TerminateProcess(process);
+                    TerminateProcess(owned.Process);
                     ct.ThrowIfCancellationRequested();
                 }
             }
 
-            if (process.ExitCode != 0)
+            if (owned.Process.ExitCode != 0)
                 return [];
-            return process.StandardOutput.ReadToEnd()
+            return outputTask.GetAwaiter().GetResult()
                 .Split(["\r\n", "\n"], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         }
         catch (OperationCanceledException)
@@ -456,49 +461,55 @@ internal sealed class PythonEnvironmentService : IDisposable
     {
         ct.ThrowIfCancellationRequested();
         ThrowIfProcessStartBlocked();
-        using var process = new Process
+        var startInfo = new ProcessStartInfo
         {
-            StartInfo = new ProcessStartInfo
-            {
-                FileName = executable,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-            },
+            FileName = executable,
+            UseShellExecute = false,
+            CreateNoWindow = true,
         };
         foreach (string argument in arguments)
-            process.StartInfo.ArgumentList.Add(argument);
+            startInfo.ArgumentList.Add(argument);
+
+        OwnedProcessHandle? owned = null;
 
         try
         {
-            using var registration = StartOwnedProcess(
-                process,
+            owned = StartOwnedProcess(
+                startInfo,
                 $"Python 环境探测：{Path.GetFileName(executable)} {string.Join(' ', arguments)}");
             long deadline = Environment.TickCount64 + (long)timeout.TotalMilliseconds;
-            while (!process.WaitForExit(100))
+            while (!owned.Process.WaitForExit(100))
             {
                 if (ct.IsCancellationRequested)
                 {
-                    TerminateProcess(process);
+                    TerminateProcess(owned.Process);
                     ct.ThrowIfCancellationRequested();
                 }
 
                 if (Environment.TickCount64 >= deadline)
                 {
-                    TerminateProcess(process);
+                    TerminateProcess(owned.Process);
                     return false;
                 }
             }
 
-            return process.ExitCode == 0;
+            return owned.Process.ExitCode == 0;
         }
         catch (OperationCanceledException)
         {
+            if (owned is not null)
+                TerminateProcess(owned.Process);
             throw;
         }
         catch
         {
-            TerminateProcess(process);
+            if (owned is not null)
+                TerminateProcess(owned.Process);
             return false;
+        }
+        finally
+        {
+            owned?.Dispose();
         }
     }
 

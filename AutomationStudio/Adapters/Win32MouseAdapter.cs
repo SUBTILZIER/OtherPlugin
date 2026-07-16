@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Drawing;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -17,7 +18,8 @@ public sealed class Win32MouseAdapter : IMouseAdapter, IExecutionScopedInputAdap
     public void MoveTo(Point point)
     {
         RuntimeShutdownGate.ThrowIfShutdownStarted();
-        SetCursorPos(point.X, point.Y);
+        if (!SetCursorPos(point.X, point.Y))
+            throw new Win32Exception(Marshal.GetLastWin32Error(), "SetCursorPos failed.");
     }
 
     public void ExecuteButton(MouseButton button, PressReleaseMode mode)
@@ -74,7 +76,7 @@ public sealed class Win32MouseAdapter : IMouseAdapter, IExecutionScopedInputAdap
                 {
                     ct.ThrowIfCancellationRequested();
                     RuntimeShutdownGate.ThrowIfShutdownStarted();
-                    mouse_event(MOUSEEVENTF_WHEEL, 0, 0, unchecked((uint)delta), UIntPtr.Zero);
+                    SendMouseInput(MOUSEEVENTF_WHEEL, unchecked((uint)delta));
                     CancellationWait.WaitOrThrow(intervalMs, ct);
                     if (durationMs > 0)
                         elapsed += intervalMs;
@@ -99,11 +101,11 @@ public sealed class Win32MouseAdapter : IMouseAdapter, IExecutionScopedInputAdap
         lock (_gate)
         {
             RuntimeShutdownGate.ThrowIfShutdownStarted();
-            mouse_event(downFlag, 0, 0, xButtonData, UIntPtr.Zero);
+            SendMouseInput(downFlag, xButtonData);
             Thread.Sleep(50);
-            mouse_event(upFlag, 0, 0, xButtonData, UIntPtr.Zero);
+            SendMouseInput(upFlag, xButtonData);
             if (!RuntimeShutdownGate.IsShutdownStarted && _buttonHoldCounts.GetValueOrDefault(button) > 0)
-                mouse_event(downFlag, 0, 0, xButtonData, UIntPtr.Zero);
+                SendMouseInput(downFlag, xButtonData);
         }
     }
 
@@ -120,13 +122,13 @@ public sealed class Win32MouseAdapter : IMouseAdapter, IExecutionScopedInputAdap
 
             if (!pressedButtons.Add(button))
             {
-                mouse_event(downFlag, 0, 0, xButtonData, UIntPtr.Zero);
+                SendMouseInput(downFlag, xButtonData);
                 return;
             }
 
             int holdCount = _buttonHoldCounts.GetValueOrDefault(button);
             if (holdCount == 0)
-                mouse_event(downFlag, 0, 0, xButtonData, UIntPtr.Zero);
+                SendMouseInput(downFlag, xButtonData);
             _buttonHoldCounts[button] = holdCount + 1;
         }
     }
@@ -144,7 +146,7 @@ public sealed class Win32MouseAdapter : IMouseAdapter, IExecutionScopedInputAdap
             }
 
             if (_buttonHoldCounts.GetValueOrDefault(button) == 0)
-                mouse_event(upFlag, 0, 0, xButtonData, UIntPtr.Zero);
+                SendMouseInput(upFlag, xButtonData);
         }
     }
 
@@ -167,7 +169,7 @@ public sealed class Win32MouseAdapter : IMouseAdapter, IExecutionScopedInputAdap
             foreach (MouseButton button in _buttonHoldCounts.Keys.ToList())
             {
                 var (_, upFlag, xButtonData) = GetMouseEventFlags(button);
-                mouse_event(upFlag, 0, 0, xButtonData, UIntPtr.Zero);
+                SendMouseInput(upFlag, xButtonData);
             }
 
             _pressedButtonsByExecution.Clear();
@@ -182,7 +184,7 @@ public sealed class Win32MouseAdapter : IMouseAdapter, IExecutionScopedInputAdap
         {
             _buttonHoldCounts.Remove(button);
             var (_, upFlag, xButtonData) = GetMouseEventFlags(button);
-            mouse_event(upFlag, 0, 0, xButtonData, UIntPtr.Zero);
+            SendMouseInput(upFlag, xButtonData);
             return;
         }
 
@@ -208,8 +210,24 @@ public sealed class Win32MouseAdapter : IMouseAdapter, IExecutionScopedInputAdap
     [DllImport("user32.dll")]
     private static extern bool GetCursorPos(out POINT lpPoint);
 
-    [DllImport("user32.dll")]
-    private static extern void mouse_event(uint dwFlags, uint dx, uint dy, uint dwData, UIntPtr dwExtraInfo);
+    private static void SendMouseInput(uint flags, uint data)
+    {
+        var input = new INPUT64
+        {
+            type = INPUT_MOUSE,
+            mi = new MOUSEINPUT
+            {
+                dx = 0,
+                dy = 0,
+                mouseData = data,
+                dwFlags = flags,
+                time = 0,
+                dwExtraInfo = IntPtr.Zero,
+            },
+        };
+        if (SendInput(1, new[] { input }, Marshal.SizeOf<INPUT64>()) != 1)
+            throw new Win32Exception(Marshal.GetLastWin32Error(), "SendInput mouse event failed.");
+    }
 
     private const uint MOUSEEVENTF_LEFTDOWN = 0x0002;
     private const uint MOUSEEVENTF_LEFTUP = 0x0004;
@@ -222,6 +240,30 @@ public sealed class Win32MouseAdapter : IMouseAdapter, IExecutionScopedInputAdap
     private const uint MOUSEEVENTF_WHEEL = 0x0800;
     private const uint XBUTTON1 = 0x0001;
     private const uint XBUTTON2 = 0x0002;
+    private const uint INPUT_MOUSE = 0;
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MOUSEINPUT
+    {
+        public int dx;
+        public int dy;
+        public uint mouseData;
+        public uint dwFlags;
+        public uint time;
+        public IntPtr dwExtraInfo;
+    }
+
+    [StructLayout(LayoutKind.Explicit, Size = 40)]
+    private struct INPUT64
+    {
+        [FieldOffset(0)]
+        public uint type;
+        [FieldOffset(8)]
+        public MOUSEINPUT mi;
+    }
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern uint SendInput(uint nInputs, INPUT64[] pInputs, int cbSize);
 
     [StructLayout(LayoutKind.Sequential)]
     private struct POINT

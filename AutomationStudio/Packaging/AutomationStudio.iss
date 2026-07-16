@@ -45,7 +45,7 @@ MinVersion=10.0.17763
 UsedUserAreasWarning=no
 
 [Languages]
-Name: "chinesesimp"; MessagesFile: "compiler:Languages\ChineseSimplified.isl"
+Name: "chinesesimplified"; MessagesFile: "InnoLanguages\ChineseSimplified.isl"
 
 [Tasks]
 Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: "附加快捷方式"; Flags: unchecked
@@ -85,7 +85,7 @@ begin
     ExpandConstant('{app}'),
     SW_HIDE,
     ewWaitUntilTerminated,
-    ResultCode);
+    ResultCode) and (ResultCode = 0);
 end;
 
 function WaitForApplicationExit(): Boolean;

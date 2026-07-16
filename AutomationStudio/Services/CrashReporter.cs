@@ -54,6 +54,7 @@ internal sealed class CrashReporter : IDisposable
 
     private static void OnAppDomainUnhandledException(object? sender, UnhandledExceptionEventArgs e)
     {
+        RuntimeEmergencyCleanup.Run();
         Exception exception = e.ExceptionObject as Exception ??
                               new InvalidOperationException(e.ExceptionObject?.ToString() ?? "未知未处理异常");
         WriteReport("AppDomain.UnhandledException", exception, e.IsTerminating);

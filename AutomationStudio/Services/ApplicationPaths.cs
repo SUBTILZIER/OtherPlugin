@@ -7,12 +7,15 @@ internal static class ApplicationPaths
 {
     private const string ProductDirectoryName = "AutomationStudioWpf";
     private static readonly Lazy<string> LocalRootValue = new(ResolveLocalRoot);
+    private static readonly Lazy<string> UserDataRootValue = new(ResolveUserDataRoot);
 
     public static string InstallRoot => Path.GetFullPath(AppContext.BaseDirectory);
 
     public static string RoamingDataRoot => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         ProductDirectoryName);
+
+    public static string UserDataRoot => UserDataRootValue.Value;
 
     public static string LocalDataRoot => LocalRootValue.Value;
 
@@ -22,6 +25,9 @@ internal static class ApplicationPaths
 
     public static string AutoScreenshotDirectory => EnsureDirectory(
         Path.Combine(LocalDataRoot, "Temp", "Screenshots"));
+
+    public static string PythonRequestDirectory => EnsureDirectory(
+        Path.Combine(LocalDataRoot, "Temp", "PythonRequests"));
 
     public static string BundledPythonRoot => Path.Combine(InstallRoot, "Runtime", "Python");
 
@@ -41,6 +47,38 @@ internal static class ApplicationPaths
             Debug.WriteLine($"LocalAppData 不可写，改用临时目录：{ex.Message}");
             string fallback = Path.Combine(Path.GetTempPath(), ProductDirectoryName);
             return EnsureDirectory(fallback);
+        }
+    }
+
+    private static string ResolveUserDataRoot()
+    {
+        string roaming = RoamingDataRoot;
+        if (TryEnsureWritableDirectory(roaming))
+            return roaming;
+
+        string localFallback = Path.Combine(LocalDataRoot, "Data");
+        if (TryEnsureWritableDirectory(localFallback))
+            return localFallback;
+
+        throw new IOException("Unable to create a writable AutomationStudio user-data directory.");
+    }
+
+    private static bool TryEnsureWritableDirectory(string path)
+    {
+        try
+        {
+            Directory.CreateDirectory(path);
+            string probe = Path.Combine(path, $".write-test-{Guid.NewGuid():N}");
+            using (new FileStream(probe, FileMode.CreateNew, FileAccess.Write, FileShare.Read))
+            {
+            }
+            File.Delete(probe);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"User-data directory is not writable: {path}; {ex.Message}");
+            return false;
         }
     }
 

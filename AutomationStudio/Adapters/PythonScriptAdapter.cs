@@ -30,9 +30,11 @@ public sealed class PythonScriptAdapter : IPythonScriptAdapter
         if (!File.Exists(scriptPath))
             return new PythonScriptResult(false, -1, string.Empty, string.Empty, $"Python 脚本不存在：{scriptPath}");
 
-        string requestPath = Path.Combine(Path.GetTempPath(), $"automation_studio_{Guid.NewGuid():N}.json");
+        string requestPath = Path.Combine(
+            ApplicationPaths.PythonRequestDirectory,
+            $"automation_studio_{Guid.NewGuid():N}.json");
+        OwnedProcessHandle? ownedProcess = null;
         Process? process = null;
-        IDisposable? processRegistration = null;
         Task<string>? outputTask = null;
         Task<string>? errorTask = null;
         bool preserveRequestFile = false;
@@ -40,28 +42,26 @@ public sealed class PythonScriptAdapter : IPythonScriptAdapter
         {
             File.WriteAllText(requestPath, JsonSerializer.Serialize(payload, JsonOptions), Utf8NoBom);
             string pythonExe = _environment.ValidatedPythonPath;
-            process = new Process
+            var startInfo = new ProcessStartInfo
             {
-                StartInfo = new ProcessStartInfo
-                {
-                    FileName = pythonExe,
-                    WorkingDirectory = Path.GetDirectoryName(pythonExe) ?? AppContext.BaseDirectory,
-                    UseShellExecute = false,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    CreateNoWindow = true,
-                },
+                FileName = pythonExe,
+                WorkingDirectory = Path.GetDirectoryName(pythonExe) ?? AppContext.BaseDirectory,
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true,
             };
-            ConfigureIsolatedPythonEnvironment(process.StartInfo);
-            process.StartInfo.ArgumentList.Add("-I");
-            process.StartInfo.ArgumentList.Add(scriptPath);
-            process.StartInfo.ArgumentList.Add(requestPath);
+            ConfigureIsolatedPythonEnvironment(startInfo);
+            startInfo.ArgumentList.Add("-I");
+            startInfo.ArgumentList.Add(scriptPath);
+            startInfo.ArgumentList.Add(requestPath);
 
-            processRegistration = _environment.StartOwnedProcess(
-                process,
+            ownedProcess = _environment.StartOwnedProcess(
+                startInfo,
                 $"Python 脚本：{Path.GetFileName(scriptPath)}");
-            outputTask = process.StandardOutput.ReadToEndAsync();
-            errorTask = process.StandardError.ReadToEndAsync();
+            process = ownedProcess.Process;
+            outputTask = ownedProcess.StandardOutput!.ReadToEndAsync();
+            errorTask = ownedProcess.StandardError!.ReadToEndAsync();
             DateTime deadline = DateTime.UtcNow.Add(timeout);
 
             while (!process.WaitForExit(100))
@@ -102,8 +102,9 @@ public sealed class PythonScriptAdapter : IPythonScriptAdapter
         {
             if (process is not null && !HasExited(process))
                 preserveRequestFile = !TerminateAndDrain(process, outputTask, errorTask);
-            processRegistration?.Dispose();
-            process?.Dispose();
+            ownedProcess?.Dispose();
+            if (ownedProcess is null)
+                process?.Dispose();
             if (!preserveRequestFile)
             {
                 try { if (File.Exists(requestPath)) File.Delete(requestPath); } catch { }
@@ -126,11 +127,10 @@ public sealed class PythonScriptAdapter : IPythonScriptAdapter
 
     private static bool TerminateAndDrain(Process process, Task<string>? outputTask, Task<string>? errorTask)
     {
-        if (!PythonEnvironmentService.TerminateProcess(process))
-            return false;
-
-        DrainOutput(outputTask, errorTask);
-        return true;
+        bool processExited = PythonEnvironmentService.TerminateProcess(process);
+        bool outputDrained = WaitForDrain(outputTask, TimeSpan.FromSeconds(2));
+        bool errorDrained = WaitForDrain(errorTask, TimeSpan.FromSeconds(2));
+        return processExited && outputDrained && errorDrained && HasExited(process);
     }
 
     private static bool HasExited(Process process)
@@ -149,6 +149,21 @@ public sealed class PythonScriptAdapter : IPythonScriptAdapter
     {
         try { outputTask?.GetAwaiter().GetResult(); } catch { }
         try { errorTask?.GetAwaiter().GetResult(); } catch { }
+    }
+
+    private static bool WaitForDrain(Task<string>? task, TimeSpan timeout)
+    {
+        if (task is null)
+            return true;
+
+        try
+        {
+            return task.Wait(timeout);
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private static string FilterBenignPythonStderr(string stderr)

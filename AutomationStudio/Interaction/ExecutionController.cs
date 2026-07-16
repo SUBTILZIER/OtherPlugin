@@ -201,6 +201,8 @@ public sealed class ExecutionController
         return true;
     }
 
+    internal void CancelWithoutUi() => _executionCts?.Cancel();
+
     private string ResolveBaseDirectory()
     {
         return !string.IsNullOrWhiteSpace(_editorService.CurrentGraphPath)

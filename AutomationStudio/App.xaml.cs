@@ -44,6 +44,7 @@ public partial class App : System.Windows.Application
         {
             var mainWindow = new MainWindow();
             MainWindow = mainWindow;
+            RuntimeEmergencyCleanup.Register(mainWindow.EmergencyStopRuntimeWithoutUi);
             mainWindow.Show();
         }
 

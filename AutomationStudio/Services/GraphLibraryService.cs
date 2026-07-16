@@ -433,10 +433,19 @@ public sealed class GraphLibraryService
         string? dir = Environment.GetEnvironmentVariable("AUTOMATION_STUDIO_LIBRARY_DIR");
         if (string.IsNullOrWhiteSpace(dir))
         {
-            dir = ApplicationPaths.RoamingDataRoot;
+            dir = ApplicationPaths.UserDataRoot;
         }
 
-        Directory.CreateDirectory(dir);
+        try
+        {
+            Directory.CreateDirectory(dir);
+        }
+        catch (Exception ex)
+        {
+            Logging.Logger.Warn($"Asset library directory is unavailable; using fallback: {ex.Message}");
+            dir = ApplicationPaths.UserDataRoot;
+            Directory.CreateDirectory(dir);
+        }
         LibraryPath = Path.Combine(dir, "graph-library.json");
     }
 

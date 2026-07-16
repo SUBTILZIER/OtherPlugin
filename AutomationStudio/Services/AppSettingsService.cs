@@ -61,7 +61,7 @@ public sealed class AppSettingsService
 
     public AppSettingsService()
     {
-        string folder = ApplicationPaths.RoamingDataRoot;
+        string folder = ApplicationPaths.UserDataRoot;
         Directory.CreateDirectory(folder);
         _settingsPath = Path.Combine(folder, "app-settings.json");
     }
