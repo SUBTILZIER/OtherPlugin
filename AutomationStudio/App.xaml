@@ -46,6 +46,12 @@
         <SolidColorBrush x:Key="EditorNodeBackgroundBrush" Color="#20242A" po:Freeze="False" />
         <SolidColorBrush x:Key="EditorExecutionOverlayBrush" Color="#B0181D2A" po:Freeze="False" />
         <SolidColorBrush x:Key="EditorExecutionPinBrush" Color="#F4F4F4" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorCompletionPinBrush" Color="#FFB848" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorBooleanPinBrush" Color="#B82D30" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorVectorPinBrush" Color="#50C472" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorStringPinBrush" Color="#CA2EA5" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorDefaultPinBrush" Color="#BEBEBE" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorConnectionOutlineBrush" Color="#CC0A0F16" po:Freeze="False" />
         <SolidColorBrush x:Key="EditorConnectionHitBrush" Color="#2BA8FF" po:Freeze="False" />
         <SolidColorBrush x:Key="EditorPreviewConnectionBrush" Color="#F5F5F5" po:Freeze="False" />
         <SolidColorBrush x:Key="EditorSectionHeaderBrush" Color="#25303D" po:Freeze="False" />
@@ -71,6 +77,62 @@
         <SolidColorBrush x:Key="EditorToolTipBackgroundBrush" Color="#0B1220" po:Freeze="False" />
         <SolidColorBrush x:Key="EditorToolTipBorderBrush" Color="#4FA3FF" po:Freeze="False" />
         <SolidColorBrush x:Key="EditorToolTipTextBrush" Color="#F8FAFC" po:Freeze="False" />
+
+        <Style x:Key="EditorVerticalSplitterStyle" TargetType="{x:Type GridSplitter}">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="VerticalAlignment" Value="Stretch" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type GridSplitter}">
+                        <Grid Background="Transparent">
+                            <Border x:Name="SplitterIndicator"
+                                    Width="1"
+                                    HorizontalAlignment="Center"
+                                    Background="{DynamicResource EditorPanelBorderBrush}" />
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="SplitterIndicator" Property="Width" Value="3" />
+                                <Setter TargetName="SplitterIndicator" Property="Background" Value="{DynamicResource EditorSelectedAccentBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsDragging" Value="True">
+                                <Setter TargetName="SplitterIndicator" Property="Width" Value="3" />
+                                <Setter TargetName="SplitterIndicator" Property="Background" Value="{DynamicResource AccentBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="EditorHorizontalSplitterStyle" TargetType="{x:Type GridSplitter}">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="VerticalAlignment" Value="Stretch" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type GridSplitter}">
+                        <Grid Background="Transparent">
+                            <Border x:Name="SplitterIndicator"
+                                    Height="1"
+                                    VerticalAlignment="Center"
+                                    Background="{DynamicResource EditorPanelBorderBrush}" />
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="SplitterIndicator" Property="Height" Value="3" />
+                                <Setter TargetName="SplitterIndicator" Property="Background" Value="{DynamicResource EditorSelectedAccentBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsDragging" Value="True">
+                                <Setter TargetName="SplitterIndicator" Property="Height" Value="3" />
+                                <Setter TargetName="SplitterIndicator" Property="Background" Value="{DynamicResource AccentBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
 
         <Style x:Key="DarkContextMenuStyle" TargetType="ContextMenu">
             <Setter Property="Background" Value="{DynamicResource DropdownBackgroundBrush}" />

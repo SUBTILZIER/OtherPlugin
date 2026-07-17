@@ -92,20 +92,20 @@
     </UserControl.Resources>
             <Grid x:Name="EditorGrid">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition x:Name="GraphSidebarColumn" Width="240" MinWidth="180" MaxWidth="420" />
+                    <ColumnDefinition x:Name="GraphSidebarColumn" Width="248" MinWidth="180" MaxWidth="420" />
                     <ColumnDefinition x:Name="GraphSidebarSplitterColumn" Width="Auto" />
                     <ColumnDefinition x:Name="GraphCanvasColumn" Width="*" MinWidth="360" />
                     <ColumnDefinition x:Name="InspectorSplitterColumn" Width="Auto" />
-                    <ColumnDefinition x:Name="InspectorColumn" Width="460" MinWidth="420" MaxWidth="720" />
+                    <ColumnDefinition x:Name="InspectorColumn" Width="472" MinWidth="420" MaxWidth="720" />
                 </Grid.ColumnDefinitions>
 
                 <Border Grid.Column="0"
                         Margin="10,10,10,10"
                         Padding="0"
-                        Background="{DynamicResource EditorPanelBackgroundBrush}"
-                        BorderBrush="{DynamicResource EditorPanelBorderBrush}"
+                        Background="{DynamicResource EditorPanelElevatedBrush}"
+                        BorderBrush="{DynamicResource EditorPanelStrongBorderBrush}"
                         BorderThickness="1"
-                        CornerRadius="10">
+                        CornerRadius="11">
                     <ScrollViewer VerticalScrollBarVisibility="Auto"
                                   HorizontalScrollBarVisibility="Disabled">
                         <StackPanel Margin="10">
@@ -342,20 +342,18 @@
 
                 <GridSplitter x:Name="GraphSidebarSplitter"
                               Grid.Column="1"
-                              Width="5"
-                              HorizontalAlignment="Stretch"
-                              VerticalAlignment="Stretch"
-                              Background="{DynamicResource EditorSectionHeaderBrush}"
+                              Width="7"
+                              Style="{StaticResource EditorVerticalSplitterStyle}"
                               ResizeDirection="Columns"
                               ResizeBehavior="PreviousAndNext"
                               ShowsPreview="True" />
 
                 <Border Grid.Column="2"
-                        Margin="0,10,10,10"
+                        Margin="0,10,9,10"
                         Background="{DynamicResource EditorCanvasBackgroundBrush}"
-                        BorderBrush="{DynamicResource EditorPanelBorderBrush}"
+                        BorderBrush="{DynamicResource EditorPanelStrongBorderBrush}"
                         BorderThickness="1"
-                        CornerRadius="8">
+                        CornerRadius="10">
                     <Border x:Name="GraphViewport"
                             ClipToBounds="True"
                             Focusable="True"
@@ -412,7 +410,8 @@
                                     </TransformGroup>
                                 </Canvas.RenderTransform>
 
-                                <ItemsControl ItemsSource="{Binding ConnectionPaths}">
+                                <ItemsControl ItemsSource="{Binding ConnectionPaths}"
+                                              Panel.ZIndex="100">
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate>
                                         <Canvas />
@@ -431,19 +430,12 @@
                                             </ContentControl.ContextMenu>
                                             <Grid PreviewMouseRightButtonDown="ConnectionPath_PreviewMouseRightButtonDown">
                                                 <Path Data="{Binding PathGeometry}"
-                                                      Stroke="{DynamicResource EditorConnectionHitBrush}"
-                                                      StrokeThickness="10"
-                                                      Opacity="{Binding SelectionOpacity}"
+                                                      Stroke="Transparent"
+                                                      StrokeThickness="14"
                                                       SnapsToDevicePixels="True"
                                                       StrokeStartLineCap="Round"
                                                       StrokeEndLineCap="Round"
-                                                      IsHitTestVisible="False" />
-                                                <Path Data="{Binding PathGeometry}"
-                                                      Stroke="{Binding StrokeBrush}"
-                                                      StrokeThickness="{Binding StrokeThickness}"
-                                                      SnapsToDevicePixels="True"
-                                                      StrokeStartLineCap="Round"
-                                                      StrokeEndLineCap="Round"
+                                                      StrokeLineJoin="Round"
                                                       Cursor="Hand"
                                                       MouseLeftButtonDown="ConnectionPath_MouseLeftButtonDown"
                                                       PreviewMouseLeftButtonDown="ConnectionPath_PreviewMouseLeftButtonDown" />
@@ -463,7 +455,8 @@
                                   IsHitTestVisible="False"
                                   Panel.ZIndex="450" />
 
-                            <ItemsControl ItemsSource="{Binding Nodes}">
+                            <ItemsControl ItemsSource="{Binding Nodes}"
+                                          Panel.ZIndex="200">
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate>
                                         <Canvas />
@@ -540,7 +533,8 @@
                                                 BorderBrush="{Binding BorderBrush}"
                                                 BorderThickness="2"
                                                 CornerRadius="6"
-                                                Opacity="0.8"
+                                                Opacity="0.96"
+                                                SnapsToDevicePixels="True"
                                                 Panel.ZIndex="100"
                                                 PreviewMouseLeftButtonDown="NodeHeader_PreviewMouseLeftButtonDown"
                                                 PreviewMouseMove="NodeHeader_PreviewMouseMove"
@@ -752,6 +746,44 @@
                                 </ItemsControl.Resources>
                             </ItemsControl>
 
+                            <ItemsControl ItemsSource="{Binding ConnectionPaths}"
+                                          Panel.ZIndex="300"
+                                          IsHitTestVisible="False">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <Canvas />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type graph:ConnectionPathViewModel}">
+                                        <Grid>
+                                            <Path Data="{Binding PathGeometry}"
+                                                  Stroke="{DynamicResource EditorConnectionHitBrush}"
+                                                  StrokeThickness="{Binding SelectionThickness}"
+                                                  Opacity="{Binding SelectionOpacity}"
+                                                  SnapsToDevicePixels="True"
+                                                  StrokeStartLineCap="Round"
+                                                  StrokeEndLineCap="Round"
+                                                  StrokeLineJoin="Round" />
+                                            <Path Data="{Binding PathGeometry}"
+                                                  Stroke="{DynamicResource EditorConnectionOutlineBrush}"
+                                                  StrokeThickness="{Binding OutlineThickness}"
+                                                  SnapsToDevicePixels="True"
+                                                  StrokeStartLineCap="Round"
+                                                  StrokeEndLineCap="Round"
+                                                  StrokeLineJoin="Round" />
+                                            <Path Data="{Binding PathGeometry}"
+                                                  Stroke="{Binding StrokeBrush}"
+                                                  StrokeThickness="{Binding StrokeThickness}"
+                                                  SnapsToDevicePixels="True"
+                                                  StrokeStartLineCap="Round"
+                                                  StrokeEndLineCap="Round"
+                                                  StrokeLineJoin="Round" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
                             <Rectangle x:Name="SelectionRectangle"
                                        Visibility="Collapsed"
                                        Stroke="#66A8D5FF"
@@ -821,20 +853,18 @@
 
                 <GridSplitter x:Name="InspectorSplitter"
                               Grid.Column="3"
-                              Width="5"
-                              HorizontalAlignment="Stretch"
-                              VerticalAlignment="Stretch"
-                              Background="{DynamicResource EditorSectionHeaderBrush}"
+                              Width="7"
+                              Style="{StaticResource EditorVerticalSplitterStyle}"
                               ResizeDirection="Columns"
                               ResizeBehavior="PreviousAndNext"
                               ShowsPreview="True" />
 
                 <Border x:Name="InspectorPanel"
                         Grid.Column="4"
-                        Margin="0,10,10,10"
-                        Padding="14"
-                        Background="{DynamicResource EditorPanelCardBrush}"
-                        BorderBrush="{DynamicResource EditorPanelBorderBrush}"
+                        Margin="0,10,9,10"
+                        Padding="15"
+                        Background="{DynamicResource EditorPanelElevatedBrush}"
+                        BorderBrush="{DynamicResource EditorPanelStrongBorderBrush}"
                         BorderThickness="1"
                         CornerRadius="10">
                     <Border.Resources>
@@ -844,12 +874,20 @@
                     </Border.Resources>
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
                         <StackPanel>
-                            <Border Style="{StaticResource EditorSectionCardStyle}" Margin="0,0,0,12">
+                            <Border Style="{StaticResource EditorSectionCardStyle}" Margin="0,0,0,12" Padding="12">
                                 <StackPanel>
-                            <TextBlock x:Name="DetailsPanelTitleTextBlock"
-                                       Text="细节面板"
-                                       Style="{StaticResource EditorSectionHeaderTextStyle}"
-                                       FontSize="18" />
+                            <DockPanel Margin="0,0,0,2">
+                                <Border DockPanel.Dock="Left"
+                                        Width="4"
+                                        Height="22"
+                                        Margin="0,0,9,0"
+                                        CornerRadius="2"
+                                        Background="{DynamicResource EditorSelectedAccentBrush}" />
+                                <TextBlock x:Name="DetailsPanelTitleTextBlock"
+                                           Text="细节面板"
+                                           Style="{StaticResource EditorSectionHeaderTextStyle}"
+                                           FontSize="18" />
+                            </DockPanel>
                             <TextBlock x:Name="InspectorHintTextBlock"
                                        Margin="0,8,0,14"
                                        Text="请选择一个节点进行编辑。"
@@ -859,6 +897,12 @@
                                             Visibility="Collapsed"
                                             Margin="0,0,0,4"
                                             HorizontalContentAlignment="Stretch" />
+                            <Border Margin="0,4,0,0"
+                                    Padding="10,8,10,2"
+                                    Background="{DynamicResource EditorFieldCardBrush}"
+                                    BorderBrush="{DynamicResource EditorPanelBorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="8">
                             <StackPanel x:Name="NodeBasicsPanel">
                                 <TextBlock Text="节点名称" Foreground="{DynamicResource EditorTextBrush}" />
                                 <TextBox x:Name="NodeTitleTextBox" Margin="0,4,0,12" TextChanged="InspectorField_TextChanged" />
@@ -868,6 +912,7 @@
                                            Style="{StaticResource EditorReadonlyChipStyle}"
                                            Margin="0,4,0,0" />
                             </StackPanel>
+                            </Border>
                                 </StackPanel>
                             </Border>
 

@@ -18,6 +18,16 @@
         <Setter Property="Background" Value="{DynamicResource EditorFieldCardBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource EditorPanelBorderBrush}" />
         <Setter Property="Padding" Value="9,6" />
+        <Style.Triggers>
+            <Trigger Property="IsKeyboardFocused" Value="True">
+                <Setter Property="BorderBrush" Value="{DynamicResource EditorSelectedAccentBrush}" />
+                <Setter Property="Background" Value="{DynamicResource EditorPanelCardHoverBrush}" />
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Background" Value="{DynamicResource EditorDisabledChipBrush}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource EditorDisabledChipBorderBrush}" />
+            </Trigger>
+        </Style.Triggers>
     </Style>
 
     <Style x:Key="EditorInspectorComboBoxStyle" TargetType="{x:Type ComboBox}" BasedOn="{StaticResource {x:Type ComboBox}}">
@@ -25,6 +35,16 @@
         <Setter Property="Margin" Value="0,5,0,12" />
         <Setter Property="Background" Value="{DynamicResource EditorFieldCardBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource EditorPanelBorderBrush}" />
+        <Style.Triggers>
+            <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                <Setter Property="BorderBrush" Value="{DynamicResource EditorSelectedAccentBrush}" />
+                <Setter Property="Background" Value="{DynamicResource EditorPanelCardHoverBrush}" />
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Background" Value="{DynamicResource EditorDisabledChipBrush}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource EditorDisabledChipBorderBrush}" />
+            </Trigger>
+        </Style.Triggers>
     </Style>
 
     <Style x:Key="EditorInspectorCheckBoxStyle" TargetType="{x:Type CheckBox}" BasedOn="{StaticResource {x:Type CheckBox}}">
@@ -71,6 +91,9 @@
                         </Trigger>
                         <Trigger Property="IsPressed" Value="True">
                             <Setter TargetName="ButtonChrome" Property="Background" Value="{DynamicResource EditorListSelectedBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="ButtonChrome" Property="BorderBrush" Value="{DynamicResource EditorSelectedAccentBrush}" />
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter Property="Opacity" Value="0.45" />

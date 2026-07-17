@@ -41,13 +41,19 @@ public sealed class ConnectionPathViewModel : ObservableObject, IDisposable
             {
                 OnPropertyChanged(nameof(SelectionOpacity));
                 OnPropertyChanged(nameof(StrokeThickness));
+                OnPropertyChanged(nameof(OutlineThickness));
+                OnPropertyChanged(nameof(SelectionThickness));
             }
         }
     }
 
     public double SelectionOpacity => IsSelected ? 1.0 : 0.0;
 
-    public double StrokeThickness => IsSelected ? 5.5 : 4.0;
+    public double StrokeThickness => IsSelected ? 6.0 : 4.5;
+
+    public double OutlineThickness => StrokeThickness + 2.5;
+
+    public double SelectionThickness => StrokeThickness + 6.0;
 
     public Geometry PathGeometry => _pathGeometry ??= BuildPathGeometry();
 

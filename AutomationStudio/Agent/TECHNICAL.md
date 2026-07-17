@@ -166,6 +166,8 @@ Runtime / Nodes / Adapters
 - `ThemedDialog` 需要读取当前主题资源，不能固定暗色；否则亮色主题下会出现视觉割裂。
 - `EditorSurfaceControl.xaml` 的左侧图表栏使用 section card + pill list item：hover、selected、compile dirty 必须分别用 `EditorPanelCardHoverBrush`、`EditorListSelectedBrush`、`EditorDirtyBackgroundBrush`，选中/脏状态用左侧 accent 条辅助识别。
 - 右侧细节面板的 header、基础节点信息、编号 chip 使用卡片层级；禁用/前置输入态使用 disabled chip/input 颜色，避免看起来像普通可编辑输入。
+- 2026-07-16：主窗口工具栏使用更紧凑的圆角分组，窗口 tab 增大点击命中区并保持活动/脏状态层级；底部内容浏览器和日志 header 使用 accent 竖条区分区域；编辑器细节面板的基础字段收进独立 field card，并对输入/下拉/图标按钮提供键盘焦点反馈。此类视觉调整只改 XAML 样式和布局参数，不改 x:Name、Binding 或事件。
+- 2026-07-17：编辑区和底部工作区的 splitter 统一使用 `EditorVerticalSplitterStyle` / `EditorHorizontalSplitterStyle`：常态只显示 1px 分隔线，hover/拖动才显示 accent，命中宽度保持 7px。亮色主题下节点正文必须保持接近不透明，避免网格穿透影响文字；内容资产选中态同时使用边框、柔和底色和底部 accent 条，不只依赖大面积强调色。
 - 左侧 section 的折叠/新增按钮统一用 `EditorSidebarIconButtonStyle`；函数项“公开”开关使用紧凑短文案和 ToolTip，避免挤压函数名。细节面板内 `TextBox` / `ComboBox` 统一最小高度，保持字段节奏一致。
 - `MainWindow.xaml` 的顶部工具栏命令按钮统一用 `TopToolbarButtonStyle`；底部内容浏览器 folder/tree item 和 asset tile 分别用 `ContentFolderListItemBaseStyle`、`ContentAssetTileContainerStyle`。不要在每个 `ListBoxItem` 内重复写 hover/selected 模板。
 - 顶部工具栏按钮必须放在圆角分组容器里，并保留 hover、pressed、keyboard focus、disabled 四种状态反馈；不要恢复成透明裸按钮。
@@ -184,6 +186,7 @@ Runtime / Nodes / Adapters
 - `ScriptPropertiesSummaryControl` 由 C# 构建 UI，但颜色仍必须读取 `App.xaml` 全局 brush，禁止使用冻结硬编码色；热键行必须支持窄面板换行，不能让“修改/清空/阈值”压住文字。
 - 内容浏览器里的脚本启用开关必须使用自绘高对比角标，不允许回退为系统 checkbox 外观；启用态显示清晰 `✓`，停用态也必须可读，并通过 Tooltip 说明“是否监听全局热键”。
 - 新增编辑器 UI 颜色优先放在 `App.xaml` 的 `Editor*Brush`，不要在 XAML 中散落硬编码颜色；局部样式只负责布局、圆角、间距和状态触发。
+- 连线/pin 的执行、完成、布尔、坐标、字符串、默认类型颜色必须使用 `Editor*PinBrush` 语义 token。`PinBrushes` 只能持有可变 brush，并在 `AppThemeService.ThemeChanged` 后同步颜色；禁止缓存冻结的主题 fallback，否则现有图表切换亮/暗主题后会保留旧线色。
 - 视觉优化只改样式时不得改控件 `x:Name`、事件处理器、Binding 路径，避免打断 `EditorSurfaceContext` / `InspectorController`。
 
 
@@ -700,6 +703,8 @@ Python 参数规则：
 - 从输入或输出引脚拖线到空白画布并抬起，会打开同一个节点菜单；创建节点后由 `PinConnectionController.TryAutoConnectNewNode()` 自动连接第一个兼容的相反方向引脚。
 - 普通右键打开节点菜单前必须清掉待自动连接状态；连线落空打开菜单时不能清。
 - 引脚释放判定不只依赖 WPF 精确 `InputHitTest`，还会按图空间距离查找最近引脚，当前半径为 24。
+- 连线采用双层渲染且共用同一个 `ConnectionPathViewModel.PathGeometry`：`ZIndex=100` 是 14px 透明交互命中层，位于节点下；`ZIndex=300` 是轮廓、选中高亮和主线视觉层，位于节点上且必须 `IsHitTestVisible=false`。节点固定 `ZIndex=200`，拖线预览/框选/节点菜单分别为 `450/500/1000`。禁止把可命中的视觉线直接抬到节点上，否则经过节点的连线会抢走节点与 pin 操作。
+- 连接主线普通/选中宽度为 `4.5/6`，轮廓宽度为主线 `+2.5`，选中高亮宽度为主线 `+6`；亮色主题必须使用更深的语义线色和独立轮廓 token，不能依赖暗色主题的白色执行线 fallback。
 
 #### 参数默认值
 - `GraphParameterDefinition.DefaultValue` 是函数/自定义事件参数默认值，必须写入 `GraphParameterFileModel`，并通过 `GraphRuntimeParameter` 进入运行时。

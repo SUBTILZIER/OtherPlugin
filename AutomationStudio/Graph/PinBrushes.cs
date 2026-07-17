@@ -1,3 +1,4 @@
+using AutomationStudioWpf.Services;
 using SolidColorBrush = System.Windows.Media.SolidColorBrush;
 using Color = System.Windows.Media.Color;
 using WpfApplication = System.Windows.Application;
@@ -6,12 +7,18 @@ namespace AutomationStudioWpf.Graph;
 
 public static class PinBrushes
 {
-    private static readonly SolidColorBrush ExecutionBrush = ResourceBrush("EditorExecutionPinBrush", 244, 244, 244);
-    private static readonly SolidColorBrush CompletionExecutionBrush = FrozenBrush(255, 184, 72);
-    private static readonly SolidColorBrush BooleanBrush = FrozenBrush(184, 45, 48);
-    private static readonly SolidColorBrush Vector2DBrush = FrozenBrush(80, 196, 114);
-    private static readonly SolidColorBrush StringBrush = FrozenBrush(202, 46, 165);
-    private static readonly SolidColorBrush DefaultBrush = FrozenBrush(190, 190, 190);
+    private static readonly SolidColorBrush ExecutionBrush = MutableBrush(244, 244, 244);
+    private static readonly SolidColorBrush CompletionExecutionBrush = MutableBrush(255, 184, 72);
+    private static readonly SolidColorBrush BooleanBrush = MutableBrush(184, 45, 48);
+    private static readonly SolidColorBrush Vector2DBrush = MutableBrush(80, 196, 114);
+    private static readonly SolidColorBrush StringBrush = MutableBrush(202, 46, 165);
+    private static readonly SolidColorBrush DefaultBrush = MutableBrush(190, 190, 190);
+
+    static PinBrushes()
+    {
+        RefreshThemeBrushes();
+        AppThemeService.ThemeChanged += (_, _) => RefreshThemeBrushes();
+    }
 
     public static SolidColorBrush CompletionExecution => CompletionExecutionBrush;
 
@@ -24,16 +31,22 @@ public static class PinBrushes
         _ => DefaultBrush,
     };
 
-    private static SolidColorBrush FrozenBrush(byte r, byte g, byte b)
+    internal static void RefreshThemeBrushes()
     {
-        var brush = new SolidColorBrush(Color.FromRgb(r, g, b));
-        brush.Freeze();
-        return brush;
+        SyncBrush(ExecutionBrush, "EditorExecutionPinBrush");
+        SyncBrush(CompletionExecutionBrush, "EditorCompletionPinBrush");
+        SyncBrush(BooleanBrush, "EditorBooleanPinBrush");
+        SyncBrush(Vector2DBrush, "EditorVectorPinBrush");
+        SyncBrush(StringBrush, "EditorStringPinBrush");
+        SyncBrush(DefaultBrush, "EditorDefaultPinBrush");
     }
 
-    private static SolidColorBrush ResourceBrush(string key, byte fallbackR, byte fallbackG, byte fallbackB)
+    private static SolidColorBrush MutableBrush(byte r, byte g, byte b) =>
+        new(Color.FromRgb(r, g, b));
+
+    private static void SyncBrush(SolidColorBrush target, string key)
     {
-        return WpfApplication.Current?.TryFindResource(key) as SolidColorBrush
-            ?? FrozenBrush(fallbackR, fallbackG, fallbackB);
+        if (WpfApplication.Current?.TryFindResource(key) is SolidColorBrush source)
+            target.Color = source.Color;
     }
 }

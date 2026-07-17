@@ -76,9 +76,9 @@
             <Setter Property="Margin" Value="0" />
         </Style>
         <Style x:Key="TopToolbarButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-            <Setter Property="MinHeight" Value="32" />
-            <Setter Property="Margin" Value="3,0" />
-            <Setter Property="Padding" Value="13,6" />
+            <Setter Property="MinHeight" Value="34" />
+            <Setter Property="Margin" Value="2,0" />
+            <Setter Property="Padding" Value="12,6" />
             <Setter Property="FontSize" Value="12" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="Foreground" Value="{DynamicResource EditorTextBrightBrush}" />
@@ -92,7 +92,7 @@
                                 Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="9"
+                                CornerRadius="8"
                                 SnapsToDevicePixels="True">
                             <Border.Effect>
                                 <DropShadowEffect BlurRadius="0"
@@ -319,17 +319,25 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="{x:Type ListBoxItem}">
-                        <Border x:Name="TileChrome"
-                                Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="10"
-                                Padding="{TemplateBinding Padding}"
-                                SnapsToDevicePixels="True">
-                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
-                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
-                                              TextElement.Foreground="{TemplateBinding Foreground}" />
-                        </Border>
+                        <Grid>
+                            <Border x:Name="TileChrome"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="10"
+                                    Padding="{TemplateBinding Padding}"
+                                    SnapsToDevicePixels="True">
+                                <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                                  VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                                  TextElement.Foreground="{TemplateBinding Foreground}" />
+                            </Border>
+                            <Border x:Name="TileAccent"
+                                    Height="3"
+                                    Margin="14,0"
+                                    VerticalAlignment="Bottom"
+                                    CornerRadius="2"
+                                    Background="Transparent" />
+                        </Grid>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
                                 <Setter TargetName="TileChrome" Property="Background" Value="{DynamicResource EditorPanelCardHoverBrush}" />
@@ -339,7 +347,11 @@
                             <Trigger Property="IsSelected" Value="True">
                                 <Setter TargetName="TileChrome" Property="Background" Value="{DynamicResource EditorListSelectedBrush}" />
                                 <Setter TargetName="TileChrome" Property="BorderBrush" Value="{DynamicResource EditorSelectedBorderBrush}" />
+                                <Setter TargetName="TileAccent" Property="Background" Value="{DynamicResource EditorSelectedAccentBrush}" />
                                 <Setter Property="Foreground" Value="{DynamicResource EditorSelectionTextBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="TileChrome" Property="BorderBrush" Value="{DynamicResource EditorSelectedAccentBrush}" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -509,8 +521,8 @@
                     <Border Background="{DynamicResource EditorToolbarGroupBrush}"
                             BorderBrush="{DynamicResource EditorPanelBorderBrush}"
                             BorderThickness="1"
-                            CornerRadius="10"
-                            Padding="3">
+                            CornerRadius="11"
+                            Padding="4,3">
                         <StackPanel Orientation="Horizontal">
                             <Button Content="外部导入" Style="{StaticResource TopToolbarButtonStyle}" Click="OpenGraph_Click" />
                             <Button Content="保存" Style="{StaticResource TopToolbarButtonStyle}" Click="SaveGraph_Click" />
@@ -521,12 +533,12 @@
                     </Border>
 
                     <Border x:Name="EditorActionToolbarGroup"
-                            Margin="8,0,0,0"
+                            Margin="10,0,0,0"
                             Background="{DynamicResource EditorToolbarGroupBrush}"
                             BorderBrush="{DynamicResource EditorPanelBorderBrush}"
                             BorderThickness="1"
-                            CornerRadius="10"
-                            Padding="3"
+                            CornerRadius="11"
+                            Padding="4,3"
                             Visibility="Collapsed">
                         <StackPanel Orientation="Horizontal">
                             <Border Width="1"
@@ -601,11 +613,11 @@
 
         <Border x:Name="EditorWindowBar"
                 DockPanel.Dock="Top"
-                MinHeight="42"
+                MinHeight="44"
                 Background="{DynamicResource EditorChromeBrush}"
                 BorderBrush="{DynamicResource EditorSectionHeaderBrush}"
                 BorderThickness="0,0,0,1"
-                Padding="5,1"
+                Padding="7,2"
                 Visibility="Collapsed">
             <ScrollViewer HorizontalScrollBarVisibility="Auto"
                           VerticalScrollBarVisibility="Disabled">
@@ -617,12 +629,12 @@
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
-                            <Border Margin="4,5,2,5"
-                                    Padding="10,6"
-                                    MinWidth="150"
-                                    MinHeight="30"
+                            <Border Margin="3,5,3,5"
+                                    Padding="11,6"
+                                    MinWidth="156"
+                                    MinHeight="32"
                                     BorderThickness="1"
-                                    CornerRadius="10"
+                                    CornerRadius="9"
                                     Cursor="Hand"
                                     PreviewMouseLeftButtonDown="EditorSessionTab_PreviewMouseLeftButtonDown"
                                     PreviewMouseMove="EditorSessionTab_PreviewMouseMove"
@@ -735,15 +747,20 @@
                     BorderBrush="{DynamicResource EditorPanelBorderBrush}"
                     BorderThickness="1"
                     CornerRadius="12">
-                <Border Width="420"
-                        Padding="28"
+                <Border Width="460"
+                        Padding="30,28"
                         Background="{DynamicResource EditorPanelCardBrush}"
                         BorderBrush="{DynamicResource EditorPanelBorderBrush}"
                         BorderThickness="1"
-                        CornerRadius="14"
+                        CornerRadius="16"
                         HorizontalAlignment="Center"
                         VerticalAlignment="Center">
                     <StackPanel>
+                        <Border Width="44"
+                                Height="6"
+                                HorizontalAlignment="Center"
+                                CornerRadius="3"
+                                Background="{DynamicResource EditorSelectedAccentBrush}" />
                         <TextBlock Text="打开一个资产开始编辑"
                                    Foreground="{DynamicResource EditorTextBrightBrush}"
                                    FontSize="24"
@@ -754,7 +771,7 @@
                                    FontSize="14"
                                    TextWrapping="Wrap"
                                    TextAlignment="Center"
-                                   Margin="0,12,0,0" />
+                                   Margin="0,14,0,0" />
                         <Border Height="1"
                                 Margin="0,20,0,16"
                                 Background="{DynamicResource EditorPanelBorderBrush}" />
@@ -768,9 +785,8 @@
             </Border>
 
             <GridSplitter Grid.Row="1"
-                          Height="4"
-                          HorizontalAlignment="Stretch"
-                          Background="{DynamicResource EditorSectionHeaderBrush}"
+                          Height="7"
+                          Style="{StaticResource EditorHorizontalSplitterStyle}"
                           ResizeDirection="Rows" />
 
             <Grid Grid.Row="2">
@@ -782,18 +798,27 @@
 
                 <Border Grid.Column="0"
                         Margin="6,6,3,6"
-                        Background="{DynamicResource EditorPanelCardBrush}"
-                        BorderBrush="{DynamicResource EditorPanelBorderBrush}"
+                        Background="{DynamicResource EditorPanelBackgroundBrush}"
+                        BorderBrush="{DynamicResource EditorPanelStrongBorderBrush}"
                         BorderThickness="1"
                         CornerRadius="12">
                     <DockPanel>
-                        <StackPanel x:Name="ContentBrowserHeaderBar"
-                                    DockPanel.Dock="Top"
-                                    Orientation="Horizontal"
-                                    Background="{DynamicResource EditorPanelElevatedBrush}"
-                                    Height="36">
-                            <TextBlock Text="内容浏览器" Style="{StaticResource BottomPanelTitleStyle}" />
-                        </StackPanel>
+                        <Border DockPanel.Dock="Top"
+                                Background="{DynamicResource EditorPanelElevatedBrush}"
+                                BorderBrush="{DynamicResource EditorPanelBorderBrush}"
+                                BorderThickness="0,0,0,1">
+                            <StackPanel x:Name="ContentBrowserHeaderBar"
+                                        Orientation="Horizontal"
+                                        Height="40">
+                                <Border Width="3"
+                                        Height="18"
+                                        Margin="12,0,0,0"
+                                        VerticalAlignment="Center"
+                                        CornerRadius="2"
+                                        Background="{DynamicResource EditorSelectedAccentBrush}" />
+                                <TextBlock Text="内容浏览器" Style="{StaticResource BottomPanelTitleStyle}" />
+                            </StackPanel>
+                        </Border>
                         <Grid x:Name="ContentBrowserBodyGrid" PreviewMouseDown="ContentBrowserArea_PreviewMouseDown">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition x:Name="ContentTreeColumn" Width="180" MinWidth="120" MaxWidth="420" />
@@ -802,7 +827,7 @@
                             </Grid.ColumnDefinitions>
                             <ListBox x:Name="ContentFolderListBox"
                                      ItemsSource="{Binding ContentFolderItems}"
-                                     Background="{DynamicResource EditorChromeBrush}"
+                                      Background="{DynamicResource EditorPanelElevatedBrush}"
                                      BorderThickness="0,0,1,0"
                                      BorderBrush="{DynamicResource EditorPanelBorderBrush}"
                                      Foreground="{DynamicResource EditorTextBrush}"
@@ -907,16 +932,14 @@
                             </ListBox>
                             <GridSplitter x:Name="ContentBrowserTreeSplitter"
                                           Grid.Column="1"
-                                          Width="4"
-                                          HorizontalAlignment="Stretch"
-                                          VerticalAlignment="Stretch"
-                                          Background="{DynamicResource EditorPanelBorderBrush}"
+                                          Width="7"
+                                          Style="{StaticResource EditorVerticalSplitterStyle}"
                                           ShowsPreview="True"
                                           ResizeBehavior="PreviousAndNext" />
                              <ListBox x:Name="ContentBrowserListBox"
                                   Grid.Column="2"
                                   ItemsSource="{Binding ContentVisibleItems}"
-                                  Background="{DynamicResource EditorPanelCardBrush}"
+                                   Background="{DynamicResource EditorPanelBackgroundBrush}"
                                   BorderThickness="0"
                                   Foreground="{DynamicResource EditorTextBrush}"
                                   ScrollViewer.HorizontalScrollBarVisibility="Disabled"
@@ -1048,43 +1071,50 @@
                 </Border>
 
                 <GridSplitter Grid.Column="1"
-                              Width="4"
-                              HorizontalAlignment="Stretch"
-                              Background="{DynamicResource EditorRootBackgroundBrush}"
+                              Width="7"
+                              Style="{StaticResource EditorVerticalSplitterStyle}"
                               ResizeDirection="Columns" />
 
                 <Border Grid.Column="2"
                     Margin="3,6,6,6"
-                    Background="{DynamicResource EditorPanelCardBrush}"
-                    BorderBrush="{DynamicResource EditorPanelBorderBrush}"
+                    Background="{DynamicResource EditorPanelBackgroundBrush}"
+                    BorderBrush="{DynamicResource EditorPanelStrongBorderBrush}"
                     BorderThickness="1"
                     CornerRadius="12">
                 <DockPanel>
-                    <StackPanel DockPanel.Dock="Top"
-                                Orientation="Horizontal"
-                                Background="{DynamicResource EditorPanelElevatedBrush}"
-                                Height="36">
-                        <TextBlock Text="日志" Style="{StaticResource BottomPanelTitleStyle}" />
-                        <TextBlock x:Name="StatusTextBlock" Foreground="{DynamicResource StatusMutedBrush}" Margin="16,0,0,0" VerticalAlignment="Center" FontSize="11" />
-                        <Border Margin="12,0,0,0"
-                                Background="{DynamicResource EditorFieldCardBrush}"
-                                BorderBrush="{DynamicResource EditorPanelBorderBrush}"
-                                BorderThickness="1"
-                                CornerRadius="9"
-                                Height="22"
-                                VerticalAlignment="Center">
-                            <StackPanel Orientation="Horizontal">
-                                <RadioButton x:Name="FilterAllRadio" Content="全部" IsChecked="True" Checked="FilterRadio_Checked" Margin="4,0" Padding="6,0" FontSize="11" Foreground="{DynamicResource EditorTextBrush}" />
-                                <RadioButton x:Name="FilterInfoRadio" Content="信息" Checked="FilterRadio_Checked" Margin="4,0" Padding="6,0" FontSize="11" Foreground="{DynamicResource EditorTextBrush}" />
-                                <RadioButton x:Name="FilterWarnRadio" Content="警告" Checked="FilterRadio_Checked" Margin="4,0" Padding="6,0" FontSize="11" Foreground="{DynamicResource CompileDirtyBorderBrush}" />
-                                <RadioButton x:Name="FilterErrorRadio" Content="错误" Checked="FilterRadio_Checked" Margin="4,0" Padding="6,0" FontSize="11" Foreground="{DynamicResource LogErrorBrush}" />
-                            </StackPanel>
-                        </Border>
-                        <Button Content="清空" Click="ClearLog_Click" Margin="8,3,8,3" Padding="10,2" Height="24" FontSize="11" />
-                    </StackPanel>
+                    <Border DockPanel.Dock="Top"
+                            Background="{DynamicResource EditorPanelElevatedBrush}"
+                            BorderBrush="{DynamicResource EditorPanelBorderBrush}"
+                            BorderThickness="0,0,0,1">
+                        <StackPanel Orientation="Horizontal" Height="40">
+                            <Border Width="3"
+                                    Height="18"
+                                    Margin="12,0,0,0"
+                                    VerticalAlignment="Center"
+                                    CornerRadius="2"
+                                    Background="{DynamicResource EditorSelectedAccentBrush}" />
+                            <TextBlock Text="日志" Style="{StaticResource BottomPanelTitleStyle}" />
+                            <TextBlock x:Name="StatusTextBlock" Foreground="{DynamicResource StatusMutedBrush}" Margin="16,0,0,0" VerticalAlignment="Center" FontSize="11" />
+                            <Border Margin="12,0,0,0"
+                                    Background="{DynamicResource EditorFieldCardBrush}"
+                                    BorderBrush="{DynamicResource EditorPanelBorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="9"
+                                    Height="22"
+                                    VerticalAlignment="Center">
+                                <StackPanel Orientation="Horizontal">
+                                    <RadioButton x:Name="FilterAllRadio" Content="全部" IsChecked="True" Checked="FilterRadio_Checked" Margin="4,0" Padding="6,0" FontSize="11" Foreground="{DynamicResource EditorTextBrush}" />
+                                    <RadioButton x:Name="FilterInfoRadio" Content="信息" Checked="FilterRadio_Checked" Margin="4,0" Padding="6,0" FontSize="11" Foreground="{DynamicResource EditorTextBrush}" />
+                                    <RadioButton x:Name="FilterWarnRadio" Content="警告" Checked="FilterRadio_Checked" Margin="4,0" Padding="6,0" FontSize="11" Foreground="{DynamicResource CompileDirtyBorderBrush}" />
+                                    <RadioButton x:Name="FilterErrorRadio" Content="错误" Checked="FilterRadio_Checked" Margin="4,0" Padding="6,0" FontSize="11" Foreground="{DynamicResource LogErrorBrush}" />
+                                </StackPanel>
+                            </Border>
+                            <Button Content="清空" Click="ClearLog_Click" Margin="8,3,8,3" Padding="10,2" Height="24" FontSize="11" />
+                        </StackPanel>
+                    </Border>
 
                     <RichTextBox x:Name="LogRichTextBox"
-                                 Background="{DynamicResource EditorChromeBrush}"
+                                  Background="{DynamicResource EditorPanelBackgroundBrush}"
                                  Foreground="{DynamicResource EditorTextBrush}"
                                  BorderThickness="0"
                                  FontFamily="Consolas"
