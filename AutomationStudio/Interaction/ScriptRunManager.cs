@@ -1,6 +1,7 @@
 using AutomationStudioWpf.Logging;
 using AutomationStudioWpf.Services;
 using AutomationStudioWpf.Adapters;
+using AutomationStudioWpf.GraphCore;
 
 namespace AutomationStudioWpf.Interaction;
 
@@ -13,9 +14,8 @@ internal enum ScriptRunStopReason
 
 internal sealed class ScriptRunManager : IDisposable
 {
-    private readonly Func<ContentAssetViewModel, CancellationToken, Task<bool>> _compileScript;
-    private readonly Func<ContentAssetViewModel, IEnumerable<CallableGraphItem>> _getFunctions;
-    private readonly Func<ContentAssetViewModel, IEnumerable<CallableGraphItem>, CancellationToken, Task<Runtime.GraphExecutionResult>> _runOnce;
+    private readonly Func<ContentAssetViewModel, CancellationToken, Task<GraphWorkspaceReadModel?>> _compileScript;
+    private readonly Func<ContentAssetViewModel, GraphWorkspaceReadModel, CancellationToken, Task<Runtime.GraphExecutionResult>> _runOnce;
     private readonly Action<string> _setStatus;
     private readonly Dictionary<string, ScriptRunState> _running = new(StringComparer.Ordinal);
     private bool _disposed;
@@ -25,13 +25,11 @@ internal sealed class ScriptRunManager : IDisposable
     public bool IsHotkeyRunActive(ContentAssetViewModel asset) => _running.ContainsKey(asset.Id);
 
     public ScriptRunManager(
-        Func<ContentAssetViewModel, CancellationToken, Task<bool>> compileScript,
-        Func<ContentAssetViewModel, IEnumerable<CallableGraphItem>> getFunctions,
-        Func<ContentAssetViewModel, IEnumerable<CallableGraphItem>, CancellationToken, Task<Runtime.GraphExecutionResult>> runOnce,
+        Func<ContentAssetViewModel, CancellationToken, Task<GraphWorkspaceReadModel?>> compileScript,
+        Func<ContentAssetViewModel, GraphWorkspaceReadModel, CancellationToken, Task<Runtime.GraphExecutionResult>> runOnce,
         Action<string> setStatus)
     {
         _compileScript = compileScript;
-        _getFunctions = getFunctions;
         _runOnce = runOnce;
         _setStatus = setStatus;
     }
@@ -161,7 +159,8 @@ internal sealed class ScriptRunManager : IDisposable
             return;
         }
 
-        if (!await _compileScript(asset, ct))
+        GraphWorkspaceReadModel? readModel = await _compileScript(asset, ct);
+        if (readModel is null)
             return;
 
         TimeSpan duration = GetDuration(settings);
@@ -186,7 +185,7 @@ internal sealed class ScriptRunManager : IDisposable
                     break;
 
                 Logger.Info($"脚本循环开始：{asset.Name} 第 {iteration} 次");
-                var result = await _runOnce(asset, _getFunctions(asset), runToken);
+                var result = await _runOnce(asset, readModel, runToken);
                 if (!result.Success)
                     break;
 

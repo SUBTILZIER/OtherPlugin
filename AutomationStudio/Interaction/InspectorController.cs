@@ -27,6 +27,7 @@ public sealed partial class InspectorController
     private readonly TextBlock _hintTextBlock;
     private readonly WpfTextBox _nodeTitleTextBox;
     private readonly TextBlock _nodeNumberTextBlock;
+    private readonly ContentControl _structuredInspectorHost;
     private readonly StackPanel[] _inspectorPanels;
     private readonly StackPanel _parameterInspectorPanel;
     private readonly WpfButton _addParameterButton;
@@ -146,6 +147,16 @@ public sealed partial class InspectorController
     private StackPanel? _commonVariadicDefaultsPanel;
 
     private bool _isLoading;
+    private readonly InspectorViewModel _structuredInspector = new();
+    private readonly IReadOnlyList<INodeInspectorProvider> _structuredProviders =
+    [
+        new CommonNodeInspectorProvider(),
+        new InputNodeInspectorProvider(),
+        new ControlFlowInspectorProvider(),
+    ];
+    private INodeInspectorProvider? _activeStructuredProvider;
+
+    public InspectorViewModel StructuredInspector => _structuredInspector;
 
     private enum ScreenshotSaveMode
     {
@@ -162,6 +173,7 @@ public sealed partial class InspectorController
         TextBlock hintTextBlock,
         WpfTextBox nodeTitleTextBox,
         TextBlock nodeNumberTextBlock,
+        ContentControl structuredInspectorHost,
         StackPanel parameterInspectorPanel,
         WpfButton addParameterButton,
         TextBlock parameterInspectorTitle,
@@ -271,6 +283,7 @@ public sealed partial class InspectorController
         _hintTextBlock = hintTextBlock;
         _nodeTitleTextBox = nodeTitleTextBox;
         _nodeNumberTextBlock = nodeNumberTextBlock;
+        _structuredInspectorHost = structuredInspectorHost;
         _parameterInspectorPanel = parameterInspectorPanel;
         _addParameterButton = addParameterButton;
         _parameterInspectorTitle = parameterInspectorTitle;
@@ -408,6 +421,8 @@ public sealed partial class InspectorController
         ];
 
         ConfigureStaticFreeTextEditors();
+        _structuredInspectorHost.DataContext = _structuredInspector;
+        _structuredInspector.FieldChanged += StructuredInspectorFieldChanged;
     }
 
     public void LoadNode(NodeBaseViewModel? node)
@@ -420,6 +435,8 @@ public sealed partial class InspectorController
                 _nodeTitleTextBox.Text = string.Empty;
                 _nodeNumberTextBlock.Text = string.Empty;
                 HideAllPanels();
+                _structuredInspector.Reset(null);
+                _activeStructuredProvider = null;
                 _hintTextBlock.Text = "请选择一个节点进行编辑。";
                 RefreshLocks(null);
                 return;
@@ -462,80 +479,107 @@ public sealed partial class InspectorController
                     break;
 
                 case MouseClickNodeViewModel mouseNode:
-                    _mouseLeftInspectorPanel.Visibility = Visibility.Visible;
-                    _mousePositionXTextBox.Text = mouseNode.PositionX.ToString("0.##");
-                    _mousePositionYTextBox.Text = mouseNode.PositionY.ToString("0.##");
-                    _mouseClickOperationModeComboBox.SelectedIndex = (int)mouseNode.OperationMode;
-                    _mouseButtonComboBox.SelectedIndex = (int)mouseNode.MouseButton;
-                    _mouseTriggerCountTextBox.Text = mouseNode.TriggerCount.ToString();
-                    _mouseTriggerIntervalTextBox.Text = mouseNode.TriggerIntervalMs.ToString();
+                    if (!TryLoadStructuredInspector(mouseNode))
+                    {
+                        _mouseLeftInspectorPanel.Visibility = Visibility.Visible;
+                        _mousePositionXTextBox.Text = mouseNode.PositionX.ToString("0.##");
+                        _mousePositionYTextBox.Text = mouseNode.PositionY.ToString("0.##");
+                        _mouseClickOperationModeComboBox.SelectedIndex = (int)mouseNode.OperationMode;
+                        _mouseButtonComboBox.SelectedIndex = (int)mouseNode.MouseButton;
+                        _mouseTriggerCountTextBox.Text = mouseNode.TriggerCount.ToString();
+                        _mouseTriggerIntervalTextBox.Text = mouseNode.TriggerIntervalMs.ToString();
+                    }
                     break;
 
                 case KeyboardNodeViewModel keyboardNode:
-                    _keyboardInspectorPanel.Visibility = Visibility.Visible;
-                    PopulateKeyboardKeyComboBox(keyboardNode.Key);
-                    _keyboardOperationModeComboBox.SelectedIndex = keyboardNode.OperationMode switch
+                    if (!TryLoadStructuredInspector(keyboardNode))
                     {
-                        PressReleaseMode.Press => 0,
-                        PressReleaseMode.Release => 1,
-                        PressReleaseMode.Click => 2,
-                        _ => 0,
-                    };
-                    _keyboardTriggerCountTextBox.Text = keyboardNode.TriggerCount.ToString();
-                    _keyboardTriggerIntervalTextBox.Text = keyboardNode.TriggerIntervalMs.ToString();
+                        _keyboardInspectorPanel.Visibility = Visibility.Visible;
+                        PopulateKeyboardKeyComboBox(keyboardNode.Key);
+                        _keyboardOperationModeComboBox.SelectedIndex = keyboardNode.OperationMode switch
+                        {
+                            PressReleaseMode.Press => 0,
+                            PressReleaseMode.Release => 1,
+                            PressReleaseMode.Click => 2,
+                            _ => 0,
+                        };
+                        _keyboardTriggerCountTextBox.Text = keyboardNode.TriggerCount.ToString();
+                        _keyboardTriggerIntervalTextBox.Text = keyboardNode.TriggerIntervalMs.ToString();
+                    }
                     break;
 
                 case KeyChordNodeViewModel keyChordNode:
-                    _keyChordInspectorPanel.Visibility = Visibility.Visible;
-                    _keyChordTextBox.Text = keyChordNode.Chord;
-                    PopulateKeyComboBox(_keyChordKeyComboBox, string.Empty);
-                    _keyChordOperationModeComboBox.SelectedIndex = keyChordNode.OperationMode switch
+                    if (!TryLoadStructuredInspector(keyChordNode))
                     {
-                        PressReleaseMode.Press => 0,
-                        PressReleaseMode.Release => 1,
-                        PressReleaseMode.Click => 2,
-                        _ => 2,
-                    };
-                    _keyChordTriggerCountTextBox.Text = keyChordNode.TriggerCount.ToString();
-                    _keyChordTriggerIntervalTextBox.Text = keyChordNode.TriggerIntervalMs.ToString();
+                        _keyChordInspectorPanel.Visibility = Visibility.Visible;
+                        _keyChordTextBox.Text = keyChordNode.Chord;
+                        PopulateKeyComboBox(_keyChordKeyComboBox, string.Empty);
+                        _keyChordOperationModeComboBox.SelectedIndex = keyChordNode.OperationMode switch
+                        {
+                            PressReleaseMode.Press => 0,
+                            PressReleaseMode.Release => 1,
+                            PressReleaseMode.Click => 2,
+                            _ => 2,
+                        };
+                        _keyChordTriggerCountTextBox.Text = keyChordNode.TriggerCount.ToString();
+                        _keyChordTriggerIntervalTextBox.Text = keyChordNode.TriggerIntervalMs.ToString();
+                    }
                     break;
 
                 case IfNodeViewModel ifNode:
-                    _ifInspectorPanel.Visibility = Visibility.Visible;
-                    _ifConditionComboBox.SelectedIndex = ifNode.ConditionValue ? 1 : 0;
+                    if (!TryLoadStructuredInspector(ifNode))
+                    {
+                        _ifInspectorPanel.Visibility = Visibility.Visible;
+                        _ifConditionComboBox.SelectedIndex = ifNode.ConditionValue ? 1 : 0;
+                    }
                     break;
 
                 case WhileLoopNodeViewModel whileNode:
-                    _whileLoopInspectorPanel.Visibility = Visibility.Visible;
-                    _whileLoopConditionComboBox.SelectedIndex = whileNode.ConditionValue ? 1 : 0;
-                    _whileLoopModeComboBox.SelectedIndex = whileNode.LoopMode == WhileLoopMode.Infinite ? 1 : 0;
-                    _whileMaxIterationsTextBox.Text = whileNode.MaxIterations.ToString();
-                    SetWhileMaxIterationsVisible(whileNode.LoopMode != WhileLoopMode.Infinite);
+                    if (!TryLoadStructuredInspector(whileNode))
+                    {
+                        _whileLoopInspectorPanel.Visibility = Visibility.Visible;
+                        _whileLoopConditionComboBox.SelectedIndex = whileNode.ConditionValue ? 1 : 0;
+                        _whileLoopModeComboBox.SelectedIndex = whileNode.LoopMode == WhileLoopMode.Infinite ? 1 : 0;
+                        _whileMaxIterationsTextBox.Text = whileNode.MaxIterations.ToString();
+                        SetWhileMaxIterationsVisible(whileNode.LoopMode != WhileLoopMode.Infinite);
+                    }
                     break;
 
                 case ForLoopNodeViewModel forLoopNode:
-                    _forLoopInspectorPanel.Visibility = Visibility.Visible;
-                    _forLoopCountTextBox.Text = forLoopNode.LoopCount.ToString();
-                    _forLoopEndConditionComboBox.SelectedIndex = forLoopNode.EndConditionValue ? 1 : 0;
+                    if (!TryLoadStructuredInspector(forLoopNode))
+                    {
+                        _forLoopInspectorPanel.Visibility = Visibility.Visible;
+                        _forLoopCountTextBox.Text = forLoopNode.LoopCount.ToString();
+                        _forLoopEndConditionComboBox.SelectedIndex = forLoopNode.EndConditionValue ? 1 : 0;
+                    }
                     break;
 
                 case ScrollWheelNodeViewModel scrollNode:
-                    _scrollWheelInspectorPanel.Visibility = Visibility.Visible;
-                    _scrollWheelActionComboBox.SelectedIndex = (int)scrollNode.ScrollAction;
-                    _scrollWheelSpeedTextBox.Text = scrollNode.ScrollSpeed.ToString();
-                    _scrollWheelIntervalTextBox.Text = scrollNode.ScrollInterval.ToString();
-                    _scrollWheelDurationTextBox.Text = scrollNode.ScrollDuration.ToString();
+                    if (!TryLoadStructuredInspector(scrollNode))
+                    {
+                        _scrollWheelInspectorPanel.Visibility = Visibility.Visible;
+                        _scrollWheelActionComboBox.SelectedIndex = (int)scrollNode.ScrollAction;
+                        _scrollWheelSpeedTextBox.Text = scrollNode.ScrollSpeed.ToString();
+                        _scrollWheelIntervalTextBox.Text = scrollNode.ScrollInterval.ToString();
+                        _scrollWheelDurationTextBox.Text = scrollNode.ScrollDuration.ToString();
+                    }
                     break;
 
                 case DelayNodeViewModel delayNode:
-                    _delayInspectorPanel.Visibility = Visibility.Visible;
-                    _delayMsTextBox.Text = delayNode.DelayMs.ToString();
+                    if (!TryLoadStructuredInspector(delayNode))
+                    {
+                        _delayInspectorPanel.Visibility = Visibility.Visible;
+                        _delayMsTextBox.Text = delayNode.DelayMs.ToString();
+                    }
                     break;
 
                 case MouseMoveNodeViewModel moveNode:
-                    _mouseMoveInspectorPanel.Visibility = Visibility.Visible;
-                    _mouseMovePositionXTextBox.Text = moveNode.PositionX.ToString("0.##");
-                    _mouseMovePositionYTextBox.Text = moveNode.PositionY.ToString("0.##");
+                    if (!TryLoadStructuredInspector(moveNode))
+                    {
+                        _mouseMoveInspectorPanel.Visibility = Visibility.Visible;
+                        _mouseMovePositionXTextBox.Text = moveNode.PositionX.ToString("0.##");
+                        _mouseMovePositionYTextBox.Text = moveNode.PositionY.ToString("0.##");
+                    }
                     break;
 
                 case StartProgramNodeViewModel startProg:
@@ -547,8 +591,11 @@ public sealed partial class InspectorController
                     break;
 
                 case PrintLogNodeViewModel printNode:
-                    _printLogInspectorPanel.Visibility = Visibility.Visible;
-                    _printLogMessageTextBox.Text = IsInputPinConnected(printNode, "message") ? "前置输入" : printNode.Message;
+                    if (!TryLoadStructuredInspector(printNode))
+                    {
+                        _printLogInspectorPanel.Visibility = Visibility.Visible;
+                        _printLogMessageTextBox.Text = IsInputPinConnected(printNode, "message") ? "前置输入" : printNode.Message;
+                    }
                     break;
 
                 case SelectWindowNodeViewModel selectWindowNode:
@@ -577,8 +624,11 @@ public sealed partial class InspectorController
                     break;
 
                 case CommonNodeViewModel commonNode:
-                    _commonInspectorPanel.Visibility = Visibility.Visible;
-                    LoadCommonNode(commonNode);
+                    if (!TryLoadStructuredInspector(commonNode))
+                    {
+                        _commonInspectorPanel.Visibility = Visibility.Visible;
+                        LoadCommonNode(commonNode);
+                    }
                     break;
             }
 
@@ -590,6 +640,11 @@ public sealed partial class InspectorController
         }
     }
 
+    public bool IsUserInteractionActive =>
+        _nodeTitleTextBox.IsKeyboardFocusWithin ||
+        _structuredInspectorHost.IsKeyboardFocusWithin ||
+        _inspectorPanels.Any(panel => panel.IsKeyboardFocusWithin);
+
     public void ApplyChanges()
     {
         if (_editorService.Nodes.FirstOrDefault(n => n.IsSelected) is not { } node || _isLoading)
@@ -597,9 +652,21 @@ public sealed partial class InspectorController
 
         node.Title = _nodeTitleTextBox.Text.Trim();
 
+        if (_activeStructuredProvider is not null &&
+            ReferenceEquals(_structuredInspector.Node, node))
+        {
+            _activeStructuredProvider.Apply(node, _structuredInspector);
+            node.RefreshDescription();
+            _markDirty();
+            _hintTextBlock.Text = $"当前选中：{node.Title}（已自动保存）";
+            _setStatus($"节点已自动保存：{node.Title}");
+            return;
+        }
+
         switch (node)
         {
-            case ParameterNodeBaseViewModel:
+            case ParameterNodeBaseViewModel parameterNode:
+                CommitPendingParameterNames(parameterNode);
                 break;
 
             case FindImageNodeViewModel findImage:
@@ -834,5 +901,38 @@ public sealed partial class InspectorController
     {
         foreach (var panel in _inspectorPanels)
             panel.Visibility = Visibility.Collapsed;
+
+        _structuredInspectorHost.Visibility = Visibility.Collapsed;
+        _activeStructuredProvider = null;
+    }
+
+    private bool TryLoadStructuredInspector(NodeBaseViewModel node)
+    {
+        INodeInspectorProvider? provider = _structuredProviders.FirstOrDefault(item => item.CanHandle(node));
+        if (provider is null)
+            return false;
+
+        _activeStructuredProvider = provider;
+        provider.Load(node, _structuredInspector);
+        _structuredInspectorHost.Visibility = Visibility.Visible;
+        return true;
+    }
+
+    private void StructuredInspectorFieldChanged(InspectorFieldViewModel field)
+    {
+        if (_isLoading ||
+            _activeStructuredProvider is null ||
+            _structuredInspector.Node is not { } node ||
+            _editorService.Nodes.FirstOrDefault(item => item.IsSelected) is not { } selected ||
+            !ReferenceEquals(node, selected))
+        {
+            return;
+        }
+
+        _activeStructuredProvider.Apply(node, _structuredInspector);
+        node.RefreshDescription();
+        _markDirty();
+        _hintTextBlock.Text = $"当前选中：{node.Title}（已自动保存）";
+        _setStatus($"节点已自动保存：{node.Title}");
     }
 }

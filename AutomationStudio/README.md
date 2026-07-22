@@ -18,7 +18,7 @@ Windows 10/11 x64 的可视化桌面自动化编辑器。使用节点、执行�
 ## 主要功能
 
 - 节点式脚本：鼠标、键盘、组合键、窗口、进程、延迟、循环、条件、截图、找图、字符串/布尔运算。
-- 脚本与函数库：脚本含主事件图、辅助事件图和私有函数；函数库可公开函数供脚本调用。
+- 脚本与函数库：脚本含主事件图、辅助事件图和私有函数；主图可调用辅助图自定义事件，函数库可公开函数供脚本调用。
 - 多编辑窗口：主窗口标签页与独立窗口并存，每个 session 自持编辑 surface、图状态、Undo 和 dirty 状态。
 - 多线程节点：并行执行动态分支；全部成功后执行“全部完成”。业务值 `False` 不等于执行失败。
 - ToDo 跳转：在同一图内按“节点名 + 节点编号”定位执行目标。
@@ -29,6 +29,7 @@ Windows 10/11 x64 的可视化桌面自动化编辑器。使用节点、执行�
 - 暗色/亮色主题：应用级主题和强调色，主窗口、编辑器、弹窗、菜单、托盘同步更新。
 - 鼠标拾取：全屏坐标和像素颜色拾取。
 - 最终代码：显示当前图的只读伪代码执行逻辑。
+- 执行前预检：即使图已编译，运行前仍阻止未知节点、重复 ID、坏连接和缺失函数/事件进入执行器。
 - 旧宏数据兼容：旧宏资产/节点会被忽略；项目不再提供宏库功能。
 
 ## 基本使用
@@ -91,6 +92,7 @@ LocalAppData 不可写时，运行时诊断目录才回退到 `%TEMP%\Automation
 
 ```powershell
 dotnet build .\AutomationStudioWpf.csproj
+dotnet test .\Tests\AutomationStudio.CoreTests\AutomationStudio.CoreTests.csproj
 dotnet run --project .\AutomationStudioWpf.csproj
 ```
 
@@ -148,6 +150,7 @@ AutomationStudio/
 ├─ Python/            find_image.py
 ├─ Runtime/           图执行器与临时运行上下文
 ├─ Services/          编译、保存、环境、单实例、路径、崩溃保护
+├─ Tests/             Git 跟踪的 CoreTests；CodexSmoke 保持本地-only
 └─ Themes/            共享主题资源
 ```
 
@@ -156,6 +159,7 @@ AutomationStudio/
 ```powershell
 dotnet build .\AutomationStudioWpf.csproj -o .\bin\CodexBuildCheck
 dotnet build .\AutomationStudioWpf.csproj
+dotnet test .\Tests\AutomationStudio.CoreTests\AutomationStudio.CoreTests.csproj
 git diff --check -- AutomationStudio
 codegraph.cmd sync
 ```

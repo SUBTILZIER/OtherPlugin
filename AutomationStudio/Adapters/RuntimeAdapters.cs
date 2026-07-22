@@ -5,11 +5,11 @@ using AutomationStudioWpf.Services;
 public sealed class RuntimeAdapters
 {
     public RuntimeAdapters()
-        : this(PythonEnvironmentService.Shared)
+        : this(PythonEnvironmentService.Shared, NullRuntimeUiAdapter.Instance)
     {
     }
 
-    internal RuntimeAdapters(PythonEnvironmentService pythonEnvironment)
+    internal RuntimeAdapters(PythonEnvironmentService pythonEnvironment, IRuntimeUiAdapter? ui = null)
     {
         Mouse = new Win32MouseAdapter();
         Keyboard = new Win32KeyboardAdapter();
@@ -17,6 +17,7 @@ public sealed class RuntimeAdapters
         Process = new ProcessAdapter();
         Python = new PythonScriptAdapter(pythonEnvironment);
         Screenshot = new ScreenshotAdapter();
+        Ui = ui ?? NullRuntimeUiAdapter.Instance;
     }
 
     public RuntimeAdapters(
@@ -25,7 +26,8 @@ public sealed class RuntimeAdapters
         IWindowAdapter window,
         IProcessAdapter process,
         IPythonScriptAdapter python,
-        IScreenshotAdapter screenshot)
+        IScreenshotAdapter screenshot,
+        IRuntimeUiAdapter? ui = null)
     {
         Mouse = mouse;
         Keyboard = keyboard;
@@ -33,6 +35,7 @@ public sealed class RuntimeAdapters
         Process = process;
         Python = python;
         Screenshot = screenshot;
+        Ui = ui ?? NullRuntimeUiAdapter.Instance;
     }
 
     public IMouseAdapter Mouse { get; }
@@ -46,6 +49,8 @@ public sealed class RuntimeAdapters
     public IPythonScriptAdapter Python { get; }
 
     public IScreenshotAdapter Screenshot { get; }
+
+    public IRuntimeUiAdapter Ui { get; }
 
     internal IDisposable BeginExecutionInputScope()
     {

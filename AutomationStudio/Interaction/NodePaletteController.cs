@@ -4,6 +4,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
 using AutomationStudioWpf.Graph;
+using AutomationStudioWpf.GraphCore;
 using AutomationStudioWpf.Nodes;
 using AutomationStudioWpf.Runtime;
 using AutomationStudioWpf.Services;
@@ -14,18 +15,8 @@ using WpfTextBox = System.Windows.Controls.TextBox;
 
 namespace AutomationStudioWpf.Interaction;
 
-public sealed class NodePaletteController
+internal sealed class NodePaletteController
 {
-    private static readonly HashSet<NodeKind> HiddenKinds =
-    [
-        NodeKind.Start,
-        NodeKind.Reroute,
-        NodeKind.FunctionEntry,
-        NodeKind.FunctionReturn,
-        NodeKind.FunctionCall,
-        NodeKind.CustomEventCall,
-    ];
-
     private readonly Border _palette;
     private readonly WpfTextBox _searchBox;
     private readonly StackPanel _content;
@@ -33,8 +24,7 @@ public sealed class NodePaletteController
     private readonly GraphEditorService _editorService;
     private readonly GraphCommandService _commandService;
     private readonly NodeRegistry _nodeRegistry;
-    private readonly Func<IEnumerable<CallableGraphItem>> _getFunctions;
-    private readonly Func<IEnumerable<CallableCustomEventItem>> _getCustomEvents;
+    private readonly Func<CallableNodeCatalog> _getCallableCatalog;
     private readonly Func<GraphAssetKind?> _getActiveGraphKind;
     private readonly Action _snapshotActiveAsset;
     private readonly Func<Point, Point> _viewportToGraph;
@@ -42,6 +32,7 @@ public sealed class NodePaletteController
     private readonly Action<NodeBaseViewModel> _selectNode;
     private readonly Func<NodeBaseViewModel, bool> _tryAutoConnectNode;
     private readonly List<NodeKind> _recentKinds = [];
+    private CallableNodeCatalog? _cachedCallableCatalog;
 
     private Point _openViewportPoint;
 
@@ -53,8 +44,7 @@ public sealed class NodePaletteController
         GraphEditorService editorService,
         GraphCommandService commandService,
         NodeRegistry nodeRegistry,
-        Func<IEnumerable<CallableGraphItem>> getFunctions,
-        Func<IEnumerable<CallableCustomEventItem>> getCustomEvents,
+        Func<CallableNodeCatalog> getCallableCatalog,
         Func<GraphAssetKind?> getActiveGraphKind,
         Action snapshotActiveAsset,
         Func<Point, Point> viewportToGraph,
@@ -69,8 +59,7 @@ public sealed class NodePaletteController
         _editorService = editorService;
         _commandService = commandService;
         _nodeRegistry = nodeRegistry;
-        _getFunctions = getFunctions;
-        _getCustomEvents = getCustomEvents;
+        _getCallableCatalog = getCallableCatalog;
         _getActiveGraphKind = getActiveGraphKind;
         _snapshotActiveAsset = snapshotActiveAsset;
         _viewportToGraph = viewportToGraph;
@@ -82,6 +71,7 @@ public sealed class NodePaletteController
     public void Open(Point viewportPoint)
     {
         _snapshotActiveAsset();
+        _cachedCallableCatalog = _getCallableCatalog();
         _openViewportPoint = viewportPoint;
         _searchBox.Text = string.Empty;
         Build(string.Empty);
@@ -98,7 +88,11 @@ public sealed class NodePaletteController
         }), DispatcherPriority.Render);
     }
 
-    public void Close() => _palette.Visibility = Visibility.Collapsed;
+    public void Close()
+    {
+        _palette.Visibility = Visibility.Collapsed;
+        _cachedCallableCatalog = null;
+    }
 
     public void Filter(string filter)
     {
@@ -123,8 +117,9 @@ public sealed class NodePaletteController
 
         bool hasAny = false;
         bool isEventGraph = _getActiveGraphKind() == GraphAssetKind.EventGraph;
+        CallableNodeCatalog callableCatalog = _cachedCallableCatalog ??= _getCallableCatalog();
         var definitions = _nodeRegistry.Definitions
-            .Where(def => !HiddenKinds.Contains(def.NodeKind))
+            .Where(def => def.CanCreate)
             .Where(def => def.NodeKind != NodeKind.CustomEvent || isEventGraph)
             .Where(def => MatchesFilter(def, filter))
             .OrderBy(def => def.Category)
@@ -146,9 +141,9 @@ public sealed class NodePaletteController
             }
         }
 
-        hasAny |= AddAssetGroups(_getFunctions(), filter);
+        hasAny |= AddAssetGroups(callableCatalog.Functions, filter);
         if (isEventGraph)
-            hasAny |= AddCustomEventGroups(_getCustomEvents(), filter);
+            hasAny |= AddCustomEventGroups(callableCatalog.CustomEvents, filter);
 
         if (!hasAny)
         {
@@ -378,14 +373,14 @@ public sealed class NodePaletteController
 
     private static IEnumerable<GraphParameterDefinition> GetEntryParameters(GraphFileModel graph, NodeKind kind) =>
         graph.Nodes
-            .FirstOrDefault(node => NodeKindFromTypeKey(node.NodeTypeKey) == kind)?
+            .FirstOrDefault(node => NodeDescriptorCatalog.FromTypeKey(node.NodeTypeKey) == kind)?
             .Parameters
             .Select(ToParameter)
         ?? [];
 
     private static IEnumerable<GraphParameterDefinition> GetOutputParameters(GraphFileModel graph, NodeKind kind)
     {
-        var nodes = graph.Nodes.Where(node => NodeKindFromTypeKey(node.NodeTypeKey) == kind);
+        var nodes = graph.Nodes.Where(node => NodeDescriptorCatalog.FromTypeKey(node.NodeTypeKey) == kind);
         return nodes.SelectMany(node => node.Parameters.Select(ToParameter));
     }
 
@@ -395,13 +390,6 @@ public sealed class NodePaletteController
         Name = file.Name,
         Type = file.Type,
         DefaultValue = file.DefaultValue,
-    };
-
-    private static NodeKind? NodeKindFromTypeKey(string typeKey) => typeKey switch
-    {
-        "function_entry" => NodeKind.FunctionEntry,
-        "function_return" => NodeKind.FunctionReturn,
-        _ => null,
     };
 
     private static SolidColorBrush Brush(byte r, byte g, byte b) => new(System.Windows.Media.Color.FromRgb(r, g, b));

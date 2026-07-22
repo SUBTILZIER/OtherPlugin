@@ -49,8 +49,7 @@ public partial class MainWindow
         _scriptHotkeyService = new ScriptHotkeyService(this, HandleScriptHotkey);
         _scriptRunManager = new ScriptRunManager(
             CompileScriptAssetForRunAsync,
-            GetRuntimeCallableFunctionsForAsset,
-            (asset, functions, ct) => _executionController.RunScriptAssetOnceAsync(asset, functions, ct),
+            (asset, readModel, ct) => _executionController.RunScriptAssetOnceAsync(asset, readModel, ct),
             SetStatus);
         _hotkeyCaptureCoordinator = new HotkeyCaptureCoordinator(
             this,
@@ -122,9 +121,7 @@ public partial class MainWindow
             this,
             _editorService,
             _runtimeExecutor,
-            new GraphCore.GraphValidator(),
             RunGraphButton,
-            GetRuntimeCallableFunctions,
             SetStatus,
             _pythonEnvironmentService.EnsureReadyAsync);
         _executionController.ExecutionStateChanged += OnExecutionStateChanged;
@@ -175,8 +172,7 @@ public partial class MainWindow
             _editorService,
             _graphCommandService,
             _nodeRegistry,
-            GetCallableFunctions,
-            GetCallableCustomEvents,
+            GetCallableCatalog,
             GetActiveGraphKind,
             SnapshotActiveAsset,
             ViewportToGraph,
@@ -215,6 +211,7 @@ public partial class MainWindow
             surface.InspectorHintTextBlock,
             surface.NodeTitleTextBox,
             surface.NodeNumberTextBlock,
+            surface.StructuredInspectorHost,
             surface.ParameterInspectorPanel,
             surface.AddParameterButton,
             surface.ParameterInspectorTitle,
@@ -557,14 +554,17 @@ public partial class MainWindow
         _graphLibraryService,
         _clipboardService,
         _nodeRegistry,
-        PersistAssetLibrary,
+        () =>
+        {
+            CommitSessionToAsset(session);
+            PersistAssetLibrary();
+        },
         () => SnapshotSession(session),
         () => MarkSessionDirty(session),
         () => MarkSessionLayoutDirty(session),
         EnsureCanvasLargeEnough,
         SetStatus,
-        GetCallableFunctions,
-        GetCallableCustomEvents);
+        GetCallableCatalog);
 
     private GraphAssetKind? GetActiveGraphKind() => _activeAssetController?.AssetKind;
 

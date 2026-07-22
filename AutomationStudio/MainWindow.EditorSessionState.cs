@@ -17,6 +17,9 @@ public partial class MainWindow
         if (!_suppressGraphChangedDirty && controller?.IsLoadingGraph != true)
             MarkActiveAssetDirty();
 
+        if (_inspectorController.IsUserInteractionActive)
+            return;
+
         if (_editorService.Nodes.FirstOrDefault(n => n.IsSelected) is { } selected)
         {
             LoadNodeToInspector(selected);
@@ -137,21 +140,18 @@ public partial class MainWindow
 
     private bool TryPersistAssetLibrary(bool showPrompt)
     {
-        try
-        {
-            _graphLibraryService.SaveContentLibrary(ContentBrowserItems, _activeContentAsset?.Id);
-            if (_scriptHotkeyService is not null)
-                RefreshScriptHotkeys();
+        if (_workspacePersistenceService.TryPersist(out var error))
             return true;
-        }
-        catch (Exception ex)
+
+        if (error is not null)
         {
-            Logger.Error($"保存资产库失败：{ex.Message}");
+            Logger.Error($"保存资产库失败：{error.Message}");
             SetStatus("保存资产库失败，未清除脏标记。");
             if (showPrompt)
-                ThemedDialog.Show(this, ex.Message, "保存失败", MessageBoxButton.OK, MessageBoxImage.Error);
-            return false;
+                ThemedDialog.Show(this, error.Message, "保存失败", MessageBoxButton.OK, MessageBoxImage.Error);
         }
+
+        return false;
     }
 
     private bool SaveAllAssets()
@@ -200,21 +200,25 @@ public partial class MainWindow
         return true;
     }
 
-    private bool EnsureCompiledBeforeRun()
+    private GraphWorkspaceReadModel? PrepareActiveScriptForRun(ContentAssetViewModel asset)
     {
         CommitInspectorAndSnapshotAllSessions();
         if (!HasCompileDirtyAssets())
-            return true;
+        {
+            GraphWorkspaceReadModel cleanReadModel = BuildGraphWorkspaceReadModel();
+            return cleanReadModel.DependencyIndex.FindAsset(asset.Id) is null ? null : cleanReadModel;
+        }
 
         SetStatus("执行前检测到未编译修改，正在自动编译...");
-        return CompileAllAssets(showPrompt: true);
+        return CompileAllAssets(showPrompt: true, out GraphWorkspaceReadModel? compiledReadModel)
+            ? compiledReadModel
+            : null;
     }
 
     private bool CompileActiveAsset(bool showPrompt)
     {
         var targetSession = _activeEditorSession;
-        var targetAsset = targetSession?.ContentAsset ?? _activeContentAsset;
-        CommitInspectorAndSnapshotAllSessions();
+        var targetAsset = _assetCompileCoordinator.ResolveActiveAsset();
         if (targetAsset is null || targetAsset.Kind == ContentAssetKind.Folder)
         {
             if (showPrompt)
@@ -227,15 +231,13 @@ public partial class MainWindow
         var targetController = targetSession is null ? _activeAssetController : GetSessionActiveAssetController(targetSession);
         var targetCommandService = targetContext?.CommandService ?? _graphCommandService;
 
-        var result = _graphCompileService.CompileAsset(ContentBrowserItems, targetAsset);
+        var result = _assetCompileCoordinator.CompileAsset(targetAsset, commitSessions: true);
         foreach (var item in ContentBrowserItems.Where(item => result.ChangedAssetIds.Contains(item.Id)))
             item.IsDirty = true;
+        SyncAffectedEditorSessions(result);
 
         if (!HandleCompileResult(result, showPrompt))
             return false;
-
-        if (targetSession is not null)
-            SyncSessionGraphStateFromAsset(targetSession);
 
         if (targetController?.ActiveItem is { } active)
         {
@@ -263,10 +265,13 @@ public partial class MainWindow
         return true;
     }
 
-    private bool CompileAllAssets(bool showPrompt)
+    private bool CompileAllAssets(bool showPrompt) =>
+        CompileAllAssets(showPrompt, out _);
+
+    private bool CompileAllAssets(bool showPrompt, out GraphWorkspaceReadModel? readModel)
     {
-        CommitInspectorAndSnapshotAllSessions();
-        var result = _graphCompileService.Compile(ContentBrowserItems);
+        var result = _assetCompileCoordinator.CompileAll(commitSessions: false);
+        readModel = result.ReadModel;
         foreach (var item in ContentBrowserItems.Where(item => result.ChangedAssetIds.Contains(item.Id)))
             item.IsDirty = true;
 
@@ -290,6 +295,9 @@ public partial class MainWindow
 
     private bool HandleCompileResult(GraphCompileResult result, bool showPrompt)
     {
+        foreach (string repairMessage in result.RepairMessages)
+            Logger.Info($"编译修复：{repairMessage}");
+
         if (result.Success)
             return true;
 
@@ -319,11 +327,24 @@ public partial class MainWindow
         session.RefreshDirtyState();
     }
 
+    private void SyncAffectedEditorSessions(GraphCompileResult result)
+    {
+        var affectedAssetIds = new HashSet<string>(result.AffectedAssetIds, StringComparer.Ordinal);
+        affectedAssetIds.UnionWith(result.ChangedAssetIds);
+        foreach (EditorSessionViewModel session in _editorSessions.Where(
+                     session => affectedAssetIds.Contains(session.ContentAsset.Id)))
+        {
+            SyncSessionGraphStateFromAsset(session);
+        }
+    }
+
     private static void SyncGraphItems(
         IEnumerable<GraphListItemViewModel> sessionItems,
         IEnumerable<GraphListItemViewModel> assetItems)
     {
-        var assetById = assetItems.ToDictionary(item => item.Id, StringComparer.Ordinal);
+        var assetById = assetItems
+            .GroupBy(item => item.Id, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
         foreach (var sessionItem in sessionItems)
         {
             if (!assetById.TryGetValue(sessionItem.Id, out var assetItem))

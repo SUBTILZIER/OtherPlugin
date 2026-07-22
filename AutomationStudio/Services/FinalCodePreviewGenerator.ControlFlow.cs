@@ -172,7 +172,14 @@ internal sealed partial class FinalCodePreviewGenerator
     {
         string eventId = node.CustomEventId ?? string.Empty;
         string arguments = FormatParameterAssignments(plan, node, state);
-        var entry = string.IsNullOrWhiteSpace(eventId) ? null : plan.Index.GetCustomEvent(eventId);
+        GraphExecutionPlan eventPlan = plan;
+        GraphRuntimeNode? entry = null;
+        if (!string.IsNullOrWhiteSpace(eventId) && state.CustomEvents.TryGetValue(eventId, out var target))
+        {
+            eventPlan = target.Plan;
+            entry = eventPlan.Index.GetNode(target.EntryNodeId);
+        }
+        entry ??= string.IsNullOrWhiteSpace(eventId) ? null : plan.Index.GetCustomEvent(eventId);
         if (entry is null)
         {
             EmitLine(builder, state, depth, $"event_call {FormatCall(node)}({arguments}); # custom event not found");
@@ -190,7 +197,7 @@ internal sealed partial class FinalCodePreviewGenerator
         {
             EmitLine(builder, state, depth, $"event_call {FormatNode(entry)}({arguments}) {{");
             state.PushParameterBindings(BuildParameterBindings(plan, node, entry, state));
-            try { EmitChain(plan, scopeKey, entry, "exec_out", builder, state, depth + 1, stack); }
+            try { EmitChain(eventPlan, $"custom_event:{eventId}", entry, "exec_out", builder, state, depth + 1, stack); }
             finally { state.PopParameterBindings(); }
             EmitLine(builder, state, depth, "}");
         }

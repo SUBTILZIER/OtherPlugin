@@ -1,4 +1,6 @@
 using AutomationStudioWpf.Graph;
+using AutomationStudioWpf.GraphCore;
+using AutomationStudioWpf.Interaction;
 using AutomationStudioWpf.Logging;
 using AutomationStudioWpf.Runtime;
 
@@ -14,7 +16,9 @@ public static class NodeSerializer
         var file = new NodeFileModel
         {
             Id = node.Id,
-            NodeTypeKey = node.NodeTypeKey,
+            NodeTypeKey = NodeDescriptorCatalog.TryGet(node.NodeKind, out var descriptor)
+                ? descriptor.TypeKey
+                : node.NodeTypeKey,
             Title = node.Title,
             NodeNumber = NodeTraits.ShouldAssignNodeNumber(node.NodeKind) ? node.NodeNumber : string.Empty,
             X = node.X,
@@ -166,16 +170,20 @@ public static class NodeSerializer
             return null;
         }
 
-        NodeBaseViewModel? node = file.NodeTypeKey switch
+        bool isLegacyDoubleClick = string.Equals(file.NodeTypeKey, "mouse_double_click", StringComparison.OrdinalIgnoreCase);
+        NodeKind? serializedKind = NodeDescriptorCatalog.FromTypeKey(file.NodeTypeKey);
+        NodeBaseViewModel? node = isLegacyDoubleClick
+            ? CreateLegacyDoubleClickFromFile(file)
+            : serializedKind switch
         {
-            "start" => new StartNodeViewModel(file.Id)
+            NodeKind.Start => new StartNodeViewModel(file.Id)
             {
                 Title = file.Title,
                 X = file.X,
                 Y = file.Y,
             },
 
-            "find_image" => new FindImageNodeViewModel(file.Id)
+            NodeKind.FindImage => new FindImageNodeViewModel(file.Id)
             {
                 Title = file.Title,
                 X = file.X,
@@ -193,7 +201,7 @@ public static class NodeSerializer
                 RegionHeight = file.FindImageRegionHeight,
             },
 
-            "start_program" => new StartProgramNodeViewModel(file.Id)
+            NodeKind.StartProgram => new StartProgramNodeViewModel(file.Id)
             {
                 Title = file.Title,
                 X = file.X,
@@ -204,7 +212,7 @@ public static class NodeSerializer
                 RetryCount = file.RetryCount > 0 ? file.RetryCount : (file.ScrollSpeed > 0 ? file.ScrollSpeed : 3),
             },
 
-            "mouse_left_click" or "mouse_click" => new MouseClickNodeViewModel(file.Id)
+            NodeKind.MouseClick => new MouseClickNodeViewModel(file.Id)
             {
                 Title = file.Title,
                 X = file.X,
@@ -218,7 +226,7 @@ public static class NodeSerializer
                 TriggerIntervalMs = NormalizeTriggerInterval(file.TriggerIntervalMs),
             },
 
-            "keyboard" => new KeyboardNodeViewModel(file.Id)
+            NodeKind.Keyboard => new KeyboardNodeViewModel(file.Id)
             {
                 Title = file.Title,
                 X = file.X,
@@ -229,7 +237,7 @@ public static class NodeSerializer
                 TriggerIntervalMs = NormalizeTriggerInterval(file.TriggerIntervalMs),
             },
 
-            "scroll_wheel" => new ScrollWheelNodeViewModel(file.Id)
+            NodeKind.ScrollWheel => new ScrollWheelNodeViewModel(file.Id)
             {
                 Title = file.Title,
                 X = file.X,
@@ -237,10 +245,10 @@ public static class NodeSerializer
                 ScrollAction = Enum.TryParse<ScrollWheelAction>(file.ScrollAction, true, out var sa) ? sa : ScrollWheelAction.ScrollForward,
                 ScrollSpeed = file.ScrollSpeed > 0 ? file.ScrollSpeed : 120,
                 ScrollInterval = file.ScrollInterval > 0 ? file.ScrollInterval : 100,
-                ScrollDuration = file.ScrollDuration > 0 ? file.ScrollDuration : 1000,
+                ScrollDuration = Math.Max(0, file.ScrollDuration),
             },
 
-            "reroute" => CreateRerouteFromFile(new NodeFileModel
+            NodeKind.Reroute => CreateRerouteFromFile(new NodeFileModel
             {
                 Id = file.Id,
                 RoutedKind = file.RoutedKind,
@@ -249,7 +257,7 @@ public static class NodeSerializer
                 Y = file.Y,
             }),
 
-            "if" => new IfNodeViewModel(file.Id)
+            NodeKind.If => new IfNodeViewModel(file.Id)
             {
                 Title = file.Title,
                 X = file.X,
@@ -257,7 +265,7 @@ public static class NodeSerializer
                 ConditionValue = file.ConditionValue,
             },
 
-            "for_loop" => new ForLoopNodeViewModel(file.Id)
+            NodeKind.ForLoop => new ForLoopNodeViewModel(file.Id)
             {
                 Title = file.Title,
                 X = file.X,
@@ -266,7 +274,7 @@ public static class NodeSerializer
                 EndConditionValue = file.ConditionValue,
             },
 
-            "while_loop" => new WhileLoopNodeViewModel(file.Id)
+            NodeKind.WhileLoop => new WhileLoopNodeViewModel(file.Id)
             {
                 Title = file.Title,
                 X = file.X,
@@ -277,7 +285,7 @@ public static class NodeSerializer
                 MaxIterations = file.MaxIterations > 0 ? file.MaxIterations : (file.DelayMs > 0 ? file.DelayMs : 10000),
             },
 
-            "todo" => new ToDoNodeViewModel(file.Id)
+            NodeKind.ToDo => new ToDoNodeViewModel(file.Id)
             {
                 Title = string.IsNullOrWhiteSpace(file.Title) ? "ToDo跳转" : file.Title,
                 NodeNumber = file.NodeNumber,
@@ -289,7 +297,7 @@ public static class NodeSerializer
                 ReturnAfterTarget = file.ReturnAfterTarget,
             },
 
-            "multi_thread" => new MultiThreadNodeViewModel(file.Id)
+            NodeKind.MultiThread => new MultiThreadNodeViewModel(file.Id)
             {
                 Title = string.IsNullOrWhiteSpace(file.Title) ? "多线程" : file.Title,
                 NodeNumber = file.NodeNumber,
@@ -298,7 +306,7 @@ public static class NodeSerializer
                 ThreadOutputCount = file.ThreadOutputCount > 0 ? file.ThreadOutputCount : MultiThreadNodeViewModel.MinimumThreadOutputCount,
             },
 
-            "delay" => new DelayNodeViewModel(file.Id)
+            NodeKind.Delay => new DelayNodeViewModel(file.Id)
             {
                 Title = file.Title,
                 X = file.X,
@@ -306,7 +314,7 @@ public static class NodeSerializer
                 DelayMs = file.DelayMs,
             },
 
-            "mouse_move" => new MouseMoveNodeViewModel(file.Id)
+            NodeKind.MouseMove => new MouseMoveNodeViewModel(file.Id)
             {
                 Title = file.Title,
                 X = file.X,
@@ -316,7 +324,7 @@ public static class NodeSerializer
                 HasManualPosition = ResolveManualPosition(file, file.PositionX, file.PositionY),
             },
 
-            "print_log" => new PrintLogNodeViewModel(file.Id)
+            NodeKind.PrintLog => new PrintLogNodeViewModel(file.Id)
             {
                 Title = file.Title,
                 X = file.X,
@@ -324,7 +332,7 @@ public static class NodeSerializer
                 Message = file.PrintLogMessage ?? file.ImagePath ?? string.Empty,
             },
 
-            "select_window" => new SelectWindowNodeViewModel(file.Id)
+            NodeKind.SelectWindow => new SelectWindowNodeViewModel(file.Id)
             {
                 Title = file.Title,
                 X = file.X,
@@ -333,21 +341,8 @@ public static class NodeSerializer
                 InputMode = Enum.TryParse<WindowInputMode>(file.WindowInputMode, true, out var mode) ? mode : WindowInputMode.Manual,
             },
 
-            "mouse_double_click" => new MouseClickNodeViewModel(file.Id)
-            {
-                Title = "鼠标点击",
-                X = file.X,
-                Y = file.Y,
-                OperationMode = PressReleaseMode.Click,
-                MouseButton = MouseButton.Left,
-                PositionX = Math.Abs(file.PositionX) > 0.001 ? file.PositionX : file.Number,
-                PositionY = Math.Abs(file.PositionY) > 0.001 ? file.PositionY : file.Number2,
-                HasManualPosition = ResolveManualPosition(file, Math.Abs(file.PositionX) > 0.001 ? file.PositionX : file.Number, Math.Abs(file.PositionY) > 0.001 ? file.PositionY : file.Number2),
-                TriggerCount = 2,
-                TriggerIntervalMs = 80,
-            },
-            "get_mouse_position" => CreateCommonFromFile(file, NodeKind.GetMousePosition, "获取鼠标位置"),
-            "key_chord" => new KeyChordNodeViewModel(file.Id)
+            NodeKind.GetMousePosition => CreateCommonFromFile(file, NodeKind.GetMousePosition),
+            NodeKind.KeyChord => new KeyChordNodeViewModel(file.Id)
             {
                 Title = string.IsNullOrWhiteSpace(file.Title) ? "组合键" : file.Title,
                 X = file.X,
@@ -357,24 +352,24 @@ public static class NodeSerializer
                 TriggerCount = NormalizeTriggerCount(file.TriggerCount),
                 TriggerIntervalMs = NormalizeTriggerInterval(file.TriggerIntervalMs),
             },
-            "wait_image" => CreateCommonFromFile(file, NodeKind.WaitImage, "等待图片"),
-            "wait_image_disappear" => CreateCommonFromFile(file, NodeKind.WaitImageDisappear, "图片消失"),
-            "compare" => CreateCommonFromFile(file, NodeKind.Compare, "比较"),
-            "boolean_and" => CreateCommonFromFile(file, NodeKind.BooleanAnd, "布尔与"),
-            "boolean_or" => CreateCommonFromFile(file, NodeKind.BooleanOr, "布尔或"),
-            "boolean_not" => CreateCommonFromFile(file, NodeKind.BooleanNot, "布尔非"),
-            "string_concat" => CreateCommonFromFile(file, NodeKind.StringConcat, "字符串拼接"),
-            "wait_window" => CreateCommonFromFile(file, NodeKind.WaitWindow, "等待窗口"),
-            "close_window" => CreateCommonFromFile(file, NodeKind.CloseWindow, "关闭窗口"),
-            "window_exists" => CreateCommonFromFile(file, NodeKind.WindowExists, "窗口是否存在"),
-            "get_foreground_window" => CreateCommonFromFile(file, NodeKind.GetForegroundWindow, "获取前台窗口"),
-            "save_screenshot" => CreateCommonFromFile(file, NodeKind.SaveScreenshot, "截图"),
-            "show_message" => CreateCommonFromFile(file, NodeKind.ShowMessage, "弹窗提示"),
-            "function_entry" => CreateParameterNodeFromFile(new FunctionEntryNodeViewModel(file.Id), file, "函数开始"),
-            "function_return" => CreateParameterNodeFromFile(new FunctionReturnNodeViewModel(file.Id), file, "函数返回"),
-            "function_call" => CreateFunctionCallFromFile(file),
-            "custom_event" => CreateParameterNodeFromFile(new CustomEventNodeViewModel(file.Id, file.CustomEventId), file, "自定义事件"),
-            "custom_event_call" => CreateCustomEventCallFromFile(file),
+            NodeKind.WaitImage => CreateCommonFromFile(file, NodeKind.WaitImage),
+            NodeKind.WaitImageDisappear => CreateCommonFromFile(file, NodeKind.WaitImageDisappear),
+            NodeKind.Compare => CreateCommonFromFile(file, NodeKind.Compare),
+            NodeKind.BooleanAnd => CreateCommonFromFile(file, NodeKind.BooleanAnd),
+            NodeKind.BooleanOr => CreateCommonFromFile(file, NodeKind.BooleanOr),
+            NodeKind.BooleanNot => CreateCommonFromFile(file, NodeKind.BooleanNot),
+            NodeKind.StringConcat => CreateCommonFromFile(file, NodeKind.StringConcat),
+            NodeKind.WaitWindow => CreateCommonFromFile(file, NodeKind.WaitWindow),
+            NodeKind.CloseWindow => CreateCommonFromFile(file, NodeKind.CloseWindow),
+            NodeKind.WindowExists => CreateCommonFromFile(file, NodeKind.WindowExists),
+            NodeKind.GetForegroundWindow => CreateCommonFromFile(file, NodeKind.GetForegroundWindow),
+            NodeKind.SaveScreenshot => CreateCommonFromFile(file, NodeKind.SaveScreenshot),
+            NodeKind.ShowMessage => CreateCommonFromFile(file, NodeKind.ShowMessage),
+            NodeKind.FunctionEntry => CreateParameterNodeFromFile(new FunctionEntryNodeViewModel(file.Id), file, NodePresentationCatalog.Get(NodeKind.FunctionEntry).DisplayName),
+            NodeKind.FunctionReturn => CreateParameterNodeFromFile(new FunctionReturnNodeViewModel(file.Id), file, NodePresentationCatalog.Get(NodeKind.FunctionReturn).DisplayName),
+            NodeKind.FunctionCall => CreateFunctionCallFromFile(file),
+            NodeKind.CustomEvent => CreateParameterNodeFromFile(new CustomEventNodeViewModel(file.Id, file.CustomEventId), file, NodePresentationCatalog.Get(NodeKind.CustomEvent).DisplayName),
+            NodeKind.CustomEventCall => CreateCustomEventCallFromFile(file),
 
             _ => null,
         };
@@ -393,8 +388,10 @@ public static class NodeSerializer
 
     private static bool IsDiscardedNodeType(string? nodeTypeKey) =>
         nodeTypeKey is "mouse_drag" or "input_text" or "key_sequence" or
-            "click_image_center" or "set_variable" or "comment" or
-            "macro_entry" or "macro_output" or "macro_call";
+            "click_image_center" or "set_variable" or
+            "macro_entry" or "macro_output" or "macro_call" ||
+        NodeDescriptorCatalog.TryFromTypeKey(nodeTypeKey, out var kind) &&
+        !NodeDescriptorCatalog.Get(kind).HasSerializer;
 
     public static GraphRuntimeNode ToRuntimeNode(NodeBaseViewModel node)
     {
@@ -515,9 +512,29 @@ public static class NodeSerializer
         };
     }
 
-    private static CommonNodeViewModel CreateCommonFromFile(NodeFileModel file, NodeKind kind, string fallbackTitle)
+    private static MouseClickNodeViewModel CreateLegacyDoubleClickFromFile(NodeFileModel file)
     {
-        var node = new CommonNodeViewModel(file.Id, kind, file.NodeTypeKey, fallbackTitle)
+        double positionX = Math.Abs(file.PositionX) > 0.001 ? file.PositionX : file.Number;
+        double positionY = Math.Abs(file.PositionY) > 0.001 ? file.PositionY : file.Number2;
+        return new MouseClickNodeViewModel(file.Id)
+        {
+            Title = "鼠标点击",
+            X = file.X,
+            Y = file.Y,
+            OperationMode = PressReleaseMode.Click,
+            MouseButton = MouseButton.Left,
+            PositionX = positionX,
+            PositionY = positionY,
+            HasManualPosition = ResolveManualPosition(file, positionX, positionY),
+            TriggerCount = 2,
+            TriggerIntervalMs = 80,
+        };
+    }
+
+    private static CommonNodeViewModel CreateCommonFromFile(NodeFileModel file, NodeKind kind)
+    {
+        string fallbackTitle = NodePresentationCatalog.Get(kind).DisplayName;
+        var node = new CommonNodeViewModel(file.Id, kind, NodeDescriptorCatalog.Get(kind).TypeKey, fallbackTitle)
         {
             Title = string.IsNullOrWhiteSpace(file.Title) ? fallbackTitle : file.Title,
             X = file.X,

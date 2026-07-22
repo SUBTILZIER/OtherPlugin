@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using AutomationStudioWpf.Graph;
 using WpfButton = System.Windows.Controls.Button;
 using WpfComboBox = System.Windows.Controls.ComboBox;
@@ -56,14 +57,34 @@ public sealed partial class InspectorController
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(24) });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(24) });
 
-        var nameBox = new WpfTextBox { Text = parameter.Name, Margin = new Thickness(0, 0, 4, 0) };
+        var nameEdit = new ParameterNameEditContext(node, parameter);
+        var nameBox = new WpfTextBox
+        {
+            Text = parameter.Name,
+            Margin = new Thickness(0, 0, 4, 0),
+            Tag = nameEdit,
+        };
         nameBox.TextChanged += (_, _) =>
         {
             if (_isLoading) return;
-            parameter.Name = nameBox.Text;
-            node.SyncPins();
-            _editorService.RebindConnectionsToCurrentPins();
-            _markDirty();
+            node.PreviewParameterName(parameter, nameBox.Text);
+        };
+        nameBox.LostFocus += (_, _) => CommitParameterName(nameEdit, nameBox);
+        nameBox.PreviewKeyDown += (_, e) =>
+        {
+            if (e.Key == Key.Enter)
+            {
+                CommitParameterName(nameEdit, nameBox);
+                Keyboard.ClearFocus();
+                e.Handled = true;
+            }
+            else if (e.Key == Key.Escape)
+            {
+                node.PreviewParameterName(parameter, nameEdit.CommittedName);
+                nameBox.Text = nameEdit.CommittedName;
+                nameBox.SelectAll();
+                e.Handled = true;
+            }
         };
         row.Children.Add(nameBox);
 
@@ -119,6 +140,40 @@ public sealed partial class InspectorController
         });
 
         return row;
+    }
+
+    private void CommitParameterName(ParameterNameEditContext edit, WpfTextBox nameBox)
+    {
+        string normalized = nameBox.Text.Trim();
+        if (!string.IsNullOrWhiteSpace(normalized) && edit.Node.RenameParameter(edit.Parameter, normalized))
+            _markDirty();
+
+        edit.CommittedName = edit.Parameter.Name;
+        edit.Node.PreviewParameterName(edit.Parameter, edit.CommittedName);
+
+        if (!string.Equals(nameBox.Text, edit.CommittedName, StringComparison.Ordinal))
+            nameBox.Text = edit.CommittedName;
+    }
+
+    private void CommitPendingParameterNames(ParameterNodeBaseViewModel node)
+    {
+        foreach (Grid row in _parameterRowsPanel.Children.OfType<Grid>())
+        {
+            WpfTextBox? nameBox = row.Children
+                .OfType<WpfTextBox>()
+                .FirstOrDefault(textBox => textBox.Tag is ParameterNameEditContext);
+            if (nameBox?.Tag is ParameterNameEditContext edit && ReferenceEquals(edit.Node, node))
+                CommitParameterName(edit, nameBox);
+        }
+    }
+
+    private sealed class ParameterNameEditContext(
+        ParameterNodeBaseViewModel node,
+        GraphParameterDefinition parameter)
+    {
+        public ParameterNodeBaseViewModel Node { get; } = node;
+        public GraphParameterDefinition Parameter { get; } = parameter;
+        public string CommittedName { get; set; } = parameter.Name;
     }
 
     private UIElement CreateCallInputRow(NodeBaseViewModel node, GraphParameterDefinition parameter)

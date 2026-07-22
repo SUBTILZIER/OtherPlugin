@@ -11,6 +11,7 @@ public sealed class PinViewModel : ObservableObject
 
     private bool _hasConnection;
     private Point _anchorPoint;
+    private string _displayName;
 
     public PinViewModel(
         NodeBaseViewModel owner,
@@ -22,7 +23,7 @@ public sealed class PinViewModel : ObservableObject
     {
         Owner = owner;
         Name = name;
-        DisplayName = displayName;
+        _displayName = displayName;
         Direction = direction;
         Kind = kind;
         ExecutionRole = executionRole;
@@ -33,7 +34,11 @@ public sealed class PinViewModel : ObservableObject
 
     public NodeBaseViewModel Owner { get; }
     public string Name { get; }
-    public string DisplayName { get; }
+    public string DisplayName
+    {
+        get => _displayName;
+        private set => SetProperty(ref _displayName, value);
+    }
     public PinDirection Direction { get; }
     public PinKind Kind { get; }
     public ExecutionPinRole ExecutionRole { get; }
@@ -62,6 +67,8 @@ public sealed class PinViewModel : ObservableObject
         get => _anchorPoint;
         set => SetProperty(ref _anchorPoint, value);
     }
+
+    internal void UpdateDisplayName(string displayName) => DisplayName = displayName;
 
     public string KindLabel => Kind switch
     {

@@ -127,40 +127,12 @@ public partial class MainWindow
 
     private void OpenGraph_ClickThemed(object sender, WpfRoutedEventArgs e)
     {
-        var dialog = new Microsoft.Win32.OpenFileDialog
-        {
-            Title = "外部导入",
-            Filter = "图谱文件 (*.json)|*.json|所有文件(*.*)|*.*",
-            InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.Desktop),
-        };
-
-        if (dialog.ShowDialog(this) != true)
-            return;
-
-        try
-        {
-            _graphListController.ImportFile(dialog.FileName);
-        }
-        catch (Exception ex)
-        {
-            ThemedDialog.Show(this, ex.Message, "打开失败", MessageBoxButton.OK, MessageBoxImage.Error);
-        }
+        ImportExternalGraph();
     }
 
     private async void RunGraph_ClickThemed(object sender, WpfRoutedEventArgs e)
     {
-        if (!EnsureCompiledBeforeRunThemed())
-            return;
-
-        var activeSessionController = _activeEditorSession is null ? _activeAssetController : GetSessionActiveAssetController(_activeEditorSession);
-        if (_activeContentAsset?.Kind != ContentAssetKind.Script || !ReferenceEquals(activeSessionController, _graphListController))
-        {
-            ThemedDialog.Show(this, "只有脚本里的事件图可以直接执行。请从内容浏览器打开脚本，并进入事件图。", "不能执行", MessageBoxButton.OK, MessageBoxImage.Information);
-            return;
-        }
-
-        CommitInspectorAndSnapshotAllSessions();
-        await _executionController.RunAsync();
+        await RunActiveScriptFromToolbarAsync();
     }
 
     private bool EnsureCompiledBeforeSaveThemed()
@@ -183,11 +155,6 @@ public partial class MainWindow
         if (result == MessageBoxResult.Yes)
             return CompileAllAssets(showPrompt: false);
         return true;
-    }
-
-    private bool EnsureCompiledBeforeRunThemed()
-    {
-        return EnsureCompiledBeforeRun();
     }
 
     private void GraphListBox_ThemedKeyDown(GraphListController controller, WpfListBox listBox, WpfKeyEventArgs e)

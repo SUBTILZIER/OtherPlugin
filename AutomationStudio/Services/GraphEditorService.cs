@@ -173,21 +173,29 @@ public sealed class GraphEditorService
 
         foreach (var nodeFile in file.Nodes)
         {
+            if (string.IsNullOrWhiteSpace(nodeFile.Id) || nodesById.ContainsKey(nodeFile.Id))
+            {
+                Logger.Error($"图表包含空或重复节点 ID，已跳过后续重复项：{nodeFile.Id}");
+                continue;
+            }
             var node = NodeSerializer.FromFileModel(nodeFile);
             if (node is null) continue;
 
             AddNodeCore(node, file.AssetKind);
-            nodesById[node.Id] = node;
+            nodesById.Add(node.Id, node);
         }
 
+        var ignoredNodeIds = new HashSet<string>(StringComparer.Ordinal);
+        bool addedFunctionBoundary = file.AssetKind == GraphAssetKind.Function &&
+                                     EnsureFunctionBoundaryNodes(file.Name, nodesById, ignoredNodeIds);
         bool isAuxiliaryEvent = file.AssetKind == GraphAssetKind.EventGraph &&
                                 file.EntryRole == GraphEntryRole.AuxiliaryEvent;
-        var removedAuxiliaryStartIds = new HashSet<string>(StringComparer.Ordinal);
         if (isAuxiliaryEvent)
         {
             foreach (var startNode in Nodes.Where(node => node.NodeKind == NodeKind.Start).ToList())
             {
-                removedAuxiliaryStartIds.Add(startNode.Id);
+                ignoredNodeIds.Add(startNode.Id);
+                UnsubscribeNode(startNode);
                 Nodes.Remove(startNode);
                 nodesById.Remove(startNode.Id);
             }
@@ -211,13 +219,23 @@ public sealed class GraphEditorService
             Nodes.Insert(0, startNode);
             nodesById[startNode.Id] = startNode;
         }
+        else if (file.AssetKind == GraphAssetKind.EventGraph)
+        {
+            foreach (var duplicate in Nodes.Where(node => node.NodeKind == NodeKind.Start).Skip(1).ToList())
+            {
+                ignoredNodeIds.Add(duplicate.Id);
+                nodesById.Remove(duplicate.Id);
+                UnsubscribeNode(duplicate);
+                Nodes.Remove(duplicate);
+            }
+        }
 
         EnsureNodeNumbers(file.AssetKind);
 
         foreach (var connFile in file.Connections)
         {
-            if (removedAuxiliaryStartIds.Contains(connFile.SourceNodeId) ||
-                removedAuxiliaryStartIds.Contains(connFile.TargetNodeId))
+            if (ignoredNodeIds.Contains(connFile.SourceNodeId) ||
+                ignoredNodeIds.Contains(connFile.TargetNodeId))
             {
                 continue;
             }
@@ -238,7 +256,109 @@ public sealed class GraphEditorService
             }
         }
 
+        if (addedFunctionBoundary &&
+            file.AssetKind == GraphAssetKind.Function &&
+            Nodes.Count == 2 &&
+            Connections.Count == 0)
+        {
+            var entry = Nodes.OfType<FunctionEntryNodeViewModel>().Single();
+            var ret = Nodes.OfType<FunctionReturnNodeViewModel>().Single();
+            Connections.Add(new ConnectionViewModel(
+                entry.OutputPins.First(pin => pin.Name == "exec_out"),
+                ret.InputPins.First(pin => pin.Name == "exec_in")));
+        }
+
         RaiseGraphChanged();
+    }
+
+    private bool EnsureFunctionBoundaryNodes(
+        string graphName,
+        Dictionary<string, NodeBaseViewModel> nodesById,
+        ISet<string> ignoredNodeIds)
+    {
+        var entries = Nodes.OfType<FunctionEntryNodeViewModel>().ToList();
+        var returns = Nodes.OfType<FunctionReturnNodeViewModel>().ToList();
+        var repairs = new List<string>();
+
+        RemoveDuplicateFunctionBoundaryNodes(entries.Skip(1), nodesById, ignoredNodeIds, repairs, "函数开始");
+        RemoveDuplicateFunctionBoundaryNodes(returns.Skip(1), nodesById, ignoredNodeIds, repairs, "函数返回");
+
+        bool addedBoundary = false;
+        var entry = entries.FirstOrDefault();
+        var ret = returns.FirstOrDefault();
+        double boundaryY = entry?.Y ?? ret?.Y ?? Nodes.FirstOrDefault()?.Y ?? 210;
+
+        if (entry is null)
+        {
+            entry = new FunctionEntryNodeViewModel(CreateUniqueNodeId(nodesById))
+            {
+                Title = "函数开始",
+                X = Nodes.Count == 0 ? 80 : Nodes.Min(node => node.X) - 340,
+                Y = boundaryY,
+            };
+            AssignNodeNumber(entry, GraphAssetKind.Function);
+            SubscribeNode(entry);
+            Nodes.Insert(0, entry);
+            nodesById.Add(entry.Id, entry);
+            repairs.Add("补回函数开始");
+            addedBoundary = true;
+        }
+
+        if (ret is null)
+        {
+            ret = new FunctionReturnNodeViewModel(CreateUniqueNodeId(nodesById))
+            {
+                Title = "函数返回",
+                X = Nodes.Count == 1 ? 420 : Nodes.Max(node => node.X) + 340,
+                Y = boundaryY,
+            };
+            AddNodeCore(ret, GraphAssetKind.Function);
+            nodesById.Add(ret.Id, ret);
+            repairs.Add("补回函数返回");
+            addedBoundary = true;
+        }
+
+        if (repairs.Count > 0)
+        {
+            Logger.Warn($"函数图“{graphName}”结构已修复：{string.Join("；", repairs)}。函数开始和函数返回为必需节点，不可删除。");
+        }
+
+        return addedBoundary;
+    }
+
+    private void RemoveDuplicateFunctionBoundaryNodes<TNode>(
+        IEnumerable<TNode> duplicates,
+        IDictionary<string, NodeBaseViewModel> nodesById,
+        ISet<string> ignoredNodeIds,
+        ICollection<string> repairs,
+        string nodeName)
+        where TNode : NodeBaseViewModel
+    {
+        int removedCount = 0;
+        foreach (var duplicate in duplicates.ToList())
+        {
+            ignoredNodeIds.Add(duplicate.Id);
+            nodesById.Remove(duplicate.Id);
+            UnsubscribeNode(duplicate);
+            Nodes.Remove(duplicate);
+            removedCount++;
+        }
+
+        if (removedCount > 0)
+            repairs.Add($"移除重复{nodeName} {removedCount} 个");
+    }
+
+    private static string CreateUniqueNodeId(IReadOnlyDictionary<string, NodeBaseViewModel> nodesById)
+    {
+        int ordinal = 1;
+        string id;
+        do
+        {
+            id = $"node_{ordinal++:000}";
+        }
+        while (nodesById.ContainsKey(id));
+
+        return id;
     }
 
     public void ClearGraph()
@@ -288,12 +408,25 @@ public sealed class GraphEditorService
 
     public void AddNode(NodeBaseViewModel node)
     {
+        if (node.NodeKind is NodeKind.FunctionEntry or NodeKind.FunctionReturn &&
+            Nodes.Any(existing => existing.NodeKind == node.NodeKind))
+        {
+            StatusChanged?.Invoke($"{node.Title} 是函数图唯一的结构节点，不能重复添加。");
+            return;
+        }
+
         AddNodeCore(node, CurrentAssetKind);
         RaiseGraphChanged();
     }
 
     public void RemoveNode(NodeBaseViewModel node)
     {
+        if (!node.CanDelete)
+        {
+            StatusChanged?.Invoke($"{node.Title} 是图谱必需节点，不能删除。");
+            return;
+        }
+
         RunBatchedEdit(() =>
         {
             // 移除相关连接
@@ -316,6 +449,9 @@ public sealed class GraphEditorService
         RunBatchedEdit(() =>
         {
             var toDelete = Nodes.Where(n => n.IsSelected && n.CanDelete).ToList();
+            if (toDelete.Count == 0 && Nodes.Any(node => node.IsSelected && !node.CanDelete))
+                StatusChanged?.Invoke("选中的节点是图谱必需节点，不能删除。");
+
             foreach (var node in toDelete)
             {
                 RemoveNode(node);
@@ -657,7 +793,9 @@ public sealed class GraphEditorService
         if (Connections.Count == 0)
             return;
 
-        var nodesById = Nodes.ToDictionary(node => node.Id, StringComparer.Ordinal);
+        var nodesById = Nodes
+            .GroupBy(node => node.Id, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
         var rebound = new List<ConnectionViewModel>();
         foreach (var connection in Connections.ToList())
         {

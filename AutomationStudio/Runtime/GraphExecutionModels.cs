@@ -115,7 +115,15 @@ public sealed record GraphRuntimeConnection(
     PinKind TargetPinKind);
 
 public sealed record RuntimeAssetLibrary(
-    IReadOnlyDictionary<string, GraphExecutionPlan> Functions);
+    IReadOnlyDictionary<string, GraphExecutionPlan> Functions,
+    IReadOnlyDictionary<string, RuntimeCustomEventTarget> CustomEvents);
+
+public sealed record RuntimeCustomEventTarget(
+    string Id,
+    string Name,
+    string GraphId,
+    GraphExecutionPlan Plan,
+    string EntryNodeId);
 
 public sealed record GraphRuntimeParameter(
     string Id,

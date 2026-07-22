@@ -38,6 +38,34 @@ public abstract class ParameterNodeBaseViewModel : NodeBaseViewModel
         SyncPins();
     }
 
+    public bool RenameParameter(GraphParameterDefinition parameter, string name)
+    {
+        if (!Parameters.Contains(parameter))
+            return false;
+
+        string normalized = name.Trim();
+        if (string.IsNullOrWhiteSpace(normalized))
+            return false;
+
+        bool changed = !string.Equals(parameter.Name, normalized, StringComparison.Ordinal);
+        if (changed)
+            parameter.Name = normalized;
+
+        PreviewParameterName(parameter, parameter.Name);
+
+        return changed;
+    }
+
+    internal void PreviewParameterName(GraphParameterDefinition parameter, string name)
+    {
+        if (!Parameters.Contains(parameter))
+            return;
+
+        string displayName = string.IsNullOrWhiteSpace(name) ? parameter.Name : name.Trim();
+        foreach (PinViewModel pin in InputPins.Concat(OutputPins).Where(pin => pin.Name == parameter.Id))
+            pin.UpdateDisplayName(displayName);
+    }
+
     public abstract void SyncPins();
 }
 
@@ -51,6 +79,7 @@ public sealed class FunctionEntryNodeViewModel : ParameterNodeBaseViewModel
 
     public override NodeKind NodeKind => NodeKind.FunctionEntry;
     public override string NodeTypeKey => "function_entry";
+    public override bool CanDelete => false;
 
     public override void RefreshDescription() => Description = $"输入参数 {Parameters.Count} 个";
 
@@ -75,6 +104,7 @@ public sealed class FunctionReturnNodeViewModel : ParameterNodeBaseViewModel
 
     public override NodeKind NodeKind => NodeKind.FunctionReturn;
     public override string NodeTypeKey => "function_return";
+    public override bool CanDelete => false;
 
     public override void RefreshDescription() => Description = $"输出参数 {Parameters.Count} 个";
 
@@ -132,7 +162,9 @@ internal static class CallNodeParameterSync
         IEnumerable<GraphParameterDefinition> signature,
         bool preserveDefaultValue)
     {
-        var oldById = target.ToDictionary(parameter => parameter.Id, StringComparer.Ordinal);
+        var oldById = target
+            .GroupBy(parameter => parameter.Id, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
         target.Clear();
         foreach (var parameter in signature)
         {

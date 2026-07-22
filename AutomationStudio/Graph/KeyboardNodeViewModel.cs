@@ -2,7 +2,7 @@ namespace AutomationStudioWpf.Graph;
 
 public sealed class KeyboardNodeViewModel : InputNodeBase
 {
-    private string _key = "A";
+    private string _key = string.Empty;
 
     public KeyboardNodeViewModel(string id) : base(id, "键盘输入")
     {

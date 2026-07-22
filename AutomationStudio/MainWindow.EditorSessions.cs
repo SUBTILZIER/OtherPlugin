@@ -16,8 +16,6 @@ namespace AutomationStudioWpf;
 public partial class MainWindow
 {
     private UIElement? _emptyEditorPanelDefaultChild;
-    private EditorSessionViewModel? _lastMainEditorSession;
-
     private void EditorSessionTab_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         if (FindAncestor<WpfButton>(e.OriginalSource as DependencyObject) is not null)

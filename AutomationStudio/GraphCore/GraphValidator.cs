@@ -12,6 +12,13 @@ public enum GraphValidationSeverity
 
 public sealed record GraphValidationIssue(GraphValidationSeverity Severity, string Message);
 
+internal enum GraphPlanEntryKind
+{
+    MainEvent,
+    Function,
+    CustomEvent,
+}
+
 public sealed class GraphValidationResult
 {
     public GraphValidationResult(IReadOnlyList<GraphValidationIssue> issues)
@@ -27,20 +34,54 @@ public sealed class GraphValidationResult
 public sealed class GraphValidator
 {
     public GraphValidationResult Validate(GraphExecutionPlan plan)
+        => Validate(plan, GraphPlanEntryKind.MainEvent);
+
+    internal GraphValidationResult Validate(GraphExecutionPlan plan, GraphPlanEntryKind entryKind)
     {
         var issues = new List<GraphValidationIssue>();
-        ValidateStartNodes(plan, issues);
+        ValidateEntryNodes(plan, entryKind, issues);
         ValidateDuplicateNodeIds(plan, issues);
         ValidateNodeNumbers(plan, issues);
         ValidateConnectionEndpoints(plan, issues);
         ValidateConnectionTypes(plan, issues);
         ValidateConnectionMultiplicity(plan, issues);
         ValidateMultiThreadNodes(plan, issues);
-        ValidateExecutionReachability(plan, issues);
+        if (entryKind == GraphPlanEntryKind.MainEvent &&
+            plan.Nodes.Count(node => node.NodeKind == NodeKind.Start) == 1 &&
+            plan.Nodes.Select(node => node.Id).Distinct(StringComparer.Ordinal).Count() == plan.Nodes.Count)
+        {
+            ValidateExecutionReachability(plan, issues);
+        }
         ValidateToDoTargets(plan, issues);
         ValidateRequiredParameters(plan, issues);
         ValidateHighRiskRuntimeInputs(plan, issues);
         return new GraphValidationResult(issues);
+    }
+
+    private static void ValidateEntryNodes(
+        GraphExecutionPlan plan,
+        GraphPlanEntryKind entryKind,
+        List<GraphValidationIssue> issues)
+    {
+        if (entryKind == GraphPlanEntryKind.MainEvent)
+        {
+            ValidateStartNodes(plan, issues);
+            return;
+        }
+
+        if (entryKind == GraphPlanEntryKind.Function)
+        {
+            int entryCount = plan.Nodes.Count(node => node.NodeKind == NodeKind.FunctionEntry);
+            int returnCount = plan.Nodes.Count(node => node.NodeKind == NodeKind.FunctionReturn);
+            if (entryCount != 1)
+                issues.Add(Error($"函数图必须有且只有一个函数开始节点（当前 {entryCount} 个）。"));
+            if (returnCount != 1)
+                issues.Add(Error($"函数图必须有且只有一个函数返回节点（当前 {returnCount} 个）。"));
+            return;
+        }
+
+        if (!plan.Nodes.Any(node => node.NodeKind == NodeKind.CustomEvent))
+            issues.Add(Error("辅助事件图缺少自定义事件入口。"));
     }
 
     private static void ValidateStartNodes(GraphExecutionPlan plan, List<GraphValidationIssue> issues)
@@ -128,7 +169,7 @@ public sealed class GraphValidator
 
     private static void ValidateExecutionReachability(GraphExecutionPlan plan, List<GraphValidationIssue> issues)
     {
-        GraphRuntimeNode? start = plan.Nodes.SingleOrDefault(node => node.NodeKind == NodeKind.Start);
+        GraphRuntimeNode? start = plan.Nodes.FirstOrDefault(node => node.NodeKind == NodeKind.Start);
         if (start is null)
             return;
 
@@ -145,7 +186,9 @@ public sealed class GraphValidator
             .Where(connection => connection.SourcePinKind == PinKind.Execution && connection.TargetPinKind == PinKind.Execution)
             .GroupBy(connection => connection.SourceNodeId)
             .ToDictionary(group => group.Key, group => group.ToList(), StringComparer.Ordinal);
-        var nodesById = plan.Nodes.ToDictionary(node => node.Id, StringComparer.Ordinal);
+        var nodesById = plan.Nodes
+            .GroupBy(node => node.Id, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
 
         while (queue.Count > 0)
         {

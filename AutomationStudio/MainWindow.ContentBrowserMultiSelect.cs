@@ -552,11 +552,18 @@ public partial class MainWindow
             return;
 
         var affectedAssets = new List<ContentAssetViewModel>();
-        foreach (var source in topLevelSources)
+        if (copy)
         {
-            if (copy)
-                affectedAssets.Add(CloneContentAssetDeep(source, targetFolderId));
-            else
+            var result = TryCloneContentAssets(topLevelSources, targetFolderId);
+            if (result is null)
+                return;
+            foreach (var clone in result.AllClones)
+                ContentBrowserItems.Add(clone);
+            affectedAssets.AddRange(result.RootClones);
+        }
+        else
+        {
+            foreach (var source in topLevelSources)
             {
                 MoveContentAsset(source, targetFolderId);
                 affectedAssets.Add(source);
@@ -706,21 +713,6 @@ public partial class MainWindow
         FocusContentRenameTextBox(item);
     }
 
-    private ContentAssetViewModel CloneContentAssetDeep(ContentAssetViewModel source, string? targetFolderId)
-    {
-        var clone = CreateContentAsset(source.Kind, CreateUniqueContentName($"{source.Name}_Copy", targetFolderId));
-        clone.ParentFolderId = targetFolderId;
-        clone.EventGraphs = new(source.EventGraphs.Select(CloneGraphItem));
-        clone.Functions = new(source.Functions.Select(CloneGraphItem));
-        clone.IsDirty = true;
-        ContentBrowserItems.Add(clone);
-
-        foreach (var child in ContentBrowserItems.Where(item => item.ParentFolderId == source.Id).ToList())
-            CloneContentAssetDeep(child, clone.Id);
-
-        return clone;
-    }
-
     private void CopySelectedContentAssets()
     {
         _contentClipboardAssets = GetTopLevelContentAssets(GetSelectedContentAssetList());
@@ -734,9 +726,12 @@ public partial class MainWindow
         if (_contentClipboardAssets.Count == 0)
             return;
 
-        var pastedAssets = new List<ContentAssetViewModel>();
-        foreach (var asset in GetTopLevelContentAssets(_contentClipboardAssets))
-            pastedAssets.Add(CloneContentAssetDeep(asset, _currentContentFolderId));
+        var result = TryCloneContentAssets(GetTopLevelContentAssets(_contentClipboardAssets), _currentContentFolderId);
+        if (result is null)
+            return;
+        foreach (var clone in result.AllClones)
+            ContentBrowserItems.Add(clone);
+        var pastedAssets = result.RootClones.ToList();
 
         RefreshContentBrowserViews();
         SelectVisibleContentAssets(pastedAssets);

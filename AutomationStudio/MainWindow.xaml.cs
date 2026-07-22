@@ -10,6 +10,7 @@ using System.Windows.Threading;
 using AutomationStudioWpf.Collections;
 using AutomationStudioWpf.Controls;
 using AutomationStudioWpf.Graph;
+using AutomationStudioWpf.GraphCore;
 using AutomationStudioWpf.Interaction;
 using AutomationStudioWpf.Logging;
 using AutomationStudioWpf.Nodes;
@@ -36,21 +37,39 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     // 核心服务
     private GraphEditorService _editorService = new();
     private readonly NodeClipboardService _clipboardService = new();
+    private readonly AssetCloneService _assetCloneService = new();
     private NodeFactory _nodeFactory = new();
     private readonly GraphLibraryService _graphLibraryService = new();
     private readonly CallableGraphResolver _callableGraphResolver = new();
+    private readonly CustomEventResolver _customEventResolver = new();
     private readonly GraphCompileService _graphCompileService;
+    private readonly WorkspaceCommitService _workspaceCommitService;
+    private readonly WorkspacePersistenceService _workspacePersistenceService;
+    private readonly WorkspaceReadModelService _workspaceReadModelService;
+    private readonly AssetCompileCoordinator _assetCompileCoordinator;
+    private readonly ScriptExecutionCoordinator _scriptExecutionCoordinator;
+    private readonly FinalCodePreviewService _finalCodePreviewService = new();
     private readonly PythonEnvironmentService _pythonEnvironmentService = new();
     private readonly NodeRegistry _nodeRegistry = NodeRegistry.CreateDefault();
     private readonly Adapters.RuntimeAdapters _runtimeAdapters;
     private readonly Runtime.GraphRuntimeExecutor _runtimeExecutor;
-    private readonly ObservableCollection<EditorSessionViewModel> _editorSessions = [];
-    private readonly ObservableCollection<EditorSessionViewModel> _mainEditorSessions = [];
+    private readonly EditorWorkspace _workspace = new();
     private readonly ObservableCollection<GraphListItemViewModel> _emptyGraphListItems = [];
     private readonly ObservableCollection<GraphListItemViewModel> _emptyFunctionListItems = [];
     private readonly ObservableCollection<NodeBaseViewModel> _emptyNodes = [];
     private readonly ObservableCollection<ConnectionPathViewModel> _emptyConnectionPaths = [];
-    private EditorSessionViewModel? _activeEditorSession;
+    private ObservableCollection<EditorSessionViewModel> _editorSessions => _workspace.Sessions;
+    private ObservableCollection<EditorSessionViewModel> _mainEditorSessions => _workspace.MainSessions;
+    private EditorSessionViewModel? _activeEditorSession
+    {
+        get => _workspace.ActiveSession;
+        set => _workspace.ActiveSession = value;
+    }
+    private EditorSessionViewModel? _lastMainEditorSession
+    {
+        get => _workspace.LastMainSession;
+        set => _workspace.LastMainSession = value;
+    }
     private GraphEditorService? _attachedEditorService;
     private EditorSessionViewModel? _draggedEditorSession;
     private Point _editorSessionDragStart;
@@ -111,9 +130,34 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         LoadAppSettings();
         DataContext = this;
         _graphCompileService = new GraphCompileService(_callableGraphResolver);
-        _runtimeAdapters = new Adapters.RuntimeAdapters(_pythonEnvironmentService);
+        var wpfRuntimeUi = new WpfRuntimeUiAdapter(this);
+        _pythonEnvironmentService.SetNotificationSink(wpfRuntimeUi);
+        _runtimeAdapters = new Adapters.RuntimeAdapters(_pythonEnvironmentService, wpfRuntimeUi);
         _runtimeExecutor = new Runtime.GraphRuntimeExecutor(_runtimeAdapters, _nodeRegistry);
         InitializeComponent();
+        _workspaceCommitService = new WorkspaceCommitService(GetSessionActiveAssetController);
+        _workspaceReadModelService = new WorkspaceReadModelService(() => ContentBrowserItems);
+        _workspacePersistenceService = new WorkspacePersistenceService(
+            _graphLibraryService,
+            () => ContentBrowserItems,
+            () => _activeContentAsset?.Id,
+            () =>
+            {
+                if (_scriptHotkeyService is not null)
+                    RefreshScriptHotkeys();
+            });
+        _assetCompileCoordinator = new AssetCompileCoordinator(
+            _graphCompileService,
+            _workspaceCommitService,
+            () => _editorSessions,
+            () => _activeEditorSession,
+            () => _activeContentAsset,
+            () => ContentBrowserItems,
+            ApplyInspectorChanges);
+        _scriptExecutionCoordinator = new ScriptExecutionCoordinator(
+            () => _executionController,
+            _assetCompileCoordinator.ResolveActiveAsset,
+            PrepareActiveScriptForRun);
         Icon = WindowIconHelper.AppIcon;
         InitializeControllers();
         InitializeServices();
@@ -293,15 +337,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         bool hasEditableAsset = _activeContentAsset?.Kind is ContentAssetKind.Script or ContentAssetKind.FunctionLibrary;
         EditorActionToolbarGroup.Visibility = hasEditableAsset ? Visibility.Visible : Visibility.Collapsed;
 
-        var activeSessionController = _activeEditorSession is null
-            ? _activeAssetController
-            : GetSessionActiveAssetController(_activeEditorSession);
-        bool canRunScript = _activeContentAsset?.Kind == ContentAssetKind.Script &&
-                            ReferenceEquals(activeSessionController, _graphListController);
+        bool canRunScript = _activeContentAsset?.Kind == ContentAssetKind.Script;
         RunGraphButton.IsEnabled = canRunScript && !IsExecuting;
         RunGraphButton.ToolTip = canRunScript
-            ? "执行当前脚本事件图。"
-            : "只有脚本事件图可执行。";
+            ? "执行当前脚本的主事件图。"
+            : "只有脚本资产可执行。";
     }
 
     private void RefreshMainEditorSessions()

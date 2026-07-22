@@ -17,7 +17,7 @@
 - 多窗口 / EditorSurface：session、detached 窗口、active surface 安全规则。
 - 编译 / 保存 / 运行：session snapshot、active asset 编译、函数库保存防丢图。
 - 连线 / 路由点：`Connections` 持久化、`ConnectionPaths` 视觉路径、命中和批量更新。
-- 节点规则：执行节点/纯运算节点、多线程、ToDo、函数调用、参数默认值。
+- 节点规则：执行节点/纯运算节点、多线程、ToDo、函数调用、参数默认值、Inspector 输入焦点。
 - 稳定性 / 数据安全：多线程取消、Python 唯一环境、原子 JSON 保存、关闭顺序、有界 Undo。
 - 发布 / 安装：只读安装目录、私有 Python、崩溃报告、单实例升级 IPC、签名与 Inno 安装器。
 - 验证 / 文档门禁：构建、启动探针、Git、CodeGraph、本地-only smoke。
@@ -66,6 +66,44 @@ Runtime / Nodes / Adapters
     ├─ INodeExecutor             ← 每个节点的执行入口
     └─ Adapters                  ← 鼠标、键盘、窗口、进程、Python 能力封装
 ```
+
+### 2026-07-20：只读图工作区与编译流水线
+
+- `GraphWorkspaceSnapshotFactory` 是编译、运行依赖分析、最终代码预览的只读边界。它使用 `GraphModelCopyMapper` 显式深复制，不允许用 JSON 往返代替长期 copy mapper，也不得保留 live ViewModel 引用。
+- `GraphDependencyIndexBuilder` 每个操作周期只构建一次；函数、自定义事件、MainEvent、调用边、Python 可达性必须从同一 index 读取，禁止编译/运行/预览各自再写一套 lookup。
+- 自定义事件作用域仅限同一脚本；跨资产不可见。公开函数只允许来自函数库，不能因脚本函数误设公开标志而跨脚本暴露。
+- 编译固定顺序：`Prepare live model -> snapshot -> dependency index -> call reference sync -> 必要时重建 snapshot/index -> read-only Validate -> 成功后清 compile dirty`。
+- `GraphPreparationService` 是编译期间唯一允许自动修复 live model 的服务：入口结构、节点编号、旧数据兼容、辅助图 Start、ToDo 静态引用。修复必须标 save dirty，并返回 repair message。
+- `GraphValidationService` 只读 snapshot；禁止 `Validate*()` 内调用 `Ensure*()`、修改节点、连接或 dirty。
+- `GraphCompilePipeline` 不写磁盘。持久化由上层显式决定；编译失败不得清 compile dirty，自动修复内容仍保留 save dirty。
+- snapshot 有空/重复资产、图、节点或参数 ID 时，视为基础结构 fatal：跳过调用引用同步，先输出稳定校验错误，禁止在坏图上继续 mutation。
+- Git 跟踪的 `Tests/AutomationStudio.CoreTests` 覆盖结构归一化、依赖索引、克隆、兼容迁移和编译流水线；`Tests/CodexSmoke` 继续本地-only、不得提交。
+- `EditorWorkspace` 只拥有 `Sessions / MainSessions / ActiveSession / LastMainSession` 状态；它不执行窗口宿主迁移、编译、保存或 UI 刷新。MainWindow 中旧 session 字段名仅是该状态对象的兼容代理。
+- `WorkspaceCommitService` 是 session controller 到 `ContentAssetViewModel` 的唯一提交边界；负责应用当前 inspector、snapshot 当前图、记忆 active graph、再写回资产。它不得写磁盘。
+- `WorkspacePersistenceService` 是 `GraphLibraryService.SaveContentLibrary(...)` 的唯一真实调用点。保存失败由上层保留 dirty 并提示；成功后才允许刷新热键注册。
+- `AssetCompileCoordinator` 固定执行 commit + compile pipeline，但不持久化；编译目标优先取 active session，只有没有 session 时才回退 active content asset。
+- `ScriptExecutionCoordinator` 负责手动工具栏执行的编译前置、脚本资格检查和 `ExecutionController` 路由。MainWindow handler 只转发事件和显示主题提示，普通/主题 handler 不得各维护一套执行逻辑。
+- `NodeDescriptorCatalog` 是 `NodeKind ↔ TypeKey`、pure/exec/number/delete traits、基础 pin、创建/序列化/runtime/preview 能力的唯一核心数据源。legacy type key 只能作为 alias 读取，写出必须使用 canonical type key。
+- `NodePresentationCatalog` 单独保存显示名、菜单分类、Inspector 类型和主题语义 key；核心 descriptor 不携带 WPF 展示文案。
+- `NodeRegistry` 不再手写第二套节点定义，只把 core descriptor + presentation descriptor 适配为 `INodeDefinition`，并独立注册 executor。节点菜单只读取 `CanCreate=true` 的定义。
+- `NodeTraits`、`NodeFactory`、`NodeSerializer`、编译准备和节点菜单 type-key 解析必须复用 catalog；禁止再新增 `NodeKindFromTypeKey` switch。
+- `NodeDescriptorCoverageTests` 强制覆盖全部 `NodeKind`、canonical type key 唯一性、可创建节点 round-trip、executor/pure evaluator 能力和不可删除边界节点。
+
+### 2026-07-21：执行预检、依赖传播与操作级 ReadModel
+
+- 手动执行和全局热键执行必须统一经过 `GraphExecutionPreflightService`。即使 `compile dirty=false`，仍要检查 MainEvent、可达图、未知节点、重复 ID、坏 pin、非法连接和缺失调用目标；坏图不得通过过滤节点或 `GroupBy(...).First()` 降级运行。
+- `GraphRuntimePlanBuilder` 是 snapshot 到 runtime plan 的唯一严格入口。它返回 plan + issues，不得静默丢弃未知节点、重复节点或无效连接。
+- `GraphDependencyIndex` 同时维护正向调用边和反向 caller 边。函数库变更时，`GraphCompilePipeline` 按反向依赖闭包同步受影响调用方；同步失败时保留相关资产 `compile dirty`，不得全项目无差别清理。
+- 自定义事件 catalog 扫描同一脚本全部事件图。MainEvent 可调用辅助图事件，但禁止跨脚本调用；空事件 ID 可生成并同步明确引用，重复事件 ID 不猜目标、不静默重定向，必须阻止编译。
+- `GraphSnapshot` 不暴露内部可变 `GraphFileModel`；需要编辑副本时只能调用 `ToMutableModel()`。snapshot 创建后，live ViewModel 后续修改不得污染当前编译、预检或预览。
+- `GraphWorkspaceReadModel` 绑定“一份 snapshot + 一份 dependency index + MainEvent reachability cache”，生命周期只覆盖一次编译、运行、预览或菜单打开操作。禁止跨 UI 编辑长期缓存。
+- `GraphCompilePipelineResult` 携带同步/校验完成后的最终 read model。手动运行和热键循环直接复用该对象，禁止编译成功后再次全量 snapshot/index。
+- 执行目标在工具栏点击时固定为该 session 的 `assetId`，随后把 ID 显式传给 `ExecutionController`；不得在预检前再次读取可能已变化的 active asset。
+- 运行库和最终代码必须按可达 graph ID 收集函数。脚本调用公开库函数后，该函数调用的同库私有 helper 仍属于可达执行链，不能再按“脚本菜单可见函数”过滤掉。
+- `FinalCodePreviewService` 负责只读 plan/callable 组装；MainWindow 只提交 session、调用 service、显示窗口。生成失败不得清空上一次成功预览。
+- 节点菜单在 `Open()` 时只构建一次函数/自定义事件 catalog；搜索过滤复用该 catalog，`Close()` 后释放。禁止每次输入字符都 commit workspace 并重建两次 index。
+- MainWindow 不得直接创建 `GraphRuntimePlanBuilder`、`GraphDependencyIndexBuilder` 或 `RuntimeAssetLibrary`。相关职责分别属于 preflight、compile pipeline、preview service 和 workspace read-model service。
+- `Tests/AutomationStudio.CoreTests` 当前覆盖严格预检、结构归一化、跨图事件、反向依赖传播、编译同步及 snapshot 隔离；新增执行/编译规则必须先补定向测试。
 
 ### 2026-06-22：运行态 / 日志 / 找图补充
 
@@ -235,7 +273,8 @@ Runtime / Nodes / Adapters
 ### 0. 资产系统：事件图 / 自定义函数
 
 - `Graphs` 是旧字段，当前语义为事件图；`Functions` 保存脚本私有函数或函数库函数。
-- 函数默认包含 `FunctionEntry` 和 `FunctionReturn`，同步执行并把返回节点输入复制到调用节点输出。
+- 函数默认包含且必须始终保留唯一的 `FunctionEntry` 和 `FunctionReturn`。两者 `CanDelete=false`，所有用户删除入口和 `GraphEditorService.RemoveNode(...)` 都必须拒绝删除；加载旧图、Undo/Redo 恢复时若缺失会自动补回，若重复会归一化为一个。当前编译/运行语义只支持单入口、单返回，禁止通过节点菜单重新创建结构节点。
+- 函数调用同步执行，并把返回节点输入复制到调用节点输出。
 - 参数使用稳定 ID 作为 pin name；重命名只改显示名，不应破坏连线。
 - 参数类型第一版映射：`Boolean`、`Vector2D` 使用原生 pin，其余类型先映射为 `String`。
 
@@ -359,18 +398,19 @@ public class NodeFactory
 
 #### NodeRegistry
 统一管理节点定义和执行器注册：
-- `Definitions`：节点菜单分类、显示名、引脚定义、搜索标签和属性面板 schema key。
+- `Definitions`：由 `NodeDescriptorCatalog + NodePresentationCatalog` 生成，提供节点菜单分类、显示名、引脚、搜索标签、属性面板 schema key 和能力声明。
 - `TryGetExecutor`：Runtime 对普通能力节点按 `NodeKind` 找到对应 `INodeExecutor`。
 - `GraphRuntimeExecutor` 仍直接处理结构节点：`Start`、`Reroute`、`If`、`ForLoop`、`WhileLoop`、`MultiThread`、函数/自定义事件入口与调用节点。
-- 右键节点菜单由 `NodePaletteController` 读取 `NodeRegistry.Definitions` 生成，禁止再在 `MainWindow` 手写菜单列表。
+- 右键节点菜单由 `NodePaletteController` 读取 `NodeRegistry.Definitions.Where(CanCreate)` 生成，禁止维护 `HiddenKinds` 或在 `MainWindow` 手写菜单列表。
 
 新增节点时至少更新：
 1. `GraphTypes.NodeKind`
-2. 对应 `ViewModel`
-3. `NodeFactory.CreateNode`
+2. `NodeDescriptorCatalog` 核心能力和 `NodePresentationCatalog` 展示元数据
+3. 对应 `ViewModel` 与 `NodeFactory.CreateNode`
 4. `NodeSerializer`
-5. 对应 `INodeExecutor`
-6. `NodeRegistry.CreateDefaultDefinitions()` 和执行器注册
+5. 普通执行节点注册 `INodeExecutor`；纯节点注册 evaluator；结构节点声明 built-in runtime 支持
+6. 最终代码 emitter 或显式 fallback
+7. `NodeDescriptorCoverageTests`
 
 #### PythonEnvironmentService
 Python 环境检测与安装指引统一由共享服务负责：
@@ -404,7 +444,7 @@ public abstract class NodeBaseViewModel : ObservableObject
 
 #### 当前节点定义 (38 个)
 
-`NodeRegistry.CreateDefaultDefinitions()` 当前注册 38 个菜单/运行时定义；`NodeKind.Comment` 仍是历史残留枚举，但不在 `NodeRegistry.Definitions`，旧 `comment` 图节点由 `NodeSerializer.IsRemovedNodeType()` 丢弃。`MouseDoubleClick` 不再保留 `NodeKind`，只保留旧 `mouse_double_click` type key 读取兼容。
+`NodeDescriptorCatalog` 覆盖全部 38 个 `NodeKind`。`NodeKind.Comment` 是显式 removed descriptor：存在于能力表，但 `CanCreate=false / HasSerializer=false / RuntimeSupport=Unsupported`，旧 `comment` 文件节点仍被跳过。`MouseDoubleClick` 不再保留 `NodeKind`，只保留旧 `mouse_double_click` alias 读取兼容，保存统一写 `mouse_click`。
 
 | 节点 | NodeKind | 分类 | 引脚 |
 |------|----------|------|------|
@@ -646,9 +686,13 @@ public sealed class MyNodeViewModel : NodeBaseViewModel
 
 4. **实现执行逻辑**：普通能力节点在对应 `Nodes/<分类>/` 下实现 `INodeExecutor`；结构控制流节点才改 `GraphRuntimeExecutor`
 
-5. **注册节点**：在 `NodeRegistry.CreateDefault()` 注册 executor，在 `CreateDefaultDefinitions()` 注册显示名、分类、引脚
+5. **注册元数据**：在 `NodeDescriptorCatalog` 声明 type key/traits/pins/runtime/serializer/preview 能力，在 `NodePresentationCatalog` 声明显示名、分类、Inspector 和主题 key
 
-6. **添加属性面板**（MainWindow.xaml），字段锁定规则优先放到 `InspectorController`
+6. **注册执行能力**：普通能力节点在 `NodeRegistry.CreateDefault()` 注册 executor；结构控制流和纯节点不得为了通过覆盖测试而注册空 executor
+
+7. **添加属性面板**，字段锁定规则优先放到 `InspectorController`
+
+8. **补覆盖测试**：descriptor、serializer、runtime 和 final-code 能力必须显式声明
 
 ### 添加新的 Python 功能
 
@@ -751,8 +795,8 @@ Python 参数规则：
 - 实现仍保持“每个 backing connection 对应一个 `BezierSegment`”，否则 `ConnectionPathViewModel.FindNearestConnection(...)` 的可见曲线命中数量会错位。视觉 waypoint 被消交叉重排后，segment index 仍只用于映射同一条透明 reroute chain 的 backing connection；插入任一处的运行语义等价。紧凑、反向、蝴蝶结和多 reroute 布局必须通过本地定向回归后才能调整参数。
 
 #### NodeDefinition metadata
-- `Runtime/NodeDefinition.cs` now exposes `SearchTags`, `InspectorSchemaKey`, `DefaultValues`, and `ValidationHints`.
-- `NodeRegistry.Definition(...)` generates baseline tags from `NodeKind`, type key, category, and pin names/labels.
+- `Runtime/NodeDefinition.cs` 暴露 `SearchTags`、`InspectorSchemaKey`、traits、create/delete、runtime、preview 和 serializer 能力。
+- `NodeRegistry` 从 core/presentation descriptor 组合 `INodeDefinition`，并根据 `NodeKind`、type key、分类和 pin 生成搜索标签。
 - `NodePaletteController` search must match display name, category, type key, kind, and generated tags. Keep this path metadata-driven before adding more node families.
 
 ### 2026-06-05：事件图 / 函数画布隔离修复
@@ -1103,7 +1147,7 @@ Python 参数规则：
 - `FunctionLibrary` 是全局库；库内函数只有勾选 `公开到库` 后才会出现在其他脚本的节点搜索里。
 - `ContentAssetViewModel` 持有 `EventGraphs / Functions` 两个集合。
 - `CallableGraphItem` 是节点菜单和执行器使用的可调用函数 DTO，包含稳定 `Id`、显示名、分组名、`GraphFileModel`。
-- 事件图支持 `CustomEvent` / `CustomEventCall`。自定义事件只属于当前脚本事件图，调用节点通过 `CustomEventId` 绑定入口节点。
+- 事件图支持 `CustomEvent` / `CustomEventCall`。自定义事件作用域是当前脚本资产，可从主事件图调用辅助事件图中的入口；调用节点通过脚本级唯一 `CustomEventId` 绑定入口节点。
 
 ### UI 行为
 - 启动默认隐藏 `EditorSurfaceHostRoot`，显示 `EmptyEditorPanel`，提示从内容浏览器打开资产；打开资产后把该 session 的 `EditorSurfaceControl` 放入 host。
@@ -1126,7 +1170,7 @@ Python 参数规则：
 - 编译错误路径必须用内容浏览器完整路径：`content/父文件夹/.../资产/图`。函数库在文件夹内时报错也必须带完整层级。
 - 右键节点菜单按 `本脚本函数`、`本函数库` 或具体函数库资产名分组。
 - 库函数节点标题只显示函数名；运行时和双击跳转仍用稳定 `FunctionId`，不靠名字解析。
-- 自定义事件显示在节点菜单 `本脚本事件` 分组，只能在当前脚本事件图内调用，不跨脚本/函数库。
+- 自定义事件按所属事件图显示在节点菜单分组，可跨当前脚本的事件图调用；不得跨脚本或函数库调用。
 
 ### 重要坑点
 - 打开节点菜单前必须 `SnapshotActiveAsset()`，否则函数参数刚改完但未写回 `GraphFileModel`，调用节点会缺 pin。
@@ -1314,3 +1358,37 @@ This section is the source of truth for packaging and process-lifecycle work. Re
 - `Packaging\build-release.ps1` is the only release staging entry. It checks `git diff --check`, fixed vendor hashes, no `bin/obj/Tests/.cache/PDB/pyc` in stage, and unsigned naming/manifest consistency.
 - `Packaging\verify-release.ps1` is local-only and ignored by Git. It validates private Python, repeated startup single-instance behavior, `--shutdown-for-update`, no private Python residue, and uninstall. It must refuse to touch an existing installation unless explicitly extended for a controlled test.
 - Current machine Defender is unavailable (`0x800106ba`); this is not a pass. Final release requires a clean Windows 10/11 x64 VM with offline install, read-only install directory, Chinese/space paths, upgrade cancellation, and Defender checks.
+
+## 2026-07-20：图结构与调用完整性
+
+- `GraphStructureNormalizer` 是资产模型结构修复入口：脚本至少一个主事件图；主图恰好一个 `Start`；辅助图没有 `Start`；函数恰好一个 `FunctionEntry` 和一个 `FunctionReturn`。修复必须同步清理被删除边界节点的连线并保留 dirty/compile-dirty。
+- 新建脚本本地函数和函数库函数必须统一走 `GraphStructureNormalizer.CreateFunctionGraph()`，初始模型固定包含一个不可删除的 `FunctionEntry`、一个不可删除的 `FunctionReturn` 及默认执行连线；禁止再通过临时清空 live `GraphEditorService` 来生成默认模型。
+- `GraphListController.Load()` 必须先把目标写入 `ActiveItem`，再调用 `LoadFromModel()`。加载过程会同步触发 `GraphChanged`，若顺序反转，auto-fit 会记录旧图或空图，使新函数节点实际存在但落在当前视口之外。
+- 图表加载属于导航，不得隐式持久化。图表新增/重命名/删除等真实变更需要持久化时，host callback 必须先提交 owning session，再写资产库，避免本地函数只存在于 session 集合而未进入 `ContentAssetViewModel`。
+- 自定义事件 ID 在脚本资产内唯一。节点菜单、编译引用同步、运行时和最终代码预览必须统一使用 `CustomEventResolver`，禁止重新退化为只扫描当前图。
+- 工具栏“执行脚本”始终执行脚本 `MainEvent`，与用户当前查看主图、辅助图或脚本私有函数无关；当前画布不得被隐式切换。
+- Python 依赖检查必须递归遍历主图可达的函数和自定义事件；只检查主图会让函数内找图在运行时才失败。
+- `GraphValidator` 对坏图必须是 total function：重复 Start、节点 ID、图表 ID、资产 ID、参数 ID只能生成校验错误，不能由 `Single/ToDictionary` 抛异常。
+- 资产复制统一走 `AssetCloneService`：先建立全部图表 ID 映射，再复制模型并重写内部 `FunctionId`。复制脚本继承运行设置但默认禁用，避免热键冲突。
+- “外部导入”按 `GraphAssetKind` 路由；事件图不能进入函数库。无 active 资产时按图类型创建脚本/函数库。“另存为”仅导出外部文件，不得清除内部资产 dirty。
+- 新建键盘节点没有默认真实按键；空按键只能 warning 并跳过。滚轮 `ScrollDuration=0` 表示无限并必须跨保存保留。`GetCursorPos` 失败不能伪装为成功坐标 `(0,0)`。
+- 内容目录索引必须防父级环；For 提前结束时日志和结果使用实际执行次数。
+
+## 2026-07-20：架构收口 Phase 7/8
+
+- Runtime/Nodes 不得直接依赖 WPF。运行时消息通过 `IRuntimeUiAdapter`，Python 环境诊断通过 `IUserNotificationSink`；WPF 层的 `WpfRuntimeUiAdapter` 负责 owner、主题和 Dispatcher，CoreTests 使用 null adapter。
+- Inspector 已支持 provider 边界：`InspectorViewModel` + `INodeInspectorProvider` 负责结构化字段；已迁移通用纯节点、输入节点和基础控制流节点。复杂文件选择、窗口枚举、ToDo/参数动态编辑仍走旧面板，迁移时同一 `NodeKind` 只能保留一条生效路径。
+- GraphLibrary 持久化边界分为 `GraphLibraryRepository`、`GraphLibraryPersistenceModels`、`GraphLibraryMapper`。Repository 只做 `AtomicJsonFileStore` 读写和恢复保护；Mapper 是 JSON DTO 与编辑 ViewModel 的兼容转换入口；不要在 ViewModel 内直接读写磁盘。
+- Mapper 必须保留旧字段名、默认名、脚本启用状态、运行设置、函数公开状态和事件图角色规则。辅助事件图保存前清理 `Start` 及其连线；主图/函数边界归一化仍由 `GraphStructureNormalizer` 负责。
+- Phase 8 当前已通过 Debug/Release build、CoreTests `33/33` 和 5 秒 WPF 启动探针。Phase 9 多程序集迁移尚未开始；未通过完整迁移门禁前，不得把项目拆成多个程序集。
+- 新增 CoreTests 必须保持无真实 WPF Window、键鼠 Hook、Python 进程和用户目录副作用。`Tests/CodexSmoke` 继续本地-only，不提交。
+
+## 2026-07-21：函数参数改名与 Inspector 输入焦点
+
+- 函数开始、函数返回和自定义事件参数以 `GraphParameterDefinition.Id` 作为连接与调用绑定身份；改名只修改 `Name` 和现有 pin 的 `DisplayName`，不得修改 pin `Name/Id`。
+- 参数名连续输入只能做原位预览，禁止在 `TextChanged` 中调用 `SyncPins()`、`RebindConnectionsToCurrentPins()` 或重建 Inspector。否则首字符会触发 `GraphChanged`，销毁仍在输入的 TextBox。
+- 参数名采用“预览 + 提交”：有效名称在 Enter、失焦、保存或编译前提交；临时空值不覆盖模型；空值提交恢复原名；Esc 恢复本次编辑前名称。
+- `PinViewModel.DisplayName` 必须支持属性通知，使标签可原位刷新；参数改名后 pin 对象、连接对象和连接 JSON 必须保持不变。
+- Inspector 内 TextBox/ComboBox 正在交互时，通用 `OnGraphChanged()` 不得全量重载当前面板。参数添加、删除、排序、类型修改等结构操作必须由对应 handler 完成后显式刷新。
+- 同一规则适用于节点标题：ToDo 引用同步可更新目标信息，但不得在用户编辑标题时重建当前 Inspector 或移动光标。
+- 回归门禁：CoreTests 覆盖 Entry/Return/CustomEvent 改名保持 pin/连接；本地-only WPF smoke 覆盖首字符后 TextBox 实例仍存活并可继续输入。

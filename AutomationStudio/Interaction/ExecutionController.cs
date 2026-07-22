@@ -21,35 +21,30 @@ public sealed class ExecutionController
     private readonly Window _owner;
     private readonly GraphEditorService _editorService;
     private readonly GraphRuntimeExecutor _runtimeExecutor;
-    private readonly GraphValidator _graphValidator;
     private readonly System.Windows.Controls.Button _runButton;
-    private readonly Func<IEnumerable<CallableGraphItem>> _getFunctions;
     private readonly Action<string> _setStatus;
     private readonly Func<IProgress<string>, CancellationToken, Task<bool>> _ensurePythonReady;
+    private readonly GraphExecutionPreflightService _preflightService = new();
 
     private CancellationTokenSource? _executionCts;
 
-    public ExecutionController(
+    internal ExecutionController(
         Window owner,
         GraphEditorService editorService,
         GraphRuntimeExecutor runtimeExecutor,
-        GraphValidator graphValidator,
         System.Windows.Controls.Button runButton,
-        Func<IEnumerable<CallableGraphItem>> getFunctions,
         Action<string> setStatus,
         Func<IProgress<string>, CancellationToken, Task<bool>> ensurePythonReady)
     {
         _owner = owner;
         _editorService = editorService;
         _runtimeExecutor = runtimeExecutor;
-        _graphValidator = graphValidator;
         _runButton = runButton;
-        _getFunctions = getFunctions;
         _setStatus = setStatus;
         _ensurePythonReady = ensurePythonReady;
     }
 
-    public async Task RunAsync()
+    internal async Task RunAsync(GraphWorkspaceReadModel readModel, string scriptAssetId)
     {
         if (RuntimeShutdownGate.IsShutdownStarted)
         {
@@ -68,14 +63,26 @@ public sealed class ExecutionController
             var ct = _executionCts.Token;
             SetRunButtonRunning();
 
-            var plan = _editorService.BuildExecutionPlan();
-            var assetLibrary = new RuntimeAssetLibrary(
-                _getFunctions().ToDictionary(item => item.Id, item => BuildPlanFromModel(item.Graph)));
-            var baseDirectory = ResolveBaseDirectory();
-            if (!Validate(plan))
+            ContentAssetSnapshot? asset = readModel.DependencyIndex.FindAsset(scriptAssetId);
+            if (asset?.Kind != ContentAssetKind.Script)
+            {
+                _setStatus("脚本没有主事件图，执行已取消。");
                 return;
+            }
 
-            if (plan.Nodes.Any(n => n.NodeKind is NodeKind.FindImage or NodeKind.WaitImage or NodeKind.WaitImageDisappear))
+            GraphExecutionPreflightResult preflight = _preflightService.Prepare(readModel, scriptAssetId);
+            LogPreflightIssues(preflight.Issues);
+            if (!preflight.Success)
+            {
+                _setStatus("执行前检查失败，执行已取消。");
+                return;
+            }
+
+            GraphExecutionPlan plan = preflight.MainPlan!;
+            RuntimeAssetLibrary assetLibrary = preflight.AssetLibrary!;
+            var baseDirectory = ResolveBaseDirectory();
+
+            if (preflight.Reachability.RequiresPython)
             {
                 bool pythonReady = await _ensurePythonReady(new Progress<string>(_setStatus), ct);
                 if (!pythonReady)
@@ -106,29 +113,26 @@ public sealed class ExecutionController
         }
     }
 
-    public async Task<GraphExecutionResult> RunScriptAssetOnceAsync(
+    internal async Task<GraphExecutionResult> RunScriptAssetOnceAsync(
         ContentAssetViewModel asset,
-        IEnumerable<CallableGraphItem> functions,
+        GraphWorkspaceReadModel readModel,
         CancellationToken externalCancellationToken)
     {
         RuntimeShutdownGate.ThrowIfShutdownStarted();
         if (asset.Kind != ContentAssetKind.Script)
             return new GraphExecutionResult(false, "只能执行脚本资产。", false);
 
-        var mainGraph = asset.EventGraphs.FirstOrDefault(item => item.EntryRole == GraphEntryRole.MainEvent)
-                        ?? asset.EventGraphs.FirstOrDefault();
-        if (mainGraph is null)
-            return new GraphExecutionResult(false, "脚本没有主事件图。", false);
-
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(externalCancellationToken);
-        var plan = BuildPlanFromModel(mainGraph.Graph);
-        var assetLibrary = new RuntimeAssetLibrary(
-            functions.ToDictionary(item => item.Id, item => BuildPlanFromModel(item.Graph)));
-        var baseDirectory = Environment.CurrentDirectory;
-        if (!Validate(plan))
-            return new GraphExecutionResult(false, "图谱校验失败，执行已取消。", false);
+        GraphExecutionPreflightResult preflight = _preflightService.Prepare(readModel, asset.Id);
+        LogPreflightIssues(preflight.Issues);
+        if (!preflight.Success)
+            return new GraphExecutionResult(false, "执行前检查失败，执行已取消。", false);
 
-        if (plan.Nodes.Any(n => n.NodeKind is NodeKind.FindImage or NodeKind.WaitImage or NodeKind.WaitImageDisappear))
+        GraphExecutionPlan plan = preflight.MainPlan!;
+        RuntimeAssetLibrary assetLibrary = preflight.AssetLibrary!;
+        var baseDirectory = Environment.CurrentDirectory;
+
+        if (preflight.Reachability.RequiresPython)
         {
             bool pythonReady = await _ensurePythonReady(new Progress<string>(_setStatus), externalCancellationToken);
             if (!pythonReady)
@@ -146,36 +150,6 @@ public sealed class ExecutionController
     private void RestoreRunButton()
     {
         ExecutionStateChanged?.Invoke(false);
-    }
-
-    private static GraphExecutionPlan BuildPlanFromModel(GraphFileModel graph)
-    {
-        var nodes = graph.Nodes
-            .Select(NodeSerializer.FromFileModel)
-            .Where(node => node is not null)
-            .Cast<NodeBaseViewModel>()
-            .ToDictionary(node => node.Id);
-        var runtimeNodes = nodes.Values.Select(NodeSerializer.ToRuntimeNode).ToList();
-        var runtimeConnections = new List<GraphRuntimeConnection>();
-        foreach (var connection in graph.Connections)
-        {
-            if (!nodes.TryGetValue(connection.SourceNodeId, out var sourceNode) ||
-                !nodes.TryGetValue(connection.TargetNodeId, out var targetNode))
-                continue;
-            var sourcePin = sourceNode.OutputPins.FirstOrDefault(pin => pin.Name == connection.SourcePinName);
-            var targetPin = targetNode.InputPins.FirstOrDefault(pin => pin.Name == connection.TargetPinName);
-            if (sourcePin is null || targetPin is null)
-                continue;
-            runtimeConnections.Add(new GraphRuntimeConnection(
-                sourceNode.Id,
-                sourcePin.Name,
-                sourcePin.Kind,
-                targetNode.Id,
-                targetPin.Name,
-                targetPin.Kind));
-        }
-
-        return new GraphExecutionPlan(runtimeNodes, runtimeConnections);
     }
 
     public void ReleaseAllInputs() => _runtimeExecutor.ReleaseAllInputs();
@@ -210,10 +184,9 @@ public sealed class ExecutionController
             : Environment.CurrentDirectory;
     }
 
-    private bool Validate(GraphExecutionPlan plan)
+    private static void LogPreflightIssues(IEnumerable<GraphValidationIssue> issues)
     {
-        var validation = _graphValidator.Validate(plan);
-        foreach (var issue in validation.Issues)
+        foreach (GraphValidationIssue issue in issues)
         {
             switch (issue.Severity)
             {
@@ -229,10 +202,5 @@ public sealed class ExecutionController
             }
         }
 
-        if (!validation.HasErrors)
-            return true;
-
-        _setStatus("图谱校验失败，执行已取消。");
-        return false;
     }
 }

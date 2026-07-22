@@ -1,44 +1,42 @@
 using System.Windows;
-using AutomationStudioWpf.Graph;
+using AutomationStudioWpf.GraphCore;
 using AutomationStudioWpf.Interaction;
-using AutomationStudioWpf.Runtime;
 using AutomationStudioWpf.Services;
 
 namespace AutomationStudioWpf;
 
 public partial class MainWindow
 {
-    private readonly FinalCodePreviewGenerator _finalCodePreviewGenerator = new();
-
     private void ShowFinalCodePreview()
     {
         CommitInspectorAndSnapshotAllSessions();
 
         var session = GetOperationEditorSession();
         var controller = session is null ? null : GetSessionActiveAssetController(session);
-        if (session is null || controller is null || controller.ActiveItem is null)
+        if (session is null || controller?.ActiveItem is null)
         {
-            SetStatus("没有可预览的当前图表。");
-            ThemedDialog.Show(this, "没有可预览的当前图表。", "显示最终代码", MessageBoxButton.OK, MessageBoxImage.Information);
+            const string message = "没有可预览的当前图表。";
+            SetStatus(message);
+            ThemedDialog.Show(this, message, "显示最终代码", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
-        var snapshot = controller.ActiveItem.Graph;
-        if (snapshot is null)
+        GraphWorkspaceReadModel readModel = BuildGraphWorkspaceReadModel();
+        FinalCodePreviewResult result = _finalCodePreviewService.Generate(
+            readModel,
+            session.ContentAsset.Id,
+            controller.ActiveItem.Id);
+        if (!string.IsNullOrWhiteSpace(result.ErrorMessage))
         {
-            SetStatus("当前图表没有快照。");
+            SetStatus($"最终代码生成失败：{result.ErrorMessage}");
+            ThemedDialog.Show(
+                this,
+                result.ErrorMessage,
+                "显示最终代码",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
             return;
         }
-
-        var plan = BuildPreviewPlan(snapshot);
-        var callableFunctions = _callableGraphResolver.ResolveFunctions(ContentBrowserItems, session.ContentAsset);
-        var functionPlans = callableFunctions
-            .GroupBy(function => function.Id, StringComparer.Ordinal)
-            .ToDictionary(group => group.Key, group => BuildPreviewPlan(group.First().Graph), StringComparer.Ordinal);
-        var functionNames = callableFunctions
-            .GroupBy(function => function.Id, StringComparer.Ordinal)
-            .ToDictionary(group => group.Key, group => group.First().Name, StringComparer.Ordinal);
-        var result = _finalCodePreviewGenerator.Generate(plan, session.ContentAsset, controller.AssetKind, functionPlans, functionNames);
 
         if (_finalCodePreviewWindow is null || _finalCodePreviewWindow.IsClosed)
         {
@@ -46,48 +44,7 @@ public partial class MainWindow
             _finalCodePreviewWindow.Closed += (_, _) => _finalCodePreviewWindow = null;
         }
 
-        _finalCodePreviewWindow.SetPreview(result.Text, result.ErrorMessage);
+        _finalCodePreviewWindow.SetPreview(result.Text, null);
         _finalCodePreviewWindow.ActivateWindow();
-    }
-
-    private static GraphExecutionPlan BuildPreviewPlan(GraphFileModel graph)
-    {
-        var viewModels = graph.Nodes
-            .Select(NodeSerializer.FromFileModel)
-            .Where(node => node is not null)
-            .Cast<NodeBaseViewModel>()
-            .ToDictionary(node => node.Id, StringComparer.Ordinal);
-
-        var nodes = viewModels.Values
-            .Select(NodeSerializer.ToRuntimeNode)
-            .ToList();
-
-        var connections = graph.Connections
-            .Select(conn =>
-            {
-                if (!viewModels.TryGetValue(conn.SourceNodeId, out var sourceNode) ||
-                    !viewModels.TryGetValue(conn.TargetNodeId, out var targetNode))
-                {
-                    return null;
-                }
-
-                var sourcePin = sourceNode.OutputPins.FirstOrDefault(pin => pin.Name == conn.SourcePinName);
-                var targetPin = targetNode.InputPins.FirstOrDefault(pin => pin.Name == conn.TargetPinName);
-                if (sourcePin is null || targetPin is null)
-                    return null;
-
-                return new GraphRuntimeConnection(
-                    conn.SourceNodeId,
-                    conn.SourcePinName,
-                    sourcePin.Kind,
-                    conn.TargetNodeId,
-                    conn.TargetPinName,
-                    targetPin.Kind);
-            })
-            .Where(connection => connection is not null)
-            .Cast<GraphRuntimeConnection>()
-            .ToList();
-
-        return new GraphExecutionPlan(nodes, connections);
     }
 }

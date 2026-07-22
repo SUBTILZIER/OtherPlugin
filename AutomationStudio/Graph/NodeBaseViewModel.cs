@@ -3,6 +3,7 @@ using Point = System.Windows.Point;
 using Brush = System.Windows.Media.Brush;
 using SolidColorBrush = System.Windows.Media.SolidColorBrush;
 using Color = System.Windows.Media.Color;
+using AutomationStudioWpf.GraphCore;
 
 namespace AutomationStudioWpf.Graph;
 
@@ -82,7 +83,7 @@ public abstract class NodeBaseViewModel : ObservableObject
 
     public abstract string NodeTypeKey { get; }
 
-    public virtual bool CanDelete => true;
+    public virtual bool CanDelete => NodeDescriptorCatalog.Get(NodeKind).CanDelete;
 
     public virtual double Width => NodeWidth;
 

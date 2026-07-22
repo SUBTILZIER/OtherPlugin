@@ -45,9 +45,20 @@ public sealed class Win32MouseAdapter : IMouseAdapter, IExecutionScopedInputAdap
 
     public Point GetPosition()
     {
-        return GetCursorPos(out POINT point)
-            ? new Point(point.X, point.Y)
-            : new Point(0, 0);
+        if (!TryGetPosition(out Point point))
+            throw new Win32Exception(Marshal.GetLastWin32Error(), "GetCursorPos failed.");
+        return point;
+    }
+
+    public bool TryGetPosition(out Point point)
+    {
+        if (GetCursorPos(out POINT nativePoint))
+        {
+            point = new Point(nativePoint.X, nativePoint.Y);
+            return true;
+        }
+        point = default;
+        return false;
     }
 
     public void ExecuteScroll(ScrollWheelAction action, int speed, int intervalMs, int durationMs, CancellationToken ct)

@@ -55,7 +55,14 @@ public sealed partial class GraphRuntimeExecutor
         if (string.IsNullOrWhiteSpace(callNode.CustomEventId))
             return NodeExecutionResult.Fatal($"自定义事件不存在：{callNode.Title}");
 
-        var entry = plan.Index.GetCustomEvent(callNode.CustomEventId);
+        GraphExecutionPlan eventPlan = plan;
+        GraphRuntimeNode? entry = null;
+        if (assets.CustomEvents.TryGetValue(callNode.CustomEventId, out var target))
+        {
+            eventPlan = target.Plan;
+            entry = eventPlan.Index.GetNode(target.EntryNodeId);
+        }
+        entry ??= plan.Index.GetCustomEvent(callNode.CustomEventId);
         if (entry is null)
             return NodeExecutionResult.Fatal($"自定义事件不存在：{callNode.Title}");
 
@@ -65,10 +72,9 @@ public sealed partial class GraphRuntimeExecutor
 
         try
         {
-            foreach (var parameter in entry.Parameters)
-                context.Remove(entry.Id, parameter.Id);
-            CopyCallInputsToEntry(plan, callNode, context, entry, context);
-            var result = ExecuteChain(plan, entry.Id, "exec_out", context, baseDirectory, assets, state, ct, out _);
+            using var childContext = CreateRuntimeContext();
+            CopyCallInputsToEntry(plan, callNode, context, entry, childContext);
+            var result = ExecuteChain(eventPlan, entry.Id, "exec_out", childContext, baseDirectory, assets, state, ct, out _);
             if (!result.ContinueExecution)
                 return NodeExecutionResult.Fatal(result.Message);
 

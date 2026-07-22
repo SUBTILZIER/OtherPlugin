@@ -325,34 +325,12 @@ public partial class MainWindow
             IsDirty = true,
         };
         if (asset.Kind == ContentAssetKind.Script)
+        {
             asset.RunSettings.Normalize();
+            GraphStructureNormalizer.NormalizeContentAsset(asset);
+        }
 
         return asset;
-    }
-
-    private GraphListItemViewModel CreateGraphItem(GraphAssetKind kind, string name)
-    {
-        var graph = CreateDefaultGraphModel(kind, name);
-        return new GraphListItemViewModel
-        {
-            Kind = kind,
-            Name = name,
-            Graph = graph,
-            IsDirty = true,
-            IsCompileDirty = true,
-        };
-    }
-
-    private GraphFileModel CreateDefaultGraphModel(GraphAssetKind kind, string name)
-    {
-        if (kind == GraphAssetKind.Function)
-            _editorService.NewFunctionGraph();
-        else
-            _editorService.NewGraph();
-
-        ApplyEntryNodeTitle(_editorService.Nodes, kind, name);
-        SyncNodeFactorySequence();
-        return _editorService.ExportGraphModel(name, kind);
     }
 
     private string CreateUniqueContentName(string prefix, string? parentFolderId, ContentAssetViewModel? exclude = null)
@@ -600,10 +578,32 @@ public partial class MainWindow
         if (choice == ContentDropAction.Move)
             MoveContentAsset(source, targetFolderId);
         else if (choice == ContentDropAction.Copy)
-            ContentBrowserItems.Add(CloneContentAssetForCopy(source, targetFolderId));
+        {
+            var result = TryCloneContentAssets([source], targetFolderId);
+            if (result is null)
+                return;
+            foreach (var clone in result.AllClones)
+                ContentBrowserItems.Add(clone);
+        }
 
         RefreshContentBrowserViews();
         PersistAssetLibrary();
+    }
+
+    private AssetCloneResult? TryCloneContentAssets(
+        IEnumerable<ContentAssetViewModel> sources,
+        string? targetFolderId)
+    {
+        try
+        {
+            return _assetCloneService.CloneTree(sources, ContentBrowserItems, targetFolderId);
+        }
+        catch (Exception ex)
+        {
+            SetStatus(ex.Message);
+            ThemedDialog.Show(this, ex.Message, "复制失败", MessageBoxButton.OK, MessageBoxImage.Error);
+            return null;
+        }
     }
 
     private void MoveContentAsset(ContentAssetViewModel source, string? targetFolderId)
@@ -690,8 +690,11 @@ public partial class MainWindow
 
     private bool IsDescendantFolder(string? candidateFolderId, string sourceFolderId)
     {
+        var visited = new HashSet<string>(StringComparer.Ordinal);
         while (candidateFolderId is not null)
         {
+            if (!visited.Add(candidateFolderId))
+                return true;
             if (candidateFolderId == sourceFolderId)
                 return true;
 
@@ -700,40 +703,6 @@ public partial class MainWindow
 
         return false;
     }
-
-    private ContentAssetViewModel CloneContentAssetForCopy(ContentAssetViewModel source, string? targetFolderId)
-    {
-        var clone = CreateContentAsset(source.Kind, CreateUniqueContentName($"{source.Name}_Copy", targetFolderId));
-        clone.ParentFolderId = targetFolderId;
-        clone.RunSettings = source.RunSettings.Clone();
-        clone.EventGraphs = new ObservableCollection<GraphListItemViewModel>(source.EventGraphs.Select(CloneGraphItem));
-        clone.Functions = new ObservableCollection<GraphListItemViewModel>(source.Functions.Select(CloneGraphItem));
-        return clone;
-    }
-
-    private static GraphListItemViewModel CloneGraphItem(GraphListItemViewModel source) => new()
-    {
-        Kind = source.Kind,
-        Name = source.Name,
-        Graph = new GraphFileModel
-        {
-            Name = source.Graph.Name,
-            AssetKind = source.Graph.AssetKind,
-            EntryRole = source.Kind == GraphAssetKind.EventGraph ? source.EntryRole : null,
-            Nodes = source.Graph.Nodes.Select(CloneNodeFile).ToList(),
-            Connections = source.Graph.Connections.Select(conn => new ConnectionFileModel
-            {
-                SourceNodeId = conn.SourceNodeId,
-                SourcePinName = conn.SourcePinName,
-                TargetNodeId = conn.TargetNodeId,
-                TargetPinName = conn.TargetPinName,
-            }).ToList(),
-        },
-        EntryRole = source.Kind == GraphAssetKind.EventGraph ? source.EntryRole : GraphEntryRole.MainEvent,
-        IsDirty = true,
-        IsCompileDirty = true,
-        IsPublicToLibrary = source.IsPublicToLibrary,
-    };
 
     private string MakeUniqueContentName(string baseName, string? parentFolderId, ContentAssetViewModel? exclude = null)
     {
@@ -772,8 +741,11 @@ public partial class MainWindow
         }
 
         folderId = current.Id;
+        var visited = new HashSet<string>(StringComparer.Ordinal);
         while (folderId is not null)
         {
+            if (!visited.Add(folderId))
+                return;
             if (!assetById.TryGetValue(folderId, out var folder) || !folder.IsFolder)
                 return;
 

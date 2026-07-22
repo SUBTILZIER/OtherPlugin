@@ -11,17 +11,21 @@ internal sealed partial class FinalCodePreviewGenerator
 
     public FinalCodePreviewResult Generate(
         GraphExecutionPlan plan,
-        ContentAssetViewModel asset,
+        string assetName,
         GraphAssetKind graphKind,
         IReadOnlyDictionary<string, GraphExecutionPlan>? functionPlans = null,
-        IReadOnlyDictionary<string, string>? functionNames = null)
+        IReadOnlyDictionary<string, string>? functionNames = null,
+        IReadOnlyDictionary<string, RuntimeCustomEventTarget>? customEvents = null)
     {
         var builder = new StringBuilder();
-        var state = new GenerationState(functionPlans ?? new Dictionary<string, GraphExecutionPlan>(StringComparer.Ordinal), functionNames ?? new Dictionary<string, string>(StringComparer.Ordinal));
+        var state = new GenerationState(
+            functionPlans ?? new Dictionary<string, GraphExecutionPlan>(StringComparer.Ordinal),
+            functionNames ?? new Dictionary<string, string>(StringComparer.Ordinal),
+            customEvents ?? new Dictionary<string, RuntimeCustomEventTarget>(StringComparer.Ordinal));
 
         try
         {
-            AppendLine(builder, $"# asset: {asset.Name}");
+            AppendLine(builder, $"# asset: {assetName}");
             AppendLine(builder, $"# graph kind: {graphKind}");
             AppendLine(builder, string.Empty);
 
@@ -225,13 +229,15 @@ internal sealed partial class FinalCodePreviewGenerator
 
     private sealed class GenerationState(
         IReadOnlyDictionary<string, GraphExecutionPlan> functionPlans,
-        IReadOnlyDictionary<string, string> functionNames)
+        IReadOnlyDictionary<string, string> functionNames,
+        IReadOnlyDictionary<string, RuntimeCustomEventTarget> customEvents)
     {
         private static readonly IReadOnlyDictionary<string, string> EmptyParameterBindings = new Dictionary<string, string>(StringComparer.Ordinal);
         private readonly Stack<IReadOnlyDictionary<string, string>> _parameterBindings = [];
 
         public IReadOnlyDictionary<string, GraphExecutionPlan> FunctionPlans { get; } = functionPlans;
         public IReadOnlyDictionary<string, string> FunctionNames { get; } = functionNames;
+        public IReadOnlyDictionary<string, RuntimeCustomEventTarget> CustomEvents { get; } = customEvents;
         public HashSet<string> CallStack { get; } = new(StringComparer.Ordinal);
         public int LineCount { get; set; }
         public bool LastLineWasBlank { get; set; }

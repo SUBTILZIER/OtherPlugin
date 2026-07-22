@@ -1,20 +1,18 @@
+using AutomationStudioWpf.GraphCore;
+
 namespace AutomationStudioWpf.Graph;
 
 public static class NodeTraits
 {
-    public static bool IsPure(NodeKind kind) => kind is
-        NodeKind.Compare or
-        NodeKind.BooleanAnd or
-        NodeKind.BooleanOr or
-        NodeKind.BooleanNot or
-        NodeKind.StringConcat;
+    public static bool IsPure(NodeKind kind) =>
+        NodeDescriptorCatalog.TryGet(kind, out var descriptor) && descriptor.IsPure;
 
     public static bool HasExecutionPins(NodeKind kind) =>
-        kind != NodeKind.Reroute && !IsPure(kind);
+        NodeDescriptorCatalog.TryGet(kind, out var descriptor) && descriptor.HasExecutionPins;
 
     public static bool ShouldAssignNodeNumber(NodeKind kind) =>
-        HasExecutionPins(kind);
+        NodeDescriptorCatalog.TryGet(kind, out var descriptor) && descriptor.ShouldAssignNumber;
 
     public static bool IsToDoTarget(NodeKind kind) =>
-        ShouldAssignNodeNumber(kind);
+        NodeDescriptorCatalog.TryGet(kind, out var descriptor) && descriptor.IsToDoTarget;
 }

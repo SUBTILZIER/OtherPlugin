@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Windows;
 using AutomationStudioWpf.Graph;
+using AutomationStudioWpf.GraphCore;
 using AutomationStudioWpf.Interaction;
 using AutomationStudioWpf.Services;
 
@@ -24,7 +25,7 @@ public partial class MainWindow
 
     private void OpenOrActivateAsset(ContentAssetViewModel asset, GraphListItemViewModel? targetGraph = null, GraphAssetKind? targetKind = null)
     {
-        var session = _editorSessions.FirstOrDefault(item => string.Equals(item.ContentAsset.Id, asset.Id, StringComparison.Ordinal))
+        var session = _editorSessions.FirstOrDefault(item => ReferenceEquals(item.ContentAsset, asset))
             ?? CreateEditorSession(asset);
 
         if (!_editorSessions.Contains(session))
@@ -164,16 +165,16 @@ public partial class MainWindow
 
     private void CommitAllSessionsToAssets(bool applyInspectorForActive = false)
     {
-        foreach (var session in _editorSessions)
-            CommitSessionToAsset(session, applyInspectorForActive && ReferenceEquals(session, _activeEditorSession));
+        _workspaceCommitService.CommitAll(
+            _editorSessions,
+            _activeEditorSession,
+            applyInspectorForActive,
+            ApplyInspectorChanges);
     }
 
     private void CommitSessionToAsset(EditorSessionViewModel session, bool applyInspector = false)
     {
-        if (applyInspector && ReferenceEquals(session, _activeEditorSession))
-            ApplyInspectorChanges();
-        SnapshotSession(session);
-        session.SaveToAsset();
+        _workspaceCommitService.CommitSession(session, applyInspector, ApplyInspectorChanges);
     }
 
     private void ApplyEditorModeForContent(ContentAssetViewModel asset)
@@ -328,37 +329,18 @@ public partial class MainWindow
         UpdateEditorSessionChrome();
     }
 
-    private IEnumerable<CallableGraphItem> GetCallableFunctions()
+    private CallableNodeCatalog GetCallableCatalog()
     {
         CommitAllSessionsToAssets(applyInspectorForActive: true);
-        return _callableGraphResolver.ResolveFunctions(ContentBrowserItems, _activeContentAsset);
+        GraphWorkspaceReadModel readModel = BuildGraphWorkspaceReadModel();
+        return new CallableNodeCatalog(
+            _callableGraphResolver.ResolveFunctions(readModel.DependencyIndex, _activeContentAsset?.Id).ToList(),
+            _customEventResolver.Resolve(readModel.DependencyIndex, _activeContentAsset?.Id).ToList());
     }
 
-    private IEnumerable<CallableGraphItem> GetRuntimeCallableFunctions()
-    {
-        CommitAllSessionsToAssets(applyInspectorForActive: true);
-        return _callableGraphResolver.ResolveFunctions(ContentBrowserItems, _activeContentAsset);
-    }
+    private GraphWorkspaceReadModel BuildGraphWorkspaceReadModel() =>
+        _workspaceReadModelService.Create();
 
-    private IEnumerable<CallableCustomEventItem> GetCallableCustomEvents()
-    {
-        SnapshotActiveAsset();
-        if (_activeContentAsset?.Kind != ContentAssetKind.Script ||
-            !ReferenceEquals(_activeAssetController, _graphListController) ||
-            _graphListController.ActiveItem?.Graph is not { } graph)
-        {
-            yield break;
-        }
-
-        foreach (var node in graph.Nodes.Where(node => node.NodeTypeKey == "custom_event"))
-        {
-            string id = string.IsNullOrWhiteSpace(node.CustomEventId) ? node.Id : node.CustomEventId!;
-            string name = string.IsNullOrWhiteSpace(node.Title) ? "自定义事件" : node.Title;
-            yield return new CallableCustomEventItem(
-                id,
-                name,
-                "本脚本事件",
-                node.Parameters.Select(CloneParameterFile).ToList());
-        }
-    }
+    private GraphDependencyIndex BuildGraphDependencyIndex() =>
+        BuildGraphWorkspaceReadModel().DependencyIndex;
 }

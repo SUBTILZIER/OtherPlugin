@@ -1,4 +1,5 @@
 using System.Windows;
+using AutomationStudioWpf.GraphCore;
 using AutomationStudioWpf.Interaction;
 using AutomationStudioWpf.Services;
 
@@ -142,30 +143,23 @@ public partial class MainWindow
         });
     }
 
-    private async Task<bool> CompileScriptAssetForRunAsync(ContentAssetViewModel asset, CancellationToken ct)
+    private async Task<GraphWorkspaceReadModel?> CompileScriptAssetForRunAsync(ContentAssetViewModel asset, CancellationToken ct)
     {
         CommitInspectorAndSnapshotAllSessions();
         ct.ThrowIfCancellationRequested();
-        var result = _graphCompileService.CompileAsset(ContentBrowserItems, asset);
+        var result = _assetCompileCoordinator.CompileAsset(asset, commitSessions: false);
         foreach (var item in ContentBrowserItems.Where(item => result.ChangedAssetIds.Contains(item.Id)))
             item.IsDirty = true;
+        SyncAffectedEditorSessions(result);
 
         if (!HandleCompileResult(result, showPrompt: false))
-            return false;
-
-        foreach (var session in _editorSessions.Where(session => ReferenceEquals(session.ContentAsset, asset)))
-            SyncSessionGraphStateFromAsset(session);
+            return null;
 
         PersistAssetLibrary();
         UpdateGraphSectionVisibility();
         UpdateEditorSessionChrome();
         await Task.CompletedTask;
-        return true;
+        return result.ReadModel;
     }
 
-    private IEnumerable<CallableGraphItem> GetRuntimeCallableFunctionsForAsset(ContentAssetViewModel asset)
-    {
-        CommitAllSessionsToAssets(applyInspectorForActive: true);
-        return _callableGraphResolver.ResolveFunctions(ContentBrowserItems, asset);
-    }
 }

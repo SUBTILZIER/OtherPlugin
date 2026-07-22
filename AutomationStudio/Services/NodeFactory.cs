@@ -1,4 +1,6 @@
 using AutomationStudioWpf.Graph;
+using AutomationStudioWpf.GraphCore;
+using AutomationStudioWpf.Interaction;
 
 namespace AutomationStudioWpf.Services;
 
@@ -18,6 +20,10 @@ public sealed class NodeFactory
 
     public NodeBaseViewModel CreateNode(NodeKind kind, double x, double y)
     {
+        NodeDescriptor descriptor = NodeDescriptorCatalog.Get(kind);
+        if (!descriptor.CanCreate)
+            throw new InvalidOperationException($"节点不能从菜单直接创建：{kind}");
+
         NodeBaseViewModel node = kind switch
         {
             NodeKind.FindImage => CreateFindImageNode(),
@@ -34,24 +40,22 @@ public sealed class NodeFactory
             NodeKind.WhileLoop => CreateWhileLoopNode(),
             NodeKind.ToDo => CreateToDoNode(),
             NodeKind.MultiThread => CreateMultiThreadNode(),
-            NodeKind.GetMousePosition => CreateCommonNode(NodeKind.GetMousePosition, "get_mouse_position", "获取鼠标位置"),
+            NodeKind.GetMousePosition => CreateCommonNode(NodeKind.GetMousePosition),
             NodeKind.KeyChord => CreateKeyChordNode(),
-            NodeKind.WaitImage => CreateCommonNode(NodeKind.WaitImage, "wait_image", "等待图片"),
-            NodeKind.WaitImageDisappear => CreateCommonNode(NodeKind.WaitImageDisappear, "wait_image_disappear", "图片消失"),
-            NodeKind.Compare => CreateCommonNode(NodeKind.Compare, "compare", "比较"),
-            NodeKind.BooleanAnd => CreateCommonNode(NodeKind.BooleanAnd, "boolean_and", "布尔与"),
-            NodeKind.BooleanOr => CreateCommonNode(NodeKind.BooleanOr, "boolean_or", "布尔或"),
-            NodeKind.BooleanNot => CreateCommonNode(NodeKind.BooleanNot, "boolean_not", "布尔非"),
-            NodeKind.StringConcat => CreateCommonNode(NodeKind.StringConcat, "string_concat", "字符串拼接"),
-            NodeKind.WaitWindow => CreateCommonNode(NodeKind.WaitWindow, "wait_window", "等待窗口"),
-            NodeKind.CloseWindow => CreateCommonNode(NodeKind.CloseWindow, "close_window", "关闭窗口"),
-            NodeKind.WindowExists => CreateCommonNode(NodeKind.WindowExists, "window_exists", "窗口是否存在"),
-            NodeKind.GetForegroundWindow => CreateCommonNode(NodeKind.GetForegroundWindow, "get_foreground_window", "获取前台窗口"),
-            NodeKind.SaveScreenshot => CreateCommonNode(NodeKind.SaveScreenshot, "save_screenshot", "截图"),
-            NodeKind.ShowMessage => CreateCommonNode(NodeKind.ShowMessage, "show_message", "弹窗提示"),
-            NodeKind.FunctionEntry => new FunctionEntryNodeViewModel(CreateNodeId()) { Title = "函数开始" },
-            NodeKind.FunctionReturn => new FunctionReturnNodeViewModel(CreateNodeId()) { Title = "函数返回" },
-            NodeKind.CustomEvent => new CustomEventNodeViewModel(CreateNodeId()) { Title = "自定义事件" },
+            NodeKind.WaitImage => CreateCommonNode(NodeKind.WaitImage),
+            NodeKind.WaitImageDisappear => CreateCommonNode(NodeKind.WaitImageDisappear),
+            NodeKind.Compare => CreateCommonNode(NodeKind.Compare),
+            NodeKind.BooleanAnd => CreateCommonNode(NodeKind.BooleanAnd),
+            NodeKind.BooleanOr => CreateCommonNode(NodeKind.BooleanOr),
+            NodeKind.BooleanNot => CreateCommonNode(NodeKind.BooleanNot),
+            NodeKind.StringConcat => CreateCommonNode(NodeKind.StringConcat),
+            NodeKind.WaitWindow => CreateCommonNode(NodeKind.WaitWindow),
+            NodeKind.CloseWindow => CreateCommonNode(NodeKind.CloseWindow),
+            NodeKind.WindowExists => CreateCommonNode(NodeKind.WindowExists),
+            NodeKind.GetForegroundWindow => CreateCommonNode(NodeKind.GetForegroundWindow),
+            NodeKind.SaveScreenshot => CreateCommonNode(NodeKind.SaveScreenshot),
+            NodeKind.ShowMessage => CreateCommonNode(NodeKind.ShowMessage),
+            NodeKind.CustomEvent => new CustomEventNodeViewModel(CreateNodeId(), Guid.NewGuid().ToString("N")) { Title = DisplayName(NodeKind.CustomEvent) },
             _ => throw new InvalidOperationException($"不支持从菜单创建节点：{kind}"),
         };
 
@@ -61,52 +65,52 @@ public sealed class NodeFactory
     }
 
     public StartNodeViewModel CreateStartNode(double x = 80, double y = 210) =>
-        new(CreateNodeId()) { Title = "开始运行", X = x, Y = y };
+        new(CreateNodeId()) { Title = DisplayName(NodeKind.Start), X = x, Y = y };
 
     public FindImageNodeViewModel CreateFindImageNode(double offsetX = 0, double offsetY = 0) =>
-        new(CreateNodeId()) { Title = "找图", X = 260 + offsetX, Y = 180 + offsetY };
+        new(CreateNodeId()) { Title = DisplayName(NodeKind.FindImage), X = 260 + offsetX, Y = 180 + offsetY };
 
     public MouseClickNodeViewModel CreateMouseClickNode(double offsetX = 0, double offsetY = 0) =>
-        new(CreateNodeId()) { Title = "鼠标点击", X = 320 + offsetX, Y = 220 + offsetY };
+        new(CreateNodeId()) { Title = DisplayName(NodeKind.MouseClick), X = 320 + offsetX, Y = 220 + offsetY };
 
     public MouseMoveNodeViewModel CreateMouseMoveNode(double offsetX = 0, double offsetY = 0) =>
-        new(CreateNodeId()) { Title = "鼠标移动", X = 420 + offsetX, Y = 300 + offsetY };
+        new(CreateNodeId()) { Title = DisplayName(NodeKind.MouseMove), X = 420 + offsetX, Y = 300 + offsetY };
 
     public KeyboardNodeViewModel CreateKeyboardNode(double offsetX = 0, double offsetY = 0) =>
-        new(CreateNodeId()) { Title = "键盘", X = 340 + offsetX, Y = 240 + offsetY };
+        new(CreateNodeId()) { Title = DisplayName(NodeKind.Keyboard), X = 340 + offsetX, Y = 240 + offsetY };
 
     public KeyChordNodeViewModel CreateKeyChordNode(double offsetX = 0, double offsetY = 0) =>
-        new(CreateNodeId()) { Title = "组合键", X = 380 + offsetX, Y = 280 + offsetY };
+        new(CreateNodeId()) { Title = DisplayName(NodeKind.KeyChord), X = 380 + offsetX, Y = 280 + offsetY };
 
     public ScrollWheelNodeViewModel CreateScrollWheelNode(double offsetX = 0, double offsetY = 0) =>
-        new(CreateNodeId()) { Title = "鼠标滚轮", X = 360 + offsetX, Y = 260 + offsetY };
+        new(CreateNodeId()) { Title = DisplayName(NodeKind.ScrollWheel), X = 360 + offsetX, Y = 260 + offsetY };
 
     public StartProgramNodeViewModel CreateStartProgramNode(double offsetX = 0, double offsetY = 0) =>
-        new(CreateNodeId()) { Title = "启动程序", X = 440 + offsetX, Y = 340 + offsetY };
+        new(CreateNodeId()) { Title = DisplayName(NodeKind.StartProgram), X = 440 + offsetX, Y = 340 + offsetY };
 
     public PrintLogNodeViewModel CreatePrintLogNode(double offsetX = 0, double offsetY = 0) =>
-        new(CreateNodeId()) { Title = "打印log", X = 460 + offsetX, Y = 360 + offsetY };
+        new(CreateNodeId()) { Title = DisplayName(NodeKind.PrintLog), X = 460 + offsetX, Y = 360 + offsetY };
 
     public SelectWindowNodeViewModel CreateSelectWindowNode(double offsetX = 0, double offsetY = 0) =>
-        new(CreateNodeId()) { Title = "选中窗口", X = 480 + offsetX, Y = 380 + offsetY };
+        new(CreateNodeId()) { Title = DisplayName(NodeKind.SelectWindow), X = 480 + offsetX, Y = 380 + offsetY };
 
     public DelayNodeViewModel CreateDelayNode(double offsetX = 0, double offsetY = 0) =>
-        new(CreateNodeId()) { Title = "延迟", X = 360 + offsetX, Y = 260 + offsetY };
+        new(CreateNodeId()) { Title = DisplayName(NodeKind.Delay), X = 360 + offsetX, Y = 260 + offsetY };
 
     public IfNodeViewModel CreateIfNode(double offsetX = 0, double offsetY = 0) =>
-        new(CreateNodeId()) { Title = "分支", X = 380 + offsetX, Y = 280 + offsetY };
+        new(CreateNodeId()) { Title = DisplayName(NodeKind.If), X = 380 + offsetX, Y = 280 + offsetY };
 
     public ForLoopNodeViewModel CreateForLoopNode(double offsetX = 0, double offsetY = 0) =>
-        new(CreateNodeId()) { Title = "For循环", X = 400 + offsetX, Y = 300 + offsetY };
+        new(CreateNodeId()) { Title = DisplayName(NodeKind.ForLoop), X = 400 + offsetX, Y = 300 + offsetY };
 
     public WhileLoopNodeViewModel CreateWhileLoopNode(double offsetX = 0, double offsetY = 0) =>
-        new(CreateNodeId()) { Title = "While循环", X = 420 + offsetX, Y = 320 + offsetY };
+        new(CreateNodeId()) { Title = DisplayName(NodeKind.WhileLoop), X = 420 + offsetX, Y = 320 + offsetY };
 
     public ToDoNodeViewModel CreateToDoNode(double offsetX = 0, double offsetY = 0) =>
-        new(CreateNodeId()) { Title = "ToDo跳转", X = 440 + offsetX, Y = 340 + offsetY };
+        new(CreateNodeId()) { Title = DisplayName(NodeKind.ToDo), X = 440 + offsetX, Y = 340 + offsetY };
 
     public MultiThreadNodeViewModel CreateMultiThreadNode(double offsetX = 0, double offsetY = 0) =>
-        new(CreateNodeId()) { X = 520 + offsetX, Y = 360 + offsetY };
+        new(CreateNodeId()) { Title = DisplayName(NodeKind.MultiThread), X = 520 + offsetX, Y = 360 + offsetY };
 
     public RerouteNodeViewModel CreateRerouteNode(PinKind kind, double x, double y) =>
         new(CreateNodeId(), kind) { Title = string.Empty, X = x, Y = y };
@@ -136,9 +140,10 @@ public sealed class NodeFactory
         return node;
     }
 
-    private CommonNodeViewModel CreateCommonNode(NodeKind kind, string typeKey, string title)
+    private CommonNodeViewModel CreateCommonNode(NodeKind kind)
     {
-        var node = new CommonNodeViewModel(CreateNodeId(), kind, typeKey, title) { X = 500, Y = 400 };
+        NodeDescriptor descriptor = NodeDescriptorCatalog.Get(kind);
+        var node = new CommonNodeViewModel(CreateNodeId(), kind, descriptor.TypeKey, DisplayName(kind)) { X = 500, Y = 400 };
         if (kind is NodeKind.WaitImage or NodeKind.WaitImageDisappear)
         {
             node.Text2 = ImageSearchSourceMode.RealtimeScreenshot.ToString();
@@ -150,4 +155,6 @@ public sealed class NodeFactory
 
         return node;
     }
+
+    private static string DisplayName(NodeKind kind) => NodePresentationCatalog.Get(kind).DisplayName;
 }

@@ -34,7 +34,8 @@ public sealed partial class GraphRuntimeExecutor
 
     public GraphExecutionResult Execute(GraphExecutionPlan plan, string baseDirectory, CancellationToken ct = default)
         => Execute(plan, baseDirectory, new RuntimeAssetLibrary(
-            new Dictionary<string, GraphExecutionPlan>()), ct);
+            new Dictionary<string, GraphExecutionPlan>(),
+            new Dictionary<string, RuntimeCustomEventTarget>()), ct);
 
     public GraphExecutionResult Execute(GraphExecutionPlan plan, string baseDirectory, RuntimeAssetLibrary assets, CancellationToken ct = default)
     {
@@ -372,6 +373,7 @@ public sealed partial class GraphRuntimeExecutor
             Logger.Warn($"For 循环节点：循环次数无效 ({node.LoopCount})，将使用默认值 1。");
 
         Logger.Info($"For 循环开始：{count} 次");
+        int executedCount = 0;
         for (int i = 0; i < count; i++)
         {
             ct.ThrowIfCancellationRequested();
@@ -390,10 +392,11 @@ public sealed partial class GraphRuntimeExecutor
             GraphExecutionResult bodyResult = ExecuteChain(plan, node.Id, "exec_loop_body", context, baseDirectory, assets, state, ct, out _);
             if (!bodyResult.ContinueExecution)
                 return NodeExecutionResult.Fatal(bodyResult.Message);
+            executedCount++;
         }
 
-        Logger.Info($"For 循环完成：{count} 次");
-        return NodeExecutionResult.Ok($"循环完成：{count} 次", "exec_completed");
+        Logger.Info($"For 循环完成：{executedCount} 次");
+        return NodeExecutionResult.Ok($"循环完成：{executedCount} 次", "exec_completed");
     }
 
     private NodeExecutionResult ExecuteWhileLoopNode(

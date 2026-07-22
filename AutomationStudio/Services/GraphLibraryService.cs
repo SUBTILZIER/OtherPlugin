@@ -419,12 +419,14 @@ public sealed record CallableCustomEventItem(
     string Id,
     string Name,
     string GroupName,
-    IReadOnlyList<GraphParameterFileModel> Parameters);
+    IReadOnlyList<GraphParameterFileModel> Parameters,
+    string GraphId,
+    GraphFileModel Graph);
 
 public sealed class GraphLibraryService
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
-    private bool _writesBlockedByLoadFailure;
+    private readonly GraphLibraryRepository _repository;
 
     public string LibraryPath { get; }
 
@@ -447,29 +449,12 @@ public sealed class GraphLibraryService
             Directory.CreateDirectory(dir);
         }
         LibraryPath = Path.Combine(dir, "graph-library.json");
+        _repository = new GraphLibraryRepository(LibraryPath, JsonOptions);
     }
 
     public GraphLibraryState Load()
     {
-        if (!File.Exists(LibraryPath) && !File.Exists(LibraryPath + ".bak"))
-            return new GraphLibraryState();
-
-        try
-        {
-            var readResult = AtomicJsonFileStore.Read<GraphLibraryState>(LibraryPath, JsonOptions);
-            _writesBlockedByLoadFailure = readResult.RepairError is not null;
-            if (readResult.RecoveredFromBackup && readResult.PrimaryFileRepaired)
-                Logging.Logger.Warn($"资产库已从备份恢复，并修复主文件：{LibraryPath}");
-            else if (readResult.RepairError is not null)
-                Logging.Logger.Error($"资产库已从备份读取，但主文件修复失败，本次运行禁止覆盖：{readResult.RepairError.Message}");
-            return readResult.Value;
-        }
-        catch (Exception ex)
-        {
-            _writesBlockedByLoadFailure = true;
-            Logging.Logger.Error($"资产库读取失败，已阻止覆盖原文件：{ex.Message}");
-            return new GraphLibraryState();
-        }
+        return _repository.Load();
     }
 
     public void Save(IEnumerable<GraphListItemViewModel> graphs, string? selectedId)
@@ -488,12 +473,11 @@ public sealed class GraphLibraryService
         var state = new GraphLibraryState
         {
             LastSelectedId = selectedId,
-            Graphs = ToItems(eventGraphs).ToList(),
-            Functions = ToItems(functions).ToList(),
+            Graphs = GraphLibraryMapper.ToItems(eventGraphs).ToList(),
+            Functions = GraphLibraryMapper.ToItems(functions).ToList(),
         };
 
-        EnsureWritesAllowed();
-        AtomicJsonFileStore.Write(LibraryPath, state, JsonOptions);
+        _repository.Save(state);
     }
 
     public void SaveContentLibrary(IEnumerable<ContentAssetViewModel> assets, string? selectedContentId)
@@ -501,17 +485,10 @@ public sealed class GraphLibraryService
         var state = new GraphLibraryState
         {
             LastSelectedContentId = selectedContentId,
-            ContentAssets = assets.Select(ToContentAssetModel).ToList(),
+            ContentAssets = assets.Select(GraphLibraryMapper.ToContentAssetModel).ToList(),
         };
 
-        EnsureWritesAllowed();
-        AtomicJsonFileStore.Write(LibraryPath, state, JsonOptions);
-    }
-
-    private void EnsureWritesAllowed()
-    {
-        if (_writesBlockedByLoadFailure)
-            throw new InvalidOperationException($"资产库主文件无法安全恢复。为避免覆盖原数据，本次运行已禁止保存：{LibraryPath}");
+        _repository.Save(state);
     }
 
     public ObservableCollection<ContentAssetViewModel> LoadContentLibrary()
@@ -531,226 +508,15 @@ public sealed class GraphLibraryService
 
         return new ObservableCollection<ContentAssetViewModel>(state.ContentAssets
             .Where(asset => (int)asset.Kind != 3)
-            .Select(ToContentAssetViewModel));
+            .Select(GraphLibraryMapper.ToContentAssetViewModel));
     }
 
-    public static ObservableCollection<GraphListItemViewModel> ToViewModels(GraphLibraryState state)
-    {
-        return new ObservableCollection<GraphListItemViewModel>(
-            ToEventGraphViewModels(state.Graphs, "Unnamed Event Graph"));
-    }
+    public static ObservableCollection<GraphListItemViewModel> ToViewModels(GraphLibraryState state) =>
+        GraphLibraryMapper.ToViewModels(state);
 
     public static ObservableCollection<GraphListItemViewModel> ToFunctionViewModels(GraphLibraryState state) =>
-        new(ToViewModels(state.Functions, GraphAssetKind.Function, "Unnamed Function"));
+        GraphLibraryMapper.ToFunctionViewModels(state);
 
-    private static IEnumerable<GraphLibraryItem> ToItems(IEnumerable<GraphListItemViewModel> items) =>
-        items.Select(item =>
-        {
-            if (item.Kind == GraphAssetKind.EventGraph)
-                item.Graph.EntryRole = item.EntryRole;
-            return new GraphLibraryItem
-            {
-                Id = item.Id,
-                Name = item.Name,
-                Graph = item.Graph,
-                EntryRole = item.Kind == GraphAssetKind.EventGraph ? item.EntryRole : null,
-                IsPublicToLibrary = item.IsPublicToLibrary,
-            };
-        });
-
-    private static IEnumerable<GraphLibraryItem> ToEventItems(IEnumerable<GraphListItemViewModel> items)
-    {
-        var list = items.ToList();
-        NormalizeEventGraphRoles(list);
-        foreach (var item in list.Where(item => item.EntryRole == GraphEntryRole.AuxiliaryEvent))
-            RemoveStartNodes(item.Graph);
-        return ToItems(list);
-    }
-
-    private static ContentAssetModel ToContentAssetModel(ContentAssetViewModel asset) => new()
-    {
-        Id = asset.Id,
-        ParentFolderId = asset.ParentFolderId,
-        Kind = asset.Kind,
-        Name = asset.Name,
-        EventGraphs = ToEventItems(asset.EventGraphs).ToList(),
-        Functions = ToItems(asset.Functions).ToList(),
-        RunSettings = asset.Kind == ContentAssetKind.Script
-            ? asset.RunSettings?.Clone() ?? new ScriptRunSettings()
-            : null,
-        IsScriptEnabled = asset.Kind == ContentAssetKind.Script ? asset.IsScriptEnabled : null,
-    };
-
-    private static ContentAssetViewModel ToContentAssetViewModel(ContentAssetModel asset)
-    {
-        var viewModel = new ContentAssetViewModel
-        {
-            Id = string.IsNullOrWhiteSpace(asset.Id) ? Guid.NewGuid().ToString("N") : asset.Id,
-            ParentFolderId = asset.ParentFolderId,
-            Kind = asset.Kind,
-            Name = string.IsNullOrWhiteSpace(asset.Name) ? "Unnamed Asset" : asset.Name,
-            EventGraphs = new ObservableCollection<GraphListItemViewModel>(ToEventGraphViewModels(asset.EventGraphs, "Unnamed Event Graph")),
-            Functions = new ObservableCollection<GraphListItemViewModel>(ToViewModels(asset.Functions, GraphAssetKind.Function, "Unnamed Function")),
-            RunSettings = asset.RunSettings?.Clone() ?? new ScriptRunSettings(),
-            IsScriptEnabled = asset.Kind == ContentAssetKind.Script && (asset.IsScriptEnabled ?? true),
-        };
-        viewModel.RunSettings.Normalize();
-        return viewModel;
-    }
-
-    private static IEnumerable<GraphListItemViewModel> ToEventGraphViewModels(
-        IEnumerable<GraphLibraryItem> items,
-        string fallbackName)
-    {
-        var result = new List<GraphListItemViewModel>();
-        int index = 0;
-        bool mainAssigned = false;
-        foreach (var item in items)
-        {
-            var viewModel = ToViewModel(item, GraphAssetKind.EventGraph, fallbackName);
-            GraphEntryRole role;
-            if (item.EntryRole.HasValue)
-            {
-                role = item.EntryRole.Value;
-            }
-            else if (viewModel.Graph.EntryRole.HasValue)
-            {
-                role = viewModel.Graph.EntryRole.Value;
-            }
-            else
-            {
-                role = index == 0 ? GraphEntryRole.MainEvent : GraphEntryRole.AuxiliaryEvent;
-            }
-
-            if (role == GraphEntryRole.MainEvent && mainAssigned)
-                role = GraphEntryRole.AuxiliaryEvent;
-
-            viewModel.EntryRole = role;
-            viewModel.Graph.EntryRole = role;
-            if (role == GraphEntryRole.MainEvent)
-                mainAssigned = true;
-            index++;
-            result.Add(viewModel);
-        }
-
-        if (!mainAssigned && result.Count > 0)
-        {
-            result[0].EntryRole = GraphEntryRole.MainEvent;
-            result[0].Graph.EntryRole = GraphEntryRole.MainEvent;
-        }
-
-        return result;
-    }
-
-    public static void NormalizeEventGraphRoles(IEnumerable<GraphListItemViewModel> items)
-    {
-        bool mainAssigned = false;
-        GraphListItemViewModel? first = null;
-        foreach (var item in items.Where(item => item.Kind == GraphAssetKind.EventGraph))
-        {
-            first ??= item;
-            var role = item.EntryRole;
-            if (role == GraphEntryRole.MainEvent)
-            {
-                if (mainAssigned)
-                    role = GraphEntryRole.AuxiliaryEvent;
-                else
-                    mainAssigned = true;
-            }
-
-            item.EntryRole = role;
-            item.Graph.EntryRole = role;
-        }
-
-        if (!mainAssigned && first is not null)
-        {
-            first.EntryRole = GraphEntryRole.MainEvent;
-            first.Graph.EntryRole = GraphEntryRole.MainEvent;
-        }
-    }
-
-    private static IEnumerable<GraphListItemViewModel> ToViewModels(
-        IEnumerable<GraphLibraryItem> items,
-        GraphAssetKind kind,
-        string fallbackName) =>
-        items.Select(item => ToViewModel(item, kind, fallbackName));
-
-    private static GraphListItemViewModel ToViewModel(GraphLibraryItem item, GraphAssetKind kind, string fallbackName)
-    {
-        var graph = item.Graph ?? new GraphFileModel();
-        graph.AssetKind = kind;
-        if (kind == GraphAssetKind.Function)
-            graph.EntryRole = null;
-        else if (item.EntryRole.HasValue)
-            graph.EntryRole = item.EntryRole.Value;
-        return new GraphListItemViewModel
-        {
-            Id = string.IsNullOrWhiteSpace(item.Id) ? Guid.NewGuid().ToString("N") : item.Id,
-            Kind = kind,
-            Name = string.IsNullOrWhiteSpace(item.Name) ? fallbackName : item.Name,
-            Graph = graph,
-            IsPublicToLibrary = item.IsPublicToLibrary,
-        };
-    }
-
-    private static void RemoveStartNodes(GraphFileModel graph)
-    {
-        var startNodeIds = graph.Nodes
-            .Where(node => node.NodeTypeKey == "start")
-            .Select(node => node.Id)
-            .ToHashSet(StringComparer.Ordinal);
-        if (startNodeIds.Count == 0)
-            return;
-
-        graph.Nodes.RemoveAll(node => startNodeIds.Contains(node.Id));
-        graph.Connections.RemoveAll(conn =>
-            startNodeIds.Contains(conn.SourceNodeId) ||
-            startNodeIds.Contains(conn.TargetNodeId));
-    }
-}
-
-public sealed class GraphLibraryState
-{
-    public string? LastSelectedId { get; set; }
-
-    public string? LastSelectedContentId { get; set; }
-
-    public List<ContentAssetModel> ContentAssets { get; set; } = [];
-
-    public List<GraphLibraryItem> Graphs { get; set; } = [];
-
-    public List<GraphLibraryItem> Functions { get; set; } = [];
-
-}
-
-public sealed class GraphLibraryItem
-{
-    public string Id { get; set; } = Guid.NewGuid().ToString("N");
-
-    public string Name { get; set; } = "Unnamed Graph";
-
-    public GraphFileModel Graph { get; set; } = new();
-
-    public GraphEntryRole? EntryRole { get; set; }
-
-    public bool IsPublicToLibrary { get; set; }
-}
-
-public sealed class ContentAssetModel
-{
-    public string Id { get; set; } = Guid.NewGuid().ToString("N");
-
-    public string? ParentFolderId { get; set; }
-
-    public ContentAssetKind Kind { get; set; } = ContentAssetKind.Script;
-
-    public string Name { get; set; } = "Unnamed Asset";
-
-    public List<GraphLibraryItem> EventGraphs { get; set; } = [];
-
-    public List<GraphLibraryItem> Functions { get; set; } = [];
-
-    public ScriptRunSettings? RunSettings { get; set; }
-
-    public bool? IsScriptEnabled { get; set; }
+    public static void NormalizeEventGraphRoles(IEnumerable<GraphListItemViewModel> items) =>
+        GraphLibraryMapper.NormalizeEventGraphRoles(items);
 }

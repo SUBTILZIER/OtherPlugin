@@ -116,8 +116,8 @@ public sealed class GraphListController
         var state = _libraryService.Load();
         var source = _kind switch
         {
-            GraphAssetKind.Function => GraphLibraryService.ToFunctionViewModels(state),
-            _ => GraphLibraryService.ToViewModels(state),
+            GraphAssetKind.Function => GraphLibraryMapper.ToFunctionViewModels(state),
+            _ => GraphLibraryMapper.ToViewModels(state),
         };
         foreach (var item in source)
             _items.Add(item);
@@ -135,7 +135,8 @@ public sealed class GraphListController
         }
     }
 
-    public void AddAndRename(bool snapshotCurrent = true) => Add(loadImmediately: true, snapshotCurrent);
+    public GraphListItemViewModel AddAndRename(bool snapshotCurrent = true) =>
+        Add(loadImmediately: true, snapshotCurrent);
 
     public void ReplaceItems(IEnumerable<GraphListItemViewModel> items)
     {
@@ -144,7 +145,7 @@ public sealed class GraphListController
             _items.Add(item);
 
         if (_kind == GraphAssetKind.EventGraph)
-            GraphLibraryService.NormalizeEventGraphRoles(_items);
+            GraphLibraryMapper.NormalizeEventGraphRoles(_items);
         ClearActive();
         RefreshSectionExpansion();
     }
@@ -206,11 +207,7 @@ public sealed class GraphListController
         };
 
         if (dialog.ShowDialog(_owner) == true)
-        {
             _editorService.SaveGraph(dialog.FileName);
-            if (_activeItem is not null)
-                _activeItem.IsDirty = false;
-        }
     }
 
     public void ImportFromDialog()
@@ -236,15 +233,26 @@ public sealed class GraphListController
 
     public void ImportFile(string path)
     {
+        ImportGraph(ReadGraphFile(path), path);
+    }
+
+    public static GraphFileModel ReadGraphFile(string path)
+    {
         var readResult = AtomicJsonFileStore.Read<GraphFileModel>(path, ImportJsonOptions);
-        var graph = readResult.Value;
         if (readResult.RecoveredFromBackup && readResult.PrimaryFileRepaired)
             Logger.Warn($"外部图谱已从备份恢复，并修复主文件：{path}");
         else if (readResult.RepairError is not null)
             Logger.Error($"外部图谱已从备份读取，但原路径修复失败：{readResult.RepairError.Message}");
+        return readResult.Value;
+    }
+
+    public GraphListItemViewModel ImportGraph(GraphFileModel graph, string sourcePath)
+    {
+        if (graph.AssetKind != _kind)
+            throw new InvalidOperationException($"不能把 {graph.AssetKind} 图导入 {_kind} 列表。");
 
         string name = string.IsNullOrWhiteSpace(graph.Name)
-            ? Path.GetFileNameWithoutExtension(path)
+            ? Path.GetFileNameWithoutExtension(sourcePath)
             : graph.Name;
 
         var entryRole = GetDefaultEntryRoleForImportedGraph(graph);
@@ -256,12 +264,15 @@ public sealed class GraphListController
             Graph = graph,
             EntryRole = entryRole,
             IsDirty = true,
+            IsCompileDirty = true,
         };
+        GraphStructureNormalizer.NormalizeGraphItem(item, "外部导入");
 
         _items.Add(item);
         _graphListBox.SelectedItem = item;
         Load(item, persistAfterLoad: false);
         Persist();
+        return item;
     }
 
     public void HandleDoubleClick(MouseButtonEventArgs e)
@@ -466,7 +477,7 @@ public sealed class GraphListController
 
         if (loadImmediately)
         {
-            Load(item, snapshotCurrent: false);
+            Load(item, snapshotCurrent: false, persistAfterLoad: false);
             StartRename(item);
         }
         else
@@ -515,10 +526,10 @@ public sealed class GraphListController
         {
             if (_kind == GraphAssetKind.Function)
             {
-                _editorService.NewFunctionGraph();
-                entryRole = null;
+                return GraphStructureNormalizer.CreateFunctionGraph(name).Graph;
             }
-            else if (entryRole == GraphEntryRole.AuxiliaryEvent)
+
+            if (entryRole == GraphEntryRole.AuxiliaryEvent)
             {
                 _editorService.NewAuxiliaryEventGraph();
             }
@@ -542,17 +553,28 @@ public sealed class GraphListController
             SnapshotActive();
 
         _isLoadingGraph = true;
+        var previousActiveItem = _activeItem;
+        var previousSelectedItem = _graphListBox.SelectedItem;
         try
         {
             if (_kind == GraphAssetKind.EventGraph)
                 item.Graph.EntryRole = item.EntryRole;
-            _editorService.LoadFromModel(item.Graph);
-            _syncNodeFactorySequence();
+
+            // GraphChanged is raised during LoadFromModel. Bind the target first so
+            // auto-fit and session callbacks observe the graph actually being loaded.
             _activeItem = item;
             _graphListBox.SelectedItem = item;
+            _editorService.LoadFromModel(item.Graph);
+            _syncNodeFactorySequence();
             _setStatus($"已进入{_displayName}：{item.Name}");
             if (persistAfterLoad)
                 Persist();
+        }
+        catch
+        {
+            _activeItem = previousActiveItem;
+            _graphListBox.SelectedItem = previousSelectedItem;
+            throw;
         }
         finally
         {

@@ -48,6 +48,9 @@ public partial class EditorSurfaceControl : WpfUserControl
 
     public EditorSurfaceContext? SurfaceContext { get; private set; }
 
+    public InspectorViewModel StructuredInspector =>
+        SurfaceContext?.InspectorController.StructuredInspector ?? new InspectorViewModel();
+
     public void Attach(EditorSessionViewModel session, EditorSurfaceContext context)
     {
         Session = session;

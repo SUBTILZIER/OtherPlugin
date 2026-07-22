@@ -1,4 +1,5 @@
 using AutomationStudioWpf.Graph;
+using AutomationStudioWpf.GraphCore;
 
 namespace AutomationStudioWpf.Runtime;
 
@@ -23,6 +24,18 @@ public interface INodeDefinition
     IReadOnlyDictionary<string, string> DefaultValues { get; }
 
     IReadOnlyDictionary<string, string> ValidationHints { get; }
+
+    NodeTraitFlags Traits { get; }
+
+    bool CanCreate { get; }
+
+    bool CanDelete { get; }
+
+    NodeRuntimeSupport RuntimeSupport { get; }
+
+    NodePreviewSupport PreviewSupport { get; }
+
+    bool HasSerializer { get; }
 }
 
 public sealed record NodeDefinition : INodeDefinition
@@ -36,7 +49,13 @@ public sealed record NodeDefinition : INodeDefinition
         IReadOnlyList<string>? searchTags = null,
         string inspectorSchemaKey = "default",
         IReadOnlyDictionary<string, string>? defaultValues = null,
-        IReadOnlyDictionary<string, string>? validationHints = null)
+        IReadOnlyDictionary<string, string>? validationHints = null,
+        NodeTraitFlags traits = NodeTraitFlags.None,
+        bool canCreate = true,
+        bool canDelete = true,
+        NodeRuntimeSupport runtimeSupport = NodeRuntimeSupport.Unsupported,
+        NodePreviewSupport previewSupport = NodePreviewSupport.ExplicitFallback,
+        bool hasSerializer = true)
     {
         NodeKind = nodeKind;
         TypeKey = typeKey;
@@ -47,6 +66,12 @@ public sealed record NodeDefinition : INodeDefinition
         InspectorSchemaKey = inspectorSchemaKey;
         DefaultValues = defaultValues ?? new Dictionary<string, string>();
         ValidationHints = validationHints ?? new Dictionary<string, string>();
+        Traits = traits;
+        CanCreate = canCreate;
+        CanDelete = canDelete;
+        RuntimeSupport = runtimeSupport;
+        PreviewSupport = previewSupport;
+        HasSerializer = hasSerializer;
     }
 
     public NodeKind NodeKind { get; init; }
@@ -66,4 +91,16 @@ public sealed record NodeDefinition : INodeDefinition
     public IReadOnlyDictionary<string, string> DefaultValues { get; init; }
 
     public IReadOnlyDictionary<string, string> ValidationHints { get; init; }
+
+    public NodeTraitFlags Traits { get; init; }
+
+    public bool CanCreate { get; init; }
+
+    public bool CanDelete { get; init; }
+
+    public NodeRuntimeSupport RuntimeSupport { get; init; }
+
+    public NodePreviewSupport PreviewSupport { get; init; }
+
+    public bool HasSerializer { get; init; }
 }

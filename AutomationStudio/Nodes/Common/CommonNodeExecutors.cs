@@ -3,7 +3,6 @@ using System.IO;
 using System.Text.Json;
 using AutomationStudioWpf.Adapters;
 using AutomationStudioWpf.Graph;
-using AutomationStudioWpf.Interaction;
 using AutomationStudioWpf.Logging;
 using AutomationStudioWpf.Runtime;
 using AutomationStudioWpf.Services;
@@ -34,7 +33,11 @@ public sealed class CommonNodeExecutor(NodeKind nodeKind) : INodeExecutor
 
     private static NodeExecutionResult ExecuteGetMousePosition(NodeExecutionRequest request)
     {
-        Point point = request.Adapters.Mouse.GetPosition();
+        if (!request.Adapters.Mouse.TryGetPosition(out Point point))
+        {
+            request.Context.Set(request.Node.Id, "result", false);
+            return NodeExecutionResult.Warn("获取鼠标位置失败。");
+        }
         request.Context.Set(request.Node.Id, "position", point);
         request.Context.Set(request.Node.Id, "result", true);
         Logger.Info($"获取鼠标位置：({point.X},{point.Y})");
@@ -252,14 +255,7 @@ public sealed class CommonNodeExecutor(NodeKind nodeKind) : INodeExecutor
             return WarnResult(request, "弹窗提示：文本输入已连接，但上游没有输出。继续执行。");
 
         string title = string.IsNullOrWhiteSpace(request.Node.Text2) ? "自动化提示" : request.Node.Text2;
-        global::System.Windows.Application.Current.Dispatcher.Invoke(() =>
-        {
-            var owner = global::System.Windows.Application.Current.Windows
-                .OfType<global::System.Windows.Window>()
-                .FirstOrDefault(window => window.IsActive)
-                ?? global::System.Windows.Application.Current.MainWindow;
-            ThemedDialog.Show(owner, message, title);
-        });
+        request.Adapters.Ui.ShowMessage(message, title);
         request.Context.Set(request.Node.Id, "result", true);
         return NodeExecutionResult.Ok("弹窗提示完成。");
     }

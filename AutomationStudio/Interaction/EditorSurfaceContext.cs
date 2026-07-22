@@ -50,7 +50,7 @@ public sealed class EditorSurfaceContext
 
     public PinConnectionController PinConnectionController { get; private set; } = null!;
 
-    public NodePaletteController NodePaletteController { get; private set; } = null!;
+    internal NodePaletteController NodePaletteController { get; private set; } = null!;
 
     public GraphImportDropController GraphImportDropController { get; private set; } = null!;
 
@@ -140,6 +140,7 @@ public sealed class EditorSurfaceContext
             Surface.InspectorHintTextBlock,
             Surface.NodeTitleTextBox,
             Surface.NodeNumberTextBlock,
+            Surface.StructuredInspectorHost,
             Surface.ParameterInspectorPanel,
             Surface.AddParameterButton,
             Surface.ParameterInspectorTitle,
@@ -263,8 +264,7 @@ public sealed class EditorSurfaceContext
             Session.EditorService,
             CommandService,
             services.NodeRegistry,
-            services.GetCallableFunctions,
-            services.GetCallableCustomEvents,
+            services.GetCallableCatalog,
             GetActiveGraphKind,
             services.SnapshotActiveAsset,
             ViewportToGraph,

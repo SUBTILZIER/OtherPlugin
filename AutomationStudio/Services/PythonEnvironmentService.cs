@@ -32,8 +32,14 @@ internal sealed class PythonEnvironmentService : IDisposable
     private bool _missingDialogShown;
     private bool _acceptProcesses = true;
     private bool _disposed;
+    private IUserNotificationSink _notificationSink = NullUserNotificationSink.Instance;
 
     public static PythonEnvironmentService Shared { get; } = new();
+
+    internal void SetNotificationSink(IUserNotificationSink sink)
+    {
+        _notificationSink = sink ?? NullUserNotificationSink.Instance;
+    }
 
     public string ValidatedPythonPath
     {
@@ -67,7 +73,7 @@ internal sealed class PythonEnvironmentService : IDisposable
             Logger.Error($"安装不完整：{reason}");
             if (ShouldShowMissingDialog())
             {
-                ShowRepairDialog(reason);
+                ShowRepairNotification(reason);
             }
 
             return false;
@@ -78,7 +84,7 @@ internal sealed class PythonEnvironmentService : IDisposable
             Logger.Warn($"Python 已安装但缺少依赖库: {string.Join(", ", result.MissingLibraries)}");
             if (ShouldShowMissingDialog())
             {
-                ShowInstallDialog(
+                ShowInstallNotification(
                     "依赖库",
                     "打开命令提示符（CMD），执行以下命令：",
                     "pip install opencv-python pillow numpy -i https://mirrors.aliyun.com/pypi/simple/");
@@ -90,7 +96,7 @@ internal sealed class PythonEnvironmentService : IDisposable
         Logger.Warn("未检测到 Python 环境");
         if (ShouldShowMissingDialog())
         {
-            ShowInstallDialog(
+            ShowInstallNotification(
                 "Python",
                 "安装 Python 3，并勾选 Add Python to PATH。安装完成后执行：",
                 "pip install opencv-python pillow numpy -i https://mirrors.aliyun.com/pypi/simple/");
@@ -578,33 +584,23 @@ internal sealed class PythonEnvironmentService : IDisposable
         }
     }
 
-    private static void ShowRepairDialog(string reason)
+    private void ShowRepairNotification(string reason)
     {
         const string instructions = "安装包中的离线 Python 运行时缺失或损坏。请使用安装器执行修复，或重新安装 AutomationStudio。";
         Logger.Error($"{instructions} {reason}");
-        if (System.Windows.Application.Current?.MainWindow is { } owner)
-        {
-            Interaction.ThemedDialog.Show(
-                owner,
-                $"{instructions}\n\n详细信息：{reason}",
-                "安装不完整",
-                System.Windows.MessageBoxButton.OK,
-                System.Windows.MessageBoxImage.Error);
-        }
+        _notificationSink.Notify(
+            "安装不完整",
+            $"{instructions}\n\n详细信息：{reason}",
+            NotificationSeverity.Error);
     }
 
-    private static void ShowInstallDialog(string title, string instructions, string command)
+    private void ShowInstallNotification(string title, string instructions, string command)
     {
         Logging.Logger.Warn($"需要安装 {title}：{instructions} {command}");
-        if (System.Windows.Application.Current?.MainWindow is { } owner)
-        {
-            Interaction.ThemedDialog.Show(
-                owner,
-                $"{instructions}\n\n{command}",
-                $"需要安装 {title}",
-                System.Windows.MessageBoxButton.OK,
-                System.Windows.MessageBoxImage.Warning);
-        }
+        _notificationSink.Notify(
+            $"需要安装 {title}",
+            $"{instructions}\n\n{command}",
+            NotificationSeverity.Warning);
     }
 
     private sealed class ProcessRegistration(PythonEnvironmentService owner, Process process) : IDisposable

@@ -4,6 +4,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:graph="clr-namespace:AutomationStudioWpf.Graph"
+             xmlns:interaction="clr-namespace:AutomationStudioWpf.Interaction"
              mc:Ignorable="d"
              d:DesignHeight="720"
              d:DesignWidth="1280"
@@ -915,6 +916,102 @@
                             </Border>
                                 </StackPanel>
                             </Border>
+
+                            <ContentControl x:Name="StructuredInspectorHost"
+                                            Visibility="Collapsed"
+                                            Margin="0,0,0,12">
+                                <ContentControl.ContentTemplate>
+                                    <DataTemplate>
+                                        <ItemsControl ItemsSource="{Binding Sections}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border Style="{StaticResource EditorSectionCardStyle}"
+                                                            Margin="0,0,0,10"
+                                                            Padding="10">
+                                                        <StackPanel>
+                                                            <TextBlock Text="{Binding Title}"
+                                                                       Style="{StaticResource EditorSectionHeaderTextStyle}"
+                                                                       Margin="0,0,0,8" />
+                                                            <ItemsControl ItemsSource="{Binding Fields}">
+                                                                <ItemsControl.ItemTemplate>
+                                                                    <DataTemplate>
+                                                                        <StackPanel Margin="0,0,0,9">
+                                                                            <TextBlock Text="{Binding Label}"
+                                                                                       Foreground="{DynamicResource EditorTextBrush}" />
+                                                                            <TextBox Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}"
+                                                                                     IsEnabled="{Binding IsEnabled}"
+                                                                                     AcceptsReturn="{Binding IsMultiline}"
+                                                                                     TextWrapping="Wrap"
+                                                                                     VerticalScrollBarVisibility="Auto"
+                                                                                     Margin="0,4,0,0">
+                                                                                <TextBox.Style>
+                                                                                    <Style TargetType="TextBox"
+                                                                                           BasedOn="{StaticResource EditorInspectorTextBoxStyle}">
+                                                                                        <Setter Property="Visibility" Value="Visible" />
+                                                                                        <Style.Triggers>
+                                                                                            <DataTrigger Binding="{Binding IsBoolean}" Value="True">
+                                                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                                                            </DataTrigger>
+                                                                                            <DataTrigger Binding="{Binding IsEnum}" Value="True">
+                                                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                                                            </DataTrigger>
+                                                                                        </Style.Triggers>
+                                                                                    </Style>
+                                                                                </TextBox.Style>
+                                                                            </TextBox>
+                                                                            <ComboBox ItemsSource="{Binding Options}"
+                                                                                      DisplayMemberPath="Label"
+                                                                                      SelectedValue="{Binding SelectedOption, UpdateSourceTrigger=PropertyChanged}"
+                                                                                      SelectedValuePath="Value"
+                                                                                      IsEnabled="{Binding IsEnabled}"
+                                                                                      Margin="0,4,0,0">
+                                                                                <ComboBox.Style>
+                                                                                    <Style TargetType="ComboBox">
+                                                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                                                        <Style.Triggers>
+                                                                                            <DataTrigger Binding="{Binding IsEnum}" Value="True">
+                                                                                                <Setter Property="Visibility" Value="Visible" />
+                                                                                            </DataTrigger>
+                                                                                        </Style.Triggers>
+                                                                                    </Style>
+                                                                                </ComboBox.Style>
+                                                                            </ComboBox>
+                                                                            <CheckBox IsChecked="{Binding BooleanValue, UpdateSourceTrigger=PropertyChanged}"
+                                                                                      IsEnabled="{Binding IsEnabled}"
+                                                                                      Content="使用默认值"
+                                                                                      Foreground="{DynamicResource EditorTextBrush}"
+                                                                                      Margin="0,4,0,0">
+                                                                                <CheckBox.Style>
+                                                                                    <Style TargetType="CheckBox"
+                                                                                           BasedOn="{StaticResource EditorInspectorCheckBoxStyle}">
+                                                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                                                        <Style.Triggers>
+                                                                                            <DataTrigger Binding="{Binding IsBoolean}" Value="True">
+                                                                                                <Setter Property="Visibility" Value="Visible" />
+                                                                                            </DataTrigger>
+                                                                                        </Style.Triggers>
+                                                                                    </Style>
+                                                                                </CheckBox.Style>
+                                                                            </CheckBox>
+                                                                            <TextBlock Text="{Binding HelpText}"
+                                                                                       Foreground="{DynamicResource EditorMutedTextBrush}"
+                                                                                       TextWrapping="Wrap"
+                                                                                       Margin="0,3,0,0" />
+                                                                        </StackPanel>
+                                                                    </DataTemplate>
+                                                                </ItemsControl.ItemTemplate>
+                                                            </ItemsControl>
+                                                        </StackPanel>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </DataTemplate>
+                                </ContentControl.ContentTemplate>
+                                <ContentControl.Content>
+                                    <Binding Path="StructuredInspector" RelativeSource="{RelativeSource AncestorType={x:Type UserControl}}" />
+                                </ContentControl.Content>
+                            </ContentControl>
 
                             <StackPanel x:Name="ParameterInspectorPanel" Visibility="Collapsed" Margin="0,0,0,12">
                                 <DockPanel Margin="0,0,0,8">

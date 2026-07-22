@@ -6,6 +6,10 @@ using AutomationStudioWpf.Services;
 
 namespace AutomationStudioWpf.Interaction;
 
+internal sealed record CallableNodeCatalog(
+    IReadOnlyList<CallableGraphItem> Functions,
+    IReadOnlyList<CallableCustomEventItem> CustomEvents);
+
 internal sealed record EditorSurfaceHostServices(
     Window Owner,
     GraphLibraryService LibraryService,
@@ -17,5 +21,4 @@ internal sealed record EditorSurfaceHostServices(
     Action MarkLayoutDirty,
     Action EnsureCanvasLargeEnough,
     Action<string> SetStatus,
-    Func<IEnumerable<CallableGraphItem>> GetCallableFunctions,
-    Func<IEnumerable<CallableCustomEventItem>> GetCallableCustomEvents);
+    Func<CallableNodeCatalog> GetCallableCatalog);

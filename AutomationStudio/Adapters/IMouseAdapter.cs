@@ -11,5 +11,11 @@ public interface IMouseAdapter
 
     Point GetPosition();
 
+    bool TryGetPosition(out Point point)
+    {
+        point = GetPosition();
+        return true;
+    }
+
     void ExecuteScroll(ScrollWheelAction action, int speed, int intervalMs, int durationMs, CancellationToken ct);
 }
