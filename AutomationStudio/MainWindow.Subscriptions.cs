@@ -17,6 +17,7 @@ public partial class MainWindow
             return;
 
         _windowSubscriptionsDisposed = true;
+        UninstallWindowPlacementHook();
         DetachAutoFitRendering();
         Logger.Entries.CollectionChanged -= LoggerEntries_CollectionChanged;
         AppThemeService.ThemeChanged -= OnAppThemeChanged;

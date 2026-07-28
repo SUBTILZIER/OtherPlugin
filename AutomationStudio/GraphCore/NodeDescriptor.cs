@@ -32,7 +32,8 @@ public sealed record PinDefinition(
     string Name,
     string Label,
     PinKind Kind,
-    PinDirection Direction);
+    PinDirection Direction,
+    ExecutionPinRole ExecutionRole = ExecutionPinRole.Normal);
 
 public sealed record NodeDescriptor(
     NodeKind Kind,
@@ -93,7 +94,7 @@ public static class NodeDescriptorCatalog
         BuiltIn(NodeKind.FunctionCall, "function_call", [InExec(), OutExec()], canCreate: false),
         BuiltIn(NodeKind.CustomEvent, "custom_event", [OutExec()]),
         BuiltIn(NodeKind.CustomEventCall, "custom_event_call", [InExec(), OutExec()], canCreate: false),
-        BuiltIn(NodeKind.MultiThread, "multi_thread", [InExec(), OutExec("exec_thread_1", "线程1"), OutExec("exec_thread_2", "线程2"), OutExec("exec_completed", "全部完成")]),
+        BuiltIn(NodeKind.MultiThread, "multi_thread", [InExec(), OutExec("exec_thread_1", "线程1"), OutExec("exec_thread_2", "线程2"), OutExec("exec_completed", "全部完成", ExecutionPinRole.Completion), OutExec("exec_failed", "执行失败", ExecutionPinRole.Failure), OutBool("result", "执行结果")]),
     ];
 
     private static readonly IReadOnlyDictionary<NodeKind, NodeDescriptor> ByKind =
@@ -168,8 +169,8 @@ public static class NodeDescriptorCatalog
     private static PinDefinition InExec(string name = "exec_in", string label = "执行输入") =>
         new(name, label, PinKind.Execution, PinDirection.Input);
 
-    private static PinDefinition OutExec(string name = "exec_out", string label = "执行输出") =>
-        new(name, label, PinKind.Execution, PinDirection.Output);
+    private static PinDefinition OutExec(string name = "exec_out", string label = "执行输出", ExecutionPinRole executionRole = ExecutionPinRole.Normal) =>
+        new(name, label, PinKind.Execution, PinDirection.Output, executionRole);
 
     private static PinDefinition InBool(string name, string label) =>
         new(name, label, PinKind.Boolean, PinDirection.Input);

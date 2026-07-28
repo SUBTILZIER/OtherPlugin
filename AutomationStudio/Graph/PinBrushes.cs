@@ -9,6 +9,7 @@ public static class PinBrushes
 {
     private static readonly SolidColorBrush ExecutionBrush = MutableBrush(244, 244, 244);
     private static readonly SolidColorBrush CompletionExecutionBrush = MutableBrush(255, 184, 72);
+    private static readonly SolidColorBrush FailureExecutionBrush = MutableBrush(255, 90, 100);
     private static readonly SolidColorBrush BooleanBrush = MutableBrush(184, 45, 48);
     private static readonly SolidColorBrush Vector2DBrush = MutableBrush(80, 196, 114);
     private static readonly SolidColorBrush StringBrush = MutableBrush(202, 46, 165);
@@ -21,6 +22,8 @@ public static class PinBrushes
     }
 
     public static SolidColorBrush CompletionExecution => CompletionExecutionBrush;
+
+    public static SolidColorBrush FailureExecution => FailureExecutionBrush;
 
     public static SolidColorBrush ForKind(PinKind kind) => kind switch
     {
@@ -35,6 +38,7 @@ public static class PinBrushes
     {
         SyncBrush(ExecutionBrush, "EditorExecutionPinBrush");
         SyncBrush(CompletionExecutionBrush, "EditorCompletionPinBrush");
+        SyncBrush(FailureExecutionBrush, "EditorFailurePinBrush");
         SyncBrush(BooleanBrush, "EditorBooleanPinBrush");
         SyncBrush(Vector2DBrush, "EditorVectorPinBrush");
         SyncBrush(StringBrush, "EditorStringPinBrush");

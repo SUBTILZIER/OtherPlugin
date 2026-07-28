@@ -1355,6 +1355,15 @@ This section is the source of truth for packaging and process-lifecycle work. Re
 - `CleanupForApplicationExit()` is the single normal-exit cleanup order. Minimize-to-tray and cancelled close do not start `RuntimeShutdownGate` and do not stop scripts or release input ownership.
 - Crash handling may use `RuntimeEmergencyCleanup` for non-UI runtime resources. Non-UI exception handlers must not call WPF window methods or enqueue work onto a dead Dispatcher.
 
+## Multi-thread and Window Placement Contract
+
+- `MultiThread` exposes dynamic `exec_thread_N` outputs plus fixed `exec_completed`, `exec_failed`, and Boolean `result` outputs. `result` describes scheduler execution, not branch business values.
+- `False/0/empty` branch outputs are valid data. Only fatal execution, an uncaught exception, or a conflicting branch write cancels siblings.
+- Each branch runs on a forked `RuntimeContext`. Branch changes stay staged until every branch succeeds; merge is deterministic and atomic from the parent context's perspective. Failed branches never leak partial outputs.
+- When `exec_failed` is connected, a fatal branch sets `result=false` and routes to that pin as `HandledFailure`. When it is not connected, the same error remains `FatalStop`. User cancellation never routes either completion pin.
+- `WM_GETMINMAXINFO` is the only supported maximize-bound calculation for the custom-chrome main window. Use the current monitor's `rcWork`, not `SystemParameters.WorkArea` or a fixed height; this preserves taskbar space on secondary and negative-coordinate monitors.
+- The maximize hook is installed after `OnSourceInitialized` and removed by `DisposeWindowSubscriptions()`. It must not survive a closed HWND.
+
 ## Release Gate
 
 - `Packaging\build-release.ps1` is the only release staging entry. It checks `git diff --check`, fixed vendor hashes, no `bin/obj/Tests/.cache/PDB/pyc` in stage, and unsigned naming/manifest consistency.

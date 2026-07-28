@@ -27,9 +27,12 @@ public sealed class PinViewModel : ObservableObject
         Direction = direction;
         Kind = kind;
         ExecutionRole = executionRole;
-        PinBrush = executionRole == ExecutionPinRole.Completion
-            ? PinBrushes.CompletionExecution
-            : PinBrushes.ForKind(kind);
+        PinBrush = executionRole switch
+        {
+            ExecutionPinRole.Completion => PinBrushes.CompletionExecution,
+            ExecutionPinRole.Failure => PinBrushes.FailureExecution,
+            _ => PinBrushes.ForKind(kind),
+        };
     }
 
     public NodeBaseViewModel Owner { get; }

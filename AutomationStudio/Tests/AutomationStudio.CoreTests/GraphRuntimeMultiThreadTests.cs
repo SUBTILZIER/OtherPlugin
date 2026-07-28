@@ -58,6 +58,22 @@ public sealed class GraphRuntimeMultiThreadTests
     }
 
     [TestMethod]
+    public async Task FatalBranchUsesFailureOutputWhenConnected()
+    {
+        var process = new ProbeProcessAdapter();
+        GraphRuntimeExecutor executor = CreateExecutor(process);
+        GraphExecutionPlan plan = CreatePlan(
+            [GraphRuntimeNode.ForFunctionCall("fatal", "Missing function", "missing")],
+            [Exec("multi", "exec_thread_1", "fatal")],
+            connectFailure: true);
+
+        GraphExecutionResult result = await Task.Run(() => executor.Execute(plan, Environment.CurrentDirectory));
+
+        Assert.AreEqual(GraphExecutionStatus.Completed, result.Status);
+        Assert.AreEqual(1, process.StartCount);
+    }
+
+    [TestMethod]
     public async Task ExternalCancellationPropagatesInsteadOfBecomingFatal()
     {
         var process = new ProbeProcessAdapter();
@@ -123,7 +139,8 @@ public sealed class GraphRuntimeMultiThreadTests
 
     private static GraphExecutionPlan CreatePlan(
         IReadOnlyList<GraphRuntimeNode> branchNodes,
-        IReadOnlyList<GraphRuntimeConnection> branchConnections)
+        IReadOnlyList<GraphRuntimeConnection> branchConnections,
+        bool connectFailure = false)
     {
         GraphRuntimeNode start = GraphRuntimeNode.ForStart("start", "Start");
         GraphRuntimeNode multi = GraphRuntimeNode.ForMultiThread("multi", "Multi", 3);
@@ -134,13 +151,16 @@ public sealed class GraphRuntimeMultiThreadTests
             0,
             ProgramStartFailureAction.None,
             0);
-        return new GraphExecutionPlan(
-            [start, multi, .. branchNodes, completed],
-            [
-                Exec("start", "exec_out", "multi"),
-                .. branchConnections,
-                Exec("multi", "exec_completed", "completed"),
-            ]);
+        var connections = new List<GraphRuntimeConnection>
+        {
+            Exec("start", "exec_out", "multi"),
+        };
+        connections.AddRange(branchConnections);
+        connections.Add(Exec("multi", "exec_completed", "completed"));
+        if (connectFailure)
+            connections.Add(Exec("multi", MultiThreadNodeViewModel.FailedPinName, "completed"));
+
+        return new GraphExecutionPlan([start, multi, .. branchNodes, completed], connections);
     }
 
     private static GraphRuntimeConnection Exec(string sourceNodeId, string sourcePinName, string targetNodeId) =>

@@ -82,6 +82,7 @@ public enum ExecutionPinRole
 {
     Normal,
     Completion,
+    Failure,
 }
 
 public enum MouseButton

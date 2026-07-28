@@ -4,6 +4,8 @@ public sealed class MultiThreadNodeViewModel : NodeBaseViewModel
 {
     public const int MinimumThreadOutputCount = 2;
     public const string CompletedPinName = "exec_completed";
+    public const string FailedPinName = "exec_failed";
+    public const string ResultPinName = "result";
 
     private int _threadOutputCount = MinimumThreadOutputCount;
 
@@ -75,7 +77,10 @@ public sealed class MultiThreadNodeViewModel : NodeBaseViewModel
         for (int i = OutputPins.Count - 1; i >= 0; i--)
         {
             string pinName = OutputPins[i].Name;
-            if (pinName.StartsWith("exec_thread_", StringComparison.Ordinal) || pinName == CompletedPinName)
+            if (pinName.StartsWith("exec_thread_", StringComparison.Ordinal) ||
+                pinName == CompletedPinName ||
+                pinName == FailedPinName ||
+                pinName == ResultPinName)
                 OutputPins.RemoveAt(i);
         }
 
@@ -83,6 +88,8 @@ public sealed class MultiThreadNodeViewModel : NodeBaseViewModel
             AddOutput(ThreadOutputPinName(i), ThreadOutputPinLabel(i), PinKind.Execution);
 
         AddOutput(CompletedPinName, "全部完成", PinKind.Execution, ExecutionPinRole.Completion);
+        AddOutput(FailedPinName, "执行失败", PinKind.Execution, ExecutionPinRole.Failure);
+        AddOutput(ResultPinName, "执行结果", PinKind.Boolean);
         OnPropertyChanged(nameof(Height));
     }
 }

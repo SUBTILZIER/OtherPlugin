@@ -47,6 +47,7 @@
         <SolidColorBrush x:Key="EditorExecutionOverlayBrush" Color="#B0181D2A" po:Freeze="False" />
         <SolidColorBrush x:Key="EditorExecutionPinBrush" Color="#F4F4F4" po:Freeze="False" />
         <SolidColorBrush x:Key="EditorCompletionPinBrush" Color="#FFB848" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorFailurePinBrush" Color="#FF5A64" po:Freeze="False" />
         <SolidColorBrush x:Key="EditorBooleanPinBrush" Color="#B82D30" po:Freeze="False" />
         <SolidColorBrush x:Key="EditorVectorPinBrush" Color="#50C472" po:Freeze="False" />
         <SolidColorBrush x:Key="EditorStringPinBrush" Color="#CA2EA5" po:Freeze="False" />

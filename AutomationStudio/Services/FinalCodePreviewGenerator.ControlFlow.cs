@@ -119,7 +119,7 @@ internal sealed partial class FinalCodePreviewGenerator
     private void EmitMultiThread(GraphExecutionPlan plan, string scopeKey, GraphRuntimeNode node, StringBuilder builder, GenerationState state, int depth, HashSet<string> stack)
     {
         int threadCount = Math.Max(MultiThreadNodeViewModel.MinimumThreadOutputCount, node.ThreadOutputCount);
-        EmitLine(builder, state, depth, $"parallel {{ // {FormatNode(node)}");
+        EmitLine(builder, state, depth, $"result = parallel_wait_all {{ // {FormatNode(node)}");
         for (int i = 1; i <= threadCount; i++)
         {
             string pinName = MultiThreadNodeViewModel.ThreadOutputPinName(i);
@@ -129,8 +129,12 @@ internal sealed partial class FinalCodePreviewGenerator
             EmitChain(plan, scopeKey, node, pinName, builder, state, depth + 2, stack);
             EmitLine(builder, state, depth + 1, "}");
         }
-        EmitLine(builder, state, depth, "} wait_all");
-        EmitNextChain(plan, scopeKey, node, MultiThreadNodeViewModel.CompletedPinName, builder, state, depth, stack);
+        EmitLine(builder, state, depth, "}");
+        EmitLine(builder, state, depth, "if (result) {");
+        EmitNextChain(plan, scopeKey, node, MultiThreadNodeViewModel.CompletedPinName, builder, state, depth + 1, stack);
+        EmitLine(builder, state, depth, "} else {");
+        EmitNextChain(plan, scopeKey, node, MultiThreadNodeViewModel.FailedPinName, builder, state, depth + 1, stack);
+        EmitLine(builder, state, depth, "}");
     }
 
     private void EmitFunctionCall(GraphExecutionPlan callerPlan, GraphRuntimeNode node, StringBuilder builder, GenerationState state, int depth, HashSet<string> stack)

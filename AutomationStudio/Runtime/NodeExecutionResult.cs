@@ -4,6 +4,7 @@ public enum NodeExecutionStatus
 {
     Success,
     WarnButContinue,
+    HandledFailure,
     FatalStop,
 }
 
@@ -26,6 +27,9 @@ public sealed record NodeExecutionResult(
 
     public static NodeExecutionResult Jump(string message, string targetNodeId, bool returnAfterJump) =>
         new(NodeExecutionStatus.Success, message, returnAfterJump ? "exec_out" : null, targetNodeId, returnAfterJump);
+
+    public static NodeExecutionResult HandledFailure(string message, string nextPinName = "exec_failed") =>
+        new(NodeExecutionStatus.HandledFailure, message, nextPinName);
 
     public static NodeExecutionResult Fatal(string message) =>
         new(NodeExecutionStatus.FatalStop, message, null);

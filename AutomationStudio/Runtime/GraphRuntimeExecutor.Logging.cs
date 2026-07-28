@@ -18,6 +18,7 @@ public sealed partial class GraphRuntimeExecutor
         context.Set(node.Id, "__executed", true);
         context.Set(node.Id, "__status", result.Status.ToString());
         context.Set(node.Id, "__success", result.Status == NodeExecutionStatus.Success);
+        context.Set(node.Id, "__handled_failure", result.Status == NodeExecutionStatus.HandledFailure);
         context.Set(node.Id, "__message", result.Message);
         context.Set(node.Id, "__next_pin", result.NextPinName ?? string.Empty);
 
@@ -46,6 +47,7 @@ public sealed partial class GraphRuntimeExecutor
         string status = result.Status switch
         {
             NodeExecutionStatus.FatalStop => "失败",
+            NodeExecutionStatus.HandledFailure => "失败",
             NodeExecutionStatus.WarnButContinue => "警告",
             _ => capturedEntries.Any(entry => entry.Level == LogLevel.Warn) ? "警告" : "成功",
         };
@@ -72,7 +74,7 @@ public sealed partial class GraphRuntimeExecutor
 
     private static LogLevel ResolveNodeLogLevel(NodeExecutionResult result, IReadOnlyList<LogEntry> capturedEntries)
     {
-        if (result.Status == NodeExecutionStatus.FatalStop || capturedEntries.Any(entry => entry.Level == LogLevel.Error))
+        if (result.Status is NodeExecutionStatus.FatalStop or NodeExecutionStatus.HandledFailure || capturedEntries.Any(entry => entry.Level == LogLevel.Error))
             return LogLevel.Error;
         if (result.Status == NodeExecutionStatus.WarnButContinue || capturedEntries.Any(entry => entry.Level == LogLevel.Warn))
             return LogLevel.Warn;
