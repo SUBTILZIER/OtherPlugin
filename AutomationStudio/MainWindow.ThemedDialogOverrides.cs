@@ -1,9 +1,7 @@
 using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
-using AutomationStudioWpf.Controls;
 using AutomationStudioWpf.Interaction;
 using AutomationStudioWpf.Services;
 using WpfButton = System.Windows.Controls.Button;
@@ -15,8 +13,6 @@ using WpfKey = System.Windows.Input.Key;
 using WpfKeyboard = System.Windows.Input.Keyboard;
 using WpfKeyEventArgs = System.Windows.Input.KeyEventArgs;
 using WpfKeyEventHandler = System.Windows.Input.KeyEventHandler;
-using WpfListBox = System.Windows.Controls.ListBox;
-using WpfMenuItem = System.Windows.Controls.MenuItem;
 using WpfModifierKeys = System.Windows.Input.ModifierKeys;
 using WpfRoutedEventArgs = System.Windows.RoutedEventArgs;
 using WpfRoutedEventHandler = System.Windows.RoutedEventHandler;
@@ -28,7 +24,6 @@ public partial class MainWindow
 {
     private bool _isReallyClosing;
     private bool _themedDialogOverridesInstalled;
-    private readonly HashSet<EditorSurfaceControl> _themedGraphListHandlerSurfaces = [];
 
     protected override void OnSourceInitialized(EventArgs e)
     {
@@ -62,27 +57,6 @@ public partial class MainWindow
 
         ContentBrowserBodyGrid.RemoveHandler(WpfDragDrop.PreviewDropEvent, new WpfDragEventHandler(ContentBrowserEnhanced_PreviewDrop));
         ContentBrowserBodyGrid.AddHandler(WpfDragDrop.PreviewDropEvent, new WpfDragEventHandler(ContentBrowserThemed_PreviewDrop), true);
-
-        InstallGraphListHandlersForActiveSurface();
-    }
-
-    private void InstallGraphListHandlersForActiveSurface()
-    {
-        if (TryGetActiveEditorSurface() is { } surface)
-            InstallGraphListHandlersForSurface(surface, surface.SurfaceContext);
-    }
-
-    private void InstallGraphListHandlersForSurface(EditorSurfaceControl surface, EditorSurfaceContext? context = null)
-    {
-        context ??= surface.SurfaceContext;
-        if (context is null)
-            return;
-
-        if (!_themedGraphListHandlerSurfaces.Add(surface))
-            return;
-
-        ReplaceGraphListHandlers(surface.GraphListBox, context.GraphListController, GraphListBox_KeyDown);
-        ReplaceGraphListHandlers(surface.FunctionListBox, context.FunctionListController, FunctionListBox_KeyDown);
     }
 
     private void ReplaceToolbarButton(string content, WpfRoutedEventHandler oldHandler, WpfRoutedEventHandler newHandler)
@@ -92,28 +66,6 @@ public partial class MainWindow
         {
             button.Click -= oldHandler;
             button.Click += newHandler;
-        }
-    }
-
-    private void ReplaceGraphListHandlers(WpfListBox listBox, GraphListController controller, WpfKeyEventHandler oldKeyHandler)
-    {
-        listBox.KeyDown -= oldKeyHandler;
-        listBox.KeyDown += (_, e) => GraphListBox_ThemedKeyDown(controller, listBox, e);
-
-        if (listBox.ContextMenu is null)
-            return;
-
-        foreach (var menuItem in listBox.ContextMenu.Items.OfType<WpfMenuItem>()
-                     .Where(item => string.Equals(item.Header?.ToString(), "删除", StringComparison.Ordinal)))
-        {
-            menuItem.Click -= DeleteGraphMenuItem_Click;
-            menuItem.Click += (_, e) =>
-            {
-                DeleteGraphSelectedThemed(controller, listBox);
-                SaveSectionExpansionForActiveAsset(controller);
-                UpdateGraphSectionVisibility();
-                e.Handled = true;
-            };
         }
     }
 
@@ -155,70 +107,6 @@ public partial class MainWindow
         if (result == MessageBoxResult.Yes)
             return CompileAllAssets(showPrompt: false);
         return true;
-    }
-
-    private void GraphListBox_ThemedKeyDown(GraphListController controller, WpfListBox listBox, WpfKeyEventArgs e)
-    {
-        if (WpfKeyboard.FocusedElement is WpfTextBox)
-            return;
-
-        if (e.Key == WpfKey.Delete)
-        {
-            DeleteGraphSelectedThemed(controller, listBox);
-            SaveSectionExpansionForActiveAsset(controller);
-            UpdateGraphSectionVisibility();
-            e.Handled = true;
-        }
-        else if (e.Key == WpfKey.F2)
-        {
-            controller.RenameSelected();
-            e.Handled = true;
-        }
-    }
-
-    private void DeleteGraphSelectedThemed(GraphListController controller, WpfListBox listBox)
-    {
-        var selected = controller.SelectedItem;
-        if (selected is null)
-            return;
-
-        var result = ThemedDialog.ShowCustom(
-            this,
-            $"是否删除{GetGraphDisplayName(controller)}：{selected.Name}？",
-            $"删除{GetGraphDisplayName(controller)}",
-            MessageBoxImage.Question,
-            new ThemedDialogButton("删除", MessageBoxResult.Yes, true),
-            new ThemedDialogButton("取消", MessageBoxResult.Cancel));
-        if (result != MessageBoxResult.Yes)
-            return;
-
-        var items = controller.Items.ToList();
-        int oldIndex = items.IndexOf(selected);
-        bool deletingActive = ReferenceEquals(selected, controller.ActiveItem);
-        if (controller.Items is ICollection<GraphListItemViewModel> collection)
-            collection.Remove(selected);
-
-        if (!controller.Items.Any())
-        {
-            controller.ClearActive();
-            _editorService.ClearGraph();
-            _graphCommandService.Clear();
-            controller.RefreshSectionExpansion();
-        }
-        else
-        {
-            var next = controller.Items.ElementAt(Math.Clamp(oldIndex, 0, controller.Items.Count() - 1));
-            listBox.SelectedItem = next;
-            if (deletingActive)
-                LoadGraphItem(controller, next, snapshotCurrent: false);
-        }
-
-        controller.Persist();
-    }
-
-    private string GetGraphDisplayName(GraphListController controller)
-    {
-        return ReferenceEquals(controller, _functionListController) ? "函数" : "事件图";
     }
 
     private void ContentFolderListBox_ThemedKeyDown(object sender, WpfKeyEventArgs e)

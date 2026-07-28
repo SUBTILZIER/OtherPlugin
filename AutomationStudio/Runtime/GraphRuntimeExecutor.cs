@@ -46,7 +46,7 @@ public sealed partial class GraphRuntimeExecutor
         if (startNode is null)
         {
             Logger.Error("执行失败：图中没有开始节点。");
-            return new GraphExecutionResult(false, "执行失败：图中没有开始节点。", false);
+            return GraphExecutionResult.Fatal("执行失败：图中没有开始节点。");
         }
 
         using var context = CreateRuntimeContext();
@@ -107,25 +107,25 @@ public sealed partial class GraphRuntimeExecutor
             if (stopBeforeNodeId is not null && string.Equals(currentNode.Id, stopBeforeNodeId, StringComparison.Ordinal))
             {
                 terminalNode = currentNode;
-                return new GraphExecutionResult(true, "执行完成。");
+                return GraphExecutionResult.Completed("执行完成。");
             }
 
             stepCount++;
             if (stepCount > MaxChainSteps)
             {
                 Logger.Error($"执行链超过安全步数 {MaxChainSteps}，疑似执行环路，已停止。");
-                return new GraphExecutionResult(false, "执行失败：执行链疑似存在环路。", false);
+                return GraphExecutionResult.Fatal("执行失败：执行链疑似存在环路。");
             }
 
             NodeExecutionResult result = ExecuteNode(plan, currentNode, context, baseDirectory, assets, state, ct);
             if (!result.ContinueExecution)
-                return new GraphExecutionResult(false, result.Message, false);
+                return GraphExecutionResult.Fatal(result.Message);
 
             if (result.JumpTargetNodeId is not null)
             {
                 GraphRuntimeNode? jumpTarget = plan.Index.GetNode(result.JumpTargetNodeId);
                 if (jumpTarget is null)
-                    return new GraphExecutionResult(false, $"执行失败：ToDo 目标节点不存在：{result.JumpTargetNodeId}。", false);
+                    return GraphExecutionResult.Fatal($"执行失败：ToDo 目标节点不存在：{result.JumpTargetNodeId}。");
 
                 if (result.ReturnAfterJump)
                 {
@@ -156,7 +156,7 @@ public sealed partial class GraphRuntimeExecutor
             currentNode = GetNextExecutionNode(plan, currentNode.Id, result.NextPinName);
         }
 
-        return new GraphExecutionResult(true, "执行完成。");
+        return GraphExecutionResult.Completed("执行完成。");
     }
 
     private GraphExecutionResult ExecuteReturnJump(
@@ -173,7 +173,7 @@ public sealed partial class GraphRuntimeExecutor
         {
             string tooDeepMessage = $"执行失败：ToDo 返回跳转嵌套超过安全上限 {MaxNestedToDoReturnJumps}，已停止。";
             Logger.Error(tooDeepMessage);
-            return new GraphExecutionResult(false, tooDeepMessage, false);
+            return GraphExecutionResult.Fatal(tooDeepMessage);
         }
 
         string jumpKey = MakeToDoReturnJumpKey(plan, sourceNode.Id, jumpTarget.Id);
@@ -181,7 +181,7 @@ public sealed partial class GraphRuntimeExecutor
         {
             string loopMessage = $"执行失败：检测到 ToDo 返回跳转环路：{sourceNode.Title} -> {jumpTarget.Title} {jumpTarget.NodeNumber}。";
             Logger.Error(loopMessage);
-            return new GraphExecutionResult(false, loopMessage, false);
+            return GraphExecutionResult.Fatal(loopMessage);
         }
 
         try

@@ -120,13 +120,13 @@ public sealed class ExecutionController
     {
         RuntimeShutdownGate.ThrowIfShutdownStarted();
         if (asset.Kind != ContentAssetKind.Script)
-            return new GraphExecutionResult(false, "只能执行脚本资产。", false);
+            return GraphExecutionResult.Fatal("只能执行脚本资产。");
 
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(externalCancellationToken);
         GraphExecutionPreflightResult preflight = _preflightService.Prepare(readModel, asset.Id);
         LogPreflightIssues(preflight.Issues);
         if (!preflight.Success)
-            return new GraphExecutionResult(false, "执行前检查失败，执行已取消。", false);
+            return GraphExecutionResult.Fatal("执行前检查失败，执行已取消。");
 
         GraphExecutionPlan plan = preflight.MainPlan!;
         RuntimeAssetLibrary assetLibrary = preflight.AssetLibrary!;
@@ -136,7 +136,7 @@ public sealed class ExecutionController
         {
             bool pythonReady = await _ensurePythonReady(new Progress<string>(_setStatus), externalCancellationToken);
             if (!pythonReady)
-                return new GraphExecutionResult(false, "Python 环境未就绪，执行已取消。", false);
+                return GraphExecutionResult.Fatal("Python 环境未就绪，执行已取消。");
         }
 
         return await Task.Run(() => _runtimeExecutor.Execute(plan, baseDirectory, assetLibrary, linkedCts.Token), linkedCts.Token);

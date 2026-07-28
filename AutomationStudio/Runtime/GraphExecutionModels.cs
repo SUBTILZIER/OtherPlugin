@@ -444,4 +444,47 @@ public sealed record GraphRuntimeNode(
         ?? [];
 }
 
-public sealed record GraphExecutionResult(bool Success, string Message, bool ContinueExecution = true);
+public enum GraphExecutionStatus
+{
+    Completed,
+    FatalStop,
+}
+
+public sealed record GraphExecutionResult
+{
+    public GraphExecutionResult(GraphExecutionStatus status, string message)
+    {
+        Status = status;
+        Message = message;
+    }
+
+    public GraphExecutionResult(bool success, string message, bool continueExecution = true)
+        : this(ToStatus(success, continueExecution), message)
+    {
+    }
+
+    public GraphExecutionStatus Status { get; }
+
+    public string Message { get; }
+
+    public bool Success => Status == GraphExecutionStatus.Completed;
+
+    public bool ContinueExecution => Status != GraphExecutionStatus.FatalStop;
+
+    public static GraphExecutionResult Completed(string message) =>
+        new(GraphExecutionStatus.Completed, message);
+
+    public static GraphExecutionResult Fatal(string message) =>
+        new(GraphExecutionStatus.FatalStop, message);
+
+    private static GraphExecutionStatus ToStatus(bool success, bool continueExecution)
+    {
+        if (success != continueExecution)
+        {
+            throw new ArgumentException(
+                "Graph execution success and continuation flags must describe the same terminal state.");
+        }
+
+        return success ? GraphExecutionStatus.Completed : GraphExecutionStatus.FatalStop;
+    }
+}

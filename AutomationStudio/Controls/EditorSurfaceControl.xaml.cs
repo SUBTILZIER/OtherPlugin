@@ -58,6 +58,15 @@ public partial class EditorSurfaceControl : WpfUserControl
         DataContext = session;
     }
 
+    internal void Detach()
+    {
+        EditorSurfaceHostController.DetachFromCurrentParent(this);
+        IsExecutionFrozen = false;
+        Session = null;
+        SurfaceContext = null;
+        DataContext = null;
+    }
+
     private void Forward(EditorSurfaceEvent surfaceEvent, object sender, EventArgs e)
     {
         SurfaceContext?.HandleEvent(surfaceEvent, sender, e);

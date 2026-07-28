@@ -13,7 +13,7 @@ namespace AutomationStudioWpf.Interaction;
 /// <summary>
 /// Runtime context for a session-owned editor surface.
 /// </summary>
-public sealed class EditorSurfaceContext
+public sealed class EditorSurfaceContext : IDisposable
 {
     private enum SurfaceEventActivation
     {
@@ -25,6 +25,7 @@ public sealed class EditorSurfaceContext
     private AutomationStudioWpf.MainWindow? _host;
     private EditorSurfaceHostServices? _services;
     private GraphListController? _activeAssetController;
+    private bool _disposed;
 
     public EditorSurfaceContext(EditorSessionViewModel session, EditorSurfaceControl surface)
     {
@@ -62,8 +63,11 @@ public sealed class EditorSurfaceContext
 
     public bool IsConfigured => _services is not null;
 
+    public bool IsDisposed => _disposed;
+
     internal void Configure(AutomationStudioWpf.MainWindow host, EditorSurfaceHostServices services)
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
         _host = host ?? throw new ArgumentNullException(nameof(host));
         _services = services ?? throw new ArgumentNullException(nameof(services));
         Surface.Attach(Session, this);
@@ -73,6 +77,7 @@ public sealed class EditorSurfaceContext
 
     public void RebuildControllers()
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
         var services = _services ?? throw new InvalidOperationException("Editor surface context is not configured.");
 
         CommandService = Session.CommandService ??= new GraphCommandService(
@@ -277,7 +282,7 @@ public sealed class EditorSurfaceContext
 
     internal void HandleEvent(EditorSurfaceEvent surfaceEvent, object sender, EventArgs e)
     {
-        if (_host is null)
+        if (_disposed || _host is null)
             return;
 
         var activation = GetEventActivation(surfaceEvent, sender, e);
@@ -438,5 +443,23 @@ public sealed class EditorSurfaceContext
             node.IsSelected = false;
 
         LoadNodeToInspector(null);
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+            return;
+
+        _disposed = true;
+        try { NodePaletteController?.Close(); } catch { }
+        try { PinConnectionController?.CancelPendingPaletteConnection(); } catch { }
+        try { InspectorController?.Dispose(); } catch { }
+        try { CommandService?.Clear(); } catch { }
+        try { Session.EditorService.ClearGraph(); } catch { }
+
+        _activeAssetController = null;
+        _host = null;
+        _services = null;
+        Surface.Detach();
     }
 }

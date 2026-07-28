@@ -128,7 +128,7 @@ internal sealed class GraphValidationService
             return;
 
         foreach (var group in owner.EventGraphs
-                     .SelectMany(item => item.ToMutableModel().Nodes)
+                     .SelectMany(item => item.Nodes)
                      .Where(node => string.Equals(node.NodeTypeKey, "custom_event", StringComparison.OrdinalIgnoreCase))
                      .GroupBy(node => node.CustomEventId ?? string.Empty, StringComparer.Ordinal)
                      .Where(group => string.IsNullOrWhiteSpace(group.Key) || group.Count() > 1))
@@ -148,16 +148,16 @@ internal sealed class GraphValidationService
         GraphDependencyIndex dependencyIndex,
         ICollection<GraphValidationIssue> issues)
     {
-        GraphFileModel graph = item.ToMutableModel();
         string graphName = $"{BuildContentPath(owner, assetsById)}/{item.Name}";
         var nodesById = new Dictionary<string, NodeBaseViewModel>(StringComparer.Ordinal);
         var rawNodeIds = new HashSet<string>(StringComparer.Ordinal);
 
-        foreach (NodeFileModel fileNode in graph.Nodes)
+        foreach (GraphNodeSnapshot nodeSnapshot in item.Nodes)
         {
-            if (string.IsNullOrWhiteSpace(fileNode.Id) || !rawNodeIds.Add(fileNode.Id))
+            if (string.IsNullOrWhiteSpace(nodeSnapshot.Id) || !rawNodeIds.Add(nodeSnapshot.Id))
                 continue;
 
+            NodeFileModel fileNode = nodeSnapshot.ToMutableModel();
             NodeBaseViewModel? node = NodeSerializer.FromFileModel(fileNode);
             if (node is null)
             {
@@ -174,9 +174,9 @@ internal sealed class GraphValidationService
             nodesById.Values,
             issues);
         ValidateNodeNumbers(graphName, nodesById.Values, issues);
-        ValidateConnections(graphName, graph.Connections, nodesById, issues);
-        ValidateToDoTargets(graphName, graph.Connections, nodesById.Values, issues);
-        ValidateCallReferences(dependencyIndex, owner.Id, graph, graphName, issues);
+        ValidateConnections(graphName, item.Connections, nodesById, issues);
+        ValidateToDoTargets(graphName, item.Connections, nodesById.Values, issues);
+        ValidateCallReferences(dependencyIndex, owner.Id, item.Nodes, graphName, issues);
     }
 
     private static void ValidateGraphEntrypoints(
@@ -221,12 +221,12 @@ internal sealed class GraphValidationService
 
     private static void ValidateConnections(
         string graphName,
-        IReadOnlyList<ConnectionFileModel> connections,
+        IReadOnlyList<GraphConnectionSnapshot> connections,
         IReadOnlyDictionary<string, NodeBaseViewModel> nodesById,
         ICollection<GraphValidationIssue> issues)
     {
-        var validConnections = new List<(ConnectionFileModel File, PinKind SourceKind, PinKind TargetKind)>();
-        foreach (ConnectionFileModel connection in connections)
+        var validConnections = new List<(GraphConnectionSnapshot File, PinKind SourceKind, PinKind TargetKind)>();
+        foreach (GraphConnectionSnapshot connection in connections)
         {
             if (!nodesById.TryGetValue(connection.SourceNodeId, out NodeBaseViewModel? sourceNode))
             {
@@ -280,7 +280,7 @@ internal sealed class GraphValidationService
     private static void ValidateCallReferences(
         GraphDependencyIndex dependencyIndex,
         string ownerAssetId,
-        GraphFileModel graph,
+        IEnumerable<GraphNodeSnapshot> nodes,
         string graphName,
         ICollection<GraphValidationIssue> issues)
     {
@@ -291,7 +291,7 @@ internal sealed class GraphValidationService
             .Select(item => item.Id)
             .ToHashSet(StringComparer.Ordinal);
 
-        foreach (NodeFileModel node in graph.Nodes)
+        foreach (GraphNodeSnapshot node in nodes)
         {
             if (node.NodeTypeKey == "function_call" &&
                 (string.IsNullOrWhiteSpace(node.FunctionId) || !functions.Contains(node.FunctionId)))
@@ -308,7 +308,7 @@ internal sealed class GraphValidationService
 
     private static void ValidateToDoTargets(
         string graphName,
-        IReadOnlyList<ConnectionFileModel> connections,
+        IReadOnlyList<GraphConnectionSnapshot> connections,
         IEnumerable<NodeBaseViewModel> nodes,
         ICollection<GraphValidationIssue> issues)
     {
@@ -342,7 +342,7 @@ internal sealed class GraphValidationService
     }
 
     private static bool IsInputConnected(
-        IReadOnlyList<ConnectionFileModel> connections,
+        IReadOnlyList<GraphConnectionSnapshot> connections,
         string nodeId,
         string pinName) =>
         connections.Any(connection => connection.TargetNodeId == nodeId && connection.TargetPinName == pinName);

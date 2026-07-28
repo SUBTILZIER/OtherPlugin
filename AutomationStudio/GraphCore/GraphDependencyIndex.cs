@@ -202,7 +202,7 @@ public sealed class GraphDependencyIndex
             if (!visited.Add(currentGraphId) || !_graphsById.TryGetValue(currentGraphId, out var currentGraph))
                 continue;
 
-            requiresPython |= currentGraph.ToMutableModel().Nodes.Any(node => PythonNodeTypeKeys.Contains(node.NodeTypeKey));
+            requiresPython |= currentGraph.Nodes.Any(node => PythonNodeTypeKeys.Contains(node.NodeTypeKey));
             if (!_edgesBySourceGraphId.TryGetValue(currentGraphId, out var edges))
                 continue;
 
@@ -328,7 +328,7 @@ internal sealed class GraphDependencyIndexBuilder
     {
         var candidates = assets
             .Where(asset => asset.Kind == ContentAssetKind.Script)
-            .SelectMany(asset => asset.EventGraphs.SelectMany(graph => graph.ToMutableModel().Nodes
+            .SelectMany(asset => asset.EventGraphs.SelectMany(graph => graph.Nodes
                 .Where(node => string.Equals(node.NodeTypeKey, "custom_event", StringComparison.OrdinalIgnoreCase))
                 .Select(node => (Asset: asset, Graph: graph, Node: node, EventId: node.CustomEventId ?? string.Empty))))
             .ToList();
@@ -354,7 +354,7 @@ internal sealed class GraphDependencyIndexBuilder
                 item.Graph.Name,
                 item.Asset.Id,
                 item.Node.Id,
-                item.Node.Parameters.Select(GraphModelCopyMapper.Copy).ToList().AsReadOnly(),
+                item.Node.Parameters.Select(parameter => parameter.ToMutableModel()).ToList().AsReadOnly(),
                 item.Graph);
         }
         return result;
@@ -371,7 +371,7 @@ internal sealed class GraphDependencyIndexBuilder
         {
             foreach (var graph in asset.Graphs)
             {
-                foreach (var node in graph.ToMutableModel().Nodes)
+                foreach (GraphNodeSnapshot node in graph.Nodes)
                 {
                     if (string.Equals(node.NodeTypeKey, "function_call", StringComparison.OrdinalIgnoreCase))
                     {

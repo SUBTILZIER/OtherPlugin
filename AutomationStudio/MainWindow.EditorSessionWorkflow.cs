@@ -230,15 +230,16 @@ public partial class MainWindow
 
     private void CloseEditorSession(EditorSessionViewModel session)
     {
+        bool wasActive = ReferenceEquals(session, _activeEditorSession);
         CommitSessionToAsset(session, applyInspector: ReferenceEquals(session, _activeEditorSession));
 
-        if (ReferenceEquals(session, _activeEditorSession))
+        if (wasActive)
             HideMainEditorSurfaceHostOnly();
         session.DetachedWindow?.CloseFromOwner();
         session.DetachedWindow = null;
         RemoveEditorSession(session);
 
-        if (ReferenceEquals(session, _activeEditorSession))
+        if (wasActive)
         {
             _activeEditorSession = null;
             _activeContentAsset = null;
@@ -254,6 +255,8 @@ public partial class MainWindow
                 ClearEditorSurface();
             }
         }
+
+        session.Dispose();
 
         UpdateEditorSessionChrome();
         PersistAssetLibrary();
@@ -296,8 +299,10 @@ public partial class MainWindow
         _activeContentAsset = null;
         _activeEditorSession = null;
         _activeAssetController = null;
-        _editorService.ClearGraph();
-        _graphCommandService.Clear();
+        _editorService = new GraphEditorService();
+        _nodeFactory = new NodeFactory();
+        AttachActiveEditorService(_editorService);
+        RebuildEditorControllers();
         RaiseEditorBindingProperties();
         HideEditorSurfaceHost();
         EmptyEditorPanel.Visibility = Visibility.Visible;
@@ -340,7 +345,4 @@ public partial class MainWindow
 
     private GraphWorkspaceReadModel BuildGraphWorkspaceReadModel() =>
         _workspaceReadModelService.Create();
-
-    private GraphDependencyIndex BuildGraphDependencyIndex() =>
-        BuildGraphWorkspaceReadModel().DependencyIndex;
 }

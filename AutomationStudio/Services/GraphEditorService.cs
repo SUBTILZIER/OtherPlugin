@@ -15,6 +15,7 @@ namespace AutomationStudioWpf.Services;
 public sealed class GraphEditorService
 {
     private readonly JsonSerializerOptions _jsonOptions = new() { WriteIndented = true };
+    private readonly IRenderUpdateScheduler _renderUpdateScheduler;
     private int _batchEditDepth;
     private bool _connectionPathsDirty;
     private bool _graphChangedPending;
@@ -24,7 +25,13 @@ public sealed class GraphEditorService
     public ObservableCollection<ConnectionPathViewModel> ConnectionPaths { get; } = [];
 
     public GraphEditorService()
+        : this(RenderUpdateScheduler.CreateDefault())
     {
+    }
+
+    internal GraphEditorService(IRenderUpdateScheduler renderUpdateScheduler)
+    {
+        _renderUpdateScheduler = renderUpdateScheduler ?? throw new ArgumentNullException(nameof(renderUpdateScheduler));
         Connections.CollectionChanged += ConnectionsCollectionChanged;
     }
 
@@ -102,7 +109,7 @@ public sealed class GraphEditorService
         };
         AddNodeCore(entry, CurrentAssetKind);
         AddNodeCore(ret, CurrentAssetKind);
-        Connections.Add(new ConnectionViewModel(entry.OutputPins.First(p => p.Name == "exec_out"), ret.InputPins.First(p => p.Name == "exec_in")));
+        Connections.Add(CreateConnectionViewModel(entry.OutputPins.First(p => p.Name == "exec_out"), ret.InputPins.First(p => p.Name == "exec_in")));
 
         RaiseGraphChanged();
         StatusChanged?.Invoke("已新建函数，并创建开始和返回节点。");
@@ -252,7 +259,7 @@ public sealed class GraphEditorService
 
             if (sourcePin is not null && targetPin is not null)
             {
-                Connections.Add(new ConnectionViewModel(sourcePin, targetPin));
+                Connections.Add(CreateConnectionViewModel(sourcePin, targetPin));
             }
         }
 
@@ -263,7 +270,7 @@ public sealed class GraphEditorService
         {
             var entry = Nodes.OfType<FunctionEntryNodeViewModel>().Single();
             var ret = Nodes.OfType<FunctionReturnNodeViewModel>().Single();
-            Connections.Add(new ConnectionViewModel(
+            Connections.Add(CreateConnectionViewModel(
                 entry.OutputPins.First(pin => pin.Name == "exec_out"),
                 ret.InputPins.First(pin => pin.Name == "exec_in")));
         }
@@ -487,10 +494,13 @@ public sealed class GraphEditorService
                 }
             }
 
-            Connections.Add(new ConnectionViewModel(sourcePin, targetPin));
+            Connections.Add(CreateConnectionViewModel(sourcePin, targetPin));
             RaiseGraphChanged();
         });
     }
+
+    private ConnectionViewModel CreateConnectionViewModel(PinViewModel sourcePin, PinViewModel targetPin) =>
+        new(sourcePin, targetPin, _renderUpdateScheduler);
 
     public void RemoveConnection(ConnectionViewModel connection)
     {
@@ -554,14 +564,14 @@ public sealed class GraphEditorService
                 visited.Add(chainConnection);
             }
 
-            ConnectionPaths.Add(new ConnectionPathViewModel(chain));
+            ConnectionPaths.Add(new ConnectionPathViewModel(chain, _renderUpdateScheduler));
         }
 
         foreach (var connection in Connections)
         {
             if (!visited.Contains(connection))
             {
-                ConnectionPaths.Add(new ConnectionPathViewModel([connection]));
+                ConnectionPaths.Add(new ConnectionPathViewModel([connection], _renderUpdateScheduler));
             }
         }
     }
@@ -827,7 +837,7 @@ public sealed class GraphEditorService
                 continue;
             }
 
-            rebound.Add(new ConnectionViewModel(sourcePin, targetPin));
+            rebound.Add(CreateConnectionViewModel(sourcePin, targetPin));
         }
 
         RunBatchedEdit(() =>

@@ -68,7 +68,7 @@ public sealed partial class GraphRuntimeExecutor
                                 Logger.Error(message);
                                 return MultiThreadBranchResult.Failed(
                                     branch.Label,
-                                    new GraphExecutionResult(false, message, false));
+                                    GraphExecutionResult.Fatal(message));
                             }
 
                             Logger.Info($"多线程 {NodeLogLabel(node)} / {branch.Label} 完成。");
@@ -85,7 +85,7 @@ public sealed partial class GraphRuntimeExecutor
                             Logger.Error(message);
                             return MultiThreadBranchResult.Failed(
                                 branch.Label,
-                                new GraphExecutionResult(false, message, false));
+                                GraphExecutionResult.Fatal(message));
                         }
                         finally
                         {

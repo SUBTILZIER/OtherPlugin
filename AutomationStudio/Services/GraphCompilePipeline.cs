@@ -53,6 +53,10 @@ internal sealed class GraphCompilePipeline
                     graph.IsCompileDirty = false;
             }
         }
+        else
+        {
+            MarkCompileDirty(assets, affectedAssetIds);
+        }
 
         return BuildResult(preparation, sync, issues, success, affectedAssetIds, snapshot, index);
     }
@@ -101,6 +105,8 @@ internal sealed class GraphCompilePipeline
         bool success = IsSuccessful(issues);
         if (success)
             graph.IsCompileDirty = false;
+        else
+            graph.IsCompileDirty = true;
 
         return BuildResult(
             preparation,

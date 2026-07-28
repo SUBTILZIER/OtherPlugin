@@ -30,6 +30,64 @@ public sealed record ScriptRunSettingsSnapshot(
     ScriptHotkeySnapshot StartHotkey,
     ScriptHotkeySnapshot StopHotkey);
 
+internal sealed record GraphParameterSnapshot(
+    string Id,
+    string Name,
+    GraphParameterType Type,
+    string DefaultValue)
+{
+    public GraphParameterFileModel ToMutableModel() => new()
+    {
+        Id = Id,
+        Name = Name,
+        Type = Type,
+        DefaultValue = DefaultValue,
+    };
+}
+
+internal sealed class GraphNodeSnapshot
+{
+    private readonly NodeFileModel _model;
+
+    public GraphNodeSnapshot(NodeFileModel model)
+    {
+        _model = GraphModelCopyMapper.Copy(model);
+        Id = _model.Id;
+        Title = _model.Title;
+        NodeTypeKey = _model.NodeTypeKey;
+        FunctionId = _model.FunctionId;
+        CustomEventId = _model.CustomEventId;
+        Parameters = _model.Parameters
+            .Select(parameter => new GraphParameterSnapshot(
+                parameter.Id,
+                parameter.Name,
+                parameter.Type,
+                parameter.DefaultValue))
+            .ToList()
+            .AsReadOnly();
+    }
+
+    public string Id { get; }
+
+    public string Title { get; }
+
+    public string NodeTypeKey { get; }
+
+    public string? FunctionId { get; }
+
+    public string? CustomEventId { get; }
+
+    public IReadOnlyList<GraphParameterSnapshot> Parameters { get; }
+
+    public NodeFileModel ToMutableModel() => GraphModelCopyMapper.Copy(_model);
+}
+
+internal sealed record GraphConnectionSnapshot(
+    string SourceNodeId,
+    string SourcePinName,
+    string TargetNodeId,
+    string TargetPinName);
+
 public sealed class GraphSnapshot
 {
     private readonly GraphFileModel _model;
@@ -48,6 +106,18 @@ public sealed class GraphSnapshot
         EntryRole = entryRole;
         IsPublicToLibrary = isPublicToLibrary;
         _model = GraphModelCopyMapper.Copy(model);
+        Nodes = _model.Nodes
+            .Select(node => new GraphNodeSnapshot(node))
+            .ToList()
+            .AsReadOnly();
+        Connections = _model.Connections
+            .Select(connection => new GraphConnectionSnapshot(
+                connection.SourceNodeId,
+                connection.SourcePinName,
+                connection.TargetNodeId,
+                connection.TargetPinName))
+            .ToList()
+            .AsReadOnly();
     }
 
     public string Id { get; }
@@ -59,6 +129,10 @@ public sealed class GraphSnapshot
     public GraphEntryRole? EntryRole { get; }
 
     public bool IsPublicToLibrary { get; }
+
+    internal IReadOnlyList<GraphNodeSnapshot> Nodes { get; }
+
+    internal IReadOnlyList<GraphConnectionSnapshot> Connections { get; }
 
     public GraphFileModel ToMutableModel() => GraphModelCopyMapper.Copy(_model);
 }

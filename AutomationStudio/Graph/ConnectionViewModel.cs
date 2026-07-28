@@ -1,7 +1,6 @@
 using System.ComponentModel;
 using Brush = System.Windows.Media.Brush;
 using Geometry = System.Windows.Media.Geometry;
-using DispatcherPriority = System.Windows.Threading.DispatcherPriority;
 
 namespace AutomationStudioWpf.Graph;
 
@@ -14,11 +13,22 @@ public sealed class ConnectionViewModel : ObservableObject, IDisposable
     private bool _disposed;
     private bool _pathUpdateQueued;
     private Geometry? _pathGeometry;
+    private IDisposable? _pendingPathUpdate;
+    private readonly IRenderUpdateScheduler _renderUpdateScheduler;
 
     public ConnectionViewModel(PinViewModel sourcePin, PinViewModel targetPin)
+        : this(sourcePin, targetPin, RenderUpdateScheduler.CreateDefault())
+    {
+    }
+
+    internal ConnectionViewModel(
+        PinViewModel sourcePin,
+        PinViewModel targetPin,
+        IRenderUpdateScheduler renderUpdateScheduler)
     {
         SourcePin = sourcePin;
         TargetPin = targetPin;
+        _renderUpdateScheduler = renderUpdateScheduler ?? throw new ArgumentNullException(nameof(renderUpdateScheduler));
         StrokeBrush = sourcePin.PinBrush;
 
         SourcePin.Owner.PropertyChanged += NodePropertyChanged;
@@ -38,15 +48,17 @@ public sealed class ConnectionViewModel : ObservableObject, IDisposable
     public void Dispose()
     {
         if (_disposed)
-        {
             return;
-        }
+
+        _disposed = true;
+        _pendingPathUpdate?.Dispose();
+        _pendingPathUpdate = null;
+        _pathUpdateQueued = false;
 
         SourcePin.Owner.PropertyChanged -= NodePropertyChanged;
         TargetPin.Owner.PropertyChanged -= NodePropertyChanged;
         SourcePin.PropertyChanged -= PinPropertyChanged;
         TargetPin.PropertyChanged -= PinPropertyChanged;
-        _disposed = true;
     }
 
     private void NodePropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -67,25 +79,26 @@ public sealed class ConnectionViewModel : ObservableObject, IDisposable
 
     private void QueuePathGeometryRefresh()
     {
-        if (_pathUpdateQueued)
-        {
+        if (_disposed || _pathUpdateQueued)
             return;
-        }
 
         _pathUpdateQueued = true;
-        var dispatcher = System.Windows.Application.Current?.Dispatcher;
-        if (dispatcher is null)
-        {
-            RefreshPathGeometry();
-            return;
-        }
-
-        dispatcher.BeginInvoke(RefreshPathGeometry, DispatcherPriority.Render);
+        IDisposable? request = _renderUpdateScheduler.Schedule(RefreshPathGeometry);
+        if (_pathUpdateQueued)
+            _pendingPathUpdate = request;
+        else
+            request?.Dispose();
+        if (request is null)
+            _pathUpdateQueued = false;
     }
 
     private void RefreshPathGeometry()
     {
+        _pendingPathUpdate = null;
         _pathUpdateQueued = false;
+        if (_disposed)
+            return;
+
         _pathGeometry = BuildPathGeometry();
         OnPropertyChanged(nameof(PathGeometry));
     }

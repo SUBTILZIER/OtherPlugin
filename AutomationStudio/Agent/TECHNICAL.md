@@ -361,6 +361,8 @@ public class GraphEditorService
 - 节点 header、pin、日志级别和弹窗常用 brush 应复用；不要在高频 getter / 日志追加 / dirty 刷新里反复 `new SolidColorBrush(...)`。编译按钮是主题控件，禁止由 C# 写本地 brush 或暗色 fallback。
 - 顶部工具栏的鼠标拾取是编辑器工具，不是运行时节点能力：`MousePickController` 使用 `WH_MOUSE_LL` 全局 mouse hook，`MousePickOverlayWindow` 显示跟随浮窗，`MousePickChoiceWindow` 是非模态复制选择窗，`ScreenPixelSampler` 用 `GetCursorPos` / `GetDC` / `GetPixel` 采样屏幕像素。拾取只在鼠标坐标变化时采样/更新，静止时复用上一帧；浮窗和选择窗必须按当前显示器工作区自适应位置。复制坐标/颜色后退出拾取，取消则继续；拾取结束、窗口关闭或 `Esc` 必须 unhook、释放 DC、关闭 overlay。
 - session 关闭只 snapshot 回 `ContentAssetViewModel` 并移除编辑窗口，不删除资产。删除内容浏览器资产时会关闭所有指向该资产的 session，避免悬空编辑窗口。
+- session 关闭必须调用 `EditorSessionViewModel.Dispose()`：先释放 `EditorSurfaceContext`，取消节点菜单/连线/Inspector 状态并清空 graph service，再由 `EditorSurfaceControl.Detach()` 清除 host、`Session`、`SurfaceContext` 与 `DataContext`。释放必须幂等；旧 surface/context 不得复用或继续路由 UI 事件。
+- 删除事件图/函数必须统一走 owning session 的 `GraphListController`。UI handler 不得自行复制删除逻辑，否则主事件图、函数 Entry/Return 与持久化规则会漂移。
 - 保存、退出、编译前使用 `CommitInspectorAndSnapshotAllSessions()` / `CommitAllSessionsToAssets()`，保证多窗口编辑内容参与引用同步和校验。
 - 工具栏编译是 active-asset scoped，走 `GraphCompileService.CompileAsset(...)`：脚本会编译该资产内事件图和函数；函数库会编译该库内全部函数。`GraphCompileService.CompileGraph(...)` 仍保留为 current-graph scoped 内部能力，但工具栏不使用它。
 - 工具栏编译视觉只由 `IsActiveAssetCompileDirty` 驱动：C# 更新布尔状态；XAML DataTrigger 使用 `DynamicResource` 切换文字、提示图标、背景和边框。禁止重新在 `ApplyAssetCompileButtonState()` 里直接设置颜色，否则主题切换或资源查找失败会出现黑色按钮。
@@ -1392,3 +1394,20 @@ This section is the source of truth for packaging and process-lifecycle work. Re
 - Inspector 内 TextBox/ComboBox 正在交互时，通用 `OnGraphChanged()` 不得全量重载当前面板。参数添加、删除、排序、类型修改等结构操作必须由对应 handler 完成后显式刷新。
 - 同一规则适用于节点标题：ToDo 引用同步可更新目标信息，但不得在用户编辑标题时重建当前 Inspector 或移动光标。
 - 回归门禁：CoreTests 覆盖 Entry/Return/CustomEvent 改名保持 pin/连接；本地-only WPF smoke 覆盖首字符后 TextBox 实例仍存活并可继续输入。
+
+## 2026-07-27：并发、执行状态与只读图工作区
+
+- `ScriptRunManager` 的 `_running` 和 generation 必须在同一锁下更新。`PreventDuplicateRun=true` 时重复触发直接忽略；允许重启时先取消并等待旧 generation 完成，只有最新 generation 可以发布新任务。`RunningStateChanged` 必须在锁外触发，停止、退出和 Dispose 必须幂等。
+- compile dirty 是失败保护契约：任何目标图编译失败后都必须保持 `IsCompileDirty=true`，包括原本 clean、但预检发现结构错误的图。失败不得清调用方 dirty；成功只清实际完成验证的范围。
+- `GraphExecutionResult` 以 `GraphExecutionStatus.Completed/FatalStop` 为唯一状态源；`Success` 与 `ContinueExecution` 只能由状态派生。业务输出 `False/0/空字符串` 仍是正常数据，`WarnButContinue` 仍视为完成；只有 fatal、异常或多线程输出冲突取消 sibling branches。
+- 连线 geometry 更新统一走 `IRenderUpdateScheduler`。WPF 使用 Dispatcher scheduler，CoreTests 使用同步/可控 scheduler；`ConnectionViewModel` 和 `ConnectionPathViewModel.Dispose()` 必须取消 pending operation，回调执行前后检查 disposed 与 Dispatcher shutdown，禁止关闭 session 后旧回调访问已释放 pin/surface。
+- 一次编译、执行或最终代码预览只创建一份 `GraphWorkspaceReadModel`，并复用其中 snapshot、dependency index 和 reachable closure。`GraphDependencyIndex` 直接读取 `GraphSnapshot.Nodes` 的只读摘要；只有明确需要编辑副本时才允许 `ToMutableModel()`。tab 切换、hover 和普通 UI 刷新不得重建 read model。
+- CoreTests 当前门禁包含热键并发重启、compile dirty 失败恢复、执行状态一致性、连线 pending callback 释放和 session surface/context 释放。生命周期测试必须在 STA 加载 `App.xaml` 资源，但不得创建或显示真实 Window。
+
+## 2026-07-28：运行退出、Fatal 状态与快照校验收口
+
+- `ScriptRunManager.BeginShutdown()` 是热键运行的唯一退出入口：先在状态锁内置 shutdown/disposed、失效全部 generation，再取消任务。关闭开始后，状态文字和 `RunningStateChanged` 必须通过 callback gate 统一抑制；`Dispose()` 不得再调用会刷新 UI 的 `StopAll()`。
+- 热键循环必须保留 `GraphExecutionResult.FatalStop` 的实际失败信息。Count、Duration、UntilStopped 任一模式收到 fatal 后都立即停止后续循环，并显示失败原因；禁止随后用“脚本执行结束”覆盖。业务输出 `False/0/空字符串` 不属于 fatal。
+- workspace 编译失败时，参与本轮验证的图全部保持 `IsCompileDirty=true`；保存 dirty 保持原状态。只有 workspace 完整验证成功后才能清 compile dirty。
+- 多线程回归必须同时覆盖：`False/True/True` 正常完成、fatal 取消长等待 sibling、用户取消不记 fatal、同 key 同值允许、同 key 异值冲突、`exec_completed` 仅全成功后执行。
+- `GraphSnapshot` 同时提供不可变 node/connection 摘要。验证器读取摘要，并仅为 `NodeSerializer` 逐节点生成副本；禁止为了检查自定义事件 ID、连接或调用引用而对整图重复 `ToMutableModel()`。Runtime plan builder 仍允许每次执行创建一次完整可变副本。

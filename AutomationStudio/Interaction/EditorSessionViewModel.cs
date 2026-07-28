@@ -11,7 +11,7 @@ public enum EditorDockMode
     Detached,
 }
 
-public sealed class EditorSessionViewModel : ObservableObject
+public sealed class EditorSessionViewModel : ObservableObject, IDisposable
 {
     private bool _isActive;
     private bool _isDirty;
@@ -23,6 +23,7 @@ public sealed class EditorSessionViewModel : ObservableObject
     private double _top = 42;
     private double _width = 920;
     private double _height = 560;
+    private bool _disposed;
 
     public EditorSessionViewModel(ContentAssetViewModel contentAsset)
     {
@@ -131,6 +132,7 @@ public sealed class EditorSessionViewModel : ObservableObject
 
     public EditorSurfaceContext EnsureSurfaceContext()
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
         if (SurfaceContext is not null)
             return SurfaceContext;
 
@@ -157,5 +159,19 @@ public sealed class EditorSessionViewModel : ObservableObject
     {
         ActiveGraphItemId = activeController?.ActiveItem?.Id;
         ActiveGraphKind = activeController?.AssetKind;
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+            return;
+
+        _disposed = true;
+        SurfaceContext?.Dispose();
+        CommandService?.Clear();
+        CommandService = null;
+        SurfaceContext = null;
+        Surface = null;
+        DetachedWindow = null;
     }
 }

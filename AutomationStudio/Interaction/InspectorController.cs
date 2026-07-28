@@ -16,13 +16,14 @@ namespace AutomationStudioWpf.Interaction;
 /// Owns node inspector loading, autosave, browse dialogs, and field lock state.
 /// MainWindow only forwards XAML events into this controller.
 /// </summary>
-public sealed partial class InspectorController
+public sealed partial class InspectorController : IDisposable
 {
     private readonly Window _owner;
     private readonly GraphEditorService _editorService;
     private readonly Win32WindowAdapter _windowAdapter;
     private readonly Action _markDirty;
     private readonly Action<string> _setStatus;
+    private bool _disposed;
 
     private readonly TextBlock _hintTextBlock;
     private readonly WpfTextBox _nodeTitleTextBox;
@@ -423,6 +424,18 @@ public sealed partial class InspectorController
         ConfigureStaticFreeTextEditors();
         _structuredInspectorHost.DataContext = _structuredInspector;
         _structuredInspector.FieldChanged += StructuredInspectorFieldChanged;
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+            return;
+
+        _disposed = true;
+        _structuredInspector.FieldChanged -= StructuredInspectorFieldChanged;
+        _structuredInspector.Reset(null);
+        if (ReferenceEquals(_structuredInspectorHost.DataContext, _structuredInspector))
+            _structuredInspectorHost.DataContext = null;
     }
 
     public void LoadNode(NodeBaseViewModel? node)

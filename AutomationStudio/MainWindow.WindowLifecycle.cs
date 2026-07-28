@@ -148,7 +148,7 @@ public partial class MainWindow
 
         RuntimeShutdownGate.BeginShutdown();
         _mousePickController.Stop();
-        _scriptRunManager.StopAll(ScriptRunStopReason.ApplicationExit);
+        _scriptRunManager.BeginShutdown();
         _executionController.Cancel(ExecutionStopReason.ApplicationExit);
         _pythonEnvironmentService.TerminateAllProcessesImmediately();
         _executionController.ReleaseAllInputs();
@@ -159,7 +159,10 @@ public partial class MainWindow
         {
             session.DetachedWindow?.CloseFromOwner();
             session.DetachedWindow = null;
+            session.Dispose();
         }
+        _editorSessions.Clear();
+        _mainEditorSessions.Clear();
 
         _mousePickController.Dispose();
         _scriptRunManager.Dispose();
@@ -185,7 +188,7 @@ public partial class MainWindow
     internal void EmergencyStopRuntimeWithoutUi()
     {
         RuntimeShutdownGate.BeginShutdown();
-        try { _scriptRunManager.CancelAllWithoutUi(); } catch { }
+        try { _scriptRunManager.BeginShutdown(); } catch { }
         try { _executionController.CancelWithoutUi(); } catch { }
         try { _pythonEnvironmentService.TerminateAllProcessesImmediately(); } catch { }
         try { _executionController.ReleaseAllInputs(); } catch { }

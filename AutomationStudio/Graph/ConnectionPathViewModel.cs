@@ -4,7 +4,6 @@ using Brush = System.Windows.Media.Brush;
 using Geometry = System.Windows.Media.Geometry;
 using BezierSegment = System.Windows.Media.BezierSegment;
 using PathGeometry = System.Windows.Media.PathGeometry;
-using DispatcherPriority = System.Windows.Threading.DispatcherPriority;
 
 namespace AutomationStudioWpf.Graph;
 
@@ -15,10 +14,20 @@ public sealed class ConnectionPathViewModel : ObservableObject, IDisposable
     private bool _pathUpdateQueued;
     private bool _isSelected;
     private Geometry? _pathGeometry;
+    private IDisposable? _pendingPathUpdate;
+    private readonly IRenderUpdateScheduler _renderUpdateScheduler;
 
     public ConnectionPathViewModel(IReadOnlyList<ConnectionViewModel> connections)
+        : this(connections, RenderUpdateScheduler.CreateDefault())
+    {
+    }
+
+    internal ConnectionPathViewModel(
+        IReadOnlyList<ConnectionViewModel> connections,
+        IRenderUpdateScheduler renderUpdateScheduler)
     {
         Connections = connections;
+        _renderUpdateScheduler = renderUpdateScheduler ?? throw new ArgumentNullException(nameof(renderUpdateScheduler));
         StrokeBrush = connections.Count > 0 ? connections[0].StrokeBrush : PinBrushes.ForKind(PinKind.Execution);
 
         foreach (var pin in Connections.SelectMany(connection => new[] { connection.SourcePin, connection.TargetPin }).Distinct())
@@ -60,17 +69,18 @@ public sealed class ConnectionPathViewModel : ObservableObject, IDisposable
     public void Dispose()
     {
         if (_disposed)
-        {
             return;
-        }
+
+        _disposed = true;
+        _pendingPathUpdate?.Dispose();
+        _pendingPathUpdate = null;
+        _pathUpdateQueued = false;
 
         foreach (var pin in Connections.SelectMany(connection => new[] { connection.SourcePin, connection.TargetPin }).Distinct())
         {
             pin.PropertyChanged -= PinPropertyChanged;
             pin.Owner.PropertyChanged -= NodePropertyChanged;
         }
-
-        _disposed = true;
     }
 
     public ConnectionViewModel FindNearestConnection(Point graphPoint)
@@ -208,25 +218,26 @@ public sealed class ConnectionPathViewModel : ObservableObject, IDisposable
 
     private void QueuePathGeometryRefresh()
     {
-        if (_pathUpdateQueued)
-        {
+        if (_disposed || _pathUpdateQueued)
             return;
-        }
 
         _pathUpdateQueued = true;
-        var dispatcher = System.Windows.Application.Current?.Dispatcher;
-        if (dispatcher is null)
-        {
-            RefreshPathGeometry();
-            return;
-        }
-
-        dispatcher.BeginInvoke(RefreshPathGeometry, DispatcherPriority.Render);
+        IDisposable? request = _renderUpdateScheduler.Schedule(RefreshPathGeometry);
+        if (_pathUpdateQueued)
+            _pendingPathUpdate = request;
+        else
+            request?.Dispose();
+        if (request is null)
+            _pathUpdateQueued = false;
     }
 
     private void RefreshPathGeometry()
     {
+        _pendingPathUpdate = null;
         _pathUpdateQueued = false;
+        if (_disposed)
+            return;
+
         _pathGeometry = BuildPathGeometry();
         OnPropertyChanged(nameof(PathGeometry));
     }
