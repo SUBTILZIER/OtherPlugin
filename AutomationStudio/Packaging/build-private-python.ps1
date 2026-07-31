@@ -121,7 +121,7 @@ $env:PYTHONDONTWRITEBYTECODE = '1'
 $env:PYTHONUTF8 = '1'
 Remove-Item Env:PYTHONPATH -ErrorAction SilentlyContinue
 Remove-Item Env:PYTHONHOME -ErrorAction SilentlyContinue
-& $pythonExe -I -c "import sys,cv2,numpy,PIL; assert sys.version_info[:3] == (3,14,6); assert cv2.__version__ == '4.13.0'; assert numpy.__version__ == '2.4.6'; assert PIL.__version__ == '12.2.0'"
+& $pythonExe -I -B -c "import sys,cv2,numpy,PIL; assert sys.version_info[:3] == (3,14,6); assert cv2.__version__ == '4.13.0'; assert numpy.__version__ == '2.4.6'; assert PIL.__version__ == '12.2.0'"
 if ($LASTEXITCODE -ne 0) {
     throw "Bundled Python validation failed with exit code $LASTEXITCODE"
 }

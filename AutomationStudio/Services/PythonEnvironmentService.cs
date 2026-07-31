@@ -117,6 +117,7 @@ internal sealed class PythonEnvironmentService : IDisposable
     internal OwnedProcessHandle StartOwnedProcess(ProcessStartInfo startInfo, string purpose)
     {
         ThrowIfProcessStartBlocked();
+        ConfigureIsolatedPythonStartInfo(startInfo);
         OwnedProcessHandle owned = OwnedProcessHandle.Launch(startInfo);
         IDisposable? registration = null;
         try
@@ -134,6 +135,26 @@ internal sealed class PythonEnvironmentService : IDisposable
             owned.Dispose();
             throw;
         }
+    }
+
+    internal static void ConfigureIsolatedPythonStartInfo(ProcessStartInfo startInfo)
+    {
+        string executableName = Path.GetFileNameWithoutExtension(startInfo.FileName);
+        if (!string.Equals(executableName, "python", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(executableName, "pythonw", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        // -I ignores PYTHON* environment variables, so -B is required to keep
+        // the bundled runtime read-only. Keep the variables for non-isolated probes.
+        if (!startInfo.ArgumentList.Contains("-B", StringComparer.Ordinal))
+            startInfo.ArgumentList.Insert(0, "-B");
+        startInfo.Environment["PYTHONNOUSERSITE"] = "1";
+        startInfo.Environment["PYTHONDONTWRITEBYTECODE"] = "1";
+        startInfo.Environment["PYTHONUTF8"] = "1";
+        startInfo.Environment.Remove("PYTHONPATH");
+        startInfo.Environment.Remove("PYTHONHOME");
     }
 
     private IDisposable RegisterProcess(Process process, string purpose)

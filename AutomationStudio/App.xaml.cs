@@ -13,6 +13,37 @@ public partial class App : System.Windows.Application
 
     protected override void OnStartup(StartupEventArgs e)
     {
+        if (!ReleaseTestOptions.TryParse(e.Args, out ReleaseTestOptions releaseOptions, out string optionError))
+        {
+            Console.Error.WriteLine(optionError);
+            Shutdown(64);
+            return;
+        }
+
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(releaseOptions.TestRoot))
+                ApplicationPaths.ConfigureReleaseTestRoot(releaseOptions.TestRoot);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine(ex.Message);
+            Shutdown(65);
+            return;
+        }
+
+        if (releaseOptions.IsSelfTest)
+        {
+            base.OnStartup(e);
+            ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            _ = Dispatcher.InvokeAsync(async () =>
+            {
+                int exitCode = await ReleaseSelfTestRunner.RunAsync(releaseOptions, CancellationToken.None);
+                Shutdown(exitCode);
+            });
+            return;
+        }
+
         bool shutdownForUpdate = e.Args.Any(argument =>
             string.Equals(argument, "--shutdown-for-update", StringComparison.OrdinalIgnoreCase));
         _singleInstanceCoordinator = new SingleInstanceCoordinator();

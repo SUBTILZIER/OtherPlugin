@@ -9,7 +9,7 @@
 - Assets/settings use `%AppData%\AutomationStudioWpf` when writable, otherwise one process-wide `%LocalAppData%\AutomationStudioWpf\Data` fallback. Logs, crash reports, screenshots, and Python requests use LocalAppData.
 - The installer sends `--shutdown-for-update`, checks exit code `0`, waits for the single-instance mutex and private Python processes to disappear, and aborts on timeout or user cancellation.
 - Unsigned local packages must use `-UNSIGNED` in the installer filename and contain `signed=false` in `build-manifest.json`.
-- `Packaging\verify-release.ps1` is local-only and ignored by Git. A clean Windows 10/11 x64 VM is still required for final Defender and offline-install validation.
+- `Packaging\verify-release.ps1` is a Git-tracked release gate. Host verification runs by default; a clean Windows 10/11 x64 VM is still required for Defender and offline-install validation.
 
 Windows 10/11 x64 的可视化桌面自动化编辑器。使用节点、执行线和数据线编排脚本；支持脚本资产、函数库、多窗口编辑、全局热键、并行分支和 OpenCV 找图。
 
@@ -119,12 +119,30 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass `
 ```
 
 - 工作树默认必须干净；本地临时验证可显式加 `-AllowDirty`。
-- 只验证 publish staging、暂不编译安装器时加 `-SkipInstaller`。
+- `build-release.ps1` 默认执行本机安装门禁；只有显式 `-SkipVerification` 才跳过。跳过后的 manifest 标记 `hostStatus=skipped`，产物不可视为正式可发布包。
+- `-SkipInstaller` 只能与 `-SkipVerification` 同用，仅供临时检查 staging。
 - 首次构建会按 `Packaging/vendor-manifest.json` 下载并校验固定 SHA256；缓存后可离线重复构建。
 - 简体中文 Inno 语言文件已固定版本、SHA256 和许可证并随仓库维护；构建不依赖 Inno 可选语言目录。
 - 输出位于 `Packaging/artifacts/release/<version>/`，该目录不提交 Git。
 - `stage/` 是自包含多文件目录，`Runtime/Python` 是私有运行时，`symbols/` 单独保存 PDB。
 - 正式构建不得使用 `-AllowUnsigned`；安装器和应用 EXE 必须签名。
+
+本机门禁会生成 `verification/release-verification.json` 和 `.md`，真实验证私有 Python/import、正式 `find_image.py`、Python 取消清理、安装目录零写入、5 次单实例启动、安全退出、卸载和用户数据保留。存在已通过门禁的旧版本时，自动选择最高旧版本执行升级测试；没有时明确记录 `NotRun`。
+
+干净 VM 最终门禁：
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass `
+  -File .\Packaging\verify-release.ps1 `
+  -ReleaseRoot .\Packaging\artifacts\release\<version> `
+  -Mode Vm `
+  -ConfirmDisposableVm `
+  -RequireOffline `
+  -RequireStandardUser `
+  -RequireDefender
+```
+
+VM 必须是 Windows 10/11 x64 干净快照、标准用户、断网、无系统 Python、无预装 .NET Runtime。VM 报告未通过不得发布。
 
 安装器：
 

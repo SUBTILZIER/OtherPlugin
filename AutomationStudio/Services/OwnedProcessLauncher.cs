@@ -178,7 +178,9 @@ internal sealed class OwnedProcessHandle : IDisposable
     }
 
     private static StreamReader CreateReader(SafeFileHandle handle) =>
-        new(new FileStream(handle, FileAccess.Read, 64 * 1024, isAsync: true), new UTF8Encoding(false), true);
+        // CreatePipe returns a synchronous handle. Using an async FileStream here
+        // throws on packaged Windows builds before stdout/stderr can be drained.
+        new(new FileStream(handle, FileAccess.Read, 64 * 1024, isAsync: false), new UTF8Encoding(false), true);
 
     private static void CreatePipePair(out SafeFileHandle read, out SafeFileHandle write)
     {

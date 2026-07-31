@@ -7,7 +7,8 @@ param(
     [string]$TimestampUrl = 'http://timestamp.digicert.com',
     [switch]$AllowUnsigned,
     [switch]$AllowDirty,
-    [switch]$SkipInstaller
+    [switch]$SkipInstaller,
+    [switch]$SkipVerification
 )
 
 $ErrorActionPreference = 'Stop'
@@ -28,6 +29,7 @@ $privatePythonScript = Join-Path $PSScriptRoot 'build-private-python.ps1'
 $vendorManifest = Join-Path $PSScriptRoot 'vendor-manifest.json'
 $noticesTemplate = Join-Path $PSScriptRoot 'THIRD-PARTY-NOTICES.template.txt'
 $innoScript = Join-Path $PSScriptRoot 'AutomationStudio.iss'
+$verifyScript = Join-Path $PSScriptRoot 'verify-release.ps1'
 
 function Invoke-Checked([string]$FilePath, [string[]]$Arguments) {
     & $FilePath @Arguments
@@ -172,6 +174,9 @@ if (-not $AllowDirty -and $dirty) {
 if ([string]::IsNullOrWhiteSpace($CertificateThumbprint) -and -not $AllowUnsigned) {
     throw 'No signing certificate supplied. Use -CertificateThumbprint for a release or explicitly pass -AllowUnsigned for a test package.'
 }
+if ($SkipInstaller -and -not $SkipVerification) {
+    throw '-SkipInstaller requires -SkipVerification because host verification installs the package.'
+}
 
 Assert-PackagingDependencies
 
@@ -213,7 +218,7 @@ Copy-Item -LiteralPath $vendorManifest -Destination (Join-Path $stageDirectory '
 
 $pythonExe = Join-Path $runtimeDirectory 'python.exe'
 Invoke-Checked $pythonExe @(
-    '-I', '-c',
+    '-I', '-B', '-c',
     "import sys,cv2,numpy,PIL; assert sys.version_info[:3] == (3,14,6); assert cv2.__version__ == '4.13.0'; assert numpy.__version__ == '2.4.6'; assert PIL.__version__ == '12.2.0'")
 Remove-PythonCaches $runtimeDirectory
 
@@ -282,7 +287,8 @@ $hashLines = foreach ($target in $hashTargets) {
     (New-Object Text.UTF8Encoding($false)))
 
 $buildManifest = [ordered]@{
-    schemaVersion = 1
+    schemaVersion = 2
+    releaseSelfTestSchema = 1
     product = 'AutomationStudio'
     version = $Version
     runtimeIdentifier = 'win-x64'
@@ -293,11 +299,64 @@ $buildManifest = [ordered]@{
     builtAtUtc = [DateTime]::UtcNow.ToString('O')
     gitCommit = (& git -C $repositoryRoot rev-parse HEAD).Trim()
     dirty = [bool]$dirty
+    verification = [ordered]@{
+        hostStatus = if ($SkipVerification) { 'skipped' } else { 'pending' }
+        hostReport = $null
+        hostReportSha256 = $null
+        vmStatus = 'required'
+    }
 }
-[IO.File]::WriteAllText(
-    (Join-Path $releaseRoot 'build-manifest.json'),
-    ($buildManifest | ConvertTo-Json -Depth 4),
-    (New-Object Text.UTF8Encoding($false)))
+$buildManifestPath = Join-Path $releaseRoot 'build-manifest.json'
+function Write-BuildManifest() {
+    [IO.File]::WriteAllText(
+        $buildManifestPath,
+        ($buildManifest | ConvertTo-Json -Depth 6),
+        (New-Object Text.UTF8Encoding($false)))
+}
+Write-BuildManifest
+
+if (-not $SkipVerification) {
+    if (-not (Test-Path -LiteralPath $verifyScript)) {
+        throw "Release verification script missing: $verifyScript"
+    }
+    $verifyArguments = @(
+        '-NoProfile', '-ExecutionPolicy', 'Bypass',
+        '-File', $verifyScript,
+        '-ReleaseRoot', $releaseRoot,
+        '-Mode', 'Host')
+    if (-not $isSigned) {
+        $verifyArguments += '-AllowUnsigned'
+    }
+    $hostReportPath = Join-Path $releaseRoot 'verification\release-verification.json'
+    try {
+        Invoke-Checked 'powershell.exe' $verifyArguments
+        if (-not (Test-Path -LiteralPath $hostReportPath)) {
+            throw "Host release verification report missing: $hostReportPath"
+        }
+        $hostReport = Get-Content -LiteralPath $hostReportPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        if (-not [bool]$hostReport.passed) {
+            throw 'Host release verification report did not pass.'
+        }
+        $buildManifest.verification.hostStatus = 'passed'
+    }
+    catch {
+        $buildManifest.verification.hostStatus = 'failed'
+        if (Test-Path -LiteralPath $hostReportPath) {
+            $buildManifest.verification.hostReport = 'verification/release-verification.json'
+            $buildManifest.verification.hostReportSha256 =
+                (Get-FileHash -LiteralPath $hostReportPath -Algorithm SHA256).Hash.ToLowerInvariant()
+        }
+        Write-BuildManifest
+        throw
+    }
+    $buildManifest.verification.hostReport = 'verification/release-verification.json'
+    $buildManifest.verification.hostReportSha256 =
+        (Get-FileHash -LiteralPath $hostReportPath -Algorithm SHA256).Hash.ToLowerInvariant()
+    Write-BuildManifest
+}
+else {
+    Write-Warning 'Host release verification was skipped. This artifact is not release-ready.'
+}
 
 Write-Host "Release stage ready: $stageDirectory"
 if ($installerPath) {
@@ -305,3 +364,4 @@ if ($installerPath) {
 } else {
     Write-Warning 'Installer compilation was skipped.'
 }
+Write-Host "Host verification: $($buildManifest.verification.hostStatus)"

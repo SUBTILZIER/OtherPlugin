@@ -14,9 +14,17 @@
   #define InstallerBaseName "AutomationStudio-Setup"
 #endif
 
+#ifdef VerificationBuild
+  #define EffectiveAppId "{{3E89D36C-4A7E-4D88-B9E8-63AC75536A27}"
+  #define EffectiveAppName "AutomationStudio Release Verification"
+#else
+  #define EffectiveAppId "{{DA1B9FE1-FE96-460D-8C7E-E5F4E71338AD}"
+  #define EffectiveAppName "AutomationStudio"
+#endif
+
 [Setup]
-AppId={{DA1B9FE1-FE96-460D-8C7E-E5F4E71338AD}
-AppName=AutomationStudio
+AppId={#EffectiveAppId}
+AppName={#EffectiveAppName}
 AppVersion={#MyAppVersion}
 AppVerName=AutomationStudio {#MyAppVersion}
 AppPublisher=SUBTILZIER
@@ -47,18 +55,22 @@ UsedUserAreasWarning=no
 [Languages]
 Name: "chinesesimplified"; MessagesFile: "InnoLanguages\ChineseSimplified.isl"
 
+#ifndef VerificationBuild
 [Tasks]
 Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: "附加快捷方式"; Flags: unchecked
+#endif
 
 [Files]
 Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
+#ifndef VerificationBuild
 [Icons]
 Name: "{group}\AutomationStudio"; Filename: "{app}\AutomationStudioWpf.exe"
 Name: "{autodesktop}\AutomationStudio"; Filename: "{app}\AutomationStudioWpf.exe"; Tasks: desktopicon
 
 [Run]
 Filename: "{app}\AutomationStudioWpf.exe"; Description: "启动 AutomationStudio"; Flags: nowait postinstall skipifsilent
+#endif
 
 [Code]
 const

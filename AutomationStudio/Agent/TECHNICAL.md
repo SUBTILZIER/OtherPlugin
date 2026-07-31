@@ -1292,7 +1292,8 @@ Python 参数规则：
 - Release 只认安装目录 `Runtime/Python/python.exe`，禁止扫描系统 Python、WindowsApps alias、用户 site-packages 或在线安装。
 - 当前固定：Python 3.14.6 embeddable x64、opencv-python-headless 4.13.0.92、NumPy 2.4.6、Pillow 12.2.0。URL、版本、SHA256、许可证只维护在 `Packaging/vendor-manifest.json`。
 - `Packaging/build-private-python.ps1` 必须校验每个下载 SHA256，配置 `python314._pth`，开放 `Lib/site-packages`，删除缓存/精确测试目录，并执行真实 import probe。
-- 运行时必须设置 `PYTHONNOUSERSITE=1`、`PYTHONDONTWRITEBYTECODE=1`、`PYTHONUTF8=1`，移除 `PYTHONPATH/PYTHONHOME`，并使用 `-I`。
+- 运行时必须设置 `PYTHONNOUSERSITE=1`、`PYTHONDONTWRITEBYTECODE=1`、`PYTHONUTF8=1`，移除 `PYTHONPATH/PYTHONHOME`，并使用 `-I -B`。关键坑：`-I` 隐含 `-E`，会忽略 `PYTHONDONTWRITEBYTECODE`；若缺少显式 `-B`，NumPy/OpenCV/Pillow 会把 `__pycache__/*.pyc` 写进安装目录，破坏只读契约并导致卸载残留。
+- 所有 Python 进程都经 `PythonEnvironmentService.ConfigureIsolatedPythonStartInfo(...)` 统一注入 `-B` 和隔离环境；禁止调用方各自维护一套参数。`Packaging/build-private-python.ps1` 和 `build-release.ps1` 的 import probe 同样必须显式使用 `-B`。
 - 私有运行时缺失、manifest 不匹配或 import 失败时，禁用找图并提示修复/重装；不得联网修复或偷偷回退系统 Python。
 
 #### 发布产物
@@ -1311,12 +1312,15 @@ Python 参数规则：
 - 升级退出仍必须 snapshot 并显示未保存确认。用户取消时主进程保留；Inno `PrepareToInstall` 最多等待 60 秒，超时返回错误并中止，禁止覆盖运行中的文件。
 - Inno AppId 固定 `{DA1B9FE1-FE96-460D-8C7E-E5F4E71338AD}`，当前用户安装到 `%LocalAppData%/Programs/AutomationStudio`；卸载默认保留 AppData 用户数据。
 
-#### 本机发布验收（2026-07-16）
-- `Packaging/build-release.ps1 -Version 1.0.0 -AllowDirty -AllowUnsigned` 已完整通过，生成 92.76 MiB 的明确未签名测试安装器、build manifest 和 SHA256 清单；该结果不能替代正式签名。
-- 对脚本生成的安装器执行静默安装、运行中原位升级和卸载均成功；安装后共 1253 个文件，应用文件版本为 `1.0.0.0`。
-- 连续启动 5 次只保留 1 个应用进程；`--shutdown-for-update` 后应用和私有 Python 均为 0 个残留进程。
-- 卸载前后 `%AppData%/AutomationStudioWpf` 文件数保持 4，确认默认保留用户数据。
-- 当前机器 Windows Defender 服务不可用，`Get-MpComputerStatus` 返回 `HRESULT 0x800106ba`，因此 Defender 扫描仍是干净 Windows 10/11 x64 VM 的发布前阻塞项，不能标记为已通过。
+#### Git 跟踪的发布门禁（2026-07-30）
+- `Packaging/verify-release.ps1` 是 Git 跟踪门禁，不属于本地 smoke。`Tests/CodexSmoke` 仍保持 Git 忽略。
+- `build-release.ps1` 默认执行 Host 门禁；仅显式 `-SkipVerification` 可跳过。跳过必须写 `hostStatus=skipped`；门禁异常必须写 `hostStatus=failed`，禁止 manifest 长期停在 `pending`。
+- 隐藏入口 `--release-self-test --release-test-root <path> --report <path>` 只允许访问 `%TEMP%/AutomationStudio.ReleaseVerify` 下带 `.automationstudio-release-test` 安全标记的子目录。该模式不创建主窗口、托盘、Hook 或真实 AppData。
+- 自检必须真实运行私有 Python 版本/依赖 import、正式 `Python/find_image.py`、长 Python 任务取消，并确认请求 JSON、进程树和可写目录均被隔离清理。
+- Host 安装使用验证专用 AppId，不触碰真实 AutomationStudio 安装记录；连续启动 5 次只能留下一个实例，`--shutdown-for-update` 后应用和私有 Python 都必须归零。
+- 安装前后比较安装目录完整文件哈希；任何新增、缺失或变化都失败。卸载后安装目录必须消失，隔离用户数据必须保留。
+- `Packaging/artifacts/release/1.0.4/verification/release-verification.json` 已在本机通过 fresh install、私有 Python、找图、取消、单实例、退出、零写入和卸载门禁；当时升级项按契约记录 `NotRun`。随后 `1.0.5` 自动选择 `1.0.4`，实际完成运行中升级、安全退出、版本替换和用户数据保留验证并通过。该结果仍属于 Host 门禁，正式发布前必须在干净 Win10/11 VM 补跑。
+- VM 模式必须在干净 Windows 10/11 x64 快照中使用正式 AppId，标准用户、断网、无系统 Python、无预装 .NET Runtime，并执行 Defender 扫描。VM 报告和人工“未保存修改时取消升级”未通过前，包不得发布。
 
 #### 崩溃与紧急清理
 - `CrashReporter` 捕获 Dispatcher、AppDomain 和未观察 Task 异常，报告写入 LocalAppData，包含版本、OS、架构和完整堆栈。

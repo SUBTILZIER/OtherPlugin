@@ -51,7 +51,6 @@ public sealed class PythonScriptAdapter : IPythonScriptAdapter
                 RedirectStandardError = true,
                 CreateNoWindow = true,
             };
-            ConfigureIsolatedPythonEnvironment(startInfo);
             startInfo.ArgumentList.Add("-I");
             startInfo.ArgumentList.Add(scriptPath);
             startInfo.ArgumentList.Add(requestPath);
@@ -114,15 +113,6 @@ public sealed class PythonScriptAdapter : IPythonScriptAdapter
                 Logging.Logger.Error($"Python 子进程未能终止，已保留请求文件：{requestPath}");
             }
         }
-    }
-
-    private static void ConfigureIsolatedPythonEnvironment(ProcessStartInfo startInfo)
-    {
-        startInfo.Environment["PYTHONNOUSERSITE"] = "1";
-        startInfo.Environment["PYTHONDONTWRITEBYTECODE"] = "1";
-        startInfo.Environment["PYTHONUTF8"] = "1";
-        startInfo.Environment.Remove("PYTHONPATH");
-        startInfo.Environment.Remove("PYTHONHOME");
     }
 
     private static bool TerminateAndDrain(Process process, Task<string>? outputTask, Task<string>? errorTask)
