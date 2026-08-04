@@ -1302,6 +1302,7 @@ Python 参数规则：
 - PDB 必须移出安装 stage 到 `symbols/`。stage 必须生成 `THIRD-PARTY-NOTICES.txt`、`vendor-manifest.json`；release 根生成 `build-manifest.json` 和 `SHA256SUMS.txt`。
 - 无证书时脚本默认失败。`-AllowUnsigned` 只能生成明确标记的测试包；正式公开发布必须对应用 EXE 和安装器做 Authenticode SHA256 签名与时间戳。
 - 托盘/窗口图标从 EXE 内嵌图标读取；禁止恢复 `Resources/AutomationStudio.ico` 输出旁车依赖。`2.png/icon.png/tray_icon.jpg` 已删除，不能重新打包。
+- Windows 托盘和任务栏图标槽位由系统固定；视觉尺寸只能在 `WindowIconHelper` 中等比放大 HICON 内容。当前窗口/托盘共用 `1.12x` 缩放，并在生成 WPF `ImageSource` / WinForms `Icon` 后立即释放临时 HICON，禁止通过增大控件或泄漏句柄实现放大。
 - `Find-InnoCompiler()` 必须同时查找当前用户 `%LocalAppData%/Programs/Inno Setup 6/ISCC.exe` 和系统 Program Files 安装位置；不能假设 Inno 只能按机器安装。
 - 简体中文 Inno 语言文件固定在 `Packaging/InnoLanguages/ChineseSimplified.isl`，来源 commit、SHA256 和 MIT 许可证记录在 `Packaging/vendor-manifest.json`。发布前必须先校验仓库内语言文件；禁止依赖构建机 `compiler:Languages` 下未必安装的可选文件。
 - `THIRD-PARTY-NOTICES.txt` 必须包含简体中文 Inno 翻译许可证；语言文件或许可证缺失、哈希不一致时发布立即失败。
