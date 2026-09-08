@@ -1,6 +1,8 @@
 using System.Collections.ObjectModel;
 using System.IO;
+using System.Text;
 using System.Threading;
+using System.Threading.Channels;
 using System.Windows.Threading;
 using System.Diagnostics;
 using AutomationStudioWpf.Collections;
@@ -18,12 +20,20 @@ public static class Logger
     private static readonly object _uiLock = new();
     private static readonly List<LogEntry> _pendingUiEntries = [];
     private static readonly AsyncLocal<LogCaptureScope?> _activeCapture = new();
+    private static readonly Channel<FileLogEntry> _fileQueue = Channel.CreateBounded<FileLogEntry>(
+        new BoundedChannelOptions(8192)
+        {
+            FullMode = BoundedChannelFullMode.Wait,
+            SingleReader = true,
+            SingleWriter = false,
+        });
     private static bool _uiFlushQueued;
 
     public static ObservableCollection<LogEntry> Entries { get; } = new RangeObservableCollection<LogEntry>();
 
     static Logger()
     {
+        _ = Task.Run(WriteFileLoop);
         _ = Task.Run(CleanupOldLogs);
     }
 
@@ -50,20 +60,7 @@ public static class Logger
     {
         string timestamp = DateTime.Now.ToString("HH:mm:ss");
         LogEntry entry = new(timestamp, level, message);
-        // Always write to file immediately (safe from any thread).
-        lock (_lock)
-        {
-            try
-            {
-                Directory.CreateDirectory(LogDirectory);
-                string logFile = CurrentLogFilePath(DateTime.Now);
-                File.AppendAllText(logFile, $"[{entry.Timestamp}] [{LevelLabel(entry.Level)}] {entry.Message}{Environment.NewLine}");
-            }
-            catch
-            {
-                // Best effort; don't crash.
-            }
-        }
+        QueueFileEntry(level, entry);
 
         // Captured node-internal entries feed the structured node block only.
         // They still reach the log file above, but must not duplicate in the UI.
@@ -82,6 +79,61 @@ public static class Logger
 
     private static string CurrentLogFilePath(DateTime localTime) =>
         Path.Combine(LogDirectory, $"Log_{localTime:yyyy_MM_dd_HH}.txt");
+
+    private static void QueueFileEntry(LogLevel level, LogEntry entry)
+    {
+        var fileEntry = new FileLogEntry(
+            DateTime.Now,
+            $"[{entry.Timestamp}] [{LevelLabel(entry.Level)}] {entry.Message}{Environment.NewLine}");
+        if (_fileQueue.Writer.TryWrite(fileEntry))
+            return;
+
+        // Preserve errors if the bounded queue is under pressure.
+        if (level == LogLevel.Error)
+            WriteFileEntries([fileEntry]);
+    }
+
+    private static async Task WriteFileLoop()
+    {
+        try
+        {
+            await foreach (FileLogEntry first in _fileQueue.Reader.ReadAllAsync())
+            {
+                var batch = new List<FileLogEntry> { first };
+                while (batch.Count < 256 && _fileQueue.Reader.TryRead(out FileLogEntry next))
+                    batch.Add(next);
+                WriteFileEntries(batch);
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"日志写入线程退出：{ex.Message}");
+        }
+    }
+
+    private static void WriteFileEntries(IReadOnlyList<FileLogEntry> entries)
+    {
+        lock (_lock)
+        {
+            try
+            {
+                var grouped = entries
+                    .GroupBy(entry => CurrentLogFilePath(entry.LocalTime), StringComparer.OrdinalIgnoreCase);
+                foreach (var group in grouped)
+                {
+                    Directory.CreateDirectory(LogDirectory);
+                    var builder = new StringBuilder();
+                    foreach (FileLogEntry entry in group)
+                        builder.Append(entry.Line);
+                    File.AppendAllText(group.Key, builder.ToString());
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"日志写入失败：{ex.Message}");
+            }
+        }
+    }
 
     private static void CleanupOldLogs()
     {
@@ -154,6 +206,8 @@ public static class Logger
             return false;
         }
     }
+
+    private readonly record struct FileLogEntry(DateTime LocalTime, string Line);
 
     public static void ClearUiEntries()
     {

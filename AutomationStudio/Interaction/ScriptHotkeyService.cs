@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using System.ComponentModel;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Input;
@@ -60,6 +61,9 @@ internal sealed class ScriptHotkeyService : IDisposable
         IEnumerable<ContentAssetViewModel> assets,
         Func<ContentAssetViewModel, bool> isStopHotkeyActive)
     {
+        if (_disposed || _owner.Dispatcher.HasShutdownStarted || _owner.Dispatcher.HasShutdownFinished)
+            return new ScriptHotkeyRefreshResult([], HookInstallResult.None);
+
         var assetList = assets.ToList();
         var conflicts = Validate(assetList);
         _bindings.Clear();
@@ -382,9 +386,26 @@ internal sealed class ScriptHotkeyService : IDisposable
         if (!mouseRequired)
             UninstallMouseHook();
 
-        using var process = Process.GetCurrentProcess();
-        using var module = process.MainModule!;
-        var moduleHandle = GetModuleHandle(module.ModuleName);
+        IntPtr moduleHandle;
+        try
+        {
+            using var process = Process.GetCurrentProcess();
+            using var module = process.MainModule;
+            moduleHandle = module is null ? IntPtr.Zero : GetModuleHandle(module.ModuleName);
+        }
+        catch (Win32Exception ex)
+        {
+            int errorCode = ex.NativeErrorCode == 0 ? -1 : ex.NativeErrorCode;
+            return new HookInstallResult(
+                new HookEndpointInstallResult(keyboardRequired, _keyboardHook != IntPtr.Zero, keyboardRequired ? errorCode : 0),
+                new HookEndpointInstallResult(mouseRequired, _mouseHook != IntPtr.Zero, mouseRequired ? errorCode : 0));
+        }
+        catch
+        {
+            return new HookInstallResult(
+                new HookEndpointInstallResult(keyboardRequired, _keyboardHook != IntPtr.Zero, keyboardRequired ? -1 : 0),
+                new HookEndpointInstallResult(mouseRequired, _mouseHook != IntPtr.Zero, mouseRequired ? -1 : 0));
+        }
         int keyboardError = 0;
         if (keyboardRequired && _keyboardHook == IntPtr.Zero)
         {

@@ -29,6 +29,17 @@
 - 后续开发先看上方“大纲 / 索引”。确认当前任务涉及某个主题后，再跳到对应章节细读。
 - 新增踩坑、架构约束、重要优化结论时，只写入本文件；README 只保留用户入口和必要指向，不复制技术细节。
 
+### 2026-09-08：执行、Hook、日志和主题稳定性收口
+
+- Python 进程退出后，stdout/stderr drain 必须有明确上限。禁止在正常退出路径直接调用 GetAwaiter().GetResult() 无限等待；超时先终止进程树，再决定是否保留请求文件。
+- ScriptHotkeyService.Refresh、鼠标拾取 Hook 安装和 Dispatcher 投递都必须先检查 disposed/shutdown 状态。模块句柄或 Hook 安装失败只能返回结构化错误，不能让 UI 线程未处理异常。
+- GraphDependencyIndex 遇到重复 graph/function/main-event ID 必须产生 issue；解析层禁止用 GroupBy(...).First() 静默决定目标。坏索引只能用于报告错误，不能进入执行。
+- GraphWorkspaceReadModel 的操作级缓存可能被预览、编译和热键任务并发读取；内部缓存必须使用并发容器或等价同步保护。
+- 用户数据目录只能按 %AppData% -> %LocalAppData% -> 用户目录 -> %TEMP% 逐级降级，禁止把安装目录作为写入回退路径。所有候选目录都要先做可写探测。
+- 高频日志不能阻塞节点执行线程。Info 日志进入有界后台写入队列；Error 日志在队列压力下保留同步兜底。UI 仍使用现有增量追加和条数上限。
+- 主题相关 UI 必须使用 DynamicResource token。选择框、节点编号 chip、ToDo 编号、脏编译图标等不得重新写固定 RGB；新增 token 必须同时加入 App.xaml 默认资源和 AppThemeService 两套 palette。
+- 发布验证选择产物时必须确定性排序；不能依赖文件系统枚举顺序。并行 Debug/Release 不得共用同一中间目录，否则 CS2012 可能只是构建竞态。
+
 ## 架构设计
 
 ### 当前模块边界（2026-06-02）

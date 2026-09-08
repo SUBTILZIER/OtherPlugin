@@ -73,8 +73,14 @@ public sealed class PythonScriptAdapter : IPythonScriptAdapter
                 }
             }
 
-            string stdout = outputTask.GetAwaiter().GetResult();
-            string stderr = FilterBenignPythonStderr(errorTask.GetAwaiter().GetResult());
+            if (!TryDrainOutput(outputTask, errorTask, TimeSpan.FromSeconds(2), out string stdout, out string stderr))
+            {
+                preserveRequestFile = !TerminateAndDrain(process, outputTask, errorTask);
+                return new PythonScriptResult(false, -1, string.Empty, string.Empty,
+                    "Python 输出流未能在限定时间内关闭。");
+            }
+
+            stderr = FilterBenignPythonStderr(stderr);
             bool success = process.ExitCode == 0;
             return new PythonScriptResult(success, process.ExitCode, stdout, stderr, success ? "Python 脚本执行完成。" : $"Python 脚本退出码 {process.ExitCode}");
         }
@@ -135,10 +141,30 @@ public sealed class PythonScriptAdapter : IPythonScriptAdapter
         }
     }
 
-    private static void DrainOutput(Task<string>? outputTask, Task<string>? errorTask)
+    private static bool TryDrainOutput(
+        Task<string>? outputTask,
+        Task<string>? errorTask,
+        TimeSpan timeout,
+        out string stdout,
+        out string stderr)
     {
-        try { outputTask?.GetAwaiter().GetResult(); } catch { }
-        try { errorTask?.GetAwaiter().GetResult(); } catch { }
+        stdout = string.Empty;
+        stderr = string.Empty;
+        Task<string> output = outputTask ?? Task.FromResult(string.Empty);
+        Task<string> error = errorTask ?? Task.FromResult(string.Empty);
+        try
+        {
+            if (!Task.WaitAll([output, error], timeout))
+                return false;
+
+            stdout = output.Result;
+            stderr = error.Result;
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private static bool WaitForDrain(Task<string>? task, TimeSpan timeout)

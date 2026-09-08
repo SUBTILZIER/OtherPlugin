@@ -483,12 +483,12 @@
                                                          Width="26"
                                                          Height="26"
                                                          Fill="Transparent"
-                                                         Stroke="#FFD24A"
+                                                         Stroke="{DynamicResource EditorSelectionGlowBrush}"
                                                          StrokeThickness="2.4"
                                                          Opacity="0"
                                                          IsHitTestVisible="False">
                                                     <Ellipse.Effect>
-                                                        <DropShadowEffect Color="#FF9F1C"
+                                                        <DropShadowEffect Color="{DynamicResource EditorSelectionGlowColor}"
                                                                           BlurRadius="12"
                                                                           ShadowDepth="0"
                                                                           Opacity="0.95" />
@@ -498,7 +498,7 @@
                                                          Width="19"
                                                          Height="19"
                                                          Fill="Transparent"
-                                                         Stroke="#0D0F12"
+                                                         Stroke="{DynamicResource EditorSelectionRingBrush}"
                                                          StrokeThickness="4"
                                                          Opacity="0"
                                                          IsHitTestVisible="False" />
@@ -510,7 +510,7 @@
                                                       DataContext="{Binding InputPins[0]}" />
                                                 <Ellipse Width="14" Height="14"
                                                          Fill="{Binding CircleFill}"
-                                                         Stroke="#0D0F12"
+                                                         Stroke="{DynamicResource EditorConnectionOutlineBrush}"
                                                          StrokeThickness="1.5" />
                                                 <Grid Width="6" Height="6"
                                                       HorizontalAlignment="Right"
@@ -593,7 +593,7 @@
                                                             </Button.Style>
                                                         </Button>
                                                         <Border DockPanel.Dock="Left"
-                                                                Background="#660D0F12"
+                                                                Background="{DynamicResource EditorNodeNumberBackgroundBrush}"
                                                                 CornerRadius="3"
                                                                 Padding="5,1"
                                                                 Margin="0,0,7,0">
@@ -787,9 +787,9 @@
 
                             <Rectangle x:Name="SelectionRectangle"
                                        Visibility="Collapsed"
-                                       Stroke="#66A8D5FF"
+                                       Stroke="{DynamicResource EditorSelectionBorderBrush}"
                                        StrokeThickness="1.5"
-                                       Fill="#2258AFFF"
+                                       Fill="{DynamicResource EditorSelectionFillBrush}"
                                        RadiusX="2"
                                        RadiusY="2"
                                        Panel.ZIndex="500" />
@@ -1245,7 +1245,7 @@
                                             <DockPanel Margin="4,3">
                                                 <TextBlock Text="{Binding Number}"
                                                            DockPanel.Dock="Left"
-                                                           Foreground="#FFD27A"
+                                                           Foreground="{DynamicResource EditorCompletionPinBrush}"
                                                            FontWeight="SemiBold"
                                                            Margin="0,0,8,0" />
                                                 <TextBlock Text="{Binding Title}"

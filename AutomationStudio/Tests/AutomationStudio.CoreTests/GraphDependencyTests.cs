@@ -227,4 +227,38 @@ public sealed class GraphDependencyTests
             .All(node => node.CustomEventId == "duplicate_event"));
         Assert.IsTrue(result.Issues.Any(issue => issue.Message.Contains("自定义事件 ID 重复", StringComparison.Ordinal)));
     }
+
+    [TestMethod]
+    public void DuplicateFunctionIdsAreReportedByDependencyIndex()
+    {
+        var script = TestGraphFactory.Script("Script");
+        script.EventGraphs.Add(GraphStructureNormalizer.CreateMainEventGraph("Main"));
+        var libraryA = TestGraphFactory.FunctionLibrary("LibraryA");
+        libraryA.Functions.Add(TestGraphFactory.ValidFunction("Same", "duplicate_function"));
+        var libraryB = TestGraphFactory.FunctionLibrary("LibraryB");
+        libraryB.Functions.Add(TestGraphFactory.ValidFunction("Same", "duplicate_function"));
+
+        GraphDependencyIndex index = new GraphDependencyIndexBuilder().Build(
+            GraphWorkspaceSnapshotFactory.Create([script, libraryA, libraryB]));
+
+        Assert.IsTrue(index.Issues.Any(issue =>
+            issue.Message.Contains("函数 ID 重复：duplicate_function", StringComparison.Ordinal)));
+        Assert.IsNull(index.FindFunction("duplicate_function"));
+    }
+
+    [TestMethod]
+    public async Task ReadModelReachabilityCacheSupportsConcurrentReads()
+    {
+        var script = TestGraphFactory.Script("Script");
+        var main = GraphStructureNormalizer.CreateMainEventGraph("Main");
+        script.EventGraphs.Add(main);
+        GraphWorkspaceReadModel readModel = GraphWorkspaceReadModel.Create([script]);
+
+        GraphReachabilityResult[] results = await Task.WhenAll(
+            Enumerable.Range(0, 32)
+                .Select(_ => Task.Run(() => readModel.GetMainEventReachability(script.Id))));
+
+        Assert.AreEqual(32, results.Length);
+        Assert.IsTrue(results.All(result => result.GraphIds.SetEquals([main.Id])));
+    }
 }

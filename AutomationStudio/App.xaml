@@ -78,6 +78,12 @@
         <SolidColorBrush x:Key="EditorToolTipBackgroundBrush" Color="#0B1220" po:Freeze="False" />
         <SolidColorBrush x:Key="EditorToolTipBorderBrush" Color="#4FA3FF" po:Freeze="False" />
         <SolidColorBrush x:Key="EditorToolTipTextBrush" Color="#F8FAFC" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorSelectionGlowBrush" Color="#FFD24A" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorSelectionRingBrush" Color="#0D0F12" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorSelectionBorderBrush" Color="#66A8D5FF" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorSelectionFillBrush" Color="#2258AFFF" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorNodeNumberBackgroundBrush" Color="#660D0F12" po:Freeze="False" />
+        <Color x:Key="EditorSelectionGlowColor">#FF9F1C</Color>
 
         <Style x:Key="EditorVerticalSplitterStyle" TargetType="{x:Type GridSplitter}">
             <Setter Property="Background" Value="Transparent" />

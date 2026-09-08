@@ -1,10 +1,11 @@
+using System.Collections.Concurrent;
 using AutomationStudioWpf.Services;
 
 namespace AutomationStudioWpf.GraphCore;
 
 internal sealed class GraphWorkspaceReadModel
 {
-    private readonly Dictionary<string, GraphReachabilityResult> _mainEventReachabilityByAssetId = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, GraphReachabilityResult> _mainEventReachabilityByAssetId = new(StringComparer.Ordinal);
 
     private GraphWorkspaceReadModel(
         GraphWorkspaceSnapshot snapshot,
@@ -20,12 +21,10 @@ internal sealed class GraphWorkspaceReadModel
 
     public GraphReachabilityResult GetMainEventReachability(string assetId)
     {
-        if (!_mainEventReachabilityByAssetId.TryGetValue(assetId, out GraphReachabilityResult? result))
-        {
-            result = DependencyIndex.GetMainEventReachability(assetId);
-            _mainEventReachabilityByAssetId[assetId] = result;
-        }
-        return result;
+        return _mainEventReachabilityByAssetId.GetOrAdd(
+            assetId,
+            static (id, index) => index.GetMainEventReachability(id),
+            DependencyIndex);
     }
 
     public static GraphWorkspaceReadModel Create(IEnumerable<ContentAssetViewModel> assets)

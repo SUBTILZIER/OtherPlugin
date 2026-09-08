@@ -577,7 +577,7 @@
                                                 </Style.Triggers>
                                             </Style>
                                         </Border.Style>
-                                        <TextBlock Text="!" Foreground="#111111" FontWeight="Bold" FontSize="10" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        <TextBlock Text="!" Foreground="{DynamicResource AccentForegroundBrush}" FontWeight="Bold" FontSize="10" HorizontalAlignment="Center" VerticalAlignment="Center" />
                                     </Border>
                                 </StackPanel>
                             </Button>

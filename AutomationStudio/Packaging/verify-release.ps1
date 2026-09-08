@@ -211,9 +211,15 @@ function Assert-HashMapsEqual(
 }
 
 function Find-ProductionInstaller([string]$Root) {
-    return Get-ChildItem -LiteralPath $Root -Filter 'AutomationStudio-*.exe' -File |
+    $candidates = @(Get-ChildItem -LiteralPath $Root -Filter 'AutomationStudio-*.exe' -File |
         Where-Object { $_.Name -notmatch '(?i)-VERIFY\.exe$' -and $_.Name -notmatch '^unins' } |
-        Select-Object -First 1
+        Sort-Object Name -Descending)
+    if ($candidates.Count -eq 0) {
+        return $null
+    }
+
+    # Versioned artifact names sort deterministically; never depend on directory enumeration order.
+    return $candidates[0]
 }
 
 function Compile-VerificationInstaller(

@@ -467,7 +467,13 @@ internal sealed class PythonEnvironmentService : IDisposable
 
             if (owned.Process.ExitCode != 0)
                 return [];
-            return outputTask.GetAwaiter().GetResult()
+            if (!TryDrainOutput(outputTask, errorTask, TimeSpan.FromSeconds(2), out string output, out _))
+            {
+                TerminateProcess(owned.Process);
+                return [];
+            }
+
+            return output
                 .Split(["\r\n", "\n"], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         }
         catch (OperationCanceledException)
@@ -537,6 +543,30 @@ internal sealed class PythonEnvironmentService : IDisposable
         finally
         {
             owned?.Dispose();
+        }
+    }
+
+    private static bool TryDrainOutput(
+        Task<string> outputTask,
+        Task<string> errorTask,
+        TimeSpan timeout,
+        out string output,
+        out string error)
+    {
+        output = string.Empty;
+        error = string.Empty;
+        try
+        {
+            if (!Task.WaitAll([outputTask, errorTask], timeout))
+                return false;
+
+            output = outputTask.Result;
+            error = errorTask.Result;
+            return true;
+        }
+        catch
+        {
+            return false;
         }
     }
 

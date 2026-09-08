@@ -63,19 +63,39 @@ internal static class ApplicationPaths
         if (_releaseTestRoot is not null)
             return EnsureDirectory(Path.Combine(_releaseTestRoot, "LocalData"));
 
-        string preferred = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            ProductDirectoryName);
+        var candidates = new List<string>();
+        string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        if (!string.IsNullOrWhiteSpace(localAppData))
+            candidates.Add(Path.Combine(localAppData, ProductDirectoryName));
         try
         {
-            return EnsureDirectory(preferred);
+            candidates.Add(Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                ProductDirectoryName));
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"LocalAppData 不可写，改用临时目录：{ex.Message}");
-            string fallback = Path.Combine(Path.GetTempPath(), ProductDirectoryName);
-            return EnsureDirectory(fallback);
+            Debug.WriteLine($"无法解析用户目录：{ex.Message}");
         }
+
+        try
+        {
+            candidates.Add(Path.Combine(Path.GetTempPath(), ProductDirectoryName));
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"无法解析临时目录：{ex.Message}");
+        }
+
+        foreach (string candidate in candidates
+                     .Where(Path.IsPathRooted)
+                     .Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            if (TryEnsureWritableDirectory(candidate))
+                return candidate;
+        }
+
+        throw new IOException("Unable to create a writable AutomationStudio local-data directory.");
     }
 
     private static string ResolveUserDataRoot()
@@ -84,15 +104,50 @@ internal static class ApplicationPaths
         if (TryEnsureWritableDirectory(roaming))
             return roaming;
 
-        string localFallback = Path.Combine(LocalDataRoot, "Data");
-        if (TryEnsureWritableDirectory(localFallback))
-            return localFallback;
+        var candidates = new List<string>();
+        try
+        {
+            candidates.Add(Path.Combine(LocalDataRoot, "Data"));
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"无法解析本地数据目录：{ex.Message}");
+        }
+
+        try
+        {
+            candidates.Add(Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                ProductDirectoryName));
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"无法解析用户数据备用目录：{ex.Message}");
+        }
+
+        try
+        {
+            candidates.Add(Path.Combine(Path.GetTempPath(), ProductDirectoryName, "Data"));
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"无法解析临时数据备用目录：{ex.Message}");
+        }
+
+        foreach (string candidate in candidates.Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            if (TryEnsureWritableDirectory(candidate))
+                return candidate;
+        }
 
         throw new IOException("Unable to create a writable AutomationStudio user-data directory.");
     }
 
     private static bool TryEnsureWritableDirectory(string path)
     {
+        if (!Path.IsPathRooted(path))
+            return false;
+
         try
         {
             Directory.CreateDirectory(path);
@@ -112,6 +167,9 @@ internal static class ApplicationPaths
 
     private static string EnsureDirectory(string path)
     {
+        if (!Path.IsPathRooted(path))
+            throw new IOException($"Refusing to write to a relative application path: {path}");
+
         Directory.CreateDirectory(path);
         return path;
     }

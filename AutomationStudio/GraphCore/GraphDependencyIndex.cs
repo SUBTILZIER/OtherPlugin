@@ -254,16 +254,45 @@ internal sealed class GraphDependencyIndexBuilder
         var graphOwners = workspace.Assets
             .SelectMany(asset => asset.Graphs.Select(graph => (Asset: asset, Graph: graph)))
             .ToList();
+        AddCrossAssetDuplicateIssues(
+            graphOwners.Where(item => !string.IsNullOrWhiteSpace(item.Graph.Id))
+                .GroupBy(item => item.Graph.Id, StringComparer.Ordinal)
+                .Where(group => group.Select(item => item.Asset.Id).Distinct(StringComparer.Ordinal).Count() > 1)
+                .Select(group => $"图 ID 重复：{group.Key}。"),
+            issues);
+        AddCrossAssetDuplicateIssues(
+            graphOwners.Where(item => item.Graph.Kind == GraphAssetKind.Function && !string.IsNullOrWhiteSpace(item.Graph.Id))
+                .GroupBy(item => item.Graph.Id, StringComparer.Ordinal)
+                .Where(group => group.Select(item => item.Asset.Id).Distinct(StringComparer.Ordinal).Count() > 1)
+                .Select(group => $"函数 ID 重复：{group.Key}。"),
+            issues);
         var graphsById = UniqueById(graphOwners, item => item.Graph.Id)
             .ToDictionary(pair => pair.Key, pair => pair.Value.Graph, StringComparer.Ordinal);
         var functionsById = BuildFunctions(graphOwners);
         var customEvents = BuildCustomEvents(workspace.Assets, issues);
-        var mainEvents = workspace.Assets
+        var mainEventCandidates = workspace.Assets
             .Where(asset => asset.Kind == ContentAssetKind.Script)
-            .Select(asset => (Asset: asset, Main: asset.EventGraphs.FirstOrDefault(graph => graph.EntryRole == GraphEntryRole.MainEvent)))
-            .Where(pair => pair.Main is not null && !string.IsNullOrWhiteSpace(pair.Asset.Id))
+            .SelectMany(asset => asset.EventGraphs
+                .Where(graph => graph.EntryRole == GraphEntryRole.MainEvent)
+                .Select(graph => (Asset: asset, Main: graph)))
+            .Where(pair => !string.IsNullOrWhiteSpace(pair.Asset.Id));
+        var mainEvents = mainEventCandidates
             .GroupBy(pair => pair.Asset.Id, StringComparer.Ordinal)
-            .ToDictionary(group => group.Key, group => group.First().Main!, StringComparer.Ordinal);
+            .ToDictionary(
+                group => group.Key,
+                group =>
+                {
+                    if (group.Count() > 1)
+                    {
+                        issues.Add(new GraphDependencyIssue(
+                            GraphDependencyIssueSeverity.Error,
+                            $"asset:{group.Key}",
+                            "脚本存在多个主事件图。"));
+                    }
+
+                    return group.First().Main;
+                },
+                StringComparer.Ordinal);
 
         var edges = BuildEdges(workspace.Assets, functionsById, customEvents, issues);
         var edgesByGraph = edges
@@ -440,4 +469,12 @@ internal sealed class GraphDependencyIndexBuilder
             .GroupBy(idSelector, StringComparer.Ordinal)
             .Where(group => group.Count() == 1)
             .ToDictionary(group => group.Key, group => group.Single(), StringComparer.Ordinal);
+
+    private static void AddCrossAssetDuplicateIssues(
+        IEnumerable<string> messages,
+        ICollection<GraphDependencyIssue> issues)
+    {
+        foreach (string message in messages)
+            issues.Add(new GraphDependencyIssue(GraphDependencyIssueSeverity.Error, "workspace", message));
+    }
 }

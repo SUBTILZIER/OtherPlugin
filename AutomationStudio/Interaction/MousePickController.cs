@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.ComponentModel;
 using System.Runtime.InteropServices;
 using System.Windows;
 using AutomationStudioWpf.Logging;
@@ -252,9 +253,22 @@ internal sealed class MousePickController : IDisposable
         if (_hook != IntPtr.Zero)
             return new HookEndpointInstallResult(true, true, 0);
 
-        using var process = Process.GetCurrentProcess();
-        using var module = process.MainModule;
-        var moduleHandle = module is null ? IntPtr.Zero : GetModuleHandle(module.ModuleName);
+        IntPtr moduleHandle;
+        try
+        {
+            using var process = Process.GetCurrentProcess();
+            using var module = process.MainModule;
+            moduleHandle = module is null ? IntPtr.Zero : GetModuleHandle(module.ModuleName);
+        }
+        catch (Win32Exception ex)
+        {
+            return new HookEndpointInstallResult(true, false, ex.NativeErrorCode == 0 ? -1 : ex.NativeErrorCode);
+        }
+        catch
+        {
+            return new HookEndpointInstallResult(true, false, -1);
+        }
+
         _hook = SetWindowsHookEx(WH_MOUSE_LL, _hookProc, moduleHandle, 0);
         int errorCode = _hook == IntPtr.Zero ? Marshal.GetLastWin32Error() : 0;
         return new HookEndpointInstallResult(true, _hook != IntPtr.Zero, errorCode);

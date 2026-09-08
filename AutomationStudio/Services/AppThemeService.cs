@@ -78,6 +78,11 @@ public static class AppThemeService
         ["EditorDisabledChipBorderBrush"] = "#364354",
         ["EditorToolTipBackgroundBrush"] = "#0B1220",
         ["EditorToolTipTextBrush"] = "#F8FAFC",
+        ["EditorSelectionGlowBrush"] = "#FFD24A",
+        ["EditorSelectionRingBrush"] = "#0D0F12",
+        ["EditorSelectionBorderBrush"] = "#66A8D5FF",
+        ["EditorSelectionFillBrush"] = "#2258AFFF",
+        ["EditorNodeNumberBackgroundBrush"] = "#660D0F12",
     };
 
     private static readonly Dictionary<string, string> LightPalette = new()
@@ -148,6 +153,11 @@ public static class AppThemeService
         ["EditorDisabledChipBorderBrush"] = "#D5D8D6",
         ["EditorToolTipBackgroundBrush"] = "#141820",
         ["EditorToolTipTextBrush"] = "#F8FAFC",
+        ["EditorSelectionGlowBrush"] = "#B66A00",
+        ["EditorSelectionRingBrush"] = "#4B5563",
+        ["EditorSelectionBorderBrush"] = "#8FB2DF",
+        ["EditorSelectionFillBrush"] = "#335E8FC7",
+        ["EditorNodeNumberBackgroundBrush"] = "#66000000",
     };
 
     public static void Apply(AppSettings settings)
@@ -232,7 +242,10 @@ public static class AppThemeService
         SetBrushColor("PanelAltBackgroundBrush", settings.ThemeMode == AppThemeMode.Light
             ? WpfColor.FromRgb(0xE6, 0xE8, 0xE7)
             : WpfColor.FromRgb(0x22, 0x2A, 0x35));
-        ThemeChanged?.Invoke(null, EventArgs.Empty);
+        SetColorResource("EditorSelectionGlowColor", settings.ThemeMode == AppThemeMode.Light
+            ? WpfColor.FromRgb(0x8A, 0x5A, 0x00)
+            : WpfColor.FromRgb(0xFF, 0x9F, 0x1C));
+        NotifyThemeChanged();
     }
 
     public static bool TryParseColor(string? value, out WpfColor color)
@@ -287,6 +300,29 @@ public static class AppThemeService
         }
 
         resources[key] = new SolidColorBrush(color);
+    }
+
+    private static void SetColorResource(string key, WpfColor color)
+    {
+        var resources = WpfApplication.Current?.Resources;
+        if (resources is not null)
+            resources[key] = color;
+    }
+
+    private static void NotifyThemeChanged()
+    {
+        foreach (EventHandler handler in ThemeChanged?.GetInvocationList().OfType<EventHandler>()
+                     ?? Enumerable.Empty<EventHandler>())
+        {
+            try
+            {
+                handler(null, EventArgs.Empty);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"主题订阅者刷新失败：{ex.Message}");
+            }
+        }
     }
 
     private static WpfColor Lighten(WpfColor color, byte amount) =>
