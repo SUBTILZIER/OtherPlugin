@@ -12,6 +12,7 @@ public partial class MainWindow
     private void OnGraphChanged()
     {
         _editorService.UpdatePinConnectionStates();
+        _activeEditorSession?.SurfaceContext?.Surface.RefreshMinimap(_editorService.Nodes);
         var session = GetOperationEditorSession();
         var controller = session is null ? null : GetSessionActiveAssetController(session);
         if (!_suppressGraphChangedDirty && controller?.IsLoadingGraph != true)

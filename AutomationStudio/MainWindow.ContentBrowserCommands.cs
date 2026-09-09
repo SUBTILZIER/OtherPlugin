@@ -19,6 +19,16 @@ namespace AutomationStudioWpf;
 
 public partial class MainWindow
 {
+    private void FavoriteAsset_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is System.Windows.Controls.Button { DataContext: ContentAssetViewModel asset })
+        {
+            asset.IsFavorite = !asset.IsFavorite;
+            if (asset.IsFavorite) _appSettings.FavoriteAssetIds.Add(asset.Id); else _appSettings.FavoriteAssetIds.Remove(asset.Id);
+            try { _appSettingsService.Save(_appSettings); } catch { }
+            e.Handled = true;
+        }
+    }
     private enum ContentDropAction
     {
         Cancel,
@@ -371,6 +381,7 @@ public partial class MainWindow
         ContentFolderItems.ReplaceAll(new[] { _rootContentFolder }
             .Concat(BuildFolderTree(null, 1, new HashSet<string>(), folderChildrenByParent)));
         ContentVisibleItems.ReplaceAll(SortContentChildren(childrenByParent[_currentContentFolderId]));
+        _contentBreadcrumbText?.SetCurrentValue(TextBlock.TextProperty, BuildBreadcrumbText());
 
         ContentFolderListBox.SelectedItem = _currentContentFolderId is null
             ? _rootContentFolder
@@ -420,7 +431,16 @@ public partial class MainWindow
         _currentContentFolderId = folder?.Id;
         ExpandFolderPath(_currentContentFolderId);
         RefreshContentBrowserViews();
+        _contentBreadcrumbText?.SetCurrentValue(TextBlock.TextProperty, BuildBreadcrumbText());
         SetStatus(folder is null ? "已进入内容根目录。" : $"已进入文件夹：{folder.Name}");
+    }
+
+    private string BuildBreadcrumbText()
+    {
+        if (_currentContentFolderId is null) return "路径：内容";
+        var map = ContentBrowserItems.ToDictionary(a => a.Id); var parts = new List<string>(); var id = _currentContentFolderId;
+        while (id is not null && map.TryGetValue(id, out var item)) { parts.Add(item.Name); id = item.ParentFolderId; }
+        parts.Reverse(); return "路径：内容 / " + string.Join(" / ", parts);
     }
 
     private void HandleContentKeyDown(KeyEventArgs e)
@@ -534,6 +554,8 @@ public partial class MainWindow
         foreach (var child in ContentBrowserItems.Where(child => child.ParentFolderId == item.Id).ToList())
             child.ParentFolderId = item.ParentFolderId;
         ContentBrowserItems.Remove(item);
+        _appSettings.FavoriteAssetIds.Remove(item.Id);
+        try { _appSettingsService.Save(_appSettings); } catch { }
         CloseEditorSessionsForAssetIds(deletingIds);
         RefreshContentBrowserViews();
         PersistAssetLibrary();

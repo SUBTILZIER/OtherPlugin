@@ -14,7 +14,10 @@ public partial class MainWindow
         CloseAllEditorSessions();
         ContentBrowserItems.Clear();
         foreach (var item in _graphLibraryService.LoadContentLibrary())
+        {
+            item.IsFavorite = _appSettings.FavoriteAssetIds.Contains(item.Id);
             ContentBrowserItems.Add(item);
+        }
 
         _currentContentFolderId = null;
         RefreshContentBrowserViews();

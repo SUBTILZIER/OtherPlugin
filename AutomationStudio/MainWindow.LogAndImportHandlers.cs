@@ -5,6 +5,7 @@ namespace AutomationStudioWpf;
 
 public partial class MainWindow
 {
+    private void JumpToLogEnd_Click(object sender, RoutedEventArgs e) => _logPanelController.JumpToEnd();
     private void RefreshLogList()
     {
         _logPanelController.Refresh();

@@ -208,6 +208,7 @@ public sealed class ContentAssetViewModel : ObservableObject
     private bool _hasFolderChildren;
     private bool _isTreeExpanded;
     private bool _isScriptEnabled = true;
+    private bool _isFavorite;
 
     public string Id { get; init; } = Guid.NewGuid().ToString("N");
 
@@ -236,6 +237,9 @@ public sealed class ContentAssetViewModel : ObservableObject
             }
         }
     }
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool IsFavorite { get => _isFavorite; set => SetProperty(ref _isFavorite, value); }
 
     public ObservableCollection<GraphListItemViewModel> EventGraphs { get; set; } = [];
 

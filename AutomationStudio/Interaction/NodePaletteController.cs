@@ -111,6 +111,18 @@ internal sealed class NodePaletteController
                palettePoint.Y <= _palette.ActualHeight;
     }
 
+    public void HandleKeyDown(System.Windows.Input.KeyEventArgs e)
+    {
+        var buttons = _content.Children.OfType<WpfButton>().ToList();
+        if (e.Key == Key.Escape) { Close(); e.Handled = true; return; }
+        if (buttons.Count == 0) return;
+        int current = buttons.FindIndex(b => b.IsKeyboardFocusWithin);
+        if (current < 0) current = e.Key is Key.Up or Key.PageUp ? buttons.Count : -1;
+        int next = e.Key switch { Key.Down => Math.Min(buttons.Count - 1, current + 1), Key.Up => Math.Max(0, current - 1), Key.PageDown => Math.Min(buttons.Count - 1, current + 8), Key.PageUp => Math.Max(0, current - 8), _ => current };
+        if (e.Key is Key.Down or Key.Up or Key.PageDown or Key.PageUp) { buttons[next].Focus(); e.Handled = true; }
+        else if (e.Key == Key.Enter) { buttons[current].RaiseEvent(new RoutedEventArgs(WpfButton.ClickEvent)); e.Handled = true; }
+    }
+
     private void Build(string filter)
     {
         _content.Children.Clear();

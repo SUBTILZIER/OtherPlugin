@@ -70,9 +70,12 @@ public sealed class EditorSurfaceContext : IDisposable
         ObjectDisposedException.ThrowIf(_disposed, this);
         _host = host ?? throw new ArgumentNullException(nameof(host));
         _services = services ?? throw new ArgumentNullException(nameof(services));
-        Surface.Attach(Session, this);
         if (CommandService is null)
             RebuildControllers();
+        // Controllers must exist before the surface subscribes to view events.
+        // Attach used to run first, so opening an asset could dereference a null
+        // CanvasPanZoomController during the initial view refresh.
+        Surface.Attach(Session, this);
     }
 
     public void RebuildControllers()
@@ -346,11 +349,17 @@ public sealed class EditorSurfaceContext : IDisposable
 
     public void ApplyInspectorChanges() => InspectorController.ApplyChanges();
 
+    internal void NotifyLayoutChanged() => _host?.NotifyLayoutChanged(Surface);
+    internal void HandleNodePaletteKeyDown(System.Windows.Input.KeyEventArgs e) => NodePaletteController.HandleKeyDown(e);
+
     public void SelectNode(NodeBaseViewModel? node) => NodeDragSelectionController.SelectNode(node);
 
     public Point ViewportToGraph(Point viewportPoint) => CanvasPanZoomController.ViewportToGraph(viewportPoint);
 
     public void FitGraphToView() => CanvasPanZoomController.FitGraphToView();
+    public void NavigateToGraphPoint(System.Windows.Point point) => CanvasPanZoomController.NavigateToGraphPoint(point);
+    public void ZoomBy(double factor) => CanvasPanZoomController.ZoomBy(factor);
+    public void ResetView() => CanvasPanZoomController.ResetView();
 
     public void OpenNodePalette(Point viewportPos)
     {

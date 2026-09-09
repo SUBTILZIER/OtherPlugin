@@ -19,6 +19,7 @@ public sealed class InspectorFieldViewModel : ObservableObject
     private bool _booleanValue;
     private string? _selectedOption;
     private bool _isEnabled = true;
+    private bool _isValid = true;
 
     internal InspectorFieldViewModel(string key, string label, InspectorFieldKind kind)
     {
@@ -51,13 +52,27 @@ public sealed class InspectorFieldViewModel : ObservableObject
         set => SetProperty(ref _isEnabled, value);
     }
 
+    public bool IsValid { get => _isValid; private set => SetProperty(ref _isValid, value); }
+    public string ValidationMessage => IsValid ? string.Empty : "请输入有效数字";
+
+    public double NumericValue
+    {
+        get => double.TryParse(_value, out var n) ? n : 0;
+        set { if (Kind == InspectorFieldKind.Number) Value = value.ToString(System.Globalization.CultureInfo.InvariantCulture); }
+    }
+
     public string Value
     {
         get => _value;
         set
         {
             if (SetProperty(ref _value, value))
+            {
+                IsValid = Kind != InspectorFieldKind.Number || double.TryParse(value, out _);
+                OnPropertyChanged(nameof(NumericValue));
+                OnPropertyChanged(nameof(ValidationMessage));
                 Changed?.Invoke(this);
+            }
         }
     }
 
@@ -120,12 +135,20 @@ public sealed class InspectorFieldViewModel : ObservableObject
 
 public sealed class InspectorSectionViewModel
 {
+    private static readonly Dictionary<string, bool> ExpandedState = new(StringComparer.OrdinalIgnoreCase);
+    private bool _isExpanded;
     internal InspectorSectionViewModel(string title)
     {
         Title = title;
+        _isExpanded = ExpandedState.TryGetValue(title, out var saved) ? saved : !title.Contains("高级", StringComparison.OrdinalIgnoreCase)
+            && !title.Contains("调试", StringComparison.OrdinalIgnoreCase)
+            && !title.Contains("advanced", StringComparison.OrdinalIgnoreCase)
+            && !title.Contains("debug", StringComparison.OrdinalIgnoreCase);
     }
 
     public string Title { get; }
+    public bool IsExpanded { get => _isExpanded; set { _isExpanded = value; ExpandedState[Title] = value; } }
+    public string DisplayTitle => Title;
 
     public ObservableCollection<InspectorFieldViewModel> Fields { get; } = [];
 }

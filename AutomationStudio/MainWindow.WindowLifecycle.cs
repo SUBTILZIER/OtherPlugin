@@ -101,6 +101,12 @@ public partial class MainWindow
         }
 
         CommitInspectorAndSnapshotAllSessions();
+        ContentFilterSaveTimer_Tick(null, EventArgs.Empty);
+        if (_activeEditorSession?.SurfaceContext?.Surface is { } layoutSurface)
+        {
+            NotifyLayoutChanged(layoutSurface);
+            LayoutSaveTimer_Tick(null, EventArgs.Empty);
+        }
         if (ContentBrowserItems.Any(item => item.IsDirty) ||
             GraphListItems.Concat(FunctionListItems).Any(item => item.IsDirty))
         {

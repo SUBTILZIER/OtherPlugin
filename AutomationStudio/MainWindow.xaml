@@ -529,6 +529,9 @@
                             <Button Content="另存为" Style="{StaticResource TopToolbarButtonStyle}" Click="SaveGraphAs_Click" />
                             <Button x:Name="MousePickButton" Content="鼠标拾取" Style="{StaticResource TopToolbarButtonStyle}" Click="MousePick_Click" />
                             <Button x:Name="SettingsButton" Content="设置" Style="{StaticResource TopToolbarButtonStyle}" Click="Settings_Click" />
+                            <Button Content="日志" Style="{StaticResource TopToolbarButtonStyle}" Click="ToggleLogPanel_Click" ToolTip="显示/隐藏日志面板" />
+                            <Button Content="侧栏" Style="{StaticResource TopToolbarButtonStyle}" Click="ToggleSidebar_Click" ToolTip="显示/隐藏图列表" />
+                            <Button Content="属性" Style="{StaticResource TopToolbarButtonStyle}" Click="ToggleInspector_Click" ToolTip="显示/隐藏属性面板" />
                         </StackPanel>
                     </Border>
 
@@ -546,7 +549,7 @@
                                     Margin="3,0,8,0"
                                     Background="{DynamicResource EditorToolbarSeparatorBrush}"
                                     VerticalAlignment="Center" />
-                            <Button x:Name="CompileGraphButton" Style="{StaticResource CompileToolbarButtonStyle}" Click="CompileGraph_Click">
+                            <Button x:Name="CompileGraphButton" AutomationProperties.Name="编译当前资产" ToolTip="编译当前资产" Style="{StaticResource CompileToolbarButtonStyle}" Click="CompileGraph_Click">
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Text="⚙" Margin="0,0,4,0" />
                                     <TextBlock x:Name="CompileButtonText">
@@ -582,7 +585,7 @@
                                 </StackPanel>
                             </Button>
                             <Button Content="显示最终代码" Style="{StaticResource TopToolbarButtonStyle}" Click="ShowFinalCode_Click" />
-                            <Button x:Name="RunGraphButton" Content="执行脚本" Click="RunGraph_Click">
+                            <Button x:Name="RunGraphButton" AutomationProperties.Name="执行脚本" ToolTip="执行当前脚本" Content="执行脚本" Click="RunGraph_Click">
                                 <Button.Style>
                                     <Style TargetType="Button" BasedOn="{StaticResource TopToolbarButtonStyle}">
                                         <Style.Triggers>
@@ -596,7 +599,7 @@
                                     </Style>
                                 </Button.Style>
                             </Button>
-                            <Button x:Name="StopExecutionButton" Content="&#x23F9; 停止执行" Click="StopExecution_Click" Visibility="Collapsed">
+                            <Button x:Name="StopExecutionButton" AutomationProperties.Name="停止执行" ToolTip="停止当前执行" Content="&#x23F9; 停止执行" Click="StopExecution_Click" Visibility="Collapsed">
                                 <Button.Style>
                                     <Style TargetType="Button" BasedOn="{StaticResource TopToolbarButtonStyle}">
                                         <Setter Property="Background" Value="{DynamicResource LogErrorBrush}" />
@@ -784,10 +787,11 @@
                 </Border>
             </Border>
 
-            <GridSplitter Grid.Row="1"
+            <GridSplitter x:Name="LogPanelSplitter" Grid.Row="1"
                           Height="7"
                           Style="{StaticResource EditorHorizontalSplitterStyle}"
-                          ResizeDirection="Rows" />
+                          ResizeDirection="Rows"
+                          DragCompleted="LayoutSplitter_DragCompleted" />
 
             <Grid Grid.Row="2">
                 <Grid.ColumnDefinitions>
@@ -935,8 +939,9 @@
                                           Width="7"
                                           Style="{StaticResource EditorVerticalSplitterStyle}"
                                           ShowsPreview="True"
-                                          ResizeBehavior="PreviousAndNext" />
-                             <ListBox x:Name="ContentBrowserListBox"
+                                          ResizeBehavior="PreviousAndNext"
+                                          DragCompleted="LayoutSplitter_DragCompleted" />
+                            <ListBox x:Name="ContentBrowserListBox"
                                   Grid.Column="2"
                                   ItemsSource="{Binding ContentVisibleItems}"
                                    Background="{DynamicResource EditorPanelBackgroundBrush}"
@@ -944,7 +949,10 @@
                                   Foreground="{DynamicResource EditorTextBrush}"
                                   ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                   ScrollViewer.VerticalScrollBarVisibility="Auto"
-                                  ScrollViewer.CanContentScroll="False"
+                                  ScrollViewer.CanContentScroll="True"
+                                  VirtualizingPanel.IsVirtualizing="True"
+                                  VirtualizingPanel.VirtualizationMode="Recycling"
+                                  VirtualizingPanel.ScrollUnit="Pixel"
                                   KeyDown="ContentBrowserListBox_KeyDown"
                                   MouseDoubleClick="ContentBrowserListBox_MouseDoubleClick"
                                   PreviewMouseDown="ContentBrowserArea_PreviewMouseDown"
@@ -977,6 +985,7 @@
                                                       Checked="ContentAssetScriptEnabledCheckBox_Changed"
                                                       Unchecked="ContentAssetScriptEnabledCheckBox_Changed"
                                                       Style="{StaticResource ScriptEnableBadgeStyle}" />
+                                            <Button HorizontalAlignment="Left" VerticalAlignment="Top" Width="20" Height="20" Padding="0" Content="★" ToolTip="收藏/取消收藏" Click="FavoriteAsset_Click" />
                                         </Grid>
                                         <TextBlock Text="{Binding Name}" TextAlignment="Center" TextWrapping="Wrap" Margin="0,6,0,0">
                                             <TextBlock.Style>
@@ -1073,7 +1082,8 @@
                 <GridSplitter Grid.Column="1"
                               Width="7"
                               Style="{StaticResource EditorVerticalSplitterStyle}"
-                              ResizeDirection="Columns" />
+                              ResizeDirection="Columns"
+                              DragCompleted="LayoutSplitter_DragCompleted" />
 
                 <Border Grid.Column="2"
                     Margin="3,6,6,6"
@@ -1095,6 +1105,8 @@
                                     Background="{DynamicResource EditorSelectedAccentBrush}" />
                             <TextBlock Text="日志" Style="{StaticResource BottomPanelTitleStyle}" />
                             <TextBlock x:Name="StatusTextBlock" Foreground="{DynamicResource StatusMutedBrush}" Margin="16,0,0,0" VerticalAlignment="Center" FontSize="11" />
+                            <TextBlock x:Name="LogUnreadText" Foreground="{DynamicResource CompileDirtyBorderBrush}" Margin="12,0,0,0" VerticalAlignment="Center" FontSize="11" />
+                            <Button x:Name="LogJumpButton" Content="跳到底部" Click="JumpToLogEnd_Click" Visibility="Collapsed" Margin="6,3,0,3" Padding="8,2" Height="24" FontSize="11" />
                             <Border Margin="12,0,0,0"
                                     Background="{DynamicResource EditorFieldCardBrush}"
                                     BorderBrush="{DynamicResource EditorPanelBorderBrush}"

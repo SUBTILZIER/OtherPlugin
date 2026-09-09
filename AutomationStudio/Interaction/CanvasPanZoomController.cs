@@ -38,6 +38,12 @@ public sealed class CanvasPanZoomController
     }
 
     public bool IsPanning => _isPanning;
+    public double ZoomLevel => _zoomLevel;
+    public (Point TopLeft, Point Size, double Zoom) GetViewportState() => (ViewportToGraph(new Point(0, 0)), new Point(_viewport.ActualWidth / _zoomLevel, _viewport.ActualHeight / _zoomLevel), _zoomLevel);
+    public event Action? ViewChanged;
+    public void ResetView() { _zoomLevel = 1; _zoomTransform.ScaleX = _zoomTransform.ScaleY = 1; _panTransform.X = _panTransform.Y = 0; _setStatus("视图已重置 (100%)"); ViewChanged?.Invoke(); }
+    public void ZoomBy(double factor) { _zoomLevel = Math.Clamp(_zoomLevel * factor, 0.1, 2.5); _zoomTransform.ScaleX = _zoomTransform.ScaleY = _zoomLevel; _setStatus($"缩放 {_zoomLevel:P0}"); ViewChanged?.Invoke(); }
+    public void NavigateToGraphPoint(Point graphPoint) { _panTransform.X = _viewport.ActualWidth / 2 - graphPoint.X * _zoomLevel; _panTransform.Y = _viewport.ActualHeight / 2 - graphPoint.Y * _zoomLevel; ViewChanged?.Invoke(); }
 
     public void EdgePan(Point viewportPosition)
     {
@@ -108,6 +114,7 @@ public sealed class CanvasPanZoomController
         var current = e.GetPosition(_viewport);
         _panTransform.X = _panStartOffset.X + current.X - _panStart.X;
         _panTransform.Y = _panStartOffset.Y + current.Y - _panStart.Y;
+        ViewChanged?.Invoke();
         return true;
     }
 
@@ -132,6 +139,8 @@ public sealed class CanvasPanZoomController
 
         _panTransform.X = mousePos.X - graphBefore.X * _zoomLevel;
         _panTransform.Y = mousePos.Y - graphBefore.Y * _zoomLevel;
+        _setStatus($"缩放 {_zoomLevel:P0}");
+        ViewChanged?.Invoke();
     }
 
     public void FitGraphToView()

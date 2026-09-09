@@ -5,6 +5,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:graph="clr-namespace:AutomationStudioWpf.Graph"
              xmlns:interaction="clr-namespace:AutomationStudioWpf.Interaction"
+             xmlns:controls="clr-namespace:AutomationStudioWpf.Controls"
              mc:Ignorable="d"
              d:DesignHeight="720"
              d:DesignWidth="1280"
@@ -347,7 +348,8 @@
                               Style="{StaticResource EditorVerticalSplitterStyle}"
                               ResizeDirection="Columns"
                               ResizeBehavior="PreviousAndNext"
-                              ShowsPreview="True" />
+                              ShowsPreview="True"
+                              DragCompleted="LayoutSplitter_DragCompleted" />
 
                 <Border Grid.Column="2"
                         Margin="0,10,9,10"
@@ -399,6 +401,7 @@
                                 </DrawingBrush.Drawing>
                             </DrawingBrush>
                         </Border.Background>
+                        <Grid>
                         <Canvas>
                             <Canvas x:Name="GraphSurface"
                                     Canvas.Left="0" Canvas.Top="0"
@@ -836,7 +839,8 @@
                                              BorderBrush="{DynamicResource EditorSelectedBorderBrush}"
                                              BorderThickness="1"
                                              CaretBrush="{DynamicResource EditorTextBrush}"
-                                             TextChanged="NodePaletteSearchBox_TextChanged"/>
+                                             TextChanged="NodePaletteSearchBox_TextChanged"
+                                             PreviewKeyDown="NodePaletteSearchBox_PreviewKeyDown"/>
                                      <ScrollViewer Grid.Row="2"
                                                    VerticalScrollBarVisibility="Auto"
                                                    HorizontalScrollBarVisibility="Disabled"
@@ -849,6 +853,17 @@
                                 </Grid>
                             </Border>
                         </Canvas>
+                        <Border AutomationProperties.Name="画布小地图" AutomationProperties.HelpText="点击小地图导航画布" x:Name="MinimapPanel" Width="180" Height="120" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="10" Background="#CC20252D" BorderBrush="{DynamicResource EditorPanelBorderBrush}" BorderThickness="1" CornerRadius="6" Visibility="Collapsed" MouseLeftButtonDown="Minimap_MouseLeftButtonDown">
+                            <Canvas x:Name="MinimapCanvas" Margin="4" />
+                        </Border>
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="10">
+                            <Button Content="−" Width="28" Height="26" Padding="0" ToolTip="缩小画布" AutomationProperties.Name="缩小画布" Click="ZoomOut_Click" />
+                            <Button x:Name="ZoomResetButton" Content="100%" Width="52" Height="26" Padding="0" ToolTip="重置为 100%" AutomationProperties.Name="重置画布缩放" Click="ZoomReset_Click" />
+                            <Button Content="＋" Width="28" Height="26" Padding="0" ToolTip="放大画布" AutomationProperties.Name="放大画布" Click="ZoomIn_Click" />
+                            <Button Content="全览" Width="42" Height="26" Padding="0" ToolTip="适合窗口" AutomationProperties.Name="画布全览" Click="FitGraph_Click" />
+                            <Button Content="小地图" Width="52" Height="26" Padding="0" ToolTip="显示/隐藏小地图" AutomationProperties.Name="切换小地图" Click="ToggleMinimap_Click" />
+                        </StackPanel>
+                        </Grid>
                     </Border>
                 </Border>
 
@@ -858,7 +873,8 @@
                               Style="{StaticResource EditorVerticalSplitterStyle}"
                               ResizeDirection="Columns"
                               ResizeBehavior="PreviousAndNext"
-                              ShowsPreview="True" />
+                              ShowsPreview="True"
+                              DragCompleted="LayoutSplitter_DragCompleted" />
 
                 <Border x:Name="InspectorPanel"
                         Grid.Column="4"
@@ -928,16 +944,23 @@
                                                     <Border Style="{StaticResource EditorSectionCardStyle}"
                                                             Margin="0,0,0,10"
                                                             Padding="10">
+                                                        <Expander IsExpanded="{Binding IsExpanded}" Header="{Binding Title}" Margin="0,0,0,8">
                                                         <StackPanel>
-                                                            <TextBlock Text="{Binding Title}"
-                                                                       Style="{StaticResource EditorSectionHeaderTextStyle}"
-                                                                       Margin="0,0,0,8" />
                                                             <ItemsControl ItemsSource="{Binding Fields}">
                                                                 <ItemsControl.ItemTemplate>
                                                                     <DataTemplate>
                                                                         <StackPanel Margin="0,0,0,9">
                                                                             <TextBlock Text="{Binding Label}"
                                                                                        Foreground="{DynamicResource EditorTextBrush}" />
+                                                                            <controls:NumericUpDown Value="{Binding NumericValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                                                                    IsEnabled="{Binding IsEnabled}" Margin="0,4,0,0">
+                                                                                <controls:NumericUpDown.Style>
+                                                                                    <Style TargetType="controls:NumericUpDown">
+                                                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                                                        <Style.Triggers><DataTrigger Binding="{Binding Kind}" Value="Number"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers>
+                                                                                    </Style>
+                                                                                </controls:NumericUpDown.Style>
+                                                                            </controls:NumericUpDown>
                                                                             <TextBox Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}"
                                                                                      IsEnabled="{Binding IsEnabled}"
                                                                                      AcceptsReturn="{Binding IsMultiline}"
@@ -949,6 +972,8 @@
                                                                                            BasedOn="{StaticResource EditorInspectorTextBoxStyle}">
                                                                                         <Setter Property="Visibility" Value="Visible" />
                                                                                         <Style.Triggers>
+                                                                                            <DataTrigger Binding="{Binding IsValid}" Value="False"><Setter Property="BorderBrush" Value="#FFE05252" /><Setter Property="BorderThickness" Value="2" /></DataTrigger>
+                                                                                            <DataTrigger Binding="{Binding Kind}" Value="Number"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
                                                                                             <DataTrigger Binding="{Binding IsBoolean}" Value="True">
                                                                                                 <Setter Property="Visibility" Value="Collapsed" />
                                                                                             </DataTrigger>
@@ -959,6 +984,7 @@
                                                                                     </Style>
                                                                                 </TextBox.Style>
                                                                             </TextBox>
+                                                                            <TextBlock Text="{Binding ValidationMessage}" Foreground="#FFE05252" FontSize="11" Margin="0,2,0,0" />
                                                                             <ComboBox ItemsSource="{Binding Options}"
                                                                                       DisplayMemberPath="Label"
                                                                                       SelectedValue="{Binding SelectedOption, UpdateSourceTrigger=PropertyChanged}"
@@ -1002,6 +1028,7 @@
                                                                 </ItemsControl.ItemTemplate>
                                                             </ItemsControl>
                                                         </StackPanel>
+                                                        </Expander>
                                                     </Border>
                                                 </DataTemplate>
                                             </ItemsControl.ItemTemplate>

@@ -18,6 +18,7 @@ using WpfMouseButtonEventArgs = System.Windows.Input.MouseButtonEventArgs;
 using WpfMouseButtonEventHandler = System.Windows.Input.MouseButtonEventHandler;
 using WpfSolidColorBrush = System.Windows.Media.SolidColorBrush;
 using WpfTextBlock = System.Windows.Controls.TextBlock;
+using WpfComboBox = System.Windows.Controls.ComboBox;
 using WpfTextBox = System.Windows.Controls.TextBox;
 using WpfTextChangedEventArgs = System.Windows.Controls.TextChangedEventArgs;
 using WpfUIElement = System.Windows.UIElement;
@@ -31,6 +32,9 @@ public partial class MainWindow
     private const int AutoFitMaxRenderFrames = 90;
 
     private WpfTextBox? _contentBrowserSearchBox;
+    private WpfTextBlock? _contentBreadcrumbText;
+    private WpfComboBox? _contentTypeFilter;
+    private readonly DispatcherTimer _contentFilterSaveTimer = new() { Interval = TimeSpan.FromMilliseconds(500) };
     private bool _isApplyingContentBrowserSearch;
     private bool _contentBrowserSearchRefreshQueued;
     private ContentBrowserIndex? _contentBrowserIndex;
@@ -286,8 +290,9 @@ public partial class MainWindow
             Height = 22,
             Margin = new Thickness(0, 4, 8, 4),
             Padding = new Thickness(6, 2, 6, 2),
-            ToolTip = "搜索当前文件夹及所有子文件夹中的资产。支持空格分隔关键字、模糊匹配、不区分大小写。",
+            ToolTip = "支持关键字、模糊匹配、type:script、type:function、type:folder、is:favorite。",
         };
+        _contentBrowserSearchBox.SetValue(System.Windows.Automation.AutomationProperties.NameProperty, "内容搜索");
         _contentBrowserSearchBox.TextChanged += ContentBrowserSearchBox_TextChanged;
 
         var hint = new WpfTextBlock
@@ -298,16 +303,31 @@ public partial class MainWindow
             VerticalAlignment = VerticalAlignment.Center,
             FontSize = 11,
         };
+        _contentBrowserSearchBox.Text = _appSettings.ContentBrowserFilter;
+        _contentBreadcrumbText = new WpfTextBlock { Foreground = AppBrush("EditorTextBrightBrush", 0xE6, 0xED, 0xF5), Margin = new Thickness(4,0,8,0), VerticalAlignment = VerticalAlignment.Center, FontSize = 11, ToolTip = "点击返回内容根目录", Cursor = System.Windows.Input.Cursors.Hand };
+        _contentBreadcrumbText.MouseLeftButtonUp += (_, _) => EnterContentFolder(null);
 
         ContentBrowserHeaderBar.Children.Add(label);
         ContentBrowserHeaderBar.Children.Add(_contentBrowserSearchBox);
         ContentBrowserHeaderBar.Children.Add(hint);
+        ContentBrowserHeaderBar.Children.Add(_contentBreadcrumbText);
+        _contentTypeFilter = new WpfComboBox { Width = 90, Height = 22, Margin = new Thickness(0,4,6,4), ToolTip = "按资产类型过滤" };
+        _contentTypeFilter.SetValue(System.Windows.Automation.AutomationProperties.NameProperty, "资产类型过滤");
+        _contentTypeFilter.Items.Add("全部"); _contentTypeFilter.Items.Add("脚本"); _contentTypeFilter.Items.Add("函数库"); _contentTypeFilter.Items.Add("文件夹"); _contentTypeFilter.SelectedIndex = _appSettings.ContentBrowserTypeFilter switch { "script" => 1, "function" => 2, "folder" => 3, _ => 0 };
+        _contentTypeFilter.SelectionChanged += (_, _) => { _appSettings.ContentBrowserTypeFilter = _contentTypeFilter.SelectedIndex switch { 1=>"script",2=>"function",3=>"folder",_=>null }; try { _appSettingsService.Save(_appSettings); } catch { } if (_contentBrowserSearchBox is null) return; var q = System.Text.RegularExpressions.Regex.Replace(_contentBrowserSearchBox.Text, @"\btype:\S+", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase).Trim(); string? t = _contentTypeFilter.SelectedIndex switch { 1=>"script",2=>"function",3=>"folder",_=>null }; _contentBrowserSearchBox.Text = t is null ? q : (q + " type:" + t).Trim(); };
+        ContentBrowserHeaderBar.Children.Add(_contentTypeFilter);
+        var favoriteButton = new System.Windows.Controls.Button { Content = "★", Width = 26, Height = 22, Padding = new Thickness(0), ToolTip = "只显示收藏" };
+        favoriteButton.SetValue(System.Windows.Automation.AutomationProperties.NameProperty, "收藏过滤");
+        favoriteButton.Click += (_, _) => { if (_contentBrowserSearchBox is null) return; string q = _contentBrowserSearchBox.Text; _contentBrowserSearchBox.Text = q.Contains("is:favorite", StringComparison.OrdinalIgnoreCase) ? q.Replace("is:favorite", "", StringComparison.OrdinalIgnoreCase).Trim() : (q + " is:favorite").Trim(); };
+        ContentBrowserHeaderBar.Children.Add(favoriteButton);
     }
 
     private void ContentBrowserSearchBox_TextChanged(object sender, WpfTextChangedEventArgs e)
     {
         if (_isApplyingContentBrowserSearch)
             return;
+        _appSettings.ContentBrowserFilter = _contentBrowserSearchBox?.Text ?? string.Empty;
+        _contentFilterSaveTimer.Stop(); _contentFilterSaveTimer.Tick -= ContentFilterSaveTimer_Tick; _contentFilterSaveTimer.Tick += ContentFilterSaveTimer_Tick; _contentFilterSaveTimer.Start();
 
         if (string.IsNullOrWhiteSpace(GetContentBrowserSearchText()))
         {
@@ -318,6 +338,8 @@ public partial class MainWindow
 
         ApplyContentBrowserSearchResults(updateStatus: true);
     }
+
+    private void ContentFilterSaveTimer_Tick(object? sender, EventArgs e) { _contentFilterSaveTimer.Stop(); try { _appSettingsService.Save(_appSettings); } catch { } }
 
     private void ContentVisibleItems_SearchRefreshRequested(object? sender, NotifyCollectionChangedEventArgs e)
     {
@@ -345,9 +367,14 @@ public partial class MainWindow
         try
         {
             var tokens = SplitContentSearchTokens(query);
+            bool favoriteOnly = tokens.Any(t => string.Equals(t, "is:favorite", StringComparison.OrdinalIgnoreCase));
+            var typeToken = tokens.FirstOrDefault(t => t.StartsWith("type:", StringComparison.OrdinalIgnoreCase));
+            ContentAssetKind? typeFilter = typeToken is null ? null : typeToken[5..].ToLowerInvariant() switch { "script" => ContentAssetKind.Script, "function" or "functionlibrary" => ContentAssetKind.FunctionLibrary, "folder" => ContentAssetKind.Folder, _ => null };
             var index = GetContentBrowserIndex();
             var results = index.SearchEntries
                 .Where(entry => index.IsInScope(entry.Asset, _currentContentFolderId))
+                .Where(entry => !favoriteOnly || entry.Asset.IsFavorite)
+                .Where(entry => typeFilter is null || entry.Asset.Kind == typeFilter)
                 .Where(entry => ContentAssetMatchesQuery(entry, tokens))
                 .OrderByDescending(entry => entry.Asset.IsFolder)
                 .ThenBy(entry => entry.Path, StringComparer.OrdinalIgnoreCase)
@@ -373,7 +400,7 @@ public partial class MainWindow
     private static bool ContentAssetMatchesQuery(ContentAssetSearchEntry entry, IReadOnlyList<string> tokens)
     {
         return tokens.Count == 0 ||
-               tokens.All(token => ContainsIgnoreCase(entry.SearchableText, token) ||
+               tokens.Where(token => !token.StartsWith("type:", StringComparison.OrdinalIgnoreCase) && !string.Equals(token, "is:favorite", StringComparison.OrdinalIgnoreCase)).All(token => ContainsIgnoreCase(entry.SearchableText, token) ||
                                    IsFuzzyMatch(entry.SearchableText, token));
     }
 
