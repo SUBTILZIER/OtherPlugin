@@ -8,8 +8,14 @@ namespace AutomationStudioWpf;
 
 public partial class MainWindow
 {
-    private ScriptPropertiesSummaryControl CreateScriptPropertiesSummary(ContentAssetViewModel asset) =>
-        new(asset, ApplyScriptRunSettings, _hotkeyCaptureCoordinator);
+    private ScriptPropertiesSummaryControl CreateScriptPropertiesSummary(ContentAssetViewModel asset, bool overview = false) =>
+        new(
+            asset,
+            ApplyScriptRunSettings,
+            _hotkeyCaptureCoordinator,
+            overview ? () => OpenOrActivateAsset(asset) : null,
+            overview ? () => CompileActiveAsset(showPrompt: false) : null,
+            overview ? () => _ = RunActiveScriptFromToolbarAsync() : null);
 
     private void ShowContentAssetPreviewIfIdle(ContentAssetViewModel? asset)
     {
@@ -28,7 +34,7 @@ public partial class MainWindow
     private void ShowScriptPropertiesInEmptyEditorPanel(ContentAssetViewModel asset)
     {
         EnsureEmptyEditorPanelDefaultChild();
-        EmptyEditorPanel.Child = CreateScriptPropertiesSummary(asset);
+        EmptyEditorPanel.Child = CreateScriptPropertiesSummary(asset, overview: true);
         EmptyEditorPanel.Visibility = Visibility.Visible;
     }
 

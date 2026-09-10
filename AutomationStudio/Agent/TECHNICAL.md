@@ -54,7 +54,7 @@ UI / MainWindow
 Interaction
     ├─ ExecutionController       ← 执行、取消、校验、Python 环境检查
     ├─ GraphListController       ← 图谱列表、新增、切换、删除、重命名、保存
-    ├─ CanvasPanZoomController   ← 右键平移、滚轮缩放、F 全览、坐标转换
+    ├─ CanvasPanZoomController   ← 右键平移、滚轮缩放、键盘重置、坐标转换
     ├─ NodeDragSelectionController ← 节点拖动、框选、多选、复制粘贴、对齐
     ├─ PinConnectionController   ← 拖线、连线、断线、预览线、路由节点插入
     ├─ InspectorController       ← 属性面板加载、自动保存、浏览对话框、窗口列表、字段锁定和灰态
@@ -728,7 +728,7 @@ Python 参数规则：
 #### 内容浏览器当前行为
 - 顶部 header 只显示“内容浏览器”，不再放新建按钮。
 - 新建资产只走右侧空白右键菜单，菜单项为 `脚本 / 文件夹 / 函数库`。
-- 右键资产只显示 `重命名 / 删除`。右键空白显示新建菜单。实现上复用一个 `ContextMenu`，由 `ContentBrowserContextMenu_Opened` 根据 `_contentBrowserContextTargetsAsset` 切换 `Visibility`。
+- 右键资产显示 `打开 / 重命名 / 删除`。`打开` 位于 `重命名` 之前，并复用双击的 `OpenContentAsset(...)`/文件夹进入逻辑；右键空白显示新建菜单。实现上复用一个 `ContextMenu`，由 `ContentBrowserContextMenu_Opened` 根据 `_contentBrowserContextTargetsAsset` 切换 `Visibility`。
 - 不要把带事件的 `ContextMenu` 放进 `ListBoxItem.Style Setter`。WPF 会在运行期把模板子元素接到 style connector，可能启动崩溃：`Unable to cast object of type 'TextBox' to type 'Style'`。
 - `MainWindow.NavigationFeatures.cs` 动态安装搜索框，不在 XAML 内硬编码。搜索当前目录递归资产/文件夹，支持空格关键字、路径片段、subsequence 模糊匹配和不区分大小写。
 - `Ctrl+B` 是已实现定位：内容浏览器有选中资产时定位该资产真实父目录；无选中资产但有当前打开资产时定位当前打开资产。
@@ -1165,6 +1165,7 @@ Python 参数规则：
 ### UI 行为
 - 启动默认隐藏 `EditorSurfaceHostRoot`，显示 `EmptyEditorPanel`，提示从内容浏览器打开资产；打开资产后把该 session 的 `EditorSurfaceControl` 放入 host。
 - 底部左侧为内容浏览器，右侧为日志，中间 `GridSplitter` 可调比例。
+- 画布不显示小地图，也不保留右上角缩放/重置/全览工具栏；缩放使用鼠标滚轮，`0` 键重置视图，节点加载时仍可自动适配。
 - 打开脚本：显示事件图、自定义函数、画布和属性面板。
 - 打开函数库：只显示函数列表、画布和属性面板。
 - `RunGraph_Click` 只允许脚本里的事件图直接执行；运行前会自动编译未编译图，编译失败才阻止执行。
@@ -1436,3 +1437,39 @@ This section is the source of truth for packaging and process-lifecycle work. Re
 - workspace 编译失败时，参与本轮验证的图全部保持 `IsCompileDirty=true`；保存 dirty 保持原状态。只有 workspace 完整验证成功后才能清 compile dirty。
 - 多线程回归必须同时覆盖：`False/True/True` 正常完成、fatal 取消长等待 sibling、用户取消不记 fatal、同 key 同值允许、同 key 异值冲突、`exec_completed` 仅全成功后执行。
 - `GraphSnapshot` 同时提供不可变 node/connection 摘要。验证器读取摘要，并仅为 `NodeSerializer` 逐节点生成副本；禁止为了检查自定义事件 ID、连接或调用引用而对整图重复 `ToMutableModel()`。Runtime plan builder 仍允许每次执行创建一次完整可变副本。
+
+## 2026-09-09：界面主题与编辑交互收口
+
+- 亮色主题使用 Codex 风格中性灰白 token：应用/面板/画布/节点正文/输入框均通过 `DynamicResource` 读取；普通文字使用灰黑层级，不得把纯白或纯黑作为大面积背景或正文色。暗色主题保留既有深色主色，只统一控件状态。
+- 主题 brush 必须保持可变并由 `AppThemeService.ThemeChanged` 同步。节点 pin、连线、选中 glow 等现有对象不得缓存旧主题颜色；浅色选中 glow 跟随 accent，不使用固定黄色。
+- 共享 Button、CheckBox、TextBox、ComboBox 的 hover、pressed、disabled、keyboard focus 状态统一由主题 token 驱动。TextBox 的编辑模板必须保留 `PART_ContentHost`，NumericUpDown 内部编辑框通过应用 TextBox 样式继承统一焦点和校验表现。
+- Inspector 编辑期间不得因 `GraphChanged` 全量重建当前面板。普通 TextBox 支持 Enter 提交、失焦提交、Esc 恢复本次编辑值；NumericUpDown、参数名称编辑器保留各自更严格的提交/取消处理，避免双重提交和焦点竞争。
+- 连线采用双层结构：`Panel.ZIndex=100` 的透明宽命中层负责选择、右键和路由点；节点位于 200；`Panel.ZIndex=300` 的视觉层只绘制轮廓、主线和选中高亮且 `IsHitTestVisible=false`；拖线预览为 450。视觉层上移不得遮挡节点和 pin 操作。
+- 连线路径继续复用 `ConnectionPathViewModel.PathGeometry` 和现有圆润规划器；禁止在鼠标移动或主题切换中重复计算同一路径。连线视觉厚度和轮廓由 ViewModel 属性提供，不能在 XAML 中复制路径算法。
+- 画布右下角小地图及右上角无效缩放/全览按钮已移除；不得恢复对应 XAML、事件、控制器状态或无效 AutomationProperties。缩放、平移和 `0` 键重置仍由 `CanvasPanZoomController` 保留。
+- 设置窗口采用左侧分类导航、右侧滚动内容区。当前分类为 `界面`（主题/强调色）和 `窗口行为`（关闭策略）；新增设置项必须放入对应分类页，不要恢复单列长表单。
+- 连线视觉规则参考 UE GraphEditor：直连使用受端点方向和主方向约束的 cubic spline；带路由点的连接使用相邻段长度约束的圆角折线，圆角控制柄不能越过相邻段，检测到自交时移除导致回绕的路由点，不通过反转路由点顺序制造新路径。
+- 侧栏、工具栏、Tab、底部内容/日志面板使用紧凑间距，但不能删除现有 splitter、最小宽度或窗口最大化工作区逻辑。Tab 的保存 dirty 使用小圆点，编译 dirty 由编译按钮独立表达，不用整块高饱和背景覆盖活动态。
+
+## 2026-09-09：拾取窗口、函数侧栏与连线表现
+
+- 鼠标拾取结果窗口不得缓存深色静态 brush。窗口标题、正文和复制/取消按钮必须通过 `ThemeResourceHelper.SetResource` 绑定动态主题 token，确保亮色主题下按钮文字与背景始终有足够对比度。
+- 函数列表使用独立的函数行样式，不复用事件图的紧凑布局：函数行保留清晰的函数标识、名称截断、公开状态和 compile-dirty 提示；事件图列表的交互和尺寸不可被函数样式覆盖。
+- 节点选中状态必须同时显示主题 accent 边框和外环，不能只依赖 ViewModel 的单条细边框。选中外环必须 `IsHitTestVisible=false`，避免影响节点拖动和 pin 操作。
+- 直连线参考 UE GraphEditor：当端点横向间距足够时，Bezier 控制点先沿水平 pin 方向离开端点，再向目标端点收束；不能因垂直距离更大而生成陡直回绕。路由线仍使用受相邻段长度限制的圆角段，并复用已计算的 `PathGeometry`。
+
+## 2026-09-09：UE 暗色主题与布局交互
+
+- 暗色主题采用石墨灰分层：应用背景 `#1B1D1F`、面板 `#222426`、卡片 `#292C30`、画布 `#17191C`、节点正文 `#24272B`，正文使用 `#D8DCE3`，次要文字使用 `#9CA3AD`。交互 accent 默认为青蓝 `#3E9BB5`；节点语义色仍独立于通用 accent。
+- 所有主题 brush 必须通过可变资源和 `DynamicResource` 更新。设置窗口中的主题预览是静态示意，不作为运行时 token；禁止在高频路径中缓存旧主题 brush。
+- 所有布局 `GridSplitter` 使用直接调整模式（`ShowsPreview=False`），并显式声明 `ResizeDirection`、`ResizeBehavior` 和方向光标。命中区保持 7px，视觉指示线只负责 hover/drag 反馈；布局保存读取实际 `ActualWidth/ActualHeight`，不能保存预览值。
+- Inspector 采用摘要卡片、字段标签、分组标题和校验提示的层级样式。输入期间禁止因 `GraphChanged` 重建 Inspector；结构变更才显式刷新，普通值只更新当前字段，避免焦点和光标跳动。
+- 节点选中态使用 accent 边框和不可命中的外环，不再用固定黄色作为通用选中边框。连线继续采用命中层、节点层、视觉层分离，视觉层不接收鼠标事件。
+
+## 2026-09-09：主窗口层级与脚本工作台
+
+- 主窗口固定为标题栏、工具栏、Tab 栏三层；工具栏按文件、编辑、工作区、执行分组，分组只用弱分隔线，不重复套用大圆角容器。保留原按钮、事件、AutomationProperties 和快捷键。
+- 活动 Tab 使用低饱和选中背景、底部 accent 线和独立 dirty 小圆点；保存 dirty 与 compile dirty 不得通过整块高饱和填充混合表达。
+- 选中脚本但未打开图表时，中央显示左对齐、可伸缩的脚本工作台概览；运行设置与热键在宽区域双栏显示，窄区域自动改单栏。该控件只编辑现有 RunSettings，不改变执行和保存语义。
+- Inspector 顶部保持节点摘要，字段标签、说明、校验提示使用统一层级资源。输入期间不得因 GraphChanged 重建控件；普通值原位更新，结构变更才显式刷新。
+- 面板外层只保留一层弱边界，内部 section 用间距和背景层级区分，禁止无目的的 Border 嵌套。底部内容浏览器和日志默认高度仅影响新布局，已有用户保存尺寸不强制覆盖。

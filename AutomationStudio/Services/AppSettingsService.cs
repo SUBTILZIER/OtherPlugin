@@ -24,7 +24,7 @@ public sealed class AppSettings
     public string? ContentBrowserTypeFilter { get; set; }
     public AppThemeMode ThemeMode { get; set; } = AppThemeMode.Dark;
 
-    public string AccentColor { get; set; } = "#4FA3FF";
+    public string AccentColor { get; set; } = "#3E9BB5";
 
     public double AccentOpacity { get; set; } = 0.62;
 
@@ -32,12 +32,10 @@ public sealed class AppSettings
 
     public bool HighContrastTooltips { get; set; } = true;
 
-    public double GraphSidebarWidth { get; set; } = 248;
-    public double InspectorWidth { get; set; } = 472;
-    public double LogPanelHeight { get; set; } = 360;
-    public double ContentTreeWidth { get; set; } = 180;
-    public bool MinimapEnabled { get; set; } = true;
-
+    public double GraphSidebarWidth { get; set; } = 224;
+    public double InspectorWidth { get; set; } = 420;
+    public double LogPanelHeight { get; set; } = 280;
+    public double ContentTreeWidth { get; set; } = 160;
     public AppSettings Clone() => new()
     {
         FavoriteAssetIds = [.. FavoriteAssetIds],
@@ -52,7 +50,6 @@ public sealed class AppSettings
         InspectorWidth = InspectorWidth,
         LogPanelHeight = LogPanelHeight,
         ContentTreeWidth = ContentTreeWidth,
-        MinimapEnabled = MinimapEnabled,
     };
 
     public void Normalize()
@@ -60,7 +57,7 @@ public sealed class AppSettings
         FavoriteAssetIds ??= [];
         ContentBrowserFilter ??= string.Empty;
         if (!AppThemeService.TryParseColor(AccentColor, out _))
-            AccentColor = "#4FA3FF";
+            AccentColor = "#3E9BB5";
         AccentOpacity = Math.Clamp(AccentOpacity, 0.18, 1.0);
         GraphSidebarWidth = Math.Clamp(GraphSidebarWidth, 180, 420);
         InspectorWidth = Math.Clamp(InspectorWidth, 420, 720);

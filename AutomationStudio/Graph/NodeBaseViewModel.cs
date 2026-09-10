@@ -35,8 +35,10 @@ public abstract class NodeBaseViewModel : ObservableObject
     private static readonly Brush FunctionHeaderBrush = FrozenBrush(92, 92, 255);
     private static readonly Brush DefaultHeaderBrush = FrozenBrush(70, 70, 70);
     private static readonly Brush HeaderForeground = FrozenBrush(255, 255, 255);
-    private static readonly Brush SelectedBorderBrush = FrozenBrush(255, 215, 96);
-    private static readonly Brush DefaultBorderBrush = FrozenBrush(66, 74, 88);
+    // Keep the model fallback aligned with the UE-style dark theme; the WPF layer
+    // still replaces this with the live theme brush for immediate theme changes.
+    private static readonly Brush SelectedBorderBrush = FrozenBrush(62, 155, 181);
+    private static readonly Brush DefaultBorderBrush = FrozenBrush(74, 82, 92);
 
     private string _title = string.Empty;
     private double _x;

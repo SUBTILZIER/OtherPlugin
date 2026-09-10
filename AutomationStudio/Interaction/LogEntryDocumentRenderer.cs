@@ -59,7 +59,7 @@ internal static class LogEntryDocumentRenderer
             owner.FlowDirection,
             typeface,
             owner.FontSize,
-            System.Windows.Media.Brushes.White,
+            owner.Foreground,
             dpi.PixelsPerDip);
         return Math.Ceiling(formatted.WidthIncludingTrailingWhitespace);
     }

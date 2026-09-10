@@ -12,40 +12,41 @@ public static class AppThemeService
 
     private static readonly Dictionary<string, string> DarkPalette = new()
     {
-        ["AppBackgroundBrush"] = "#171C24",
-        ["PanelBackgroundBrush"] = "#1C232D",
-        ["PanelAltBackgroundBrush"] = "#222A35",
-        ["BorderBrushDark"] = "#303A48",
-        ["ForegroundPrimaryBrush"] = "#E6EDF5",
-        ["ForegroundSecondaryBrush"] = "#AAB6C6",
+        ["AppBackgroundBrush"] = "#1B1D1F",
+        ["PanelBackgroundBrush"] = "#222426",
+        ["PanelAltBackgroundBrush"] = "#292C30",
+        ["BorderBrushDark"] = "#3A4048",
+        ["ForegroundPrimaryBrush"] = "#D8DCE3",
+        ["ForegroundSecondaryBrush"] = "#9CA3AD",
         ["AccentForegroundBrush"] = "#FFFFFF",
-        ["EditorSelectionTextBrush"] = "#F3F7FF",
-        ["InputBackgroundBrush"] = "#232B36",
-        ["InputBorderBrush"] = "#3C4A5C",
-        ["DisabledInputBackgroundBrush"] = "#1A2028",
-        ["DisabledInputBorderBrush"] = "#303A48",
-        ["DisabledForegroundBrush"] = "#7C8796",
-        ["DropdownBackgroundBrush"] = "#151B23",
-        ["DropdownHoverBrush"] = "#203044",
-        ["DropdownSelectedBrush"] = "#2D6FB7",
-        ["DropdownBorderBrush"] = "#344154",
-        ["DropdownTextBrush"] = "#EAF1FA",
-        ["DropdownMutedTextBrush"] = "#AAB6C6",
-        ["ToolbarButtonBackgroundBrush"] = "#171E28",
-        ["ToolbarButtonBorderBrush"] = "#303A48",
+        ["EditorSelectionTextBrush"] = "#F2F5F8",
+        ["InputBackgroundBrush"] = "#272B30",
+        ["InputBorderBrush"] = "#454C55",
+        ["DisabledInputBackgroundBrush"] = "#202328",
+        ["DisabledInputBorderBrush"] = "#353A41",
+        ["DisabledForegroundBrush"] = "#686F79",
+        ["DropdownBackgroundBrush"] = "#272B30",
+        ["DropdownHoverBrush"] = "#32383F",
+        ["DropdownSelectedBrush"] = "#294A5B",
+        ["DropdownBorderBrush"] = "#454C55",
+        ["DropdownTextBrush"] = "#D8DCE3",
+        ["DropdownMutedTextBrush"] = "#9CA3AD",
+        ["ToolbarButtonBackgroundBrush"] = "#222426",
+        ["ToolbarButtonBorderBrush"] = "#3A4048",
         ["CompileDirtyBackgroundBrush"] = "#4A3216",
-        ["CompileDirtyBorderBrush"] = "#D68A22",
-        ["StatusMutedBrush"] = "#8793A4",
-        ["LogErrorBrush"] = "#FF6B6B",
-        ["EditorRootBackgroundBrush"] = "#10151D",
-        ["EditorWindowBorderBrush"] = "#303A48",
-        ["EditorPanelBackgroundBrush"] = "#171C24",
-        ["EditorPanelBorderBrush"] = "#293241",
-        ["EditorPanelStrongBorderBrush"] = "#354255",
-        ["EditorCanvasBackgroundBrush"] = "#0D1219",
-        ["EditorCanvasGridBackgroundBrush"] = "#111821",
-        ["EditorCanvasGridLineBrush"] = "#202936",
-        ["EditorNodeBackgroundBrush"] = "#20242A",
+        ["CompileDirtyBorderBrush"] = "#D88A3D",
+        ["StatusMutedBrush"] = "#858C95",
+        ["LogErrorBrush"] = "#E06C75",
+        ["ValidationErrorBrush"] = "#E06C75",
+        ["EditorRootBackgroundBrush"] = "#1B1D1F",
+        ["EditorWindowBorderBrush"] = "#3A4048",
+        ["EditorPanelBackgroundBrush"] = "#222426",
+        ["EditorPanelBorderBrush"] = "#3A4048",
+        ["EditorPanelStrongBorderBrush"] = "#4A525C",
+        ["EditorCanvasBackgroundBrush"] = "#17191C",
+        ["EditorCanvasGridBackgroundBrush"] = "#1B1E22",
+        ["EditorCanvasGridLineBrush"] = "#292E34",
+        ["EditorNodeBackgroundBrush"] = "#24272B",
         ["EditorExecutionOverlayBrush"] = "#B0181D2A",
         ["EditorExecutionPinBrush"] = "#F4F4F4",
         ["EditorCompletionPinBrush"] = "#FFB848",
@@ -53,74 +54,75 @@ public static class AppThemeService
         ["EditorBooleanPinBrush"] = "#B82D30",
         ["EditorVectorPinBrush"] = "#50C472",
         ["EditorStringPinBrush"] = "#CA2EA5",
-        ["EditorDefaultPinBrush"] = "#BEBEBE",
-        ["EditorConnectionOutlineBrush"] = "#CC0A0F16",
-        ["EditorConnectionHitBrush"] = "#2BA8FF",
-        ["EditorPreviewConnectionBrush"] = "#F5F5F5",
-        ["EditorSectionHeaderBrush"] = "#25303D",
-        ["EditorListSelectedBrush"] = "#2D6FB7",
-        ["EditorListHoverBrush"] = "#203044",
+        ["EditorDefaultPinBrush"] = "#B8BEC7",
+        ["EditorConnectionOutlineBrush"] = "#CC101214",
+        ["EditorConnectionHitBrush"] = "#2F9FD0",
+        ["EditorPreviewConnectionBrush"] = "#E1E7EA",
+        ["EditorSectionHeaderBrush"] = "#292C30",
+        ["EditorListSelectedBrush"] = "#294A5B",
+        ["EditorListHoverBrush"] = "#32383F",
         ["EditorDirtyBackgroundBrush"] = "#3F2A13",
-        ["EditorTextBrush"] = "#D7E0EC",
-        ["EditorTextBrightBrush"] = "#F3F7FF",
-        ["EditorMutedTextBrush"] = "#9EABBC",
-        ["EditorPanelCardBrush"] = "#151B23",
-        ["EditorPanelCardHoverBrush"] = "#1C2633",
-        ["EditorPanelElevatedBrush"] = "#1B2330",
-        ["EditorChromeBrush"] = "#111821",
-        ["EditorChromeHighlightBrush"] = "#203044",
-        ["EditorToolbarGroupBrush"] = "#151B24",
-        ["EditorToolbarSeparatorBrush"] = "#334155",
-        ["EditorSectionHeaderAccentBrush"] = "#1E2C3D",
-        ["EditorSelectedBorderBrush"] = "#2E7BC5",
-        ["EditorFieldCardBrush"] = "#121922",
-        ["EditorDisabledChipBrush"] = "#202833",
-        ["EditorDisabledChipBorderBrush"] = "#364354",
-        ["EditorToolTipBackgroundBrush"] = "#0B1220",
-        ["EditorToolTipTextBrush"] = "#F8FAFC",
-        ["EditorSelectionGlowBrush"] = "#FFD24A",
-        ["EditorSelectionRingBrush"] = "#0D0F12",
-        ["EditorSelectionBorderBrush"] = "#66A8D5FF",
-        ["EditorSelectionFillBrush"] = "#2258AFFF",
-        ["EditorNodeNumberBackgroundBrush"] = "#660D0F12",
+        ["EditorTextBrush"] = "#D8DCE3",
+        ["EditorTextBrightBrush"] = "#E7EAEE",
+        ["EditorMutedTextBrush"] = "#9CA3AD",
+        ["EditorPanelCardBrush"] = "#292C30",
+        ["EditorPanelCardHoverBrush"] = "#32383F",
+        ["EditorPanelElevatedBrush"] = "#25282C",
+        ["EditorChromeBrush"] = "#1B1E22",
+        ["EditorChromeHighlightBrush"] = "#32383F",
+        ["EditorToolbarGroupBrush"] = "#222426",
+        ["EditorToolbarSeparatorBrush"] = "#3A4048",
+        ["EditorSectionHeaderAccentBrush"] = "#263C45",
+        ["EditorSelectedBorderBrush"] = "#3E9BB5",
+        ["EditorFieldCardBrush"] = "#272B30",
+        ["EditorDisabledChipBrush"] = "#202328",
+        ["EditorDisabledChipBorderBrush"] = "#353A41",
+        ["EditorToolTipBackgroundBrush"] = "#14171A",
+        ["EditorToolTipTextBrush"] = "#F2F4F7",
+        ["EditorSelectionGlowBrush"] = "#3E9BB5",
+        ["EditorSelectionRingBrush"] = "#101214",
+        ["EditorSelectionBorderBrush"] = "#3E9BB5",
+        ["EditorSelectionFillBrush"] = "#335C97A8",
+        ["EditorNodeNumberBackgroundBrush"] = "#66000000",
     };
 
     private static readonly Dictionary<string, string> LightPalette = new()
     {
-        ["AppBackgroundBrush"] = "#ECEEED",
-        ["PanelBackgroundBrush"] = "#F5F6F5",
-        ["PanelAltBackgroundBrush"] = "#E6E8E7",
-        ["BorderBrushDark"] = "#D1D4D2",
-        ["ForegroundPrimaryBrush"] = "#30312F",
-        ["ForegroundSecondaryBrush"] = "#686B68",
+        ["AppBackgroundBrush"] = "#F2F3F1",
+        ["PanelBackgroundBrush"] = "#F7F8F6",
+        ["PanelAltBackgroundBrush"] = "#E9ECEA",
+        ["BorderBrushDark"] = "#C7CDCA",
+        ["ForegroundPrimaryBrush"] = "#303330",
+        ["ForegroundSecondaryBrush"] = "#666B67",
         ["AccentForegroundBrush"] = "#FFFFFF",
-        ["EditorSelectionTextBrush"] = "#30312F",
-        ["InputBackgroundBrush"] = "#FAFAF9",
-        ["InputBorderBrush"] = "#C9CDCB",
-        ["DisabledInputBackgroundBrush"] = "#E9EBEA",
-        ["DisabledInputBorderBrush"] = "#D5D8D6",
-        ["DisabledForegroundBrush"] = "#858884",
-        ["DropdownBackgroundBrush"] = "#F7F8F7",
-        ["DropdownHoverBrush"] = "#ECEFEE",
-        ["DropdownSelectedBrush"] = "#E3ECF7",
-        ["DropdownBorderBrush"] = "#D1D4D2",
-        ["DropdownTextBrush"] = "#30312F",
-        ["DropdownMutedTextBrush"] = "#777A76",
-        ["ToolbarButtonBackgroundBrush"] = "#F1F3F2",
-        ["ToolbarButtonBorderBrush"] = "#D4D7D5",
+        ["EditorSelectionTextBrush"] = "#303330",
+        ["InputBackgroundBrush"] = "#FAFBFA",
+        ["InputBorderBrush"] = "#BFC7C3",
+        ["DisabledInputBackgroundBrush"] = "#E9ECEA",
+        ["DisabledInputBorderBrush"] = "#C7CDCA",
+        ["DisabledForegroundBrush"] = "#8A908C",
+        ["DropdownBackgroundBrush"] = "#F7F8F6",
+        ["DropdownHoverBrush"] = "#EEF1EF",
+        ["DropdownSelectedBrush"] = "#DCE9F7",
+        ["DropdownBorderBrush"] = "#C7CDCA",
+        ["DropdownTextBrush"] = "#303330",
+        ["DropdownMutedTextBrush"] = "#707671",
+        ["ToolbarButtonBackgroundBrush"] = "#E6EAE8",
+        ["ToolbarButtonBorderBrush"] = "#C7CDCA",
         ["CompileDirtyBackgroundBrush"] = "#FFF4DC",
         ["CompileDirtyBorderBrush"] = "#B66A00",
         ["StatusMutedBrush"] = "#727672",
-        ["LogErrorBrush"] = "#C93C37",
-        ["EditorRootBackgroundBrush"] = "#E8EAE9",
-        ["EditorWindowBorderBrush"] = "#8D9591",
-        ["EditorPanelBackgroundBrush"] = "#F3F4F3",
-        ["EditorPanelBorderBrush"] = "#D4D7D5",
-        ["EditorPanelStrongBorderBrush"] = "#C3C8C5",
-        ["EditorCanvasBackgroundBrush"] = "#B8C2BE",
-        ["EditorCanvasGridBackgroundBrush"] = "#C4CDCA",
-        ["EditorCanvasGridLineBrush"] = "#A5B1AD",
-        ["EditorNodeBackgroundBrush"] = "#EFF2F0",
+        ["LogErrorBrush"] = "#B4232C",
+        ["ValidationErrorBrush"] = "#B4232C",
+        ["EditorRootBackgroundBrush"] = "#EBEEEC",
+        ["EditorWindowBorderBrush"] = "#8B9590",
+        ["EditorPanelBackgroundBrush"] = "#F4F6F4",
+        ["EditorPanelBorderBrush"] = "#C7CDCA",
+        ["EditorPanelStrongBorderBrush"] = "#AEB8B3",
+        ["EditorCanvasBackgroundBrush"] = "#D6DEDA",
+        ["EditorCanvasGridBackgroundBrush"] = "#D6DEDA",
+        ["EditorCanvasGridLineBrush"] = "#B5C1BC",
+        ["EditorNodeBackgroundBrush"] = "#F1F3F1",
         ["EditorExecutionOverlayBrush"] = "#A8DDE2E1",
         ["EditorExecutionPinBrush"] = "#34465A",
         ["EditorCompletionPinBrush"] = "#A85A00",
@@ -132,28 +134,28 @@ public static class AppThemeService
         ["EditorConnectionOutlineBrush"] = "#CCF4F6F5",
         ["EditorConnectionHitBrush"] = "#276BD1",
         ["EditorPreviewConnectionBrush"] = "#34465A",
-        ["EditorSectionHeaderBrush"] = "#E5E8E6",
-        ["EditorListSelectedBrush"] = "#E3ECF7",
-        ["EditorListHoverBrush"] = "#ECEFEE",
+        ["EditorSectionHeaderBrush"] = "#E5E9E7",
+        ["EditorListSelectedBrush"] = "#DCE9F7",
+        ["EditorListHoverBrush"] = "#EEF1EF",
         ["EditorDirtyBackgroundBrush"] = "#FFF4DC",
-        ["EditorTextBrush"] = "#3A3B39",
-        ["EditorTextBrightBrush"] = "#242624",
-        ["EditorMutedTextBrush"] = "#747874",
-        ["EditorPanelCardBrush"] = "#F7F8F7",
+        ["EditorTextBrush"] = "#3A3D3A",
+        ["EditorTextBrightBrush"] = "#303330",
+        ["EditorMutedTextBrush"] = "#747A75",
+        ["EditorPanelCardBrush"] = "#F7F8F6",
         ["EditorPanelCardHoverBrush"] = "#EEF1EF",
-        ["EditorPanelElevatedBrush"] = "#F6F7F6",
-        ["EditorChromeBrush"] = "#E8EAE9",
-        ["EditorChromeHighlightBrush"] = "#EFF2F0",
-        ["EditorToolbarGroupBrush"] = "#F0F2F1",
-        ["EditorToolbarSeparatorBrush"] = "#D5D8D6",
-        ["EditorSectionHeaderAccentBrush"] = "#E8ECEA",
+        ["EditorPanelElevatedBrush"] = "#F5F7F5",
+        ["EditorChromeBrush"] = "#EBEEEC",
+        ["EditorChromeHighlightBrush"] = "#F1F3F1",
+        ["EditorToolbarGroupBrush"] = "#E6EAE8",
+        ["EditorToolbarSeparatorBrush"] = "#C7CDCA",
+        ["EditorSectionHeaderAccentBrush"] = "#E3E8E5",
         ["EditorSelectedBorderBrush"] = "#8FB2DF",
-        ["EditorFieldCardBrush"] = "#FAFAF9",
-        ["EditorDisabledChipBrush"] = "#E9EBEA",
-        ["EditorDisabledChipBorderBrush"] = "#D5D8D6",
+        ["EditorFieldCardBrush"] = "#FAFBFA",
+        ["EditorDisabledChipBrush"] = "#E9ECEA",
+        ["EditorDisabledChipBorderBrush"] = "#C7CDCA",
         ["EditorToolTipBackgroundBrush"] = "#141820",
         ["EditorToolTipTextBrush"] = "#F8FAFC",
-        ["EditorSelectionGlowBrush"] = "#B66A00",
+        ["EditorSelectionGlowBrush"] = "#2F6FEB",
         ["EditorSelectionRingBrush"] = "#4B5563",
         ["EditorSelectionBorderBrush"] = "#8FB2DF",
         ["EditorSelectionFillBrush"] = "#335E8FC7",
@@ -170,23 +172,23 @@ public static class AppThemeService
                 SetBrushColor(key, color);
         }
 
-        var defaultAccent = settings.ThemeMode == AppThemeMode.Light ? "#2F6FEB" : "#4FA3FF";
+        var defaultAccent = settings.ThemeMode == AppThemeMode.Light ? "#2F6FEB" : "#3E9BB5";
         if (!TryParseColor(settings.AccentColor, out var accent))
             TryParseColor(defaultAccent, out accent);
 
         var opacity = Math.Clamp(settings.AccentOpacity, 0.18, 1.0);
         var chromeBase = settings.ThemeMode == AppThemeMode.Light
-            ? WpfColor.FromRgb(0xE8, 0xEA, 0xE9)
-            : WpfColor.FromRgb(0x11, 0x18, 0x21);
+            ? WpfColor.FromRgb(0xEB, 0xEE, 0xEC)
+            : WpfColor.FromRgb(0x1B, 0x1E, 0x22);
         var cardBase = settings.ThemeMode == AppThemeMode.Light
-            ? WpfColor.FromRgb(0xF7, 0xF8, 0xF7)
-            : WpfColor.FromRgb(0x15, 0x1B, 0x23);
+            ? WpfColor.FromRgb(0xF7, 0xF8, 0xF6)
+            : WpfColor.FromRgb(0x29, 0x2C, 0x30);
         var fieldBase = settings.ThemeMode == AppThemeMode.Light
-            ? WpfColor.FromRgb(0xFA, 0xFA, 0xF9)
-            : WpfColor.FromRgb(0x12, 0x19, 0x22);
+            ? WpfColor.FromRgb(0xFA, 0xFB, 0xFA)
+            : WpfColor.FromRgb(0x27, 0x2B, 0x30);
         var panelBase = settings.ThemeMode == AppThemeMode.Light
-            ? WpfColor.FromRgb(0xF3, 0xF4, 0xF3)
-            : WpfColor.FromRgb(0x17, 0x1C, 0x24);
+            ? WpfColor.FromRgb(0xF4, 0xF6, 0xF4)
+            : WpfColor.FromRgb(0x22, 0x24, 0x26);
         var selection = CreateSelectionColor(accent, settings.ThemeMode, opacity, panelBase);
         var accentChrome = Blend(
             chromeBase,
@@ -205,6 +207,9 @@ public static class AppThemeService
         SetBrushColor("EditorSelectedAccentBrush", settings.ThemeMode == AppThemeMode.Light
             ? Blend(accent, panelBase, 0.08)
             : Blend(panelBase, accent, 0.72));
+        SetBrushColor("EditorSelectionGlowBrush", settings.ThemeMode == AppThemeMode.Light
+            ? accent
+            : accent);
         SetBrushColor("EditorToolTipBorderBrush", accent);
         SetBrushColor("EditorSelectedBorderBrush", settings.ThemeMode == AppThemeMode.Light
             ? Blend(WpfColor.FromRgb(0xD1, 0xD4, 0xD2), accent, 0.54)
@@ -212,10 +217,10 @@ public static class AppThemeService
         SetBrushColor("EditorListSelectedBrush", selection);
         SetBrushColor("DropdownSelectedBrush", selection);
         SetBrushColor("InputBorderBrush", settings.ThemeMode == AppThemeMode.Light
-            ? WpfColor.FromRgb(0xC9, 0xCD, 0xCB)
+            ? WpfColor.FromRgb(0xBF, 0xC7, 0xC3)
             : Blend(fieldBase, accent, 0.38));
         SetBrushColor("DropdownBorderBrush", settings.ThemeMode == AppThemeMode.Light
-            ? WpfColor.FromRgb(0xD1, 0xD4, 0xD2)
+            ? WpfColor.FromRgb(0xC7, 0xCD, 0xCA)
             : Blend(fieldBase, accent, 0.28));
         SetBrushColor("EditorPanelCardHoverBrush", Blend(
             cardBase,
@@ -235,16 +240,16 @@ public static class AppThemeService
             ? WpfColor.FromRgb(0xF0, 0xF2, 0xF1)
             : Blend(chromeBase, accent, 0.08 * opacity));
         SetBrushColor("ToolbarButtonBorderBrush", settings.ThemeMode == AppThemeMode.Light
-            ? WpfColor.FromRgb(0xD4, 0xD7, 0xD5)
+            ? WpfColor.FromRgb(0xC7, 0xCD, 0xCA)
             : Blend(chromeBase, accent, 0.20 * opacity));
         SetBrushColor("CompileDirtyBackgroundBrush", settings.ThemeMode == AppThemeMode.Light ? Blend(panelBase, WpfColor.FromRgb(0xF5, 0x9E, 0x0B), 0.08) : WpfColor.FromRgb(0x4A, 0x32, 0x16));
         SetBrushColor("EditorDirtyBackgroundBrush", settings.ThemeMode == AppThemeMode.Light ? Blend(panelBase, WpfColor.FromRgb(0xF5, 0x9E, 0x0B), 0.06) : WpfColor.FromRgb(0x3F, 0x2A, 0x13));
         SetBrushColor("PanelAltBackgroundBrush", settings.ThemeMode == AppThemeMode.Light
             ? WpfColor.FromRgb(0xE6, 0xE8, 0xE7)
-            : WpfColor.FromRgb(0x22, 0x2A, 0x35));
+            : WpfColor.FromRgb(0x29, 0x2C, 0x30));
         SetColorResource("EditorSelectionGlowColor", settings.ThemeMode == AppThemeMode.Light
-            ? WpfColor.FromRgb(0x8A, 0x5A, 0x00)
-            : WpfColor.FromRgb(0xFF, 0x9F, 0x1C));
+            ? accent
+            : accent);
         NotifyThemeChanged();
     }
 

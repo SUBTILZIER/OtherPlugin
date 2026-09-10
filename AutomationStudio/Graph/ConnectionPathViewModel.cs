@@ -3,6 +3,7 @@ using Point = System.Windows.Point;
 using Brush = System.Windows.Media.Brush;
 using Geometry = System.Windows.Media.Geometry;
 using BezierSegment = System.Windows.Media.BezierSegment;
+using LineSegment = System.Windows.Media.LineSegment;
 using PathGeometry = System.Windows.Media.PathGeometry;
 
 namespace AutomationStudioWpf.Graph;
@@ -110,20 +111,31 @@ public sealed class ConnectionPathViewModel : ObservableObject, IDisposable
             Point start = figure.StartPoint;
             foreach (var segment in figure.Segments)
             {
-                if (segment is not BezierSegment bezier)
+                Point end;
+                double distanceSquared;
+                if (segment is BezierSegment bezier)
+                {
+                    end = bezier.Point3;
+                    distanceSquared = DistanceToBezierSquared(graphPoint, start, bezier);
+                }
+                else if (segment is LineSegment line)
+                {
+                    end = line.Point;
+                    distanceSquared = DistanceToSegmentSquared(graphPoint, start, end);
+                }
+                else
                 {
                     continue;
                 }
 
                 int connectionIndex = Math.Min(segmentIndex, Connections.Count - 1);
-                double distanceSquared = DistanceToBezierSquared(graphPoint, start, bezier);
                 if (distanceSquared < nearestDistanceSquared)
                 {
                     connection = Connections[connectionIndex];
                     nearestDistanceSquared = distanceSquared;
                 }
 
-                start = bezier.Point3;
+                start = end;
                 segmentIndex++;
             }
         }

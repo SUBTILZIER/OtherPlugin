@@ -3,21 +3,12 @@ using System.Windows.Controls;
 using System.Windows.Forms;
 using System.Windows.Input;
 using System.Windows.Media;
-using WpfColor = System.Windows.Media.Color;
+using WpfControl = System.Windows.Controls.Control;
 
 namespace AutomationStudioWpf.Interaction;
 
 internal sealed class MousePickChoiceWindow : Window
 {
-    private static readonly SolidColorBrush WindowBackgroundBrush = FrozenBrush(27, 32, 40);
-    private static readonly SolidColorBrush WindowBorderBrush = FrozenBrush(79, 163, 255);
-    private static readonly SolidColorBrush TextBrush = FrozenBrush(232, 237, 245);
-    private static readonly SolidColorBrush MutedTextBrush = FrozenBrush(167, 177, 191);
-    private static readonly SolidColorBrush ButtonBackgroundBrush = FrozenBrush(36, 43, 53);
-    private static readonly SolidColorBrush ButtonBorderBrush = FrozenBrush(79, 94, 116);
-    private static readonly SolidColorBrush PrimaryButtonBrush = FrozenBrush(79, 163, 255);
-    private static readonly SolidColorBrush PrimaryButtonTextBrush = FrozenBrush(12, 16, 22);
-
     private readonly ScreenPickSample _sample;
     private readonly Action<MessageBoxResult> _completed;
     private bool _isClosing;
@@ -59,40 +50,43 @@ internal sealed class MousePickChoiceWindow : Window
     {
         var root = new Border
         {
-            Background = WindowBackgroundBrush,
-            BorderBrush = WindowBorderBrush,
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(8),
             Padding = new Thickness(12),
             MinWidth = 236,
         };
+        ThemeResourceHelper.SetResource(root, Border.BackgroundProperty, "EditorPanelElevatedBrush");
+        ThemeResourceHelper.SetResource(root, Border.BorderBrushProperty, "EditorToolTipBorderBrush");
 
         var panel = new StackPanel { Orientation = System.Windows.Controls.Orientation.Vertical };
-        panel.Children.Add(new TextBlock
+        var title = new TextBlock
         {
             Text = "鼠标拾取",
-            Foreground = WindowBorderBrush,
             FontSize = 15,
             FontWeight = FontWeights.SemiBold,
             Margin = new Thickness(0, 0, 0, 8),
-        });
+        };
+        ThemeResourceHelper.SetResource(title, TextBlock.ForegroundProperty, "EditorToolTipBorderBrush");
+        panel.Children.Add(title);
 
-        panel.Children.Add(new TextBlock
+        var sampleText = new TextBlock
         {
             Text = $"坐标：{_sample.CoordinateText}\n颜色：{_sample.RgbText} / {_sample.HexText}",
-            Foreground = TextBrush,
             FontSize = 12,
             LineHeight = 19,
             Margin = new Thickness(0, 0, 0, 10),
-        });
+        };
+        ThemeResourceHelper.SetResource(sampleText, TextBlock.ForegroundProperty, "EditorTextBrightBrush");
+        panel.Children.Add(sampleText);
 
-        panel.Children.Add(new TextBlock
+        var hint = new TextBlock
         {
             Text = "选择要复制的内容",
-            Foreground = MutedTextBrush,
             FontSize = 11,
             Margin = new Thickness(0, 0, 0, 10),
-        });
+        };
+        ThemeResourceHelper.SetResource(hint, TextBlock.ForegroundProperty, "EditorMutedTextBrush");
+        panel.Children.Add(hint);
 
         var row = new StackPanel
         {
@@ -120,11 +114,13 @@ internal sealed class MousePickChoiceWindow : Window
             IsDefault = primary,
             IsCancel = result == MessageBoxResult.Cancel,
             Cursor = System.Windows.Input.Cursors.Hand,
-            Foreground = primary ? PrimaryButtonTextBrush : TextBrush,
-            Background = primary ? PrimaryButtonBrush : ButtonBackgroundBrush,
-            BorderBrush = ButtonBorderBrush,
             BorderThickness = new Thickness(1),
         };
+        ThemeResourceHelper.SetResource(button, WpfControl.ForegroundProperty,
+            primary ? "AccentForegroundBrush" : "EditorTextBrightBrush");
+        ThemeResourceHelper.SetResource(button, WpfControl.BackgroundProperty,
+            primary ? "AccentBrush" : "EditorFieldCardBrush");
+        ThemeResourceHelper.SetResource(button, WpfControl.BorderBrushProperty, "EditorPanelBorderBrush");
         button.Click += (_, _) => Complete(result);
         return button;
     }
@@ -170,10 +166,4 @@ internal sealed class MousePickChoiceWindow : Window
         return new System.Windows.Size(Math.Max(desired.Width, 236), Math.Max(desired.Height, 128));
     }
 
-    private static SolidColorBrush FrozenBrush(byte r, byte g, byte b)
-    {
-        var brush = new SolidColorBrush(WpfColor.FromRgb(r, g, b));
-        brush.Freeze();
-        return brush;
-    }
 }

@@ -19,16 +19,6 @@ namespace AutomationStudioWpf;
 
 public partial class MainWindow
 {
-    private void FavoriteAsset_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is System.Windows.Controls.Button { DataContext: ContentAssetViewModel asset })
-        {
-            asset.IsFavorite = !asset.IsFavorite;
-            if (asset.IsFavorite) _appSettings.FavoriteAssetIds.Add(asset.Id); else _appSettings.FavoriteAssetIds.Remove(asset.Id);
-            try { _appSettingsService.Save(_appSettings); } catch { }
-            e.Handled = true;
-        }
-    }
     private enum ContentDropAction
     {
         Cancel,
@@ -130,6 +120,7 @@ public partial class MainWindow
         var assetVisibility = selected is not null ? Visibility.Visible : Visibility.Collapsed;
         var newVisibility = selected is not null ? Visibility.Collapsed : Visibility.Visible;
 
+        ContentBrowserOpenMenuItem.Visibility = assetVisibility;
         ContentBrowserRenameMenuItem.Visibility = assetVisibility;
         ContentBrowserDeleteMenuItem.Visibility = assetVisibility;
         ContentBrowserPropertiesMenuItem.Visibility =
@@ -148,6 +139,21 @@ public partial class MainWindow
     {
         _contentBrowserContextTargetAsset = null;
         _contentBrowserContextTargetsAsset = false;
+    }
+
+    private void OpenContentAssetMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        if ((_contentBrowserContextTargetAsset ?? GetSelectedContentAsset()) is not { } asset)
+            return;
+
+        _contentBrowserContextTargetAsset = null;
+        _contentBrowserContextTargetsAsset = false;
+        if (asset.Kind == ContentAssetKind.Folder)
+            EnterContentFolder(ReferenceEquals(asset, _rootContentFolder) ? null : asset);
+        else
+            OpenContentAsset(asset);
+
+        e.Handled = true;
     }
 
     private void ContentFolder_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)

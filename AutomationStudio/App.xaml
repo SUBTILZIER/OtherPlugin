@@ -7,43 +7,44 @@
              >
     <Application.Resources>
         <!-- Runtime themes mutate these brushes. Keep them unfrozen; otherwise existing StaticResource users keep stale colors. -->
-        <SolidColorBrush x:Key="AppBackgroundBrush" Color="#171C24" po:Freeze="False" />
-        <SolidColorBrush x:Key="PanelBackgroundBrush" Color="#1C232D" po:Freeze="False" />
-        <SolidColorBrush x:Key="PanelAltBackgroundBrush" Color="#222A35" po:Freeze="False" />
-        <SolidColorBrush x:Key="BorderBrushDark" Color="#303A48" po:Freeze="False" />
-        <SolidColorBrush x:Key="ForegroundPrimaryBrush" Color="#E6EDF5" po:Freeze="False" />
-        <SolidColorBrush x:Key="ForegroundSecondaryBrush" Color="#AAB6C6" po:Freeze="False" />
-        <SolidColorBrush x:Key="AccentBrush" Color="#4FA3FF" po:Freeze="False" />
+        <SolidColorBrush x:Key="AppBackgroundBrush" Color="#1B1D1F" po:Freeze="False" />
+        <SolidColorBrush x:Key="PanelBackgroundBrush" Color="#222426" po:Freeze="False" />
+        <SolidColorBrush x:Key="PanelAltBackgroundBrush" Color="#292C30" po:Freeze="False" />
+        <SolidColorBrush x:Key="BorderBrushDark" Color="#3A4048" po:Freeze="False" />
+        <SolidColorBrush x:Key="ForegroundPrimaryBrush" Color="#D8DCE3" po:Freeze="False" />
+        <SolidColorBrush x:Key="ForegroundSecondaryBrush" Color="#9CA3AD" po:Freeze="False" />
+        <SolidColorBrush x:Key="AccentBrush" Color="#3E9BB5" po:Freeze="False" />
         <SolidColorBrush x:Key="AccentHoverBrush" Color="#65B3FF" po:Freeze="False" />
         <SolidColorBrush x:Key="AccentPressedBrush" Color="#357AD8" po:Freeze="False" />
         <SolidColorBrush x:Key="AccentForegroundBrush" Color="#FFFFFF" po:Freeze="False" />
-        <SolidColorBrush x:Key="EditorSelectionTextBrush" Color="#F3F7FF" po:Freeze="False" />
-        <SolidColorBrush x:Key="InputBackgroundBrush" Color="#232B36" po:Freeze="False" />
-        <SolidColorBrush x:Key="InputBorderBrush" Color="#3C4A5C" po:Freeze="False" />
-        <SolidColorBrush x:Key="DisabledInputBackgroundBrush" Color="#1A2028" po:Freeze="False" />
-        <SolidColorBrush x:Key="DisabledInputBorderBrush" Color="#303A48" po:Freeze="False" />
-        <SolidColorBrush x:Key="DisabledForegroundBrush" Color="#7C8796" po:Freeze="False" />
-        <SolidColorBrush x:Key="DropdownBackgroundBrush" Color="#151B23" po:Freeze="False" />
-        <SolidColorBrush x:Key="DropdownHoverBrush" Color="#203044" po:Freeze="False" />
-        <SolidColorBrush x:Key="DropdownSelectedBrush" Color="#2D6FB7" po:Freeze="False" />
-        <SolidColorBrush x:Key="DropdownBorderBrush" Color="#344154" po:Freeze="False" />
-        <SolidColorBrush x:Key="DropdownTextBrush" Color="#EAF1FA" po:Freeze="False" />
-        <SolidColorBrush x:Key="DropdownMutedTextBrush" Color="#AAB6C6" po:Freeze="False" />
-        <SolidColorBrush x:Key="ToolbarButtonBackgroundBrush" Color="#171E28" po:Freeze="False" />
-        <SolidColorBrush x:Key="ToolbarButtonBorderBrush" Color="#303A48" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorSelectionTextBrush" Color="#F2F5F8" po:Freeze="False" />
+        <SolidColorBrush x:Key="InputBackgroundBrush" Color="#272B30" po:Freeze="False" />
+        <SolidColorBrush x:Key="InputBorderBrush" Color="#454C55" po:Freeze="False" />
+        <SolidColorBrush x:Key="DisabledInputBackgroundBrush" Color="#202328" po:Freeze="False" />
+        <SolidColorBrush x:Key="DisabledInputBorderBrush" Color="#353A41" po:Freeze="False" />
+        <SolidColorBrush x:Key="DisabledForegroundBrush" Color="#686F79" po:Freeze="False" />
+        <SolidColorBrush x:Key="DropdownBackgroundBrush" Color="#272B30" po:Freeze="False" />
+        <SolidColorBrush x:Key="DropdownHoverBrush" Color="#32383F" po:Freeze="False" />
+        <SolidColorBrush x:Key="DropdownSelectedBrush" Color="#294A5B" po:Freeze="False" />
+        <SolidColorBrush x:Key="DropdownBorderBrush" Color="#454C55" po:Freeze="False" />
+        <SolidColorBrush x:Key="DropdownTextBrush" Color="#D8DCE3" po:Freeze="False" />
+        <SolidColorBrush x:Key="DropdownMutedTextBrush" Color="#9CA3AD" po:Freeze="False" />
+        <SolidColorBrush x:Key="ToolbarButtonBackgroundBrush" Color="#222426" po:Freeze="False" />
+        <SolidColorBrush x:Key="ToolbarButtonBorderBrush" Color="#3A4048" po:Freeze="False" />
         <SolidColorBrush x:Key="CompileDirtyBackgroundBrush" Color="#4A3216" po:Freeze="False" />
-        <SolidColorBrush x:Key="CompileDirtyBorderBrush" Color="#D68A22" po:Freeze="False" />
-        <SolidColorBrush x:Key="StatusMutedBrush" Color="#8793A4" po:Freeze="False" />
-        <SolidColorBrush x:Key="LogErrorBrush" Color="#FF6B6B" po:Freeze="False" />
-        <SolidColorBrush x:Key="EditorRootBackgroundBrush" Color="#10151D" po:Freeze="False" />
-        <SolidColorBrush x:Key="EditorWindowBorderBrush" Color="#303A48" po:Freeze="False" />
-        <SolidColorBrush x:Key="EditorPanelBackgroundBrush" Color="#171C24" po:Freeze="False" />
-        <SolidColorBrush x:Key="EditorPanelBorderBrush" Color="#293241" po:Freeze="False" />
-        <SolidColorBrush x:Key="EditorPanelStrongBorderBrush" Color="#354255" po:Freeze="False" />
-        <SolidColorBrush x:Key="EditorCanvasBackgroundBrush" Color="#0D1219" po:Freeze="False" />
-        <SolidColorBrush x:Key="EditorCanvasGridBackgroundBrush" Color="#111821" po:Freeze="False" />
-        <SolidColorBrush x:Key="EditorCanvasGridLineBrush" Color="#202936" po:Freeze="False" />
-        <SolidColorBrush x:Key="EditorNodeBackgroundBrush" Color="#20242A" po:Freeze="False" />
+        <SolidColorBrush x:Key="CompileDirtyBorderBrush" Color="#D88A3D" po:Freeze="False" />
+        <SolidColorBrush x:Key="StatusMutedBrush" Color="#858C95" po:Freeze="False" />
+        <SolidColorBrush x:Key="LogErrorBrush" Color="#E06C75" po:Freeze="False" />
+        <SolidColorBrush x:Key="ValidationErrorBrush" Color="#E06C75" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorRootBackgroundBrush" Color="#1B1D1F" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorWindowBorderBrush" Color="#3A4048" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorPanelBackgroundBrush" Color="#222426" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorPanelBorderBrush" Color="#3A4048" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorPanelStrongBorderBrush" Color="#4A525C" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorCanvasBackgroundBrush" Color="#17191C" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorCanvasGridBackgroundBrush" Color="#1B1E22" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorCanvasGridLineBrush" Color="#292E34" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorNodeBackgroundBrush" Color="#24272B" po:Freeze="False" />
         <SolidColorBrush x:Key="EditorExecutionOverlayBrush" Color="#B0181D2A" po:Freeze="False" />
         <SolidColorBrush x:Key="EditorExecutionPinBrush" Color="#F4F4F4" po:Freeze="False" />
         <SolidColorBrush x:Key="EditorCompletionPinBrush" Color="#FFB848" po:Freeze="False" />
@@ -51,39 +52,39 @@
         <SolidColorBrush x:Key="EditorBooleanPinBrush" Color="#B82D30" po:Freeze="False" />
         <SolidColorBrush x:Key="EditorVectorPinBrush" Color="#50C472" po:Freeze="False" />
         <SolidColorBrush x:Key="EditorStringPinBrush" Color="#CA2EA5" po:Freeze="False" />
-        <SolidColorBrush x:Key="EditorDefaultPinBrush" Color="#BEBEBE" po:Freeze="False" />
-        <SolidColorBrush x:Key="EditorConnectionOutlineBrush" Color="#CC0A0F16" po:Freeze="False" />
-        <SolidColorBrush x:Key="EditorConnectionHitBrush" Color="#2BA8FF" po:Freeze="False" />
-        <SolidColorBrush x:Key="EditorPreviewConnectionBrush" Color="#F5F5F5" po:Freeze="False" />
-        <SolidColorBrush x:Key="EditorSectionHeaderBrush" Color="#25303D" po:Freeze="False" />
-        <SolidColorBrush x:Key="EditorListSelectedBrush" Color="#2D6FB7" po:Freeze="False" />
-        <SolidColorBrush x:Key="EditorListHoverBrush" Color="#203044" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorDefaultPinBrush" Color="#B8BEC7" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorConnectionOutlineBrush" Color="#CC101214" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorConnectionHitBrush" Color="#2F9FD0" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorPreviewConnectionBrush" Color="#E1E7EA" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorSectionHeaderBrush" Color="#292C30" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorListSelectedBrush" Color="#294A5B" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorListHoverBrush" Color="#32383F" po:Freeze="False" />
         <SolidColorBrush x:Key="EditorDirtyBackgroundBrush" Color="#3F2A13" po:Freeze="False" />
-        <SolidColorBrush x:Key="EditorTextBrush" Color="#D7E0EC" po:Freeze="False" />
-        <SolidColorBrush x:Key="EditorTextBrightBrush" Color="#F3F7FF" po:Freeze="False" />
-        <SolidColorBrush x:Key="EditorMutedTextBrush" Color="#9EABBC" po:Freeze="False" />
-        <SolidColorBrush x:Key="EditorPanelCardBrush" Color="#151B23" po:Freeze="False" />
-        <SolidColorBrush x:Key="EditorPanelCardHoverBrush" Color="#1C2633" po:Freeze="False" />
-        <SolidColorBrush x:Key="EditorPanelElevatedBrush" Color="#1B2330" po:Freeze="False" />
-        <SolidColorBrush x:Key="EditorChromeBrush" Color="#111821" po:Freeze="False" />
-        <SolidColorBrush x:Key="EditorChromeHighlightBrush" Color="#203044" po:Freeze="False" />
-        <SolidColorBrush x:Key="EditorToolbarGroupBrush" Color="#151B24" po:Freeze="False" />
-        <SolidColorBrush x:Key="EditorToolbarSeparatorBrush" Color="#334155" po:Freeze="False" />
-        <SolidColorBrush x:Key="EditorSectionHeaderAccentBrush" Color="#1E2C3D" po:Freeze="False" />
-        <SolidColorBrush x:Key="EditorSelectedAccentBrush" Color="#4FA3FF" po:Freeze="False" />
-        <SolidColorBrush x:Key="EditorSelectedBorderBrush" Color="#2E7BC5" po:Freeze="False" />
-        <SolidColorBrush x:Key="EditorFieldCardBrush" Color="#121922" po:Freeze="False" />
-        <SolidColorBrush x:Key="EditorDisabledChipBrush" Color="#202833" po:Freeze="False" />
-        <SolidColorBrush x:Key="EditorDisabledChipBorderBrush" Color="#364354" po:Freeze="False" />
-        <SolidColorBrush x:Key="EditorToolTipBackgroundBrush" Color="#0B1220" po:Freeze="False" />
-        <SolidColorBrush x:Key="EditorToolTipBorderBrush" Color="#4FA3FF" po:Freeze="False" />
-        <SolidColorBrush x:Key="EditorToolTipTextBrush" Color="#F8FAFC" po:Freeze="False" />
-        <SolidColorBrush x:Key="EditorSelectionGlowBrush" Color="#FFD24A" po:Freeze="False" />
-        <SolidColorBrush x:Key="EditorSelectionRingBrush" Color="#0D0F12" po:Freeze="False" />
-        <SolidColorBrush x:Key="EditorSelectionBorderBrush" Color="#66A8D5FF" po:Freeze="False" />
-        <SolidColorBrush x:Key="EditorSelectionFillBrush" Color="#2258AFFF" po:Freeze="False" />
-        <SolidColorBrush x:Key="EditorNodeNumberBackgroundBrush" Color="#660D0F12" po:Freeze="False" />
-        <Color x:Key="EditorSelectionGlowColor">#FF9F1C</Color>
+        <SolidColorBrush x:Key="EditorTextBrush" Color="#D8DCE3" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorTextBrightBrush" Color="#E7EAEE" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorMutedTextBrush" Color="#9CA3AD" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorPanelCardBrush" Color="#292C30" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorPanelCardHoverBrush" Color="#32383F" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorPanelElevatedBrush" Color="#25282C" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorChromeBrush" Color="#1B1E22" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorChromeHighlightBrush" Color="#32383F" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorToolbarGroupBrush" Color="#222426" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorToolbarSeparatorBrush" Color="#3A4048" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorSectionHeaderAccentBrush" Color="#263C45" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorSelectedAccentBrush" Color="#3E9BB5" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorSelectedBorderBrush" Color="#3E9BB5" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorFieldCardBrush" Color="#272B30" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorDisabledChipBrush" Color="#202328" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorDisabledChipBorderBrush" Color="#353A41" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorToolTipBackgroundBrush" Color="#14171A" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorToolTipBorderBrush" Color="#3E9BB5" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorToolTipTextBrush" Color="#F2F4F7" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorSelectionGlowBrush" Color="#3E9BB5" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorSelectionRingBrush" Color="#101214" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorSelectionBorderBrush" Color="#3E9BB5" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorSelectionFillBrush" Color="#335C97A8" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorNodeNumberBackgroundBrush" Color="#66000000" po:Freeze="False" />
+        <Color x:Key="EditorSelectionGlowColor">#FF3E9BB5</Color>
 
         <Style x:Key="EditorVerticalSplitterStyle" TargetType="{x:Type GridSplitter}">
             <Setter Property="Background" Value="Transparent" />
@@ -244,9 +245,12 @@
             <Setter Property="Background" Value="{DynamicResource PanelAltBackgroundBrush}" />
             <Setter Property="BorderBrush" Value="{DynamicResource BorderBrushDark}" />
             <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="MinHeight" Value="30" />
+            <Setter Property="FontSize" Value="12" />
             <Setter Property="Padding" Value="12,6" />
             <Setter Property="Margin" Value="2" />
             <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="ToolTipService.ShowOnDisabled" Value="True" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
@@ -263,13 +267,12 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="ButtonBorder" Property="Background" Value="{DynamicResource AccentBrush}" />
+                                <Setter TargetName="ButtonBorder" Property="Background" Value="{DynamicResource DropdownHoverBrush}" />
                                 <Setter Property="BorderBrush" Value="{DynamicResource AccentHoverBrush}" />
-                                <Setter Property="Foreground" Value="{DynamicResource AccentForegroundBrush}" />
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="ButtonBorder" Property="Background" Value="{DynamicResource AccentPressedBrush}" />
-                                <Setter Property="Foreground" Value="{DynamicResource AccentForegroundBrush}" />
+                                <Setter TargetName="ButtonBorder" Property="Background" Value="{DynamicResource DropdownSelectedBrush}" />
+                                <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
                             </Trigger>
                             <Trigger Property="IsKeyboardFocused" Value="True">
                                 <Setter TargetName="ButtonBorder" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
@@ -284,12 +287,74 @@
             </Setter>
         </Style>
 
+        <Style TargetType="CheckBox">
+            <Setter Property="Foreground" Value="{DynamicResource ForegroundPrimaryBrush}" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="{DynamicResource InputBorderBrush}" />
+            <Setter Property="Padding" Value="2,1" />
+            <Setter Property="MinHeight" Value="24" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="ToolTipService.ShowOnDisabled" Value="True" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type CheckBox}">
+                        <Border x:Name="CheckBoxChrome"
+                                Background="{TemplateBinding Background}"
+                                Padding="{TemplateBinding Padding}"
+                                SnapsToDevicePixels="True">
+                            <DockPanel LastChildFill="True">
+                                <Border x:Name="Box"
+                                        Width="14"
+                                        Height="14"
+                                        Margin="0,0,7,0"
+                                        VerticalAlignment="Center"
+                                        Background="{DynamicResource EditorFieldCardBrush}"
+                                        BorderBrush="{TemplateBinding BorderBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="3">
+                                    <Path x:Name="CheckMark"
+                                          Data="M 2,7 L 5.5,10.5 L 12,3"
+                                          Stroke="{DynamicResource AccentForegroundBrush}"
+                                          StrokeThickness="1.7"
+                                          StrokeStartLineCap="Round"
+                                          StrokeEndLineCap="Round"
+                                          Visibility="Collapsed" />
+                                </Border>
+                                <ContentPresenter VerticalAlignment="Center"
+                                                  RecognizesAccessKey="True"
+                                                  TextElement.Foreground="{TemplateBinding Foreground}" />
+                            </DockPanel>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Box" Property="BorderBrush" Value="{DynamicResource AccentHoverBrush}" />
+                                <Setter TargetName="CheckBoxChrome" Property="Background" Value="{DynamicResource DropdownHoverBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Box" Property="Background" Value="{DynamicResource AccentBrush}" />
+                                <Setter TargetName="Box" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                                <Setter TargetName="CheckMark" Property="Visibility" Value="Visible" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Box" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                                <Setter TargetName="Box" Property="BorderThickness" Value="2" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.55" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <Style TargetType="RadioButton">
             <Setter Property="Foreground" Value="{DynamicResource ForegroundPrimaryBrush}" />
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderBrush" Value="{DynamicResource StatusMutedBrush}" />
             <Setter Property="Padding" Value="4,0" />
             <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="ToolTipService.ShowOnDisabled" Value="True" />
             <Setter Property="VerticalContentAlignment" Value="Center" />
             <Setter Property="Template">
                 <Setter.Value>
@@ -328,6 +393,10 @@
                                 <Setter TargetName="OuterRing" Property="Stroke" Value="{DynamicResource ForegroundPrimaryBrush}" />
                                 <Setter TargetName="CheckedDot" Property="Visibility" Value="Visible" />
                             </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="OuterRing" Property="Stroke" Value="{DynamicResource AccentBrush}" />
+                                <Setter TargetName="OuterRing" Property="StrokeThickness" Value="2" />
+                            </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter Property="Opacity" Value="0.55" />
                             </Trigger>
@@ -343,8 +412,39 @@
             <Setter Property="BorderBrush" Value="{DynamicResource InputBorderBrush}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="CaretBrush" Value="{DynamicResource ForegroundPrimaryBrush}" />
+            <Setter Property="MinHeight" Value="30" />
             <Setter Property="Padding" Value="8,5" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type TextBox}">
+                        <Border x:Name="TextBoxBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="5"
+                                SnapsToDevicePixels="True">
+                            <ScrollViewer x:Name="PART_ContentHost"
+                                          Margin="{TemplateBinding Padding}"
+                                          HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                          VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+                                          HorizontalScrollBarVisibility="{TemplateBinding HorizontalScrollBarVisibility}"
+                                          VerticalScrollBarVisibility="{TemplateBinding VerticalScrollBarVisibility}"
+                                          Focusable="False" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
             <Style.Triggers>
+                <Trigger Property="AcceptsReturn" Value="True">
+                    <Setter Property="VerticalContentAlignment" Value="Top" />
+                </Trigger>
+                <Trigger Property="IsKeyboardFocused" Value="True">
+                    <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                    <Setter Property="BorderThickness" Value="2" />
+                    <Setter Property="Background" Value="{DynamicResource DropdownHoverBrush}" />
+                </Trigger>
                 <Trigger Property="IsEnabled" Value="False">
                     <Setter Property="Background" Value="{DynamicResource DisabledInputBackgroundBrush}" />
                     <Setter Property="BorderBrush" Value="{DynamicResource DisabledInputBorderBrush}" />
@@ -359,6 +459,7 @@
             <Setter Property="Background" Value="{DynamicResource DropdownBackgroundBrush}" />
             <Setter Property="BorderBrush" Value="{DynamicResource DropdownBorderBrush}" />
             <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="MinHeight" Value="30" />
             <Setter Property="Padding" Value="6,4" />
             <Setter Property="Template">
                 <Setter.Value>
@@ -451,6 +552,9 @@
                 </Setter.Value>
             </Setter>
             <Style.Triggers>
+                <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                    <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                </Trigger>
                 <Trigger Property="IsEnabled" Value="False">
                     <Setter Property="Background" Value="{DynamicResource DisabledInputBackgroundBrush}" />
                     <Setter Property="BorderBrush" Value="{DynamicResource DisabledInputBorderBrush}" />
@@ -489,6 +593,22 @@
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
+        </Style>
+
+        <Style TargetType="ScrollBar">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{DynamicResource EditorPanelStrongBorderBrush}" />
+            <Setter Property="Opacity" Value="0.72" />
+            <Setter Property="ToolTipService.ShowOnDisabled" Value="True" />
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Opacity" Value="1" />
+                    <Setter Property="Foreground" Value="{DynamicResource EditorSelectedBorderBrush}" />
+                </Trigger>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Opacity" Value="0.35" />
+                </Trigger>
+            </Style.Triggers>
         </Style>
 
         <Style x:Key="DarkDropdownListBoxItemStyle" TargetType="{x:Type ListBoxItem}">

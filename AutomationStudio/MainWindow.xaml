@@ -6,6 +6,7 @@
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         xmlns:graph="clr-namespace:AutomationStudioWpf.Graph"
         xmlns:logging="clr-namespace:AutomationStudioWpf.Logging"
+        xmlns:controls="clr-namespace:AutomationStudioWpf.Controls"
         mc:Ignorable="d"
         Title="自动化蓝图编辑器"
         Width="1680"
@@ -76,9 +77,9 @@
             <Setter Property="Margin" Value="0" />
         </Style>
         <Style x:Key="TopToolbarButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-            <Setter Property="MinHeight" Value="34" />
-            <Setter Property="Margin" Value="2,0" />
-            <Setter Property="Padding" Value="12,6" />
+            <Setter Property="MinHeight" Value="32" />
+            <Setter Property="Margin" Value="1,0" />
+            <Setter Property="Padding" Value="11,5" />
             <Setter Property="FontSize" Value="12" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="Foreground" Value="{DynamicResource EditorTextBrightBrush}" />
@@ -92,7 +93,7 @@
                                 Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="8"
+                                CornerRadius="7"
                                 SnapsToDevicePixels="True">
                             <Border.Effect>
                                 <DropShadowEffect BlurRadius="0"
@@ -514,21 +515,21 @@
                 Background="{DynamicResource EditorChromeBrush}"
                 BorderBrush="{DynamicResource EditorSectionHeaderBrush}"
                 BorderThickness="0,0,0,1"
-                Padding="12,6">
+                Padding="10,5">
             <DockPanel LastChildFill="True">
                 <StackPanel Orientation="Horizontal"
                             VerticalAlignment="Center">
-                    <Border Background="{DynamicResource EditorToolbarGroupBrush}"
-                            BorderBrush="{DynamicResource EditorPanelBorderBrush}"
-                            BorderThickness="1"
-                            CornerRadius="11"
-                            Padding="4,3">
+                    <Border Background="Transparent"
+                            BorderThickness="0"
+                            Padding="0">
                         <StackPanel Orientation="Horizontal">
                             <Button Content="外部导入" Style="{StaticResource TopToolbarButtonStyle}" Click="OpenGraph_Click" />
                             <Button Content="保存" Style="{StaticResource TopToolbarButtonStyle}" Click="SaveGraph_Click" />
                             <Button Content="另存为" Style="{StaticResource TopToolbarButtonStyle}" Click="SaveGraphAs_Click" />
+                            <Border Width="1" Height="20" Margin="6,0" Background="{DynamicResource EditorToolbarSeparatorBrush}" VerticalAlignment="Center" />
                             <Button x:Name="MousePickButton" Content="鼠标拾取" Style="{StaticResource TopToolbarButtonStyle}" Click="MousePick_Click" />
                             <Button x:Name="SettingsButton" Content="设置" Style="{StaticResource TopToolbarButtonStyle}" Click="Settings_Click" />
+                            <Border Width="1" Height="20" Margin="6,0" Background="{DynamicResource EditorToolbarSeparatorBrush}" VerticalAlignment="Center" />
                             <Button Content="日志" Style="{StaticResource TopToolbarButtonStyle}" Click="ToggleLogPanel_Click" ToolTip="显示/隐藏日志面板" />
                             <Button Content="侧栏" Style="{StaticResource TopToolbarButtonStyle}" Click="ToggleSidebar_Click" ToolTip="显示/隐藏图列表" />
                             <Button Content="属性" Style="{StaticResource TopToolbarButtonStyle}" Click="ToggleInspector_Click" ToolTip="显示/隐藏属性面板" />
@@ -536,12 +537,10 @@
                     </Border>
 
                     <Border x:Name="EditorActionToolbarGroup"
-                            Margin="10,0,0,0"
-                            Background="{DynamicResource EditorToolbarGroupBrush}"
-                            BorderBrush="{DynamicResource EditorPanelBorderBrush}"
-                            BorderThickness="1"
-                            CornerRadius="11"
-                            Padding="4,3"
+                            Margin="8,0,0,0"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            Padding="0"
                             Visibility="Collapsed">
                         <StackPanel Orientation="Horizontal">
                             <Border Width="1"
@@ -616,11 +615,11 @@
 
         <Border x:Name="EditorWindowBar"
                 DockPanel.Dock="Top"
-                MinHeight="44"
+                MinHeight="42"
                 Background="{DynamicResource EditorChromeBrush}"
                 BorderBrush="{DynamicResource EditorSectionHeaderBrush}"
                 BorderThickness="0,0,0,1"
-                Padding="7,2"
+                Padding="6,2"
                 Visibility="Collapsed">
             <ScrollViewer HorizontalScrollBarVisibility="Auto"
                           VerticalScrollBarVisibility="Disabled">
@@ -632,10 +631,10 @@
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
-                            <Border Margin="3,5,3,5"
-                                    Padding="11,6"
+                            <Border Margin="2,4,2,4"
+                                    Padding="10,5"
                                     MinWidth="156"
-                                    MinHeight="32"
+                                    MinHeight="31"
                                     BorderThickness="1"
                                     CornerRadius="9"
                                     Cursor="Hand"
@@ -651,11 +650,8 @@
                                                 <Setter Property="Background" Value="{DynamicResource EditorPanelCardHoverBrush}" />
                                                 <Setter Property="BorderBrush" Value="{DynamicResource EditorSelectedBorderBrush}" />
                                             </Trigger>
-                                            <DataTrigger Binding="{Binding IsDirty}" Value="True">
-                                                <Setter Property="BorderBrush" Value="{DynamicResource CompileDirtyBorderBrush}" />
-                                            </DataTrigger>
                                             <DataTrigger Binding="{Binding IsActive}" Value="True">
-                                                <Setter Property="Background" Value="{DynamicResource EditorListSelectedBrush}" />
+                                    <Setter Property="Background" Value="{DynamicResource EditorSectionHeaderAccentBrush}" />
                                                 <Setter Property="BorderBrush" Value="{DynamicResource EditorSelectedBorderBrush}" />
                                             </DataTrigger>
                                         </Style.Triggers>
@@ -733,7 +729,7 @@
             <Grid.RowDefinitions>
                 <RowDefinition Height="*" />
                 <RowDefinition Height="Auto" />
-                <RowDefinition x:Name="LogRow" Height="360" MinHeight="180" />
+            <RowDefinition x:Name="LogRow" Height="280" MinHeight="180" />
             </Grid.RowDefinitions>
 
             <ContentControl x:Name="EditorSurfaceHostRoot"
@@ -745,35 +741,34 @@
                             Visibility="Collapsed" />
             <Border x:Name="EmptyEditorPanel"
                     Grid.Row="0"
-                    Margin="10"
+                    Margin="8"
                     Background="{DynamicResource EditorCanvasGridBackgroundBrush}"
-                    BorderBrush="{DynamicResource EditorPanelBorderBrush}"
-                    BorderThickness="1"
-                    CornerRadius="12">
-                <Border Width="460"
-                        Padding="30,28"
+                    BorderThickness="0">
+                <Border MaxWidth="640"
+                        Padding="28,24"
                         Background="{DynamicResource EditorPanelCardBrush}"
                         BorderBrush="{DynamicResource EditorPanelBorderBrush}"
                         BorderThickness="1"
-                        CornerRadius="16"
-                        HorizontalAlignment="Center"
-                        VerticalAlignment="Center">
+                        CornerRadius="10"
+                        HorizontalAlignment="Left"
+                        VerticalAlignment="Center"
+                        Margin="40,0">
                     <StackPanel>
-                        <Border Width="44"
+                        <Border Width="36"
                                 Height="6"
-                                HorizontalAlignment="Center"
+                                HorizontalAlignment="Left"
                                 CornerRadius="3"
                                 Background="{DynamicResource EditorSelectedAccentBrush}" />
                         <TextBlock Text="打开一个资产开始编辑"
                                    Foreground="{DynamicResource EditorTextBrightBrush}"
-                                   FontSize="24"
-                                   FontWeight="Bold"
-                                   HorizontalAlignment="Center" />
+                                   FontSize="20"
+                                   FontWeight="SemiBold"
+                                   HorizontalAlignment="Left" />
                         <TextBlock Text="从底部内容浏览器双击脚本或函数库。也可以使用工具栏外部导入图谱。"
                                    Foreground="{DynamicResource ForegroundSecondaryBrush}"
                                    FontSize="14"
                                    TextWrapping="Wrap"
-                                   TextAlignment="Center"
+                                    TextAlignment="Left"
                                    Margin="0,14,0,0" />
                         <Border Height="1"
                                 Margin="0,20,0,16"
@@ -782,15 +777,18 @@
                                     Foreground="{DynamicResource EditorMutedTextBrush}"
                                     FontSize="12"
                                     TextWrapping="Wrap"
-                                    TextAlignment="Center" />
+                                    TextAlignment="Left" />
                     </StackPanel>
                 </Border>
             </Border>
 
-            <GridSplitter x:Name="LogPanelSplitter" Grid.Row="1"
+            <controls:LayoutSplitter x:Name="LogPanelSplitter" Grid.Row="1"
                           Height="7"
                           Style="{StaticResource EditorHorizontalSplitterStyle}"
+                          Cursor="SizeNS"
                           ResizeDirection="Rows"
+                          ResizeBehavior="PreviousAndNext"
+                          ShowsPreview="False"
                           DragCompleted="LayoutSplitter_DragCompleted" />
 
             <Grid Grid.Row="2">
@@ -801,7 +799,7 @@
                 </Grid.ColumnDefinitions>
 
                 <Border Grid.Column="0"
-                        Margin="6,6,3,6"
+                        Margin="6,5,3,5"
                         Background="{DynamicResource EditorPanelBackgroundBrush}"
                         BorderBrush="{DynamicResource EditorPanelStrongBorderBrush}"
                         BorderThickness="1"
@@ -813,7 +811,7 @@
                                 BorderThickness="0,0,0,1">
                             <StackPanel x:Name="ContentBrowserHeaderBar"
                                         Orientation="Horizontal"
-                                        Height="40">
+                                        Height="36">
                                 <Border Width="3"
                                         Height="18"
                                         Margin="12,0,0,0"
@@ -912,6 +910,16 @@
                                 <ListBox.ContextMenu>
                                     <ContextMenu Style="{StaticResource ContentAssetContextMenuStyle}">
                                         <MenuItem Style="{StaticResource ContentAssetMenuItemStyle}"
+                                                  Header="打开"
+                                                  InputGestureText="Enter"
+                                                  Click="OpenContentAssetMenuItem_Click">
+                                            <MenuItem.Icon>
+                                                <TextBlock Style="{StaticResource ContentAssetMenuIconStyle}"
+                                                           Text="&#xE8E5;"
+                                                           Foreground="{DynamicResource AccentBrush}" />
+                                            </MenuItem.Icon>
+                                        </MenuItem>
+                                        <MenuItem Style="{StaticResource ContentAssetMenuItemStyle}"
                                                   Header="重命名"
                                                   InputGestureText="F2"
                                                   Click="RenameContentAssetMenuItem_Click">
@@ -934,11 +942,13 @@
                                     </ContextMenu>
                                 </ListBox.ContextMenu>
                             </ListBox>
-                            <GridSplitter x:Name="ContentBrowserTreeSplitter"
+                            <controls:LayoutSplitter x:Name="ContentBrowserTreeSplitter"
                                           Grid.Column="1"
                                           Width="7"
                                           Style="{StaticResource EditorVerticalSplitterStyle}"
-                                          ShowsPreview="True"
+                                          Cursor="SizeWE"
+                                          ResizeDirection="Columns"
+                                          ShowsPreview="False"
                                           ResizeBehavior="PreviousAndNext"
                                           DragCompleted="LayoutSplitter_DragCompleted" />
                             <ListBox x:Name="ContentBrowserListBox"
@@ -985,7 +995,6 @@
                                                       Checked="ContentAssetScriptEnabledCheckBox_Changed"
                                                       Unchecked="ContentAssetScriptEnabledCheckBox_Changed"
                                                       Style="{StaticResource ScriptEnableBadgeStyle}" />
-                                            <Button HorizontalAlignment="Left" VerticalAlignment="Top" Width="20" Height="20" Padding="0" Content="★" ToolTip="收藏/取消收藏" Click="FavoriteAsset_Click" />
                                         </Grid>
                                         <TextBlock Text="{Binding Name}" TextAlignment="Center" TextWrapping="Wrap" Margin="0,6,0,0">
                                             <TextBlock.Style>
@@ -1014,6 +1023,17 @@
                                 <ContextMenu Style="{StaticResource ContentAssetContextMenuStyle}"
                                              Opened="ContentBrowserContextMenu_Opened"
                                              Closed="ContentBrowserContextMenu_Closed">
+                                    <MenuItem x:Name="ContentBrowserOpenMenuItem"
+                                              Style="{StaticResource ContentAssetMenuItemStyle}"
+                                              Header="打开"
+                                              InputGestureText="Enter"
+                                              Click="OpenContentAssetMenuItem_Click">
+                                        <MenuItem.Icon>
+                                            <TextBlock Style="{StaticResource ContentAssetMenuIconStyle}"
+                                                       Text="&#xE8E5;"
+                                                       Foreground="{DynamicResource AccentBrush}" />
+                                        </MenuItem.Icon>
+                                    </MenuItem>
                                     <MenuItem x:Name="ContentBrowserRenameMenuItem"
                                               Style="{StaticResource ContentAssetMenuItemStyle}"
                                               Header="重命名"
@@ -1079,14 +1099,17 @@
                     </DockPanel>
                 </Border>
 
-                <GridSplitter Grid.Column="1"
+                <controls:LayoutSplitter Grid.Column="1"
                               Width="7"
                               Style="{StaticResource EditorVerticalSplitterStyle}"
+                              Cursor="SizeWE"
                               ResizeDirection="Columns"
+                              ResizeBehavior="PreviousAndNext"
+                              ShowsPreview="False"
                               DragCompleted="LayoutSplitter_DragCompleted" />
 
                 <Border Grid.Column="2"
-                    Margin="3,6,6,6"
+                    Margin="3,5,6,5"
                     Background="{DynamicResource EditorPanelBackgroundBrush}"
                     BorderBrush="{DynamicResource EditorPanelStrongBorderBrush}"
                     BorderThickness="1"

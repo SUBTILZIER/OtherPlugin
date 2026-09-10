@@ -357,8 +357,6 @@ public sealed class EditorSurfaceContext : IDisposable
     public Point ViewportToGraph(Point viewportPoint) => CanvasPanZoomController.ViewportToGraph(viewportPoint);
 
     public void FitGraphToView() => CanvasPanZoomController.FitGraphToView();
-    public void NavigateToGraphPoint(System.Windows.Point point) => CanvasPanZoomController.NavigateToGraphPoint(point);
-    public void ZoomBy(double factor) => CanvasPanZoomController.ZoomBy(factor);
     public void ResetView() => CanvasPanZoomController.ResetView();
 
     public void OpenNodePalette(Point viewportPos)

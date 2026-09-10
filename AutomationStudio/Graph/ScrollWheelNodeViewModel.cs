@@ -18,6 +18,7 @@ public sealed class ScrollWheelNodeViewModel : NodeBaseViewModel
     public override NodeKind NodeKind => NodeKind.ScrollWheel;
     public override string NodeTypeKey => "scroll_wheel";
 
+    
     public ScrollWheelAction ScrollAction
     {
         get => _scrollAction;

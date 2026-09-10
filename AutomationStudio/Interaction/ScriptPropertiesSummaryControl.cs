@@ -29,6 +29,9 @@ public sealed class ScriptPropertiesSummaryControl : WpfUserControl
     private readonly ContentAssetViewModel _asset;
     private readonly Func<ContentAssetViewModel, ScriptRunSettings, bool> _saveAction;
     private readonly HotkeyCaptureCoordinator _hotkeyCaptureCoordinator;
+    private readonly Action? _openMainGraphAction;
+    private readonly Action? _compileAction;
+    private readonly Action? _runAction;
     private readonly ScriptRunSettings _draft;
     private readonly WpfRadioButton _countRadio = new() { Content = "按次数循环" };
     private readonly WpfRadioButton _untilStoppedRadio = new() { Content = "循环到按终止键为止" };
@@ -49,11 +52,17 @@ public sealed class ScriptPropertiesSummaryControl : WpfUserControl
     internal ScriptPropertiesSummaryControl(
         ContentAssetViewModel asset,
         Func<ContentAssetViewModel, ScriptRunSettings, bool> saveAction,
-        HotkeyCaptureCoordinator hotkeyCaptureCoordinator)
+        HotkeyCaptureCoordinator hotkeyCaptureCoordinator,
+        Action? openMainGraphAction = null,
+        Action? compileAction = null,
+        Action? runAction = null)
     {
         _asset = asset;
         _saveAction = saveAction;
         _hotkeyCaptureCoordinator = hotkeyCaptureCoordinator;
+        _openMainGraphAction = openMainGraphAction;
+        _compileAction = compileAction;
+        _runAction = runAction;
         _draft = asset.RunSettings.Clone();
         _draft.Normalize();
         HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch;
@@ -74,53 +83,89 @@ public sealed class ScriptPropertiesSummaryControl : WpfUserControl
     {
         var root = new Border
         {
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(14),
-            Padding = new Thickness(18),
-            MaxWidth = 760,
+            BorderThickness = new Thickness(0),
+            Padding = new Thickness(4, 4, 4, 12),
+            MaxWidth = 980,
             HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch,
             VerticalAlignment = VerticalAlignment.Top,
         };
-        SetResource(root, Border.BackgroundProperty, "EditorPanelCardBrush");
-        SetResource(root, Border.BorderBrushProperty, "EditorPanelBorderBrush");
+        SetResource(root, Border.BackgroundProperty, "EditorPanelBackgroundBrush");
 
         var body = new StackPanel();
         root.Child = body;
         var title = new TextBlock
         {
-            Text = "脚本属性",
-            FontSize = 22,
-            FontWeight = FontWeights.Bold,
+            Text = "脚本工作台",
+            FontSize = 20,
+            FontWeight = FontWeights.SemiBold,
         };
         SetResource(title, TextBlock.ForegroundProperty, "EditorTextBrightBrush");
-        body.Children.Add(title);
+        var enabledBadge = new Border
+        {
+            Padding = new Thickness(8, 3, 8, 3),
+            CornerRadius = new CornerRadius(5),
+            HorizontalAlignment = System.Windows.HorizontalAlignment.Right,
+            Child = new TextBlock { Text = _asset.IsScriptEnabled ? "已启用" : "已停用", FontSize = 11 },
+        };
+        SetResource(enabledBadge, Border.BackgroundProperty, _asset.IsScriptEnabled ? "EditorSectionHeaderAccentBrush" : "EditorDisabledChipBrush");
+        SetResource((TextBlock)enabledBadge.Child, TextBlock.ForegroundProperty, _asset.IsScriptEnabled ? "EditorSelectedAccentBrush" : "EditorMutedTextBrush");
+        var titleRow = new DockPanel { LastChildFill = true, Margin = new Thickness(0, 0, 0, 2) };
+        DockPanel.SetDock(enabledBadge, Dock.Right);
+        titleRow.Children.Add(enabledBadge);
+        titleRow.Children.Add(title);
+        body.Children.Add(titleRow);
 
         var assetName = new TextBlock
         {
-            Text = _asset.Name,
+            Text = $"{_asset.Name}  ·  脚本设置与快捷键",
             FontSize = 12,
-            Margin = new Thickness(0, 4, 0, 16),
+            Margin = new Thickness(0, 3, 0, 18),
         };
         SetResource(assetName, TextBlock.ForegroundProperty, "EditorMutedTextBrush");
         body.Children.Add(assetName);
+
+        if (_openMainGraphAction is not null || _compileAction is not null || _runAction is not null)
+        {
+            var quickActions = new StackPanel
+            {
+                Orientation = System.Windows.Controls.Orientation.Horizontal,
+                Margin = new Thickness(0, 0, 0, 16),
+            };
+            if (_openMainGraphAction is not null)
+                quickActions.Children.Add(ActionButton("打开主图", _openMainGraphAction));
+            if (_compileAction is not null)
+                quickActions.Children.Add(ActionButton("编译", _compileAction));
+            if (_runAction is not null)
+                quickActions.Children.Add(ActionButton("执行脚本", _runAction));
+            body.Children.Add(quickActions);
+        }
 
         _countRadio.ToolTip = "按设定次数重复执行脚本。";
         _untilStoppedRadio.ToolTip = "持续运行直到按下终止热键。";
         _durationRadio.ToolTip = "运行指定时长后自动停止。";
         _preventDuplicateCheck.ToolTip = "运行中再次触发启动热键时，将忽略重复触发。";
 
-        body.Children.Add(Section("运行设置",
+        var settingsGrid = new Grid();
+        settingsGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        settingsGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        var runSection = Section("运行设置",
             Row(_countRadio, _loopCountBox, Label("次")),
             Row(_untilStoppedRadio),
             Row(_durationRadio, _hoursBox, Label("小时"), _minutesBox, Label("分钟"), _secondsBox, Label("秒")),
-            _preventDuplicateCheck));
+            _preventDuplicateCheck);
 
-        body.Children.Add(Section("热键",
+        var hotkeySection = Section("热键",
             HotkeyRow("启动热键", _draft.StartHotkey, _startHotkeyText, _startPressCountBox, _startTriggerWindowBox),
-            HotkeyRow("终止热键", _draft.StopHotkey, _stopHotkeyText, _stopPressCountBox, _stopTriggerWindowBox)));
+            HotkeyRow("终止热键", _draft.StopHotkey, _stopHotkeyText, _stopPressCountBox, _stopTriggerWindowBox));
+        Grid.SetColumn(runSection, 0);
+        Grid.SetColumn(hotkeySection, 1);
+        settingsGrid.Children.Add(runSection);
+        settingsGrid.Children.Add(hotkeySection);
+        settingsGrid.SizeChanged += (_, _) => UpdateResponsiveLayout(settingsGrid, runSection, hotkeySection);
+        body.Children.Add(settingsGrid);
 
         SetResource(_statusText, TextBlock.ForegroundProperty, "EditorMutedTextBrush");
-        _statusText.Margin = new Thickness(0, 0, 0, 10);
+        _statusText.Margin = new Thickness(4, 0, 0, 10);
         body.Children.Add(_statusText);
 
         var buttons = new StackPanel
@@ -142,6 +187,37 @@ public sealed class ScriptPropertiesSummaryControl : WpfUserControl
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             Content = root,
         };
+    }
+
+    private static void UpdateResponsiveLayout(Grid grid, UIElement first, UIElement second)
+    {
+        var compact = grid.ActualWidth > 0 && grid.ActualWidth < 720;
+        if (compact)
+        {
+            if (grid.RowDefinitions.Count == 2)
+                return;
+            grid.ColumnDefinitions.Clear();
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            grid.RowDefinitions.Clear();
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            Grid.SetColumn(first, 0);
+            Grid.SetColumn(second, 0);
+            Grid.SetRow(first, 0);
+            Grid.SetRow(second, 1);
+            return;
+        }
+
+        if (grid.RowDefinitions.Count == 0)
+            return;
+        grid.RowDefinitions.Clear();
+        grid.ColumnDefinitions.Clear();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        Grid.SetColumn(first, 0);
+        Grid.SetColumn(second, 1);
+        Grid.SetRow(first, 0);
+        Grid.SetRow(second, 0);
     }
 
     private void Save()
@@ -282,14 +358,12 @@ public sealed class ScriptPropertiesSummaryControl : WpfUserControl
 
         var hotkeyCard = new Border
         {
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(10),
-            Padding = new Thickness(10),
-            Margin = new Thickness(0, 2, 0, 10),
+            BorderThickness = new Thickness(0),
+            Padding = new Thickness(0),
+            Margin = new Thickness(0, 2, 0, 8),
             Child = stack,
         };
         SetResource(hotkeyCard, Border.BackgroundProperty, "EditorPanelCardBrush");
-        SetResource(hotkeyCard, Border.BorderBrushProperty, "EditorPanelBorderBrush");
         return hotkeyCard;
     }
 
@@ -324,9 +398,9 @@ public sealed class ScriptPropertiesSummaryControl : WpfUserControl
         var section = new Border
         {
             BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(10),
-            Padding = new Thickness(12),
-            Margin = new Thickness(0, 0, 0, 12),
+            CornerRadius = new CornerRadius(8),
+            Padding = new Thickness(12, 10, 12, 8),
+            Margin = new Thickness(0, 0, 6, 12),
             Child = stack,
         };
         SetResource(section, Border.BackgroundProperty, "EditorFieldCardBrush");
@@ -395,6 +469,13 @@ public sealed class ScriptPropertiesSummaryControl : WpfUserControl
         SetResource(button, WpfControl.BackgroundProperty, "AccentBrush");
         SetResource(button, WpfControl.ForegroundProperty, "AccentForegroundBrush");
         SetResource(button, WpfControl.BorderBrushProperty, "AccentBrush");
+        return button;
+    }
+
+    private static WpfButton ActionButton(string text, Action action)
+    {
+        var button = Button(text, text == "执行脚本" ? 96 : 88);
+        button.Click += (_, _) => action();
         return button;
     }
 

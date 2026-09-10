@@ -8,13 +8,13 @@
         <Setter Property="Foreground" Value="{DynamicResource EditorTextBrightBrush}" />
         <Setter Property="Background" Value="{DynamicResource EditorDisabledChipBrush}" />
         <Setter Property="Padding" Value="8,4" />
-        <Setter Property="Margin" Value="0,4,0,12" />
+        <Setter Property="Margin" Value="0,4,0,10" />
         <Setter Property="VerticalAlignment" Value="Center" />
     </Style>
 
     <Style x:Key="EditorInspectorTextBoxStyle" TargetType="{x:Type TextBox}" BasedOn="{StaticResource {x:Type TextBox}}">
         <Setter Property="MinHeight" Value="32" />
-        <Setter Property="Margin" Value="0,5,0,12" />
+        <Setter Property="Margin" Value="0,5,0,10" />
         <Setter Property="Background" Value="{DynamicResource EditorFieldCardBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource EditorPanelBorderBrush}" />
         <Setter Property="Padding" Value="9,6" />
@@ -32,7 +32,7 @@
 
     <Style x:Key="EditorInspectorComboBoxStyle" TargetType="{x:Type ComboBox}" BasedOn="{StaticResource {x:Type ComboBox}}">
         <Setter Property="MinHeight" Value="32" />
-        <Setter Property="Margin" Value="0,5,0,12" />
+        <Setter Property="Margin" Value="0,5,0,10" />
         <Setter Property="Background" Value="{DynamicResource EditorFieldCardBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource EditorPanelBorderBrush}" />
         <Style.Triggers>
@@ -72,6 +72,7 @@
         <Setter Property="MinWidth" Value="0" />
         <Setter Property="MinHeight" Value="0" />
         <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="ToolTipService.ShowOnDisabled" Value="True" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="{x:Type Button}">

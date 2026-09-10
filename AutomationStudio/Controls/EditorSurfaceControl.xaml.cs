@@ -1,9 +1,11 @@
+using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using AutomationStudioWpf.Interaction;
 using WpfKeyEventArgs = System.Windows.Input.KeyEventArgs;
 using WpfMouseEventArgs = System.Windows.Input.MouseEventArgs;
+using WpfTextBox = System.Windows.Controls.TextBox;
 using WpfUserControl = System.Windows.Controls.UserControl;
 
 namespace AutomationStudioWpf.Controls;
@@ -13,9 +15,8 @@ namespace AutomationStudioWpf.Controls;
 /// </summary>
 public partial class EditorSurfaceControl : WpfUserControl
 {
-    private double _minimapMinX, _minimapMinY, _minimapScale = 1;
-    private bool _minimapEnabled = true;
-    private double _mapMaxX, _mapMaxY;
+    private readonly Dictionary<WpfTextBox, string> _inspectorEditStartValues = new();
+
     public static readonly DependencyProperty IsExecutionFrozenProperty =
         DependencyProperty.Register(
             nameof(IsExecutionFrozen),
@@ -58,57 +59,7 @@ public partial class EditorSurfaceControl : WpfUserControl
         (GraphSidebarColumn.ActualWidth, InspectorColumn.ActualWidth);
     internal void ToggleSidebar() { bool hide = GraphSidebarColumn.Width.Value > 1; GraphSidebarColumn.MinWidth = hide ? 0 : 180; GraphSidebarColumn.Width = hide ? new GridLength(0) : new GridLength(248); }
     internal void ToggleInspector() { bool hide = InspectorColumn.Width.Value > 1; InspectorColumn.MinWidth = hide ? 0 : 420; InspectorColumn.Width = hide ? new GridLength(0) : new GridLength(472); }
-    internal void RefreshMinimap(IEnumerable<Graph.NodeBaseViewModel> nodes)
-    {
-        MinimapCanvas.Children.Clear(); var list = nodes.ToList(); if (list.Count == 0) { MinimapPanel.Visibility = Visibility.Collapsed; return; }
-        MinimapPanel.Visibility = _minimapEnabled ? Visibility.Visible : Visibility.Collapsed; double minX=list.Min(n=>n.X), minY=list.Min(n=>n.Y), maxX=list.Max(n=>n.X+n.Width), maxY=list.Max(n=>n.Y+n.Height); double sx=160/Math.Max(1,maxX-minX), sy=100/Math.Max(1,maxY-minY), s=Math.Min(sx,sy); _minimapMinX=minX; _minimapMinY=minY; _mapMaxX=maxX; _mapMaxY=maxY; _minimapScale=s;
-        foreach(var n in list.Take(2000)){ var b=new Border{Width=Math.Max(2,n.Width*s),Height=Math.Max(2,n.Height*s),Background=System.Windows.Media.Brushes.SteelBlue,CornerRadius=new CornerRadius(1)}; Canvas.SetLeft(b,(n.X-minX)*s); Canvas.SetTop(b,(n.Y-minY)*s); MinimapCanvas.Children.Add(b); }
-        UpdateMinimapViewport();
-    }
-
-    private void UpdateMinimapViewport()
-    {
-        if (SurfaceContext?.CanvasPanZoomController is null || MinimapCanvas is null || MinimapCanvas.Children.Count == 0) return;
-        if (!double.IsFinite(_minimapScale) || _minimapScale <= 0) return;
-        try
-        {
-        if (MinimapCanvas.Children[^1] is Border old && old.Tag as string == "viewport") MinimapCanvas.Children.RemoveAt(MinimapCanvas.Children.Count - 1);
-        var state = SurfaceContext.CanvasPanZoomController.GetViewportState();
-        var viewport = new Border { Tag = "viewport", Width = Math.Max(8, state.Size.X * _minimapScale), Height = Math.Max(8, state.Size.Y * _minimapScale), BorderBrush = System.Windows.Media.Brushes.White, BorderThickness = new Thickness(1), Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromArgb(35, 255, 255, 255)), IsHitTestVisible = false };
-        Canvas.SetLeft(viewport, (state.TopLeft.X - _minimapMinX) * _minimapScale); Canvas.SetTop(viewport, (state.TopLeft.Y - _minimapMinY) * _minimapScale); MinimapCanvas.Children.Add(viewport);
-        }
-        catch (InvalidOperationException) { }
-    }
-
-    internal void SetMinimapEnabled(bool enabled)
-    {
-        _minimapEnabled = enabled;
-        MinimapPanel.Visibility = enabled && MinimapCanvas.Children.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
-    }
-
-    private void ToggleMinimap_Click(object sender, RoutedEventArgs e)
-    {
-        bool enabled = MinimapPanel.Visibility != Visibility.Visible;
-        SetMinimapEnabled(enabled);
-        MinimapToggled?.Invoke(enabled);
-    }
-
-    internal event Action<bool>? MinimapToggled;
     internal void FocusInspector() => NodeTitleTextBox.Focus();
-    private void Minimap_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-    {
-        var p = e.GetPosition(MinimapCanvas); SurfaceContext?.NavigateToGraphPoint(new System.Windows.Point(_minimapMinX + p.X / _minimapScale, _minimapMinY + p.Y / _minimapScale)); e.Handled = true;
-    }
-    private void UpdateZoomLabel()
-    {
-        if (ZoomResetButton is null || SurfaceContext?.CanvasPanZoomController is not { } controller)
-            return;
-        ZoomResetButton.Content = $"{controller.ZoomLevel:P0}";
-    }
-    private void ZoomOut_Click(object sender, RoutedEventArgs e) { SurfaceContext?.ZoomBy(0.88); UpdateZoomLabel(); }
-    private void ZoomIn_Click(object sender, RoutedEventArgs e) { SurfaceContext?.ZoomBy(1.12); UpdateZoomLabel(); }
-    private void ZoomReset_Click(object sender, RoutedEventArgs e) { SurfaceContext?.ResetView(); UpdateZoomLabel(); }
-    private void FitGraph_Click(object sender, RoutedEventArgs e) => SurfaceContext?.FitGraphToView();
 
     public EditorSurfaceContext? SurfaceContext { get; private set; }
 
@@ -117,24 +68,13 @@ public partial class EditorSurfaceControl : WpfUserControl
 
     public void Attach(EditorSessionViewModel session, EditorSurfaceContext context)
     {
-        if (SurfaceContext?.CanvasPanZoomController is { } controller) controller.ViewChanged -= OnViewChanged;
         Session = session;
         SurfaceContext = context;
-        if (context.CanvasPanZoomController is not null) context.CanvasPanZoomController.ViewChanged += OnViewChanged;
-        OnViewChanged();
         DataContext = session;
-    }
-
-    private void OnViewChanged()
-    {
-        if (!Dispatcher.CheckAccess()) { Dispatcher.BeginInvoke(OnViewChanged); return; }
-        UpdateZoomLabel();
-        UpdateMinimapViewport();
     }
 
     internal void Detach()
     {
-        if (SurfaceContext?.CanvasPanZoomController is { } controller) controller.ViewChanged -= OnViewChanged;
         EditorSurfaceHostController.DetachFromCurrentParent(this);
         IsExecutionFrozen = false;
         Session = null;
@@ -188,4 +128,42 @@ public partial class EditorSurfaceControl : WpfUserControl
     private void LayoutSplitter_DragCompleted(object sender, System.Windows.Controls.Primitives.DragCompletedEventArgs e) =>
         SurfaceContext?.NotifyLayoutChanged();
     private void NodePaletteSearchBox_PreviewKeyDown(object sender, WpfKeyEventArgs e) => SurfaceContext?.HandleNodePaletteKeyDown(e);
+
+    private void InspectorEditor_PreviewGotKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
+    {
+        if (e.NewFocus is WpfTextBox textBox &&
+            textBox.TemplatedParent is not NumericUpDown)
+        {
+            _inspectorEditStartValues[textBox] = textBox.Text;
+        }
+    }
+
+    private void InspectorEditor_PreviewLostKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
+    {
+        if (e.OldFocus is WpfTextBox textBox)
+            _inspectorEditStartValues.Remove(textBox);
+    }
+
+    private void InspectorEditor_PreviewKeyDown(object sender, WpfKeyEventArgs e)
+    {
+        if (e.OriginalSource is not WpfTextBox textBox ||
+            textBox.TemplatedParent is NumericUpDown ||
+            textBox.Tag is not null)
+            return;
+
+        if (e.Key == Key.Enter && !textBox.AcceptsReturn)
+        {
+            SurfaceContext?.ApplyInspectorChanges();
+            Keyboard.ClearFocus();
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key == Key.Escape && _inspectorEditStartValues.TryGetValue(textBox, out var originalValue))
+        {
+            textBox.Text = originalValue;
+            SurfaceContext?.ApplyInspectorChanges();
+            e.Handled = true;
+        }
+    }
 }

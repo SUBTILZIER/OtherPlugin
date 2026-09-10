@@ -22,6 +22,7 @@ public sealed class SettingsWindow : Window
 {
     private readonly Func<AppSettings, bool> _apply;
     private readonly AppSettings _draft;
+    private readonly AppSettings _baselineSettings;
     private readonly WpfRadioButton _darkThemeRadio;
     private readonly WpfRadioButton _lightThemeRadio;
     private readonly WpfTextBox _accentTextBox;
@@ -31,19 +32,21 @@ public sealed class SettingsWindow : Window
     private readonly Border _lightThemeCard;
     private readonly WpfRadioButton _closeMinimizeRadio;
     private readonly WpfRadioButton _closeExitRadio;
+    private WpfButton? _applyButton;
 
     public SettingsWindow(Window owner, AppSettings currentSettings, Func<AppSettings, bool> apply)
     {
         _apply = apply;
         _draft = currentSettings.Clone();
         _draft.Normalize();
+        _baselineSettings = _draft.Clone();
 
         Owner = owner;
         Title = "设置";
-        Width = 720;
-        Height = 680;
-        MinWidth = 640;
-        MinHeight = 580;
+        Width = 860;
+        Height = 720;
+        MinWidth = 760;
+        MinHeight = 620;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         WindowStyle = WindowStyle.None;
         AllowsTransparency = true;
@@ -79,18 +82,39 @@ public sealed class SettingsWindow : Window
         DockPanel.SetDock(buttonBar, Dock.Bottom);
         layout.Children.Add(buttonBar);
 
-        var contentScroll = new ScrollViewer
+        var contentLayout = new Grid { Margin = new Thickness(14, 12, 14, 14) };
+        contentLayout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(176) });
+        contentLayout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(14) });
+        contentLayout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        var interfacePage = new StackPanel();
+        interfacePage.Children.Add(BuildPageHeader("界面", "主题、强调色和编辑器的视觉层级。"));
+        var windowPage = new StackPanel();
+        windowPage.Children.Add(BuildPageHeader("窗口行为", "控制关闭按钮和后台运行策略。"));
+
+        var pageHost = new Border
+        {
+            CornerRadius = new CornerRadius(12),
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(18, 14, 18, 10),
+        };
+        SetResource(pageHost, Border.BackgroundProperty, "EditorPanelElevatedBrush");
+        SetResource(pageHost, Border.BorderBrushProperty, "EditorPanelBorderBrush");
+        var pageScroll = new ScrollViewer
         {
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            Padding = new Thickness(18, 4, 18, 10),
         };
+        pageHost.Child = pageScroll;
 
-        var content = new StackPanel();
-        contentScroll.Content = content;
-        layout.Children.Add(contentScroll);
+        var categoryNavigation = BuildCategoryNavigation();
+        Grid.SetColumn(categoryNavigation, 0);
+        contentLayout.Children.Add(categoryNavigation);
+        Grid.SetColumn(pageHost, 2);
+        contentLayout.Children.Add(pageHost);
+        layout.Children.Add(contentLayout);
 
-        var themeCard = BuildCard("主题颜色", "暗色沿用当前编辑器视觉；亮色接近 Codex 的清爽浅色界面。", out var themeCardBody);
+        var themeCard = BuildCard("主题颜色", "暗色采用 UE 风格石墨灰；亮色采用中性灰白。选择后会即时预览，点击应用保存。", out var themeCardBody);
         var themeRows = new Grid { Margin = new Thickness(0, 12, 0, 0) };
         themeRows.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         themeRows.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(12) });
@@ -109,14 +133,14 @@ public sealed class SettingsWindow : Window
         };
         themeRows.Children.Add(_darkThemeRadio);
         themeRows.Children.Add(_lightThemeRadio);
-        _darkThemeCard = BuildThemeChoiceCard("暗色", "高对比编辑器", "#10151D", "#151B23", "#4FA3FF", _darkThemeRadio);
+        _darkThemeCard = BuildThemeChoiceCard("暗色", "UE 风格石墨灰", "#17191C", "#292C30", "#3E9BB5", _darkThemeRadio);
         Grid.SetColumn(_darkThemeCard, 0);
         themeRows.Children.Add(_darkThemeCard);
-        _lightThemeCard = BuildThemeChoiceCard("亮色", "Codex 中性灰白", "#ECEEED", "#F7F8F7", "#4FA3FF", _lightThemeRadio);
+        _lightThemeCard = BuildThemeChoiceCard("亮色", "Codex 中性灰白", "#F2F3F1", "#F7F8F6", "#2F6FEB", _lightThemeRadio);
         Grid.SetColumn(_lightThemeCard, 2);
         themeRows.Children.Add(_lightThemeCard);
         themeCardBody.Children.Add(themeRows);
-        content.Children.Add(themeCard);
+        interfacePage.Children.Add(themeCard);
 
         var accentCard = BuildCard("强调色", "影响选中态、焦点边框、提示框描边和主要按钮色。格式：#RRGGBB；透明度会让颜色更柔和。", out var accentCardBody);
         var accentGrid = new Grid { Margin = new Thickness(0, 12, 0, 0) };
@@ -172,7 +196,7 @@ public sealed class SettingsWindow : Window
         };
         resetButton.Click += (_, _) =>
         {
-            _accentTextBox.Text = "#4FA3FF";
+            _accentTextBox.Text = "#3E9BB5";
             SetOpacityPercent(62);
             ApplyLivePreviewIfValid();
         };
@@ -232,7 +256,7 @@ public sealed class SettingsWindow : Window
         AddPresetButton(presetRow, "柔紫", "#B8A7FF");
         AddPresetButton(presetRow, "玫瑰", "#D98BA6");
         accentCardBody.Children.Add(presetRow);
-        content.Children.Add(accentCard);
+        interfacePage.Children.Add(accentCard);
 
         var closeCard = BuildCard("关闭窗口时", "控制点击主窗口右上角 × 时的行为。默认最小化到托盘，不再每次弹窗询问。", out var closeCardBody);
         _closeMinimizeRadio = BuildOptionRadio(
@@ -245,7 +269,20 @@ public sealed class SettingsWindow : Window
             _draft.WindowCloseAction == AppWindowCloseAction.ExitApplication);
         closeCardBody.Children.Add(_closeMinimizeRadio);
         closeCardBody.Children.Add(_closeExitRadio);
-        content.Children.Add(closeCard);
+        windowPage.Children.Add(closeCard);
+
+        var pageContent = new Grid();
+        pageContent.Children.Add(interfacePage);
+        pageContent.Children.Add(windowPage);
+        pageScroll.Content = pageContent;
+        windowPage.Visibility = Visibility.Collapsed;
+        SelectCategory(0, categoryNavigation, interfacePage, windowPage);
+        var categoryButtons = (categoryNavigation.Child as StackPanel)?.Children.OfType<WpfButton>().ToList() ?? [];
+        if (categoryButtons.Count >= 2)
+        {
+            categoryButtons[0].Click += (_, _) => SelectCategory(0, categoryNavigation, interfacePage, windowPage);
+            categoryButtons[1].Click += (_, _) => SelectCategory(1, categoryNavigation, interfacePage, windowPage);
+        }
 
         Content = root;
         _darkThemeRadio.Checked += (_, _) => ApplyLivePreviewIfValid();
@@ -263,6 +300,7 @@ public sealed class SettingsWindow : Window
         };
         RefreshAccentPreview();
         UpdateThemeCards();
+        UpdateApplyButtonState();
     }
 
     private Border BuildThemeChoiceCard(string title, string subtitle, string rootColor, string panelColor, string accentColor, WpfRadioButton targetRadio)
@@ -428,6 +466,7 @@ public sealed class SettingsWindow : Window
                 Close();
             }
         };
+        _applyButton = applyButton;
         buttons.Children.Add(applyButton);
 
         bar.Child = buttons;
@@ -472,6 +511,107 @@ public sealed class SettingsWindow : Window
         var outer = new StackPanel();
         outer.Children.Add(wrapper);
         return outer;
+    }
+
+    private StackPanel BuildPageHeader(string title, string description)
+    {
+        var header = new StackPanel { Margin = new Thickness(0, 0, 0, 4) };
+        var titleText = new TextBlock
+        {
+            Text = title,
+            FontSize = 18,
+            FontWeight = FontWeights.SemiBold,
+        };
+        SetResource(titleText, TextBlock.ForegroundProperty, "EditorTextBrightBrush");
+        header.Children.Add(titleText);
+
+        var descriptionText = new TextBlock
+        {
+            Text = description,
+            FontSize = 12,
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 4, 0, 0),
+        };
+        SetResource(descriptionText, TextBlock.ForegroundProperty, "EditorMutedTextBrush");
+        header.Children.Add(descriptionText);
+        return header;
+    }
+
+    private Border BuildCategoryNavigation()
+    {
+        var border = new Border
+        {
+            CornerRadius = new CornerRadius(12),
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(8),
+        };
+        SetResource(border, Border.BackgroundProperty, "EditorPanelCardBrush");
+        SetResource(border, Border.BorderBrushProperty, "EditorPanelBorderBrush");
+
+        var navigation = new StackPanel();
+        var heading = new TextBlock
+        {
+            Text = "设置",
+            FontSize = 13,
+            FontWeight = FontWeights.SemiBold,
+            Margin = new Thickness(8, 6, 8, 10),
+        };
+        SetResource(heading, TextBlock.ForegroundProperty, "EditorMutedTextBrush");
+        navigation.Children.Add(heading);
+        navigation.Children.Add(CreateCategoryButton("界面", "主题与颜色", "\uE790"));
+        navigation.Children.Add(CreateCategoryButton("窗口行为", "关闭与后台运行", "\uE713"));
+        border.Child = navigation;
+        return border;
+    }
+
+    private WpfButton CreateCategoryButton(string title, string description, string glyph)
+    {
+        var icon = new TextBlock
+        {
+            Text = glyph,
+            FontFamily = new System.Windows.Media.FontFamily("Segoe Fluent Icons"),
+            FontSize = 15,
+            Margin = new Thickness(2, 0, 10, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        SetResource(icon, TextBlock.ForegroundProperty, "AccentBrush");
+
+        var text = new StackPanel();
+        text.Children.Add(new TextBlock { Text = title, FontWeight = FontWeights.SemiBold });
+        text.Children.Add(new TextBlock { Text = description, FontSize = 11, Margin = new Thickness(0, 2, 0, 0) });
+        SetResource(text.Children[0], TextBlock.ForegroundProperty, "EditorTextBrush");
+        SetResource(text.Children[1], TextBlock.ForegroundProperty, "EditorMutedTextBrush");
+
+        var content = new StackPanel { Orientation = WpfOrientation.Horizontal };
+        content.Children.Add(icon);
+        content.Children.Add(text);
+        var button = new WpfButton
+        {
+            Content = content,
+            HorizontalContentAlignment = WpfHorizontalAlignment.Left,
+            MinHeight = 52,
+            Padding = new Thickness(10, 7, 8, 7),
+            Margin = new Thickness(0, 0, 0, 6),
+            Tag = title,
+        };
+        SetResource(button, WpfButton.BackgroundProperty, "EditorPanelCardBrush");
+        SetResource(button, WpfButton.BorderBrushProperty, "EditorPanelBorderBrush");
+        return button;
+    }
+
+    private void SelectCategory(int index, Border navigation, UIElement interfacePage, UIElement windowPage)
+    {
+        var buttons = (navigation.Child as StackPanel)?.Children.OfType<WpfButton>().ToList() ?? [];
+        for (int i = 0; i < buttons.Count; i++)
+        {
+            SetResource(buttons[i], WpfButton.BackgroundProperty, i == index ? "EditorSelectedAccentBrush" : "EditorPanelCardBrush");
+            SetResource(buttons[i], WpfButton.BorderBrushProperty, i == index ? "EditorSelectedBorderBrush" : "EditorPanelBorderBrush");
+            SetResource(buttons[i], WpfButton.ForegroundProperty, i == index ? "EditorSelectionTextBrush" : "EditorTextBrush");
+        }
+
+        interfacePage.Visibility = index == 0 ? Visibility.Visible : Visibility.Collapsed;
+        windowPage.Visibility = index == 1 ? Visibility.Visible : Visibility.Collapsed;
+
     }
 
     private void UpdateThemeCards()
@@ -567,7 +707,10 @@ public sealed class SettingsWindow : Window
         RefreshAccentPreview();
         UpdateThemeCards();
         if (!AppThemeService.TryParseColor(_accentTextBox.Text, out var accent))
+        {
+            UpdateApplyButtonState();
             return;
+        }
 
         _draft.ThemeMode = _lightThemeRadio.IsChecked == true ? AppThemeMode.Light : AppThemeMode.Dark;
         _draft.AccentColor = AppThemeService.ToHex(accent);
@@ -575,6 +718,20 @@ public sealed class SettingsWindow : Window
         _draft.WindowCloseAction = ReadWindowCloseAction();
         _draft.Normalize();
         _apply(_draft.Clone());
+        UpdateApplyButtonState();
+    }
+
+    private void UpdateApplyButtonState()
+    {
+        if (_applyButton is null)
+            return;
+
+        _applyButton.IsEnabled = AppThemeService.TryParseColor(_accentTextBox.Text, out _)
+            && (_draft.ThemeMode != _baselineSettings.ThemeMode
+                || !string.Equals(_draft.AccentColor, _baselineSettings.AccentColor, StringComparison.OrdinalIgnoreCase)
+                || Math.Abs(_draft.AccentOpacity - _baselineSettings.AccentOpacity) > 0.0001
+                || _draft.WindowCloseAction != _baselineSettings.WindowCloseAction);
+        _applyButton.ToolTip = _applyButton.IsEnabled ? "应用设置并关闭" : "没有待应用的设置变更";
     }
 
     private void RefreshAccentPreview()

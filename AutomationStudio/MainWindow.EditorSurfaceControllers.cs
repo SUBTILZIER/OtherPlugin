@@ -151,9 +151,6 @@ public partial class MainWindow
     private void ApplyEditorSurfaceContext(EditorSurfaceContext context)
     {
         ApplyLayoutSettings(context.Surface);
-        context.Surface.MinimapToggled -= Surface_MinimapToggled;
-        context.Surface.MinimapToggled += Surface_MinimapToggled;
-        context.Surface.SetMinimapEnabled(_appSettings.MinimapEnabled);
         _graphCommandService = context.CommandService;
         _graphListController = context.GraphListController;
         _functionListController = context.FunctionListController;
@@ -164,12 +161,6 @@ public partial class MainWindow
         _pinConnectionController = context.PinConnectionController;
         _nodePaletteController = context.NodePaletteController;
         _graphImportDropController = context.GraphImportDropController;
-    }
-
-    private void Surface_MinimapToggled(bool enabled)
-    {
-        _appSettings.MinimapEnabled = enabled;
-        _appSettingsService.Save(_appSettings);
     }
 
     private void RebuildInteractionControllers()

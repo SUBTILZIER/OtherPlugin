@@ -283,6 +283,7 @@ public partial class MainWindow
         bool canRename = selectedCount == 1;
         var selectedAsset = contextTarget ?? selectedAssets.FirstOrDefault();
 
+        ContentBrowserOpenMenuItem.Visibility = canRename ? WpfVisibility.Visible : WpfVisibility.Collapsed;
         ContentBrowserRenameMenuItem.Visibility = canRename ? WpfVisibility.Visible : WpfVisibility.Collapsed;
         ContentBrowserDeleteMenuItem.Visibility = hasSelection ? WpfVisibility.Visible : WpfVisibility.Collapsed;
         ContentBrowserPropertiesMenuItem.Visibility =

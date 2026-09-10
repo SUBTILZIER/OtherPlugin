@@ -21,8 +21,8 @@
             <Setter Property="Background" Value="{DynamicResource EditorPanelCardBrush}" />
             <Setter Property="BorderBrush" Value="{DynamicResource EditorPanelBorderBrush}" />
             <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="10" />
-            <Setter Property="Padding" Value="10" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="9" />
         </Style>
 
         <Style x:Key="EditorSectionHeaderTextStyle" TargetType="{x:Type TextBlock}">
@@ -32,8 +32,28 @@
             <Setter Property="VerticalAlignment" Value="Center" />
         </Style>
 
+        <Style x:Key="InspectorFieldLabelStyle" TargetType="{x:Type TextBlock}">
+            <Setter Property="Foreground" Value="{DynamicResource EditorTextBrush}" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Margin" Value="0,0,0,2" />
+        </Style>
+
+        <Style x:Key="InspectorHelpTextStyle" TargetType="{x:Type TextBlock}">
+            <Setter Property="Foreground" Value="{DynamicResource EditorMutedTextBrush}" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="Margin" Value="0,3,0,0" />
+        </Style>
+
+        <Style x:Key="InspectorSectionTitleStyle" TargetType="{x:Type TextBlock}">
+            <Setter Property="Foreground" Value="{DynamicResource EditorTextBrightBrush}" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+
         <Style x:Key="EditorSidebarListBoxItemStyle" TargetType="{x:Type ListBoxItem}">
-            <Setter Property="Margin" Value="6,3" />
+            <Setter Property="Margin" Value="4,2" />
             <Setter Property="Padding" Value="0" />
             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
             <Setter Property="Foreground" Value="{DynamicResource EditorTextBrush}" />
@@ -48,7 +68,7 @@
                                     Background="{TemplateBinding Background}"
                                     BorderBrush="{TemplateBinding BorderBrush}"
                                     BorderThickness="{TemplateBinding BorderThickness}"
-                                    CornerRadius="8"
+                                    CornerRadius="7"
                                     SnapsToDevicePixels="True">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
@@ -61,7 +81,7 @@
                                             CornerRadius="2"
                                             Margin="0,4,0,4" />
                                     <ContentPresenter Grid.Column="1"
-                                                      Margin="10,4,10,4"
+                                                      Margin="8,3,8,3"
                                                       HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
                                                       VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
                                                       RecognizesAccessKey="True" />
@@ -90,19 +110,27 @@
             </Setter>
         </Style>
 
+        <Style x:Key="EditorFunctionListBoxItemStyle"
+               TargetType="{x:Type ListBoxItem}"
+               BasedOn="{StaticResource EditorSidebarListBoxItemStyle}">
+            <Setter Property="MinHeight" Value="40" />
+            <Setter Property="Margin" Value="3,3" />
+            <Setter Property="ToolTip" Value="双击打开函数" />
+        </Style>
+
         </ResourceDictionary>
     </UserControl.Resources>
             <Grid x:Name="EditorGrid">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition x:Name="GraphSidebarColumn" Width="248" MinWidth="180" MaxWidth="420" />
+                    <ColumnDefinition x:Name="GraphSidebarColumn" Width="224" MinWidth="180" MaxWidth="420" />
                     <ColumnDefinition x:Name="GraphSidebarSplitterColumn" Width="Auto" />
                     <ColumnDefinition x:Name="GraphCanvasColumn" Width="*" MinWidth="360" />
                     <ColumnDefinition x:Name="InspectorSplitterColumn" Width="Auto" />
-                    <ColumnDefinition x:Name="InspectorColumn" Width="472" MinWidth="420" MaxWidth="720" />
+                    <ColumnDefinition x:Name="InspectorColumn" Width="420" MinWidth="420" MaxWidth="720" />
                 </Grid.ColumnDefinitions>
 
                 <Border Grid.Column="0"
-                        Margin="10,10,10,10"
+                        Margin="8"
                         Padding="0"
                         Background="{DynamicResource EditorPanelElevatedBrush}"
                         BorderBrush="{DynamicResource EditorPanelStrongBorderBrush}"
@@ -110,7 +138,7 @@
                         CornerRadius="11">
                     <ScrollViewer VerticalScrollBarVisibility="Auto"
                                   HorizontalScrollBarVisibility="Disabled">
-                        <StackPanel Margin="10">
+                        <StackPanel Margin="8">
                         <Border x:Name="EventGraphPanel" Style="{StaticResource EditorSectionCardStyle}" Margin="0,0,0,10">
                             <StackPanel>
                         <Grid x:Name="EventGraphSection" Margin="0,0,0,6">
@@ -271,16 +299,53 @@
                             </ListBox.ItemContainerStyle>
                             <ListBox.ItemTemplate>
                                 <DataTemplate>
-                                    <Grid>
+                                    <Grid MinHeight="34">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="Auto" />
                                             <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
-                                        <Border Grid.Column="0" Style="{StaticResource GraphItemDirtyGlyphStyle}" />
+                                        <Border Grid.Column="0"
+                                                Width="24"
+                                                Height="24"
+                                                Margin="0,0,8,0"
+                                                CornerRadius="6"
+                                                Background="{DynamicResource EditorSectionHeaderAccentBrush}"
+                                                BorderBrush="{DynamicResource EditorPanelBorderBrush}"
+                                                BorderThickness="1"
+                                                VerticalAlignment="Center">
+                                            <TextBlock Text="ƒ"
+                                                       Foreground="{DynamicResource EditorSelectedAccentBrush}"
+                                                       FontSize="15"
+                                                       FontWeight="SemiBold"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center" />
+                                        </Border>
+                                        <Border Grid.Column="0"
+                                                Width="8"
+                                                Height="8"
+                                                Margin="-4,0,4,0"
+                                                CornerRadius="4"
+                                                Background="{DynamicResource CompileDirtyBorderBrush}"
+                                                VerticalAlignment="Bottom"
+                                                HorizontalAlignment="Left">
+                                            <Border.Style>
+                                                <Style TargetType="Border">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsCompileDirty}" Value="True">
+                                                            <Setter Property="Visibility" Value="Visible" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Border.Style>
+                                        </Border>
                                         <TextBlock Grid.Column="1"
                                                    Text="{Binding Name}"
                                                    VerticalAlignment="Center"
+                                                   FontSize="12.5"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource EditorTextBrightBrush}"
                                                    TextTrimming="CharacterEllipsis">
                                             <TextBlock.Style>
                                                 <Style TargetType="TextBlock">
@@ -342,17 +407,18 @@
                     </ScrollViewer>
                 </Border>
 
-                <GridSplitter x:Name="GraphSidebarSplitter"
+                <controls:LayoutSplitter x:Name="GraphSidebarSplitter"
                               Grid.Column="1"
                               Width="7"
                               Style="{StaticResource EditorVerticalSplitterStyle}"
+                              Cursor="SizeWE"
                               ResizeDirection="Columns"
                               ResizeBehavior="PreviousAndNext"
-                              ShowsPreview="True"
+                              ShowsPreview="False"
                               DragCompleted="LayoutSplitter_DragCompleted" />
 
                 <Border Grid.Column="2"
-                        Margin="0,10,9,10"
+                        Margin="0,8,7,8"
                         Background="{DynamicResource EditorCanvasBackgroundBrush}"
                         BorderBrush="{DynamicResource EditorPanelStrongBorderBrush}"
                         BorderThickness="1"
@@ -532,7 +598,8 @@
                                     </DataTemplate>
 
                                     <DataTemplate DataType="{x:Type graph:NodeBaseViewModel}">
-                                        <Border Width="{Binding Width}"
+                                        <Border x:Name="NodeCard"
+                                                Width="{Binding Width}"
                                                 Background="{DynamicResource EditorNodeBackgroundBrush}"
                                                 BorderBrush="{Binding BorderBrush}"
                                                 BorderThickness="2"
@@ -617,7 +684,7 @@
                                                         </Border>
                                                         <TextBlock Text="{Binding Title}"
                                                                    FontSize="14"
-                                                                   FontWeight="Bold"
+                                                                   FontWeight="SemiBold"
                                                                    Foreground="{Binding HeaderForegroundBrush}"
                                                                    TextTrimming="CharacterEllipsis" />
                                                     </DockPanel>
@@ -744,9 +811,23 @@
                                                         </ItemsControl.ItemTemplate>
                                                     </ItemsControl>
                                                 </Grid>
-                                            </Grid>
-                                        </Border>
-                                    </DataTemplate>
+                                                <Border x:Name="NodeSelectionHalo"
+                                                        Margin="-3"
+                                                        BorderBrush="{DynamicResource EditorSelectionGlowBrush}"
+                                                        BorderThickness="2"
+                                                        CornerRadius="8"
+                                                        IsHitTestVisible="False"
+                                                        Opacity="0" />
+                                             </Grid>
+                                         </Border>
+                                         <DataTemplate.Triggers>
+                                             <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                 <Setter TargetName="NodeCard" Property="BorderBrush" Value="{DynamicResource EditorSelectionGlowBrush}" />
+                                                 <Setter TargetName="NodeCard" Property="BorderThickness" Value="3" />
+                                                 <Setter TargetName="NodeSelectionHalo" Property="Opacity" Value="1" />
+                                             </DataTrigger>
+                                         </DataTemplate.Triggers>
+                                     </DataTemplate>
                                 </ItemsControl.Resources>
                             </ItemsControl>
 
@@ -853,33 +934,24 @@
                                 </Grid>
                             </Border>
                         </Canvas>
-                        <Border AutomationProperties.Name="画布小地图" AutomationProperties.HelpText="点击小地图导航画布" x:Name="MinimapPanel" Width="180" Height="120" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="10" Background="#CC20252D" BorderBrush="{DynamicResource EditorPanelBorderBrush}" BorderThickness="1" CornerRadius="6" Visibility="Collapsed" MouseLeftButtonDown="Minimap_MouseLeftButtonDown">
-                            <Canvas x:Name="MinimapCanvas" Margin="4" />
-                        </Border>
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="10">
-                            <Button Content="−" Width="28" Height="26" Padding="0" ToolTip="缩小画布" AutomationProperties.Name="缩小画布" Click="ZoomOut_Click" />
-                            <Button x:Name="ZoomResetButton" Content="100%" Width="52" Height="26" Padding="0" ToolTip="重置为 100%" AutomationProperties.Name="重置画布缩放" Click="ZoomReset_Click" />
-                            <Button Content="＋" Width="28" Height="26" Padding="0" ToolTip="放大画布" AutomationProperties.Name="放大画布" Click="ZoomIn_Click" />
-                            <Button Content="全览" Width="42" Height="26" Padding="0" ToolTip="适合窗口" AutomationProperties.Name="画布全览" Click="FitGraph_Click" />
-                            <Button Content="小地图" Width="52" Height="26" Padding="0" ToolTip="显示/隐藏小地图" AutomationProperties.Name="切换小地图" Click="ToggleMinimap_Click" />
-                        </StackPanel>
                         </Grid>
                     </Border>
                 </Border>
 
-                <GridSplitter x:Name="InspectorSplitter"
+                <controls:LayoutSplitter x:Name="InspectorSplitter"
                               Grid.Column="3"
                               Width="7"
                               Style="{StaticResource EditorVerticalSplitterStyle}"
+                              Cursor="SizeWE"
                               ResizeDirection="Columns"
                               ResizeBehavior="PreviousAndNext"
-                              ShowsPreview="True"
+                              ShowsPreview="False"
                               DragCompleted="LayoutSplitter_DragCompleted" />
 
                 <Border x:Name="InspectorPanel"
                         Grid.Column="4"
-                        Margin="0,10,9,10"
-                        Padding="15"
+                        Margin="0,8,7,8"
+                        Padding="12"
                         Background="{DynamicResource EditorPanelElevatedBrush}"
                         BorderBrush="{DynamicResource EditorPanelStrongBorderBrush}"
                         BorderThickness="1"
@@ -889,7 +961,11 @@
                         <Style TargetType="{x:Type ComboBox}" BasedOn="{StaticResource EditorInspectorComboBoxStyle}" />
                         <Style TargetType="{x:Type CheckBox}" BasedOn="{StaticResource EditorInspectorCheckBoxStyle}" />
                     </Border.Resources>
-                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <ScrollViewer x:Name="InspectorScrollViewer"
+                                  VerticalScrollBarVisibility="Auto"
+                                  PreviewGotKeyboardFocus="InspectorEditor_PreviewGotKeyboardFocus"
+                                  PreviewLostKeyboardFocus="InspectorEditor_PreviewLostKeyboardFocus"
+                                  PreviewKeyDown="InspectorEditor_PreviewKeyDown">
                         <StackPanel>
                             <Border Style="{StaticResource EditorSectionCardStyle}" Margin="0,0,0,12" Padding="12">
                                 <StackPanel>
@@ -908,22 +984,20 @@
                             <TextBlock x:Name="InspectorHintTextBlock"
                                        Margin="0,8,0,14"
                                        Text="请选择一个节点进行编辑。"
-                                       Foreground="{DynamicResource ForegroundSecondaryBrush}"
+                                       Style="{StaticResource InspectorHelpTextStyle}"
                                        TextWrapping="Wrap" />
                             <ContentControl x:Name="ScriptPropertiesSummaryHost"
                                             Visibility="Collapsed"
                                             Margin="0,0,0,4"
                                             HorizontalContentAlignment="Stretch" />
                             <Border Margin="0,4,0,0"
-                                    Padding="10,8,10,2"
-                                    Background="{DynamicResource EditorFieldCardBrush}"
-                                    BorderBrush="{DynamicResource EditorPanelBorderBrush}"
-                                    BorderThickness="1"
-                                    CornerRadius="8">
+                                    Padding="4,4,4,0"
+                                    Background="Transparent"
+                                    BorderThickness="0">
                             <StackPanel x:Name="NodeBasicsPanel">
-                                <TextBlock Text="节点名称" Foreground="{DynamicResource EditorTextBrush}" />
+                                <TextBlock Text="节点名称" Style="{StaticResource InspectorFieldLabelStyle}" />
                                 <TextBox x:Name="NodeTitleTextBox" Margin="0,4,0,12" TextChanged="InspectorField_TextChanged" />
-                                <TextBlock Text="节点编号" Foreground="{DynamicResource EditorTextBrush}" />
+                                <TextBlock Text="节点编号（只读）" Style="{StaticResource InspectorFieldLabelStyle}" />
                                 <TextBlock x:Name="NodeNumberTextBlock"
                                            Text="N001"
                                            Style="{StaticResource EditorReadonlyChipStyle}"
@@ -945,13 +1019,18 @@
                                                             Margin="0,0,0,10"
                                                             Padding="10">
                                                         <Expander IsExpanded="{Binding IsExpanded}" Header="{Binding Title}" Margin="0,0,0,8">
+                                                            <Expander.HeaderTemplate>
+                                                                <DataTemplate>
+                                                                    <TextBlock Text="{Binding}" Style="{StaticResource InspectorSectionTitleStyle}" />
+                                                                </DataTemplate>
+                                                            </Expander.HeaderTemplate>
                                                         <StackPanel>
                                                             <ItemsControl ItemsSource="{Binding Fields}">
                                                                 <ItemsControl.ItemTemplate>
                                                                     <DataTemplate>
                                                                         <StackPanel Margin="0,0,0,9">
                                                                             <TextBlock Text="{Binding Label}"
-                                                                                       Foreground="{DynamicResource EditorTextBrush}" />
+                                                                                       Style="{StaticResource InspectorFieldLabelStyle}" />
                                                                             <controls:NumericUpDown Value="{Binding NumericValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                                                                     IsEnabled="{Binding IsEnabled}" Margin="0,4,0,0">
                                                                                 <controls:NumericUpDown.Style>
@@ -972,7 +1051,7 @@
                                                                                            BasedOn="{StaticResource EditorInspectorTextBoxStyle}">
                                                                                         <Setter Property="Visibility" Value="Visible" />
                                                                                         <Style.Triggers>
-                                                                                            <DataTrigger Binding="{Binding IsValid}" Value="False"><Setter Property="BorderBrush" Value="#FFE05252" /><Setter Property="BorderThickness" Value="2" /></DataTrigger>
+                                                                                            <DataTrigger Binding="{Binding IsValid}" Value="False"><Setter Property="BorderBrush" Value="{DynamicResource ValidationErrorBrush}" /><Setter Property="BorderThickness" Value="2" /></DataTrigger>
                                                                                             <DataTrigger Binding="{Binding Kind}" Value="Number"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
                                                                                             <DataTrigger Binding="{Binding IsBoolean}" Value="True">
                                                                                                 <Setter Property="Visibility" Value="Collapsed" />
@@ -984,7 +1063,7 @@
                                                                                     </Style>
                                                                                 </TextBox.Style>
                                                                             </TextBox>
-                                                                            <TextBlock Text="{Binding ValidationMessage}" Foreground="#FFE05252" FontSize="11" Margin="0,2,0,0" />
+                                                                            <TextBlock Text="{Binding ValidationMessage}" Foreground="{DynamicResource ValidationErrorBrush}" FontSize="11" Margin="0,3,0,0" TextWrapping="Wrap" />
                                                                             <ComboBox ItemsSource="{Binding Options}"
                                                                                       DisplayMemberPath="Label"
                                                                                       SelectedValue="{Binding SelectedOption, UpdateSourceTrigger=PropertyChanged}"

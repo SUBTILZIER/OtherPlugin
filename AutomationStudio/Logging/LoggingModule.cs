@@ -38,5 +38,5 @@ public static class LoggingModule
     }
 
     private static Media.Brush ResourceBrush(string key) =>
-        WpfApplication.Current?.TryFindResource(key) as Media.Brush ?? Media.Brushes.White;
+        WpfApplication.Current?.TryFindResource(key) as Media.Brush ?? Media.Brushes.Transparent;
 }

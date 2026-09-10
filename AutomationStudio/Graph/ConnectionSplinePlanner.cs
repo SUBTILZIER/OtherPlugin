@@ -3,6 +3,7 @@ using Vector = System.Windows.Vector;
 using Geometry = System.Windows.Media.Geometry;
 using PathFigure = System.Windows.Media.PathFigure;
 using BezierSegment = System.Windows.Media.BezierSegment;
+using LineSegment = System.Windows.Media.LineSegment;
 using PathGeometry = System.Windows.Media.PathGeometry;
 
 namespace AutomationStudioWpf.Graph;
@@ -12,14 +13,10 @@ public static class ConnectionSplinePlanner
     private const double Epsilon = 0.001;
     private const double SegmentHandleScale = 0.35;
     private const double SegmentHandleMaxFraction = 0.49;
+    private const double MinimumHorizontalSeparation = 96.0;
     private const double LinearFallbackScale = 1.0 / 3.0;
     private const double DuplicatePointDistance = 0.25;
-    private const double RoutedHandleScale = 0.35;
-    private const double RoutedProjectionBudget = 0.86;
-    private const double ReverseTurnEpsilon = 0.02;
-    private const int CurveIntersectionSamples = 40;
     private const double IntersectionEpsilon = 0.001;
-    private static readonly double[] SmoothnessFactors = [1.0, 0.75, 0.5, 0.25, 0.0];
 
     public static Geometry BuildPinConnectionGeometry(PinViewModel sourcePin, PinViewModel targetPin)
     {
@@ -28,7 +25,7 @@ public static class ConnectionSplinePlanner
 
     public static PathGeometry BuildGeometry(IReadOnlyList<Point> rawPoints)
     {
-        var points = UncrossWaypoints(Deduplicate(rawPoints));
+        var points = RemoveSelfCrossingWaypoints(Deduplicate(rawPoints));
         if (points.Count == 0)
         {
             return new PathGeometry();
@@ -43,7 +40,14 @@ public static class ConnectionSplinePlanner
 
         if (points.Count > 1)
         {
-            AddConstrainedSegments(figure, points);
+            if (points.Count == 2)
+            {
+                AddConstrainedSegments(figure, points);
+            }
+            else
+            {
+                AddRoundedRoute(figure, points);
+            }
         }
 
         PathGeometry geometry = new();
@@ -89,190 +93,90 @@ public static class ConnectionSplinePlanner
             return;
         }
 
-        Vector[] tangents = BuildRoutedTangents(points);
-        foreach (double smoothness in SmoothnessFactors)
+        AddRoundedRoute(figure, points);
+    }
+
+    private static void AddRoundedRoute(PathFigure figure, IReadOnlyList<Point> points)
+    {
+        const double cornerRadius = 24.0;
+        const double cornerHandleScale = 0.55;
+        Point current = points[0];
+
+        for (int index = 1; index < points.Count - 1; index++)
         {
-            List<(Point Control1, Point Control2)> controls = [];
-            for (int i = 0; i < points.Count - 1; i++)
-            {
-                if (TryCreateRoutedControls(points, tangents, i, smoothness, out Point control1, out Point control2))
-                {
-                    controls.Add((control1, control2));
-                }
-            }
+            Point corner = points[index];
+            Point next = points[index + 1];
+            Vector incoming = Normalize(corner - points[index - 1]);
+            Vector outgoing = Normalize(next - corner);
+            double turn = Vector.Multiply(incoming, outgoing);
+            double radius = turn < -0.95
+                ? 0.0
+                : Math.Min(cornerRadius, Math.Min((corner - points[index - 1]).Length, (next - corner).Length) * 0.24);
 
-            if (controls.Count != points.Count - 1 || HasSelfIntersection(points, controls))
+            Point entry = corner - incoming * radius;
+            Point exit = corner + outgoing * radius;
+            AddLine(figure, current, entry);
+            if (radius > Epsilon)
             {
-                continue;
-            }
-
-            for (int i = 0; i < controls.Count; i++)
-            {
+                double handle = radius * cornerHandleScale;
                 figure.Segments.Add(new BezierSegment(
-                    controls[i].Control1,
-                    controls[i].Control2,
-                    points[i + 1],
+                    entry + incoming * handle,
+                    exit - outgoing * handle,
+                    exit,
                     true));
             }
+            else
+            {
+                AddLine(figure, entry, exit);
+            }
 
-            return;
+            current = exit;
         }
 
-        AddLinearSegments(figure, points);
+        AddLine(figure, current, points[^1]);
     }
 
-    private static Vector[] BuildRoutedTangents(IReadOnlyList<Point> points)
+    private static void AddLine(PathFigure figure, Point start, Point end)
     {
-        Vector[] tangents = new Vector[points.Count];
-        tangents[0] = GetAxisAlignedTangent(points[1] - points[0]);
-        tangents[^1] = GetAxisAlignedTangent(points[^1] - points[^2]);
-
-        for (int i = 1; i < points.Count - 1; i++)
+        if ((end - start).Length > Epsilon)
         {
-            Vector incoming = Normalize(points[i] - points[i - 1]);
-            Vector outgoing = Normalize(points[i + 1] - points[i]);
-            Vector bisector = incoming + outgoing;
-            tangents[i] = bisector.LengthSquared <= ReverseTurnEpsilon * ReverseTurnEpsilon
-                ? new Vector()
-                : Normalize(bisector);
+            figure.Segments.Add(new LineSegment(end, true));
         }
-
-        return tangents;
     }
 
-    private static bool TryCreateRoutedControls(
-        IReadOnlyList<Point> points,
-        IReadOnlyList<Vector> tangents,
-        int segmentIndex,
-        double smoothness,
-        out Point control1,
-        out Point control2)
-    {
-        Point start = points[segmentIndex];
-        Point end = points[segmentIndex + 1];
-        Vector segment = end - start;
-        double segmentLength = segment.Length;
-        if (segmentLength < Epsilon)
-        {
-            control1 = start;
-            control2 = end;
-            return false;
-        }
-
-        Vector segmentDirection = segment / segmentLength;
-        Vector startTangent = tangents[segmentIndex];
-        Vector endTangent = tangents[segmentIndex + 1];
-        double startHandle = GetRoutedHandleLength(points, segmentIndex, segmentLength);
-        double endHandle = GetRoutedHandleLength(points, segmentIndex + 1, segmentLength);
-        startHandle *= smoothness;
-        endHandle *= smoothness;
-
-        double startAlignment = Vector.Multiply(startTangent, segmentDirection);
-        double endAlignment = Vector.Multiply(endTangent, segmentDirection);
-        if (startAlignment <= 0.0)
-        {
-            startHandle = 0.0;
-        }
-
-        if (endAlignment <= 0.0)
-        {
-            endHandle = 0.0;
-        }
-
-        double startProjection = Math.Max(0.0, startAlignment) * startHandle;
-        double endProjection = Math.Max(0.0, endAlignment) * endHandle;
-        double projectionTotal = startProjection + endProjection;
-        double projectionBudget = segmentLength * RoutedProjectionBudget;
-        if (projectionTotal > projectionBudget && projectionTotal > Epsilon)
-        {
-            double scale = projectionBudget / projectionTotal;
-            startHandle *= scale;
-            endHandle *= scale;
-        }
-
-        control1 = start + startTangent * startHandle;
-        control2 = end - endTangent * endHandle;
-        return true;
-    }
-
-    private static List<Point> UncrossWaypoints(List<Point> points)
+    private static List<Point> RemoveSelfCrossingWaypoints(List<Point> points)
     {
         if (points.Count < 4)
         {
             return points;
         }
 
-        List<Point> ordered = [.. points];
-        while (true)
+        List<Point> filtered = [points[0]];
+        for (int index = 1; index < points.Count; index++)
         {
-            bool changed = false;
-            for (int first = 0; first < ordered.Count - 1 && !changed; first++)
+            Point candidate = points[index];
+            while (filtered.Count >= 2 && SegmentCrossesExisting(filtered[^1], candidate, filtered))
             {
-                for (int second = first + 2; second < ordered.Count - 1; second++)
-                {
-                    if (!SegmentsCrossProperly(
-                            ordered[first],
-                            ordered[first + 1],
-                            ordered[second],
-                            ordered[second + 1]))
-                    {
-                        continue;
-                    }
-
-                    ordered.Reverse(first + 1, second - first);
-                    changed = true;
-                    break;
-                }
+                filtered.RemoveAt(filtered.Count - 1);
             }
 
-            if (!changed)
-            {
-                break;
-            }
+            filtered.Add(candidate);
         }
 
-        return ordered;
+        return filtered;
     }
 
-    private static bool HasSelfIntersection(
-        IReadOnlyList<Point> points,
-        IReadOnlyList<(Point Control1, Point Control2)> controls)
+    private static bool SegmentCrossesExisting(Point start, Point end, IReadOnlyList<Point> path)
     {
-        List<Point> samples = [points[0]];
-        for (int segmentIndex = 0; segmentIndex < controls.Count; segmentIndex++)
+        for (int index = 0; index < path.Count - 2; index++)
         {
-            Point start = points[segmentIndex];
-            Point end = points[segmentIndex + 1];
-            var control = controls[segmentIndex];
-            for (int sampleIndex = 1; sampleIndex <= CurveIntersectionSamples; sampleIndex++)
+            if (SegmentsCrossProperly(start, end, path[index], path[index + 1]))
             {
-                double t = sampleIndex / (double)CurveIntersectionSamples;
-                samples.Add(Cubic(start, control.Control1, control.Control2, end, t));
-            }
-        }
-
-        for (int first = 0; first < samples.Count - 1; first++)
-        {
-            for (int second = first + 2; second < samples.Count - 1; second++)
-            {
-                if (SegmentsCrossProperly(samples[first], samples[first + 1], samples[second], samples[second + 1]))
-                {
-                    return true;
-                }
+                return true;
             }
         }
 
         return false;
-    }
-
-    private static Point Cubic(Point p0, Point p1, Point p2, Point p3, double t)
-    {
-        double u = 1.0 - t;
-        double tt = t * t;
-        double uu = u * u;
-        return new Point(
-            uu * u * p0.X + 3.0 * uu * t * p1.X + 3.0 * u * tt * p2.X + tt * t * p3.X,
-            uu * u * p0.Y + 3.0 * uu * t * p1.Y + 3.0 * u * tt * p2.Y + tt * t * p3.Y);
     }
 
     private static bool SegmentsCrossProperly(Point a, Point b, Point c, Point d)
@@ -284,53 +188,12 @@ public static class ConnectionSplinePlanner
         return OppositeSigns(firstSideA, firstSideB) && OppositeSigns(secondSideA, secondSideB);
     }
 
-    private static void AddLinearSegments(PathFigure figure, IReadOnlyList<Point> points)
-    {
-        for (int i = 0; i < points.Count - 1; i++)
-        {
-            BuildLinearControls(points[i], points[i + 1], out Point control1, out Point control2);
-            figure.Segments.Add(new BezierSegment(control1, control2, points[i + 1], true));
-        }
-    }
-
     private static bool OppositeSigns(double first, double second) =>
         first > IntersectionEpsilon && second < -IntersectionEpsilon ||
         first < -IntersectionEpsilon && second > IntersectionEpsilon;
 
     private static double Cross(Point a, Point b, Point c) =>
         (b.X - a.X) * (c.Y - a.Y) - (b.Y - a.Y) * (c.X - a.X);
-
-    private static double GetRoutedHandleLength(IReadOnlyList<Point> points, int pointIndex, double currentSegmentLength)
-    {
-        if (pointIndex == 0 || pointIndex == points.Count - 1)
-        {
-            return currentSegmentLength * SegmentHandleScale;
-        }
-
-        double incomingLength = (points[pointIndex] - points[pointIndex - 1]).Length;
-        double outgoingLength = (points[pointIndex + 1] - points[pointIndex]).Length;
-        if (incomingLength < Epsilon || outgoingLength < Epsilon)
-        {
-            return 0.0;
-        }
-
-        Vector incoming = (points[pointIndex] - points[pointIndex - 1]) / incomingLength;
-        Vector outgoing = (points[pointIndex + 1] - points[pointIndex]) / outgoingLength;
-        double turnDot = Math.Clamp(Vector.Multiply(incoming, outgoing), -1.0, 1.0);
-        double turnScale = Math.Sqrt(Math.Max(0.0, (1.0 + turnDot) * 0.5));
-        double localLength = Math.Min(currentSegmentLength, Math.Min(incomingLength, outgoingLength));
-        return localLength * RoutedHandleScale * turnScale;
-    }
-
-    private static Vector GetAxisAlignedTangent(Vector segment)
-    {
-        if (Math.Abs(segment.X) >= Math.Abs(segment.Y))
-        {
-            return new Vector(Math.Sign(segment.X), 0.0);
-        }
-
-        return new Vector(0.0, Math.Sign(segment.Y));
-    }
 
     private static Vector Normalize(Vector vector)
     {
@@ -351,41 +214,24 @@ public static class ConnectionSplinePlanner
 
         double absDx = Math.Abs(segment.X);
         double absDy = Math.Abs(segment.Y);
-        bool horizontalDominant = absDx >= absDy;
-
-        if (horizontalDominant)
-        {
-            double handle = Math.Min(segmentLength * SegmentHandleScale, absDx * SegmentHandleMaxFraction);
-            if (handle < Epsilon)
-            {
-                return BuildLinearControls(start, end, out control1, out control2);
-            }
-
-            double direction = Math.Sign(segment.X);
-            if (direction == 0)
-            {
-                return BuildLinearControls(start, end, out control1, out control2);
-            }
-
-            control1 = new Point(start.X + direction * handle, start.Y);
-            control2 = new Point(end.X - direction * handle, end.Y);
-            return true;
-        }
-
-        double verticalHandle = Math.Min(segmentLength * SegmentHandleScale, absDy * SegmentHandleMaxFraction);
-        if (verticalHandle < Epsilon)
+        // Blueprint wires leave horizontal pins horizontally whenever there is
+        // enough separation. This avoids the steep vertical arcs produced by
+        // choosing the dominant axis for tall but otherwise normal links.
+        bool useHorizontalTangent = absDx >= MinimumHorizontalSeparation;
+        Vector tangent = useHorizontalTangent
+            ? new Vector(Math.Sign(segment.X), 0.0)
+            : absDy >= absDx * 1.35
+                ? new Vector(0.0, Math.Sign(segment.Y))
+                : segment / segmentLength;
+        double axisLength = tangent.X != 0.0 ? absDx : tangent.Y != 0.0 ? absDy : segmentLength;
+        double handle = Math.Min(segmentLength * SegmentHandleScale, axisLength * SegmentHandleMaxFraction);
+        if (handle < Epsilon)
         {
             return BuildLinearControls(start, end, out control1, out control2);
         }
 
-        double verticalDirection = Math.Sign(segment.Y);
-        if (verticalDirection == 0)
-        {
-            return BuildLinearControls(start, end, out control1, out control2);
-        }
-
-        control1 = new Point(start.X, start.Y + verticalDirection * verticalHandle);
-        control2 = new Point(end.X, end.Y - verticalDirection * verticalHandle);
+        control1 = start + tangent * handle;
+        control2 = end - tangent * handle;
         return true;
     }
 
