@@ -35,7 +35,7 @@ public sealed class AppSettings
     public double GraphSidebarWidth { get; set; } = 224;
     public double InspectorWidth { get; set; } = 420;
     public double LogPanelHeight { get; set; } = 280;
-    public double ContentTreeWidth { get; set; } = 160;
+    public double ContentTreeWidth { get; set; } = 180;
     public AppSettings Clone() => new()
     {
         FavoriteAssetIds = [.. FavoriteAssetIds],

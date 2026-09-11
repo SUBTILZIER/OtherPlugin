@@ -26,7 +26,7 @@ public partial class MainWindow
             ClearEditorSurface();
     }
 
-    private void OpenOrActivateAsset(ContentAssetViewModel asset, GraphListItemViewModel? targetGraph = null, GraphAssetKind? targetKind = null)
+    private EditorSessionViewModel OpenOrActivateAsset(ContentAssetViewModel asset, GraphListItemViewModel? targetGraph = null, GraphAssetKind? targetKind = null)
     {
         var session = _editorSessions.FirstOrDefault(item => ReferenceEquals(item.ContentAsset, asset))
             ?? CreateEditorSession(asset);
@@ -38,6 +38,10 @@ public partial class MainWindow
             ActivateEditorSession(session, targetGraph, targetKind);
         else
             ActivateEditorSessionFromMainTab(session, targetGraph, targetKind);
+
+        QueueEditorActivationInputReset();
+
+        return session;
     }
 
     private EditorSessionViewModel CreateEditorSession(ContentAssetViewModel asset)
@@ -70,6 +74,13 @@ public partial class MainWindow
 
         if (e.PropertyName is nameof(EditorSessionViewModel.DockMode))
             RefreshMainEditorSessions();
+
+        if (e.PropertyName is nameof(EditorSessionViewModel.IsActive))
+        {
+            RefreshMainEditorSessions();
+            if (EditorWindowBar is not null)
+                EditorWindowBar.Visibility = _mainEditorSessions.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        }
 
         if (e.PropertyName is nameof(EditorSessionViewModel.DisplayTitle)
             or nameof(EditorSessionViewModel.IsDirty)

@@ -42,10 +42,16 @@ internal sealed class GraphPreparationService
             messages.Add($"已归一化资产结构：{owner.Name}。");
         }
 
-        if (PrepareGraphCore(graph))
+        (bool structureChanged, bool metadataChanged) = PrepareGraphCore(graph);
+        if (structureChanged)
         {
             MarkGraphChanged(owner, graph, changedAssetIds);
             messages.Add($"已修复图表结构或静态元数据：{owner.Name}/{graph.Name}。");
+        }
+        else if (metadataChanged)
+        {
+            MarkGraphMetadataChanged(owner, graph, changedAssetIds);
+            messages.Add($"已更新图表显示元数据：{owner.Name}/{graph.Name}。");
         }
 
         return CreateResult(changedAssetIds, messages);
@@ -64,20 +70,29 @@ internal sealed class GraphPreparationService
 
         foreach (GraphListItemViewModel graph in GetCompilableGraphs(asset))
         {
-            if (!PrepareGraphCore(graph))
+            (bool structureChanged, bool metadataChanged) = PrepareGraphCore(graph);
+            if (!structureChanged && !metadataChanged)
                 continue;
 
-            MarkGraphChanged(asset, graph, changedAssetIds);
-            messages.Add($"已修复图表结构或静态元数据：{asset.Name}/{graph.Name}。");
+            if (structureChanged)
+            {
+                MarkGraphChanged(asset, graph, changedAssetIds);
+                messages.Add($"已修复图表结构：{asset.Name}/{graph.Name}。");
+            }
+            else
+            {
+                MarkGraphMetadataChanged(asset, graph, changedAssetIds);
+                messages.Add($"已更新图表显示元数据：{asset.Name}/{graph.Name}。");
+            }
         }
     }
 
-    private static bool PrepareGraphCore(GraphListItemViewModel item)
+    private static (bool StructureChanged, bool MetadataChanged) PrepareGraphCore(GraphListItemViewModel item)
     {
-        bool changed = EnsureAuxiliaryEventGraph(item);
-        changed |= EnsureGraphNodeNumbers(item.Graph, item.Kind);
-        changed |= EnsureGraphToDoTargets(item.Graph);
-        return changed;
+        bool structureChanged = EnsureAuxiliaryEventGraph(item);
+        bool metadataChanged = EnsureGraphNodeNumbers(item.Graph, item.Kind);
+        metadataChanged |= EnsureGraphToDoTargets(item.Graph);
+        return (structureChanged, metadataChanged);
     }
 
     internal static IEnumerable<GraphListItemViewModel> GetCompilableGraphs(ContentAssetViewModel asset) => asset.Kind switch
@@ -222,6 +237,17 @@ internal sealed class GraphPreparationService
         asset.IsDirty = true;
         graph.IsDirty = true;
         graph.IsCompileDirty = true;
+        changedAssetIds.Add(asset.Id);
+    }
+
+    private static void MarkGraphMetadataChanged(
+        ContentAssetViewModel asset,
+        GraphListItemViewModel graph,
+        ISet<string> changedAssetIds)
+    {
+        // Node numbers and ToDo labels are persisted editor metadata, not executable graph logic.
+        asset.IsDirty = true;
+        graph.IsDirty = true;
         changedAssetIds.Add(asset.Id);
     }
 

@@ -233,14 +233,15 @@ public partial class MainWindow
             return;
 
         SetScriptAssetEnabled(asset, checkBox.IsChecked == true);
-        checkBox.IsChecked = asset.IsScriptEnabled;
+        // Preserve the OneWay binding so context-menu and workbench changes still reach the badge.
+        checkBox.SetCurrentValue(System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty, asset.IsScriptEnabled);
         e.Handled = true;
     }
 
-    private void SetScriptAssetEnabled(ContentAssetViewModel asset, bool enabled)
+    private bool SetScriptAssetEnabled(ContentAssetViewModel asset, bool enabled)
     {
         if (asset.Kind != ContentAssetKind.Script || asset.IsScriptEnabled == enabled)
-            return;
+            return asset.Kind == ContentAssetKind.Script;
 
         if (!enabled && _scriptRunManager.IsHotkeyRunActive(asset))
         {
@@ -252,7 +253,7 @@ public partial class MainWindow
                 MessageBoxButton.OK,
                 MessageBoxImage.Information);
             UpdateScriptEnabledMenuItem(asset);
-            return;
+            return false;
         }
 
         asset.IsScriptEnabled = enabled;
@@ -263,16 +264,19 @@ public partial class MainWindow
             {
                 asset.IsScriptEnabled = false;
                 ThemedDialog.Show(this, string.Join(Environment.NewLine, conflicts), "热键冲突", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
+                UpdateScriptEnabledMenuItem(asset);
+                return false;
             }
         }
 
         asset.IsDirty = true;
         PersistAssetLibrary();
         RefreshScriptHotkeys();
+        UpdateScriptEnabledMenuItem(asset);
         SetStatus(enabled
             ? $"已启用脚本热键监听：{asset.Name}"
             : $"已禁用脚本热键监听：{asset.Name}");
+        return true;
     }
 
     private void UpdateScriptEnabledMenuItem(ContentAssetViewModel? asset)

@@ -98,6 +98,32 @@ public sealed class GraphCompilePipelineTests
     }
 
     [TestMethod]
+    public void MetadataRepairDoesNotMakeCompileButtonDirty()
+    {
+        var script = TestGraphFactory.Script();
+        var main = GraphStructureNormalizer.CreateMainEventGraph("Main");
+        var target = TestGraphFactory.Node("target", "delay", "等待");
+        var todo = TestGraphFactory.Node("todo", "todo", "待办");
+        todo.TargetNodeId = target.Id;
+        main.Graph.Nodes.Add(target);
+        main.Graph.Nodes.Add(todo);
+        main.IsDirty = false;
+        main.IsCompileDirty = false;
+        script.EventGraphs.Add(main);
+        script.IsDirty = false;
+
+        GraphPreparationResult result = new GraphPreparationService().PrepareAsset(script);
+
+        Assert.IsTrue(result.ChangedAssetIds.Contains(script.Id));
+        Assert.IsTrue(script.IsDirty);
+        Assert.IsTrue(main.IsDirty);
+        Assert.IsFalse(main.IsCompileDirty);
+        Assert.AreEqual("N002", target.NodeNumber);
+        Assert.AreEqual("等待", todo.TargetNodeTitle);
+        Assert.AreEqual("N002", todo.TargetNodeNumber);
+    }
+
+    [TestMethod]
     public void CompilingFunctionLibrarySynchronizesAffectedScriptCallers()
     {
         var library = TestGraphFactory.FunctionLibrary("Library");

@@ -123,7 +123,25 @@ public partial class MainWindow
         if (session is not null)
         {
             if (session.SurfaceContext is { } context)
+            {
+                // The two list boxes have independent SelectedItem state. Keep only
+                // the controller that owns the active graph selected.
+                if (controller is null)
+                {
+                    context.GraphListController.ClearActive();
+                    context.FunctionListController.ClearActive();
+                }
+                else if (ReferenceEquals(controller, context.GraphListController))
+                {
+                    context.FunctionListController.ClearActive();
+                }
+                else if (ReferenceEquals(controller, context.FunctionListController))
+                {
+                    context.GraphListController.ClearActive();
+                }
+
                 context.ActiveAssetController = controller;
+            }
 
             if (remember)
                 session.RememberActive(controller);

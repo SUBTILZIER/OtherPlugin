@@ -202,6 +202,13 @@ Runtime / Nodes / Adapters
 
 ## 编辑器视觉规则
 
+- 2026-09-11：编辑器面板选中态与分组层级：事件图和函数列表使用两个独立 `ListBox`，活动控制器与两个 `SelectedItem` 必须同步维护；切换到事件图时清除函数控制器的活动项，反之亦然，清空活动图时两边都清除。
+- `IsCompileDirty` 只表达编译脏状态，不得通过复用选中背景伪装活动项。选中态、hover、脏标记必须使用独立视觉 token。
+- `EditorSectionCardStyle` 不得同时用于侧栏导航、Inspector 摘要和结构化字段分组。外层面板保持扁平，语义分组使用单层背景/边框，输入框和下拉框保留自身边框。
+- 参数 Inspector 的 `StackPanel`、`ParameterRowsPanel` 和现有 `x:Name` 是 `InspectorController` 的运行时接口。视觉调整只能增加样式或外围装饰，不能替换控件类型、重建动态行或破坏输入焦点。
+- 动态 Inspector 字段的校验提示、帮助说明和编辑事件必须留在对应字段下方；分组边界不能通过重建整个 Inspector 实现。
+- 本次踩坑：为减少嵌套边框将共享 section 样式全局设为透明，误伤了结构化 Inspector 和函数参数输入面板。后续必须按“导航分组 / Inspector 分组 / 工作台分组”拆分样式资源后再调整视觉。
+
 - 2026-07-06：应用级主题由 `AppSettingsService` + `AppThemeService` 管理，配置文件在 `%AppData%/AutomationStudioWpf/app-settings.json`。主题设置不属于资产数据，禁止写入脚本/函数库 JSON。
 - 主题资源只允许通过 `App.xaml` 中的 `Editor*Brush` / `Accent*Brush` 等全局 brush 进入 UI；这些 brush 必须带 `po:Freeze="False"`，运行时切换主题时更新已有 `SolidColorBrush.Color`，否则旧控件会继续拿着旧颜色。
 - 当前内置两套主题：暗色编辑器主题、亮色 Codex 风格主题。强调色必须扩散到选中态、hover、工具栏、输入边框、下拉选中、Tooltip 边框等全局状态，不允许只改设置面板预览色。
@@ -219,6 +226,9 @@ Runtime / Nodes / Adapters
 - 2026-07-17：编辑区和底部工作区的 splitter 统一使用 `EditorVerticalSplitterStyle` / `EditorHorizontalSplitterStyle`：常态只显示 1px 分隔线，hover/拖动才显示 accent，命中宽度保持 7px。亮色主题下节点正文必须保持接近不透明，避免网格穿透影响文字；内容资产选中态同时使用边框、柔和底色和底部 accent 条，不只依赖大面积强调色。
 - 左侧 section 的折叠/新增按钮统一用 `EditorSidebarIconButtonStyle`；函数项“公开”开关使用紧凑短文案和 ToolTip，避免挤压函数名。细节面板内 `TextBox` / `ComboBox` 统一最小高度，保持字段节奏一致。
 - `MainWindow.xaml` 的顶部工具栏命令按钮统一用 `TopToolbarButtonStyle`；底部内容浏览器 folder/tree item 和 asset tile 分别用 `ContentFolderListItemBaseStyle`、`ContentAssetTileContainerStyle`。不要在每个 `ListBoxItem` 内重复写 hover/selected 模板。
+- 主窗口 5 个面板分隔条必须使用 WPF 原生 `GridSplitter`，禁止用 `OnMouseLeftButtonDown/Move/Up` 手写替代 `Thumb` 拖拽。分隔列/行使用独立 7px 命中区，模板根节点绑定 `TemplateBinding Background`；视觉指示线不能作为唯一命中区域。
+- 资产或函数双击激活编辑器后，输入路由结束才清理内容框选、资产拖拽、画布平移、节点选择和连线预览捕获；不得在正常 `GridSplitter` 拖拽期间全局释放鼠标。空状态也必须加载、保存底部布局，尺寸只读 `ActualWidth/ActualHeight` 且过滤无效值。
+- 底部内容浏览器/日志和 Inspector 只保留主体背景、标题栏及必要的分隔线；脚本工作台的运行设置和热键设置用间距/层级区分，禁止重复完整 Border/card 嵌套。输入框自身边框保留，不能用大面积容器边框代替层级。
 - 顶部工具栏按钮必须放在圆角分组容器里，并保留 hover、pressed、keyboard focus、disabled 四种状态反馈；不要恢复成透明裸按钮。
 - 顶部工具栏不再提供“新建图谱”全局入口；资产创建只能从内容浏览器走，避免绕过脚本主图/辅助图规则。“打开图谱”文案统一为“外部导入”。`鼠标拾取` 固定放在 `另存为` 后面。
 - `编译`、`显示最终代码`、`执行脚本` 属于编辑动作组：只有打开脚本或函数库编辑 session 后显示。`执行脚本` 只允许脚本事件图触发；函数库或非事件图下要禁用并给出 ToolTip。
@@ -357,7 +367,7 @@ public class GraphEditorService
 - 拖出某个 session 后，主窗口应继续显示最近的 main-tab surface；`EmptyEditorPanel` 只是无主窗口 tab 时的 fallback，不能盖住已经挂载的主 surface。
 - 拖动窗口标签时会显示跟随预览卡片，越过主窗口边界后提示释放/继续拖出为独立窗口。
 - 主窗口标签页和 `DetachedEditorWindow` 都直接 host 对应 session 的 `Surface`；detached 窗口不再显示只读 preview，也不再要求“激活后在这里编辑”。detached 激活只切 toolbar/command 目标，不应重置主窗口 host。
-- `EditorSurfaceContext.Configure(...)` 是幂等的：同一个 session 的 controller 不因 host attach/activate 反复重建。surface 事件按类型分类：明确用户交互才提升 active session；`PinAnchorLoaded/LayoutUpdated`、无按键 `MouseMove`、初始化触发的 `TextChanged/SelectionChanged` 只使用所属 context 或直接忽略，避免 tab 闪动、列表折叠或 detached/main 互相污染。
+- `EditorSurfaceContext.Configure(...)` 是幂等的：同一个 session 的 controller 不因 host attach/activate 反复重建；面板布局配置只在 session 首次配置时加载，不能在 `PinAnchorLayoutUpdated` 或其它 surface 事件中覆盖用户拖拽尺寸。surface 事件按类型分类：明确用户交互才提升 active session；`PinAnchorLoaded/LayoutUpdated`、无按键 `MouseMove`、初始化触发的 `TextChanged/SelectionChanged` 只使用所属 context 或直接忽略，避免 tab 闪动、列表折叠或 detached/main 互相污染。
 - surface controller 的 dirty/snapshot 回调按所属 `EditorSessionViewModel` 闭包绑定；编辑 detached 或非首个 tab 时不能直接依赖全局 `_activeAssetController`，否则 dirty 黄点和 compile target 会串到其它资产。
 - 当前图 controller 统一通过 `SetSessionActiveGraphController(session, controller)` 写入；它同步 `EditorSurfaceContext.ActiveAssetController`、session remembered active graph，以及当前操作 session 的 `_activeAssetController` 镜像。新增图/函数和 `LoadGraphItem(...)` 都必须用这个入口。
 - 主窗口 tab 切换是 view activation，不是 graph load。已打开并已加载 graph 的 tab 必须走 `ActivateEditorSessionFromMainTab(...)` 的轻量路径：只切 `_activeEditorSession`、active service/controller、toolbar、content browser selection 和 main host surface；禁止 `LoadFromModel(...)`、禁止清 active graph、禁止写 `graph-library.json`。首次打开资产、双击函数/事件跳转、显式切图表才允许重载目标 graph。
@@ -1468,8 +1478,50 @@ This section is the source of truth for packaging and process-lifecycle work. Re
 
 ## 2026-09-09：主窗口层级与脚本工作台
 
-- 主窗口固定为标题栏、工具栏、Tab 栏三层；工具栏按文件、编辑、工作区、执行分组，分组只用弱分隔线，不重复套用大圆角容器。保留原按钮、事件、AutomationProperties 和快捷键。
+- 主窗口固定为标题栏、工具栏、Tab 栏三层；工具栏按文件、编辑、执行分组，分组只用弱分隔线，不重复套用大圆角容器。日志、侧栏和 Inspector 不再通过无效顶部按钮切换，仍保留面板本身的布局与焦点入口。
 - 活动 Tab 使用低饱和选中背景、底部 accent 线和独立 dirty 小圆点；保存 dirty 与 compile dirty 不得通过整块高饱和填充混合表达。
 - 选中脚本但未打开图表时，中央显示左对齐、可伸缩的脚本工作台概览；运行设置与热键在宽区域双栏显示，窄区域自动改单栏。该控件只编辑现有 RunSettings，不改变执行和保存语义。
 - Inspector 顶部保持节点摘要，字段标签、说明、校验提示使用统一层级资源。输入期间不得因 GraphChanged 重建控件；普通值原位更新，结构变更才显式刷新。
 - 面板外层只保留一层弱边界，内部 section 用间距和背景层级区分，禁止无目的的 Border 嵌套。底部内容浏览器和日志默认高度仅影响新布局，已有用户保存尺寸不强制覆盖。
+
+## 2026-09-10：导航与编译状态边界
+
+- 设置分类按钮使用固定图标列和左对齐文本列；选中态必须同步更新子 TextBlock 的前景色，不能只设置 Button.Foreground 覆盖显式子元素资源。
+- 已移除无实际作用的顶部“日志/侧栏/属性”按钮及 Alt+D1~D3 面板切换逻辑。日志、侧栏和 Inspector 本身仍由布局拖拽与 Ctrl+D1~D4 焦点快捷键管理。
+- 跨资产函数双击跳转后必须刷新主窗口编辑会话栏，再查询目标 surface，保证新打开的函数库会话立即显示 Tab。
+- 路由事件临时切换 surface 时，若事件内部打开了新资产，不得在 finally 中恢复旧 session 的 controller；必须保留新 session，并重新同步 Tab 与活动 surface。
+- 函数节点双击发生在 PreviewMouseLeftButtonDown；目标 session 的最终激活必须排入 Dispatcher，在本次输入路由结束后执行。只做已加载 session 激活，不得重复加载图或重建画布。
+- 原生 `GridSplitter` 调整固定侧时必须保留相邻 `*` 定义。禁止把画布/编辑区的星号列转换成固定像素列，否则窗口右侧会出现空白，Inspector 会视觉左移。
+- 编译 dirty 只表示执行结构或依赖发生变化。节点编号、ToDo 目标标题等可持久化显示元数据的自动修复只标保存 dirty，不应单独点亮编译按钮；真实入口/边界/连接结构修复仍必须标 compile dirty。
+- Inspector 的提交事件可能在导航、切换资产和 snapshot 前被动触发；`ApplyChanges()` 必须比较应用前后的可持久化节点状态，值未变化时不得调用 `MarkLogicDirty()`，避免双击函数等无修改操作点亮编译提示。结构化字段和 ToDo 目标选择同样遵守该规则。
+
+## 2026-09-11：设置窗口布局与输入反馈
+
+- `SettingsWindow` 固定采用左侧分类导航、右侧滚动内容和底部操作栏。分类只有 `界面`（主题/强调色）与 `窗口行为`（关闭策略）；分类按钮的图标、标题、说明必须使用固定列并左对齐。
+- 设置页面禁止重复的窗口外框、页面大卡片和分组卡片嵌套。页面标题、section header、字段间距和单层弱边界负责表达层级；目标尺寸约 `900x680`，最小尺寸约 `760x560`，右侧内容区不得产生横向滚动。
+- 主题预览只使用静态示意色；运行时主题、强调色和控件状态必须通过 `DynamicResource` token。强调色输入、预览和常用色按钮保持实时预览，`应用并关闭` 只负责确认并关闭。
+- 非法强调色必须显示字段下方的内联提示 `请输入 #RRGGBB 格式的颜色`，禁用应用按钮并保留输入焦点；禁止使用阻塞式错误弹窗。恢复合法输入后立即清除错误态。
+- 关闭策略选项使用整行 RadioButton，选中态用低面积 accent 背景和左侧指示条表达；文案必须区分最小化到托盘与真正退出，不能改变 `AppWindowCloseAction` 的读写语义。
+- 分类切换只切换现有页面可见性，不重建输入控件，不清空草稿，不移动当前输入焦点。新增设置项必须复用统一标签列、动态资源和内联校验规则。
+- 窗口行为页使用扁平的两行 RadioButton 选项，不再包裹大面积卡片。标题和说明必须共享同一内容列并保持左对齐；全局 RadioButton 模板只绘制一次单选圆点，设置页内容不得再模拟第二组圆点。
+- 窗口行为选中态只保留低面积选中背景和独立的左侧 accent 指示条。指示条不得改变 RadioButton 的命中区或挤压标题列，两个选项必须保持统一高度、间距和文字起始位置。
+
+## 2026-09-11：脚本启用状态与工作台同步
+
+- `ContentAssetViewModel.IsScriptEnabled` 是脚本启用状态唯一来源。资产角标、右键菜单和脚本工作台开关必须复用 `MainWindow.SetScriptAssetEnabled()`，禁止在工作台直接写属性绕过运行中检查、热键冲突检查、持久化和热键刷新。
+- 脚本工作台标题区右上角显示“启用脚本”开关和“已启用/已停用”状态。工作台订阅资产 `PropertyChanged`，外部入口切换状态时必须原位更新 CheckBox、状态徽标和 Tooltip，不得重建工作台或丢失运行设置输入焦点。
+- 启用失败、热键冲突或运行中禁止禁用时，工作台开关必须恢复资产真实状态；成功切换继续标记资产 dirty、保存资产库并刷新全局热键。
+- 资产角标恢复 `IsChecked` 必须使用 `SetCurrentValue`，不能直接赋值覆盖 `IsScriptEnabled` 的单向绑定。工作台在 Loaded 时订阅并同步状态，Unloaded 时取消订阅；重新加载只刷新启用状态，不覆盖未保存的运行设置草稿。
+
+## 2026-09-11：UE 风格节点连线层级
+
+- 编辑器连线分为命中层与视觉层：命中层保持在节点下方且可交互，视觉线层使用 `IsHitTestVisible=False` 并位于节点层下方；节点内部 Pin、圆点和执行箭头属于节点层，不得移到连线层。
+- 当前绘制顺序固定为：连线命中层 `100`、连线视觉层 `150`、节点与 Pin `200`、拖线预览 `450`、选择框及浮层 `500+`。普通 Wire 不得覆盖节点标题、文字或 Pin 箭头。
+- 节点正文通过带 Alpha 的 `EditorNodeBackgroundBrush` 透出下方连线；节点整体保持不透明，保证标题、描述、Pin 和箭头清晰。连线轮廓与语义色线使用低面积透明度，不创建新的运行时 Brush。
+- 参考 UE `FConnectionDrawingPolicy` 的 WireLayer/ArrowLayer 分离规则；本项目箭头由节点内 Pin 模板绘制。连线层级调整不得修改 `PathGeometry`、路由点、连接模型或 graph/node/connection JSON。
+
+## 2026-09-11：Splitter 直接拖拽与布局约束
+
+- 所有编辑区、Inspector、日志和内容浏览器分隔条统一使用 WPF 原生 `GridSplitter`，通过 `Thumb` 的 `DragStarted/DragDelta/DragCompleted` 直接调整相邻行列。所有分隔条显式声明 `ResizeDirection`、`ResizeBehavior="PreviousAndNext"`、`ShowsPreview="False"` 和 7px 命中区；禁止再次用 `OnMouseLeftButtonDown/Move/Up` 手写拖拽链替代原生控件。
+- 布局保存只在原生拖拽完成后读取有效的 `ActualWidth/ActualHeight`，继续使用现有延迟保存；拖拽过程不得触发 Inspector 重建、节点重绘或其他业务刷新。
+- Splitter 视觉指示线只负责 hover/drag 反馈，不能替代原生 `Thumb` 命中区域；不使用额外 `Panel.ZIndex` 覆盖相邻内容，也不把编辑区星号列强制转换为固定像素列。

@@ -17,12 +17,24 @@
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="/AutomationStudioWpf;component/Themes/EditorSurfaceStyles.xaml" />
             </ResourceDictionary.MergedDictionaries>
-        <Style x:Key="EditorSectionCardStyle" TargetType="{x:Type Border}">
+        <Style x:Key="EditorSidebarSectionStyle" TargetType="{x:Type Border}">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="{DynamicResource EditorPanelBorderBrush}" />
+            <Setter Property="BorderThickness" Value="0,0,0,1" />
+            <Setter Property="CornerRadius" Value="0" />
+            <Setter Property="Padding" Value="0,0,0,8" />
+        </Style>
+
+        <Style x:Key="EditorInspectorSectionStyle" TargetType="{x:Type Border}">
             <Setter Property="Background" Value="{DynamicResource EditorPanelCardBrush}" />
             <Setter Property="BorderBrush" Value="{DynamicResource EditorPanelBorderBrush}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="CornerRadius" Value="8" />
-            <Setter Property="Padding" Value="9" />
+            <Setter Property="Padding" Value="12" />
+        </Style>
+
+        <Style x:Key="EditorInspectorPanelSectionStyle" TargetType="{x:Type StackPanel}">
+            <Setter Property="Background" Value="{DynamicResource EditorPanelCardBrush}" />
         </Style>
 
         <Style x:Key="EditorSectionHeaderTextStyle" TargetType="{x:Type TextBlock}">
@@ -123,9 +135,9 @@
             <Grid x:Name="EditorGrid">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition x:Name="GraphSidebarColumn" Width="224" MinWidth="180" MaxWidth="420" />
-                    <ColumnDefinition x:Name="GraphSidebarSplitterColumn" Width="Auto" />
+                    <ColumnDefinition x:Name="GraphSidebarSplitterColumn" Width="7" MinWidth="7" MaxWidth="7" />
                     <ColumnDefinition x:Name="GraphCanvasColumn" Width="*" MinWidth="360" />
-                    <ColumnDefinition x:Name="InspectorSplitterColumn" Width="Auto" />
+                    <ColumnDefinition x:Name="InspectorSplitterColumn" Width="7" MinWidth="7" MaxWidth="7" />
                     <ColumnDefinition x:Name="InspectorColumn" Width="420" MinWidth="420" MaxWidth="720" />
                 </Grid.ColumnDefinitions>
 
@@ -139,7 +151,7 @@
                     <ScrollViewer VerticalScrollBarVisibility="Auto"
                                   HorizontalScrollBarVisibility="Disabled">
                         <StackPanel Margin="8">
-                        <Border x:Name="EventGraphPanel" Style="{StaticResource EditorSectionCardStyle}" Margin="0,0,0,10">
+                        <Border x:Name="EventGraphPanel" Style="{StaticResource EditorSidebarSectionStyle}" Margin="0,0,0,10">
                             <StackPanel>
                         <Grid x:Name="EventGraphSection" Margin="0,0,0,6">
                             <Grid.ColumnDefinitions>
@@ -245,7 +257,7 @@
                         </ListBox>
                             </StackPanel>
                         </Border>
-                        <Border x:Name="FunctionPanel" Style="{StaticResource EditorSectionCardStyle}" Margin="0,0,0,0">
+                        <Border x:Name="FunctionPanel" Style="{StaticResource EditorSidebarSectionStyle}" Margin="0,0,0,0">
                             <StackPanel>
                         <Grid x:Name="FunctionSection" Margin="0,0,0,6">
                             <Grid.ColumnDefinitions>
@@ -407,15 +419,17 @@
                     </ScrollViewer>
                 </Border>
 
-                <controls:LayoutSplitter x:Name="GraphSidebarSplitter"
+                <GridSplitter x:Name="GraphSidebarSplitter"
                               Grid.Column="1"
                               Width="7"
+                              Background="Transparent"
+                              IsHitTestVisible="True"
                               Style="{StaticResource EditorVerticalSplitterStyle}"
                               Cursor="SizeWE"
                               ResizeDirection="Columns"
                               ResizeBehavior="PreviousAndNext"
                               ShowsPreview="False"
-                              DragCompleted="LayoutSplitter_DragCompleted" />
+                              DragCompleted="GridSplitter_DragCompleted" />
 
                 <Border Grid.Column="2"
                         Margin="0,8,7,8"
@@ -604,7 +618,7 @@
                                                 BorderBrush="{Binding BorderBrush}"
                                                 BorderThickness="2"
                                                 CornerRadius="6"
-                                                Opacity="0.96"
+                                                Opacity="1"
                                                 SnapsToDevicePixels="True"
                                                 Panel.ZIndex="100"
                                                 PreviewMouseLeftButtonDown="NodeHeader_PreviewMouseLeftButtonDown"
@@ -831,8 +845,9 @@
                                 </ItemsControl.Resources>
                             </ItemsControl>
 
+                            <!-- UE-style wire pass: below nodes, while the node-owned pin arrows remain above it. -->
                             <ItemsControl ItemsSource="{Binding ConnectionPaths}"
-                                          Panel.ZIndex="300"
+                                          Panel.ZIndex="150"
                                           IsHitTestVisible="False">
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate>
@@ -853,6 +868,7 @@
                                             <Path Data="{Binding PathGeometry}"
                                                   Stroke="{DynamicResource EditorConnectionOutlineBrush}"
                                                   StrokeThickness="{Binding OutlineThickness}"
+                                                  Opacity="0.82"
                                                   SnapsToDevicePixels="True"
                                                   StrokeStartLineCap="Round"
                                                   StrokeEndLineCap="Round"
@@ -860,6 +876,7 @@
                                             <Path Data="{Binding PathGeometry}"
                                                   Stroke="{Binding StrokeBrush}"
                                                   StrokeThickness="{Binding StrokeThickness}"
+                                                  Opacity="0.9"
                                                   SnapsToDevicePixels="True"
                                                   StrokeStartLineCap="Round"
                                                   StrokeEndLineCap="Round"
@@ -938,24 +955,26 @@
                     </Border>
                 </Border>
 
-                <controls:LayoutSplitter x:Name="InspectorSplitter"
+                <GridSplitter x:Name="InspectorSplitter"
                               Grid.Column="3"
                               Width="7"
+                              Background="Transparent"
+                              IsHitTestVisible="True"
                               Style="{StaticResource EditorVerticalSplitterStyle}"
                               Cursor="SizeWE"
                               ResizeDirection="Columns"
                               ResizeBehavior="PreviousAndNext"
                               ShowsPreview="False"
-                              DragCompleted="LayoutSplitter_DragCompleted" />
+                              DragCompleted="GridSplitter_DragCompleted" />
 
                 <Border x:Name="InspectorPanel"
                         Grid.Column="4"
                         Margin="0,8,7,8"
                         Padding="12"
                         Background="{DynamicResource EditorPanelElevatedBrush}"
-                        BorderBrush="{DynamicResource EditorPanelStrongBorderBrush}"
-                        BorderThickness="1"
-                        CornerRadius="10">
+                        BorderBrush="Transparent"
+                        BorderThickness="0"
+                        CornerRadius="0">
                     <Border.Resources>
                         <Style TargetType="{x:Type TextBox}" BasedOn="{StaticResource EditorInspectorTextBoxStyle}" />
                         <Style TargetType="{x:Type ComboBox}" BasedOn="{StaticResource EditorInspectorComboBoxStyle}" />
@@ -967,7 +986,11 @@
                                   PreviewLostKeyboardFocus="InspectorEditor_PreviewLostKeyboardFocus"
                                   PreviewKeyDown="InspectorEditor_PreviewKeyDown">
                         <StackPanel>
-                            <Border Style="{StaticResource EditorSectionCardStyle}" Margin="0,0,0,12" Padding="12">
+                            <Border Margin="0,0,0,12"
+                                    Padding="0"
+                                    Background="Transparent"
+                                    BorderBrush="Transparent"
+                                    BorderThickness="0">
                                 <StackPanel>
                             <DockPanel Margin="0,0,0,2">
                                 <Border DockPanel.Dock="Left"
@@ -990,10 +1013,9 @@
                                             Visibility="Collapsed"
                                             Margin="0,0,0,4"
                                             HorizontalContentAlignment="Stretch" />
-                            <Border Margin="0,4,0,0"
-                                    Padding="4,4,4,0"
-                                    Background="Transparent"
-                                    BorderThickness="0">
+                            <Border x:Name="NodeBasicsSection"
+                                    Style="{StaticResource EditorInspectorSectionStyle}"
+                                    Margin="0,0,0,12">
                             <StackPanel x:Name="NodeBasicsPanel">
                                 <TextBlock Text="节点名称" Style="{StaticResource InspectorFieldLabelStyle}" />
                                 <TextBox x:Name="NodeTitleTextBox" Margin="0,4,0,12" TextChanged="InspectorField_TextChanged" />
@@ -1015,7 +1037,7 @@
                                         <ItemsControl ItemsSource="{Binding Sections}">
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
-                                                    <Border Style="{StaticResource EditorSectionCardStyle}"
+                                                    <Border Style="{StaticResource EditorInspectorSectionStyle}"
                                                             Margin="0,0,0,10"
                                                             Padding="10">
                                                         <Expander IsExpanded="{Binding IsExpanded}" Header="{Binding Title}" Margin="0,0,0,8">
@@ -1119,7 +1141,10 @@
                                 </ContentControl.Content>
                             </ContentControl>
 
-                            <StackPanel x:Name="ParameterInspectorPanel" Visibility="Collapsed" Margin="0,0,0,12">
+                            <StackPanel x:Name="ParameterInspectorPanel"
+                                        Style="{StaticResource EditorInspectorPanelSectionStyle}"
+                                        Visibility="Collapsed"
+                                        Margin="0,0,0,12">
                                 <DockPanel Margin="0,0,0,8">
                                     <Button x:Name="AddParameterButton"
                                             Content="+"
@@ -1134,10 +1159,29 @@
                                                FontWeight="SemiBold"
                                                VerticalAlignment="Center" />
                                 </DockPanel>
-                                <StackPanel x:Name="ParameterRowsPanel" />
+                                <Grid Margin="0,0,0,5">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="94" />
+                                        <ColumnDefinition Width="130" />
+                                        <ColumnDefinition Width="24" />
+                                        <ColumnDefinition Width="24" />
+                                        <ColumnDefinition Width="24" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="名称" Style="{StaticResource InspectorHelpTextStyle}" />
+                                    <TextBlock Grid.Column="1" Text="类型" Style="{StaticResource InspectorHelpTextStyle}" />
+                                    <TextBlock Grid.Column="2" Text="默认值" Style="{StaticResource InspectorHelpTextStyle}" />
+                                </Grid>
+                                <Border Background="{DynamicResource EditorFieldCardBrush}"
+                                        BorderBrush="{DynamicResource EditorPanelBorderBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="6"
+                                        Padding="8,8,8,2">
+                                    <StackPanel x:Name="ParameterRowsPanel" />
+                                </Border>
                             </StackPanel>
 
-                            <StackPanel x:Name="FindImageInspectorPanel" Visibility="Collapsed" Margin="0,0,0,12">
+                            <StackPanel x:Name="FindImageInspectorPanel" Style="{StaticResource EditorInspectorPanelSectionStyle}" Visibility="Collapsed" Margin="0,0,0,12">
                                 <TextBlock Text="查找源" Foreground="{DynamicResource EditorTextBrush}" />
                                 <ComboBox x:Name="FindImageSourceModeComboBox"
                                           Margin="0,4,0,10"
@@ -1191,7 +1235,7 @@
                                            TextWrapping="Wrap" />
                             </StackPanel>
 
-                            <StackPanel x:Name="MouseLeftInspectorPanel" Visibility="Collapsed" Margin="0,0,0,12">
+                            <StackPanel x:Name="MouseLeftInspectorPanel" Style="{StaticResource EditorInspectorPanelSectionStyle}" Visibility="Collapsed" Margin="0,0,0,12">
                                 <TextBlock Text="鼠标按键" Foreground="{DynamicResource EditorTextBrush}" />
                                 <ComboBox x:Name="MouseButtonComboBox" Margin="0,4,0,12" SelectionChanged="InspectorField_SelectionChanged">
                                     <ComboBoxItem Content="左键" Tag="Left" />
@@ -1236,12 +1280,12 @@
                                            TextWrapping="Wrap" />
                             </StackPanel>
 
-                            <StackPanel x:Name="DelayInspectorPanel" Visibility="Collapsed" Margin="0,0,0,12">
+                            <StackPanel x:Name="DelayInspectorPanel" Style="{StaticResource EditorInspectorPanelSectionStyle}" Visibility="Collapsed" Margin="0,0,0,12">
                                 <TextBlock Text="延迟时长 (ms)" Foreground="{DynamicResource EditorTextBrush}" />
                                 <TextBox x:Name="DelayMsTextBox" Margin="0,4,0,12" TextChanged="InspectorField_TextChanged" />
                             </StackPanel>
 
-                            <StackPanel x:Name="IfInspectorPanel" Visibility="Collapsed" Margin="0,0,0,12">
+                            <StackPanel x:Name="IfInspectorPanel" Style="{StaticResource EditorInspectorPanelSectionStyle}" Visibility="Collapsed" Margin="0,0,0,12">
                                 <TextBlock x:Name="IfConditionLabel" Text="结束条件" Foreground="{DynamicResource EditorTextBrush}" />
                                 <ComboBox x:Name="IfConditionComboBox" Margin="0,4,0,12" SelectionChanged="InspectorField_SelectionChanged">
                                     <ComboBoxItem Content="False" />
@@ -1249,7 +1293,7 @@
                                 </ComboBox>
                             </StackPanel>
 
-                            <StackPanel x:Name="ForLoopInspectorPanel" Visibility="Collapsed" Margin="0,0,0,12">
+                            <StackPanel x:Name="ForLoopInspectorPanel" Style="{StaticResource EditorInspectorPanelSectionStyle}" Visibility="Collapsed" Margin="0,0,0,12">
                                 <TextBlock Text="循环次数" Foreground="{DynamicResource EditorTextBrush}" />
                                 <TextBox x:Name="ForLoopCountTextBox" Margin="0,4,0,10" TextChanged="InspectorField_TextChanged" />
                                 <TextBlock x:Name="ForLoopEndConditionLabel" Text="结束条件（为真时跳出）" Foreground="{DynamicResource EditorTextBrush}" />
@@ -1259,7 +1303,7 @@
                                 </ComboBox>
                             </StackPanel>
 
-                            <StackPanel x:Name="WhileLoopInspectorPanel" Visibility="Collapsed" Margin="0,0,0,12">
+                            <StackPanel x:Name="WhileLoopInspectorPanel" Style="{StaticResource EditorInspectorPanelSectionStyle}" Visibility="Collapsed" Margin="0,0,0,12">
                                 <TextBlock x:Name="WhileConditionLabel" Text="结束条件（为真时跳出）" Foreground="{DynamicResource EditorTextBrush}" />
                                 <ComboBox x:Name="WhileLoopConditionComboBox" Margin="0,4,0,10" SelectionChanged="InspectorField_SelectionChanged">
                                     <ComboBoxItem Content="False" />
@@ -1274,7 +1318,7 @@
                                 <TextBox x:Name="WhileMaxIterationsTextBox" Margin="0,4,0,12" TextChanged="InspectorField_TextChanged" />
                             </StackPanel>
 
-                            <StackPanel x:Name="StartProgramInspectorPanel" Visibility="Collapsed" Margin="0,0,0,12">
+                            <StackPanel x:Name="StartProgramInspectorPanel" Style="{StaticResource EditorInspectorPanelSectionStyle}" Visibility="Collapsed" Margin="0,0,0,12">
                                 <TextBlock Text="程序路径" Foreground="{DynamicResource EditorTextBrush}" />
                                 <Grid Margin="0,4,0,10">
                                     <Grid.ColumnDefinitions>
@@ -1300,14 +1344,14 @@
                                 <TextBox x:Name="StartProgramRetryCountTextBox" Margin="0,4,0,12" TextChanged="InspectorField_TextChanged" />
                             </StackPanel>
 
-                            <StackPanel x:Name="PrintLogInspectorPanel" Visibility="Collapsed" Margin="0,0,0,12">
+                            <StackPanel x:Name="PrintLogInspectorPanel" Style="{StaticResource EditorInspectorPanelSectionStyle}" Visibility="Collapsed" Margin="0,0,0,12">
                                 <TextBlock Text="功能" Foreground="{DynamicResource EditorMutedTextBrush}" />
                                 <TextBlock Margin="0,4,0,10" Foreground="{DynamicResource EditorMutedTextBrush}" Text="打印填入的字符串到 log 中。" TextWrapping="Wrap" />
                                 <TextBlock x:Name="PrintLogMessageLabel" Text="字符串" Foreground="{DynamicResource EditorTextBrush}" />
                                 <TextBox x:Name="PrintLogMessageTextBox" Margin="0,4,0,12" TextChanged="InspectorField_TextChanged" />
                             </StackPanel>
 
-                            <StackPanel x:Name="SelectWindowInspectorPanel" Visibility="Collapsed" Margin="0,0,0,12">
+                            <StackPanel x:Name="SelectWindowInspectorPanel" Style="{StaticResource EditorInspectorPanelSectionStyle}" Visibility="Collapsed" Margin="0,0,0,12">
                                 <TextBlock Text="功能" Foreground="{DynamicResource EditorMutedTextBrush}" />
                                 <TextBlock Margin="0,4,0,10"
                                            Foreground="{DynamicResource EditorMutedTextBrush}"
@@ -1335,7 +1379,7 @@
                                 </StackPanel>
                             </StackPanel>
 
-                            <StackPanel x:Name="ToDoInspectorPanel" Visibility="Collapsed" Margin="0,0,0,12">
+                            <StackPanel x:Name="ToDoInspectorPanel" Style="{StaticResource EditorInspectorPanelSectionStyle}" Visibility="Collapsed" Margin="0,0,0,12">
                                 <TextBlock Text="ToDo 目标" Foreground="{DynamicResource EditorMutedTextBrush}" FontWeight="SemiBold" />
                                 <TextBlock Text="搜索节点名或编号" Foreground="{DynamicResource EditorTextBrush}" Margin="0,10,0,0" />
                                 <TextBox x:Name="ToDoSearchBox" Margin="0,4,0,8" TextChanged="ToDoSearchBox_TextChanged" />
@@ -1376,7 +1420,7 @@
                                            TextWrapping="Wrap" />
                             </StackPanel>
 
-                            <StackPanel x:Name="KeyboardInspectorPanel" Visibility="Collapsed" Margin="0,0,0,12">
+                            <StackPanel x:Name="KeyboardInspectorPanel" Style="{StaticResource EditorInspectorPanelSectionStyle}" Visibility="Collapsed" Margin="0,0,0,12">
                                 <TextBlock Text="按键" Foreground="{DynamicResource EditorTextBrush}" />
                                 <ComboBox x:Name="KeyboardKeyComboBox" Margin="0,4,0,12" SelectionChanged="InspectorField_SelectionChanged" />
                                 <TextBlock Text="操作模式" Foreground="{DynamicResource EditorTextBrush}" />
@@ -1402,7 +1446,7 @@
                                 </Grid>
                             </StackPanel>
 
-                            <StackPanel x:Name="KeyChordInspectorPanel" Visibility="Collapsed" Margin="0,0,0,12">
+                            <StackPanel x:Name="KeyChordInspectorPanel" Style="{StaticResource EditorInspectorPanelSectionStyle}" Visibility="Collapsed" Margin="0,0,0,12">
                                 <TextBlock Text="组合键" Foreground="{DynamicResource EditorTextBrush}" />
                                 <TextBox x:Name="KeyChordTextBox" Margin="0,4,0,8" TextChanged="InspectorField_TextChanged" />
                                 <DockPanel Margin="0,0,0,12">
@@ -1441,7 +1485,7 @@
                                            TextWrapping="Wrap" />
                             </StackPanel>
 
-                            <StackPanel x:Name="ScrollWheelInspectorPanel" Visibility="Collapsed" Margin="0,0,0,12">
+                            <StackPanel x:Name="ScrollWheelInspectorPanel" Style="{StaticResource EditorInspectorPanelSectionStyle}" Visibility="Collapsed" Margin="0,0,0,12">
                                 <TextBlock Text="滚轮动作" Foreground="{DynamicResource EditorTextBrush}" />
                                 <ComboBox x:Name="ScrollWheelActionComboBox" Margin="0,4,0,12" SelectionChanged="InspectorField_SelectionChanged">
                                     <ComboBoxItem Content="中键按下" Tag="Press" />
@@ -1457,14 +1501,14 @@
                                 <TextBox x:Name="ScrollWheelDurationTextBox" Margin="0,4,0,12" TextChanged="InspectorField_TextChanged" />
                             </StackPanel>
 
-                            <StackPanel x:Name="MouseMoveInspectorPanel" Visibility="Collapsed" Margin="0,0,0,12">
+                            <StackPanel x:Name="MouseMoveInspectorPanel" Style="{StaticResource EditorInspectorPanelSectionStyle}" Visibility="Collapsed" Margin="0,0,0,12">
                                 <TextBlock x:Name="MouseMovePositionXLabel" Text="目标坐标 X" Foreground="{DynamicResource EditorTextBrush}" />
                                 <TextBox x:Name="MouseMovePositionXTextBox" Margin="0,4,0,10" TextChanged="InspectorField_TextChanged" />
                                 <TextBlock x:Name="MouseMovePositionYLabel" Text="目标坐标 Y" Foreground="{DynamicResource EditorTextBrush}" />
                                 <TextBox x:Name="MouseMovePositionYTextBox" Margin="0,4,0,12" TextChanged="InspectorField_TextChanged" />
                             </StackPanel>
 
-                            <StackPanel x:Name="CommonInspectorPanel" Visibility="Collapsed" Margin="0,0,0,12">
+                            <StackPanel x:Name="CommonInspectorPanel" Style="{StaticResource EditorInspectorPanelSectionStyle}" Visibility="Collapsed" Margin="0,0,0,12">
                                 <TextBlock Text="通用参数" Foreground="{DynamicResource EditorMutedTextBrush}" FontWeight="SemiBold" />
 
                                 <StackPanel x:Name="CommonKeyChordAddPanel" Visibility="Collapsed" Margin="0,10,0,10">

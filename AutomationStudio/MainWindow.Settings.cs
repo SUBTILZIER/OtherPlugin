@@ -20,24 +20,42 @@ public partial class MainWindow
 
     internal void ApplyLayoutSettings(Controls.EditorSurfaceControl surface)
     {
-        surface.ApplyLayout(_appSettings.GraphSidebarWidth, _appSettings.InspectorWidth);
-        LogRow.Height = new GridLength(_appSettings.LogPanelHeight);
-        ContentTreeColumn.Width = new GridLength(_appSettings.ContentTreeWidth);
+        surface.ApplyLayout(
+            ValidLayoutSize(_appSettings.GraphSidebarWidth, 180, 420, 224),
+            ValidLayoutSize(_appSettings.InspectorWidth, 420, 720, 420));
+        ApplyMainLayoutSettings();
+    }
+
+    internal void ApplyMainLayoutSettings()
+    {
+        LogRow.Height = new GridLength(ValidLayoutSize(_appSettings.LogPanelHeight, 180, 2000, 280));
+        ContentTreeColumn.Width = new GridLength(ValidLayoutSize(_appSettings.ContentTreeWidth, 120, 420, 180));
         _layoutLoaded = true;
     }
 
-    internal void NotifyLayoutChanged(Controls.EditorSurfaceControl surface)
+    internal void NotifyLayoutChanged(Controls.EditorSurfaceControl? surface = null)
     {
         if (!_layoutLoaded) return;
-        var layout = surface.ReadLayout();
-        _appSettings.GraphSidebarWidth = layout.Sidebar;
-        _appSettings.InspectorWidth = layout.Inspector;
-        _appSettings.LogPanelHeight = LogRow.ActualHeight;
-        _appSettings.ContentTreeWidth = ContentTreeColumn.ActualWidth;
+        if (surface is not null)
+        {
+            var layout = surface.ReadLayout();
+            _appSettings.GraphSidebarWidth = ValidLayoutSize(layout.Sidebar, 180, 420, _appSettings.GraphSidebarWidth);
+            _appSettings.InspectorWidth = ValidLayoutSize(layout.Inspector, 420, 720, _appSettings.InspectorWidth);
+        }
+        _appSettings.LogPanelHeight = ValidLayoutSize(LogRow.ActualHeight, 180, 2000, _appSettings.LogPanelHeight);
+        _appSettings.ContentTreeWidth = ValidLayoutSize(ContentTreeColumn.ActualWidth, 120, 420, _appSettings.ContentTreeWidth);
         _layoutSaveTimer.Stop();
         _layoutSaveTimer.Tick -= LayoutSaveTimer_Tick;
         _layoutSaveTimer.Tick += LayoutSaveTimer_Tick;
         _layoutSaveTimer.Start();
+    }
+
+    private static double ValidLayoutSize(double value, double minimum, double maximum, double fallback)
+    {
+        if (!double.IsFinite(value) || value <= 0)
+            return fallback;
+
+        return Math.Clamp(value, minimum, maximum);
     }
 
     private void LayoutSaveTimer_Tick(object? sender, EventArgs e)
@@ -46,14 +64,10 @@ public partial class MainWindow
         try { _appSettingsService.Save(_appSettings); } catch (Exception ex) { Logging.Logger.Warn($"保存界面布局失败：{ex.Message}"); }
     }
 
-    private void LayoutSplitter_DragCompleted(object sender, System.Windows.Controls.Primitives.DragCompletedEventArgs e)
+    private void GridSplitter_DragCompleted(object sender, System.Windows.Controls.Primitives.DragCompletedEventArgs e)
     {
-        if (_activeEditorSession?.SurfaceContext?.Surface is { } surface) NotifyLayoutChanged(surface);
+        NotifyLayoutChanged(_activeEditorSession?.SurfaceContext?.Surface);
     }
-
-    private void ToggleLogPanel_Click(object sender, RoutedEventArgs e) => LogRow.Height = LogRow.Height.Value > 1 ? new GridLength(0) : new GridLength(_appSettings.LogPanelHeight);
-    private void ToggleSidebar_Click(object sender, RoutedEventArgs e) { if (_activeEditorSession?.SurfaceContext?.Surface is { } s) { s.ToggleSidebar(); NotifyLayoutChanged(s); } }
-    private void ToggleInspector_Click(object sender, RoutedEventArgs e) { if (_activeEditorSession?.SurfaceContext?.Surface is { } s) { s.ToggleInspector(); NotifyLayoutChanged(s); } }
 
     private void Settings_Click(object sender, RoutedEventArgs e)
     {

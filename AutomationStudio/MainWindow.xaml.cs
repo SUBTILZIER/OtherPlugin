@@ -320,6 +320,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     {
         foreach (var session in _editorSessions)
         {
+            session.IsActive = ReferenceEquals(session, _activeEditorSession);
             session.RefreshDirtyState();
             session.DetachedWindow?.RefreshChrome();
         }

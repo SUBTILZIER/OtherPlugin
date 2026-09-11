@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Text.Json;
 using AutomationStudioWpf.Adapters;
 using AutomationStudioWpf.Graph;
 using AutomationStudioWpf.Services;
@@ -663,16 +664,14 @@ public sealed partial class InspectorController : IDisposable
         if (_editorService.Nodes.FirstOrDefault(n => n.IsSelected) is not { } node || _isLoading)
             return;
 
+        NodeFileModel before = NodeSerializer.ToFileModel(node);
         node.Title = _nodeTitleTextBox.Text.Trim();
 
         if (_activeStructuredProvider is not null &&
             ReferenceEquals(_structuredInspector.Node, node))
         {
             _activeStructuredProvider.Apply(node, _structuredInspector);
-            node.RefreshDescription();
-            _markDirty();
-            _hintTextBlock.Text = $"当前选中：{node.Title}（已自动保存）";
-            _setStatus($"节点已自动保存：{node.Title}");
+            CompleteApply(node, before);
             return;
         }
 
@@ -815,10 +814,7 @@ public sealed partial class InspectorController : IDisposable
                 break;
         }
 
-        node.RefreshDescription();
-        _markDirty();
-        _hintTextBlock.Text = $"当前选中：{node.Title}（已自动保存）";
-        _setStatus($"节点已自动保存：{node.Title}");
+        CompleteApply(node, before);
     }
 
     public bool ToDoTargetSelected()
@@ -842,13 +838,17 @@ public sealed partial class InspectorController : IDisposable
             _isLoading = wasLoading;
         }
 
+        NodeFileModel before = NodeSerializer.ToFileModel(toDoNode);
         toDoNode.TargetNodeTitle = option.Title;
         toDoNode.TargetNodeNumber = option.Number;
         toDoNode.TargetNodeId = option.NodeId;
         toDoNode.RefreshDescription();
         RefreshLocks(toDoNode);
-        _markDirty();
-        _setStatus($"ToDo 目标已选择：{option.Title} {option.Number}");
+        if (HasPersistedChanges(before, toDoNode))
+        {
+            _markDirty();
+            _setStatus($"ToDo 目标已选择：{option.Title} {option.Number}");
+        }
         return true;
     }
 
@@ -942,10 +942,29 @@ public sealed partial class InspectorController : IDisposable
             return;
         }
 
+        NodeFileModel before = NodeSerializer.ToFileModel(node);
         _activeStructuredProvider.Apply(node, _structuredInspector);
+        CompleteApply(node, before);
+    }
+
+    private void CompleteApply(NodeBaseViewModel node, NodeFileModel before)
+    {
         node.RefreshDescription();
+        if (!HasPersistedChanges(before, node))
+        {
+            _hintTextBlock.Text = $"当前选中：{node.Title}";
+            return;
+        }
+
         _markDirty();
         _hintTextBlock.Text = $"当前选中：{node.Title}（已自动保存）";
         _setStatus($"节点已自动保存：{node.Title}");
+    }
+
+    private static bool HasPersistedChanges(NodeFileModel before, NodeBaseViewModel after)
+    {
+        byte[] beforeJson = JsonSerializer.SerializeToUtf8Bytes(before);
+        byte[] afterJson = JsonSerializer.SerializeToUtf8Bytes(NodeSerializer.ToFileModel(after));
+        return !beforeJson.AsSpan().SequenceEqual(afterJson);
     }
 }

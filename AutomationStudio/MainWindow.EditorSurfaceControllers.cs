@@ -150,7 +150,6 @@ public partial class MainWindow
 
     private void ApplyEditorSurfaceContext(EditorSurfaceContext context)
     {
-        ApplyLayoutSettings(context.Surface);
         _graphCommandService = context.CommandService;
         _graphListController = context.GraphListController;
         _functionListController = context.FunctionListController;
@@ -431,6 +430,7 @@ public partial class MainWindow
             return;
 
         var previousOverride = _eventSurfaceSessionOverride;
+        var previousActiveSession = _activeEditorSession;
         var previousContentAsset = _activeContentAsset;
         var previousEditorService = _editorService;
         var previousNodeFactory = _nodeFactory;
@@ -456,20 +456,36 @@ public partial class MainWindow
         }
         finally
         {
-            _eventSurfaceSessionOverride = previousOverride;
-            _activeContentAsset = previousContentAsset;
-            _editorService = previousEditorService;
-            _nodeFactory = previousNodeFactory;
-            _graphCommandService = previousCommandService;
-            _graphListController = previousGraphListController;
-            _functionListController = previousFunctionListController;
-            _activeAssetController = previousActiveAssetController;
-            _canvasPanZoomController = previousCanvasPanZoomController;
-            _nodeDragSelectionController = previousNodeDragSelectionController;
-            _inspectorController = previousInspectorController;
-            _pinConnectionController = previousPinConnectionController;
-            _nodePaletteController = previousNodePaletteController;
-            _graphImportDropController = previousGraphImportDropController;
+            if (!ReferenceEquals(_activeEditorSession, previousActiveSession))
+            {
+                // A routed event can open another asset (for example, a function
+                // call double-click). Keep the newly activated session's routing
+                // state instead of restoring the old surface over it.
+                _eventSurfaceSessionOverride = null;
+                _activeContentAsset = _activeEditorSession?.ContentAsset;
+                _editorService = _activeEditorSession?.EditorService ?? _editorService;
+                _nodeFactory = _activeEditorSession?.NodeFactory ?? _nodeFactory;
+                if (_activeEditorSession?.SurfaceContext is { IsConfigured: true } activeContext)
+                    ApplyEditorSurfaceContext(activeContext);
+                UpdateEditorSessionChrome();
+            }
+            else
+            {
+                _eventSurfaceSessionOverride = previousOverride;
+                _activeContentAsset = previousContentAsset;
+                _editorService = previousEditorService;
+                _nodeFactory = previousNodeFactory;
+                _graphCommandService = previousCommandService;
+                _graphListController = previousGraphListController;
+                _functionListController = previousFunctionListController;
+                _activeAssetController = previousActiveAssetController;
+                _canvasPanZoomController = previousCanvasPanZoomController;
+                _nodeDragSelectionController = previousNodeDragSelectionController;
+                _inspectorController = previousInspectorController;
+                _pinConnectionController = previousPinConnectionController;
+                _nodePaletteController = previousNodePaletteController;
+                _graphImportDropController = previousGraphImportDropController;
+            }
         }
     }
 
@@ -544,7 +560,10 @@ public partial class MainWindow
     private void ConfigureEditorSurface(EditorSessionViewModel session)
     {
         var context = session.EnsureSurfaceContext();
+        bool wasConfigured = context.IsConfigured;
         context.Configure(this, CreateEditorSurfaceHostServices(session));
+        if (!wasConfigured)
+            ApplyLayoutSettings(context.Surface);
         context.Surface.IsExecutionFrozen = IsExecuting;
         if (ReferenceEquals(session, _activeEditorSession))
             ApplyEditorSurfaceContext(context);
@@ -571,6 +590,7 @@ public partial class MainWindow
 
     private void InitializeEditor()
     {
+        ApplyMainLayoutSettings();
         LoadGraphLibrary();
         InitializeNodePalette();
         EnsureCanvasLargeEnough();

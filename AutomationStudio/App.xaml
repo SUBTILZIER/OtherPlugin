@@ -44,7 +44,7 @@
         <SolidColorBrush x:Key="EditorCanvasBackgroundBrush" Color="#17191C" po:Freeze="False" />
         <SolidColorBrush x:Key="EditorCanvasGridBackgroundBrush" Color="#1B1E22" po:Freeze="False" />
         <SolidColorBrush x:Key="EditorCanvasGridLineBrush" Color="#292E34" po:Freeze="False" />
-        <SolidColorBrush x:Key="EditorNodeBackgroundBrush" Color="#24272B" po:Freeze="False" />
+        <SolidColorBrush x:Key="EditorNodeBackgroundBrush" Color="#E624272B" po:Freeze="False" />
         <SolidColorBrush x:Key="EditorExecutionOverlayBrush" Color="#B0181D2A" po:Freeze="False" />
         <SolidColorBrush x:Key="EditorExecutionPinBrush" Color="#F4F4F4" po:Freeze="False" />
         <SolidColorBrush x:Key="EditorCompletionPinBrush" Color="#FFB848" po:Freeze="False" />
@@ -93,7 +93,7 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="{x:Type GridSplitter}">
-                        <Grid Background="Transparent">
+                        <Grid Background="{TemplateBinding Background}">
                             <Border x:Name="SplitterIndicator"
                                     Width="1"
                                     HorizontalAlignment="Center"
@@ -121,7 +121,7 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="{x:Type GridSplitter}">
-                        <Grid Background="Transparent">
+                        <Grid Background="{TemplateBinding Background}">
                             <Border x:Name="SplitterIndicator"
                                     Height="1"
                                     VerticalAlignment="Center"
@@ -379,8 +379,8 @@
                                              VerticalAlignment="Center"
                                              Visibility="Collapsed" />
                                 </Grid>
-                                <ContentPresenter HorizontalAlignment="Left"
-                                                  VerticalAlignment="Center"
+                                <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                                  VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
                                                   RecognizesAccessKey="True"
                                                   TextElement.Foreground="{TemplateBinding Foreground}" />
                             </DockPanel>

@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -28,6 +29,7 @@ public sealed class ScriptPropertiesSummaryControl : WpfUserControl
 
     private readonly ContentAssetViewModel _asset;
     private readonly Func<ContentAssetViewModel, ScriptRunSettings, bool> _saveAction;
+    private readonly Func<bool, bool> _setEnabledAction;
     private readonly HotkeyCaptureCoordinator _hotkeyCaptureCoordinator;
     private readonly Action? _openMainGraphAction;
     private readonly Action? _compileAction;
@@ -48,11 +50,17 @@ public sealed class ScriptPropertiesSummaryControl : WpfUserControl
     private readonly WpfTextBox _startTriggerWindowBox = TextBox("1000", 70);
     private readonly WpfTextBox _stopTriggerWindowBox = TextBox("1000", 70);
     private readonly TextBlock _statusText = new();
+    private readonly WpfCheckBox _enabledCheckBox = new();
+    private readonly Border _enabledBadge = new();
+    private readonly TextBlock _enabledBadgeText = new();
+    private bool _updatingEnabledState;
+    private bool _assetPropertySubscribed;
 
     internal ScriptPropertiesSummaryControl(
         ContentAssetViewModel asset,
         Func<ContentAssetViewModel, ScriptRunSettings, bool> saveAction,
         HotkeyCaptureCoordinator hotkeyCaptureCoordinator,
+        Func<bool, bool> setEnabledAction,
         Action? openMainGraphAction = null,
         Action? compileAction = null,
         Action? runAction = null)
@@ -60,6 +68,7 @@ public sealed class ScriptPropertiesSummaryControl : WpfUserControl
         _asset = asset;
         _saveAction = saveAction;
         _hotkeyCaptureCoordinator = hotkeyCaptureCoordinator;
+        _setEnabledAction = setEnabledAction;
         _openMainGraphAction = openMainGraphAction;
         _compileAction = compileAction;
         _runAction = runAction;
@@ -69,6 +78,12 @@ public sealed class ScriptPropertiesSummaryControl : WpfUserControl
         VerticalAlignment = VerticalAlignment.Stretch;
         Content = Build();
         Refresh();
+        Loaded += (_, _) =>
+        {
+            SubscribeAssetPropertyChanged();
+            RefreshEnabledState();
+        };
+        Unloaded += (_, _) => UnsubscribeAssetPropertyChanged();
     }
 
     public ContentAssetViewModel Asset => _asset;
@@ -77,6 +92,74 @@ public sealed class ScriptPropertiesSummaryControl : WpfUserControl
     {
         CopySettings(_asset.RunSettings, _draft);
         LoadDraftToUi();
+        RefreshEnabledState();
+    }
+
+    private void SubscribeAssetPropertyChanged()
+    {
+        if (_assetPropertySubscribed)
+            return;
+
+        _asset.PropertyChanged += Asset_PropertyChanged;
+        _assetPropertySubscribed = true;
+    }
+
+    private void UnsubscribeAssetPropertyChanged()
+    {
+        if (!_assetPropertySubscribed)
+            return;
+
+        _asset.PropertyChanged -= Asset_PropertyChanged;
+        _assetPropertySubscribed = false;
+    }
+
+    private void Asset_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is not (nameof(ContentAssetViewModel.IsScriptEnabled) or nameof(ContentAssetViewModel.ScriptEnabledToolTip)) &&
+            !string.IsNullOrEmpty(e.PropertyName))
+        {
+            return;
+        }
+
+        if (Dispatcher.CheckAccess())
+            RefreshEnabledState();
+        else
+            Dispatcher.BeginInvoke(RefreshEnabledState);
+    }
+
+    private void SetEnabledFromWorkbench(bool enabled)
+    {
+        if (_updatingEnabledState)
+            return;
+
+        try
+        {
+            _setEnabledAction(enabled);
+        }
+        finally
+        {
+            // A rejected change must restore the model state without resetting the draft.
+            RefreshEnabledState();
+        }
+    }
+
+    private void RefreshEnabledState()
+    {
+        _updatingEnabledState = true;
+        try
+        {
+            bool enabled = _asset.IsScriptEnabled;
+            _enabledCheckBox.IsChecked = enabled;
+            _enabledCheckBox.ToolTip = _asset.ScriptEnabledToolTip;
+            _enabledBadgeText.Text = enabled ? "已启用" : "已停用";
+            _enabledBadge.ToolTip = _asset.ScriptEnabledToolTip;
+            SetResource(_enabledBadge, Border.BackgroundProperty, enabled ? "EditorSectionHeaderAccentBrush" : "EditorDisabledChipBrush");
+            SetResource(_enabledBadgeText, TextBlock.ForegroundProperty, enabled ? "EditorSelectedAccentBrush" : "DisabledForegroundBrush");
+        }
+        finally
+        {
+            _updatingEnabledState = false;
+        }
     }
 
     private UIElement Build()
@@ -84,15 +167,40 @@ public sealed class ScriptPropertiesSummaryControl : WpfUserControl
         var root = new Border
         {
             BorderThickness = new Thickness(0),
-            Padding = new Thickness(4, 4, 4, 12),
+            Padding = new Thickness(0, 0, 0, 12),
             MaxWidth = 980,
             HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch,
             VerticalAlignment = VerticalAlignment.Top,
         };
-        SetResource(root, Border.BackgroundProperty, "EditorPanelBackgroundBrush");
+        root.Background = WpfBrushes.Transparent;
 
         var body = new StackPanel();
         root.Child = body;
+        _enabledBadge.Padding = new Thickness(8, 3, 8, 3);
+        _enabledBadge.CornerRadius = new CornerRadius(5);
+        _enabledBadge.Margin = new Thickness(10, 0, 0, 0);
+        _enabledBadge.Child = _enabledBadgeText;
+        _enabledBadgeText.FontSize = 11;
+        _enabledBadgeText.VerticalAlignment = VerticalAlignment.Center;
+        SetResource(_enabledBadge, Border.BackgroundProperty, "EditorDisabledChipBrush");
+        SetResource(_enabledBadgeText, TextBlock.ForegroundProperty, "EditorMutedTextBrush");
+
+        _enabledCheckBox.Content = "启用脚本";
+        _enabledCheckBox.MinHeight = 26;
+        _enabledCheckBox.VerticalAlignment = VerticalAlignment.Center;
+        _enabledCheckBox.ToolTip = _asset.ScriptEnabledToolTip;
+        SetResource(_enabledCheckBox, WpfControl.ForegroundProperty, "EditorTextBrush");
+        _enabledCheckBox.Checked += (_, _) => SetEnabledFromWorkbench(true);
+        _enabledCheckBox.Unchecked += (_, _) => SetEnabledFromWorkbench(false);
+
+        var enabledControls = new StackPanel
+        {
+            Orientation = System.Windows.Controls.Orientation.Horizontal,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        enabledControls.Children.Add(_enabledCheckBox);
+        enabledControls.Children.Add(_enabledBadge);
+
         var title = new TextBlock
         {
             Text = "脚本工作台",
@@ -100,18 +208,9 @@ public sealed class ScriptPropertiesSummaryControl : WpfUserControl
             FontWeight = FontWeights.SemiBold,
         };
         SetResource(title, TextBlock.ForegroundProperty, "EditorTextBrightBrush");
-        var enabledBadge = new Border
-        {
-            Padding = new Thickness(8, 3, 8, 3),
-            CornerRadius = new CornerRadius(5),
-            HorizontalAlignment = System.Windows.HorizontalAlignment.Right,
-            Child = new TextBlock { Text = _asset.IsScriptEnabled ? "已启用" : "已停用", FontSize = 11 },
-        };
-        SetResource(enabledBadge, Border.BackgroundProperty, _asset.IsScriptEnabled ? "EditorSectionHeaderAccentBrush" : "EditorDisabledChipBrush");
-        SetResource((TextBlock)enabledBadge.Child, TextBlock.ForegroundProperty, _asset.IsScriptEnabled ? "EditorSelectedAccentBrush" : "EditorMutedTextBrush");
         var titleRow = new DockPanel { LastChildFill = true, Margin = new Thickness(0, 0, 0, 2) };
-        DockPanel.SetDock(enabledBadge, Dock.Right);
-        titleRow.Children.Add(enabledBadge);
+        DockPanel.SetDock(enabledControls, Dock.Right);
+        titleRow.Children.Add(enabledControls);
         titleRow.Children.Add(title);
         body.Children.Add(titleRow);
 
@@ -363,7 +462,7 @@ public sealed class ScriptPropertiesSummaryControl : WpfUserControl
             Margin = new Thickness(0, 2, 0, 8),
             Child = stack,
         };
-        SetResource(hotkeyCard, Border.BackgroundProperty, "EditorPanelCardBrush");
+        hotkeyCard.Background = WpfBrushes.Transparent;
         return hotkeyCard;
     }
 
@@ -399,11 +498,11 @@ public sealed class ScriptPropertiesSummaryControl : WpfUserControl
         {
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(8),
-            Padding = new Thickness(12, 10, 12, 8),
+            Padding = new Thickness(12),
             Margin = new Thickness(0, 0, 6, 12),
             Child = stack,
         };
-        SetResource(section, Border.BackgroundProperty, "EditorFieldCardBrush");
+        SetResource(section, Border.BackgroundProperty, "EditorPanelCardBrush");
         SetResource(section, Border.BorderBrushProperty, "EditorPanelBorderBrush");
         return section;
     }

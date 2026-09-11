@@ -13,6 +13,7 @@ public partial class MainWindow
             asset,
             ApplyScriptRunSettings,
             _hotkeyCaptureCoordinator,
+            enabled => SetScriptAssetEnabled(asset, enabled),
             overview ? () => OpenOrActivateAsset(asset) : null,
             overview ? () => CompileActiveAsset(showPrompt: false) : null,
             overview ? () => _ = RunActiveScriptFromToolbarAsync() : null);
@@ -71,6 +72,7 @@ public partial class MainWindow
     {
         surface.ScriptPropertiesSummaryHost.Content = null;
         surface.ScriptPropertiesSummaryHost.Visibility = Visibility.Collapsed;
+        surface.NodeBasicsSection.Visibility = Visibility.Visible;
         surface.NodeBasicsPanel.Visibility = Visibility.Visible;
     }
 
@@ -83,6 +85,7 @@ public partial class MainWindow
         }
 
         surface.InspectorHintTextBlock.Text = $"当前脚本：{asset.Name}";
+        surface.NodeBasicsSection.Visibility = Visibility.Collapsed;
         surface.NodeBasicsPanel.Visibility = Visibility.Collapsed;
         surface.ScriptPropertiesSummaryHost.Content = CreateScriptPropertiesSummary(asset);
         surface.ScriptPropertiesSummaryHost.Visibility = Visibility.Visible;

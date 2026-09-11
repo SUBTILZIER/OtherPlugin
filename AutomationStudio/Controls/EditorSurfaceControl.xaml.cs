@@ -125,7 +125,7 @@ public partial class EditorSurfaceControl : WpfUserControl
     private void ConnectionPath_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e) => Forward(EditorSurfaceEvent.ConnectionPathPreviewMouseRightButtonDown, sender, e);
     private void DeleteConnectionPath_Click(object sender, RoutedEventArgs e) => Forward(EditorSurfaceEvent.DeleteConnectionPathClick, sender, e);
     private void AddRerouteToConnectionPath_Click(object sender, RoutedEventArgs e) => Forward(EditorSurfaceEvent.AddRerouteToConnectionPathClick, sender, e);
-    private void LayoutSplitter_DragCompleted(object sender, System.Windows.Controls.Primitives.DragCompletedEventArgs e) =>
+    private void GridSplitter_DragCompleted(object sender, System.Windows.Controls.Primitives.DragCompletedEventArgs e) =>
         SurfaceContext?.NotifyLayoutChanged();
     private void NodePaletteSearchBox_PreviewKeyDown(object sender, WpfKeyEventArgs e) => SurfaceContext?.HandleNodePaletteKeyDown(e);
 

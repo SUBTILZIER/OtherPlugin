@@ -9,7 +9,6 @@ using WpfBrushes = System.Windows.Media.Brushes;
 using WpfButton = System.Windows.Controls.Button;
 using WpfCursors = System.Windows.Input.Cursors;
 using WpfHorizontalAlignment = System.Windows.HorizontalAlignment;
-using WpfOrientation = System.Windows.Controls.Orientation;
 using WpfPanel = System.Windows.Controls.Panel;
 using WpfRadioButton = System.Windows.Controls.RadioButton;
 using WpfRectangle = System.Windows.Shapes.Rectangle;
@@ -32,6 +31,8 @@ public sealed class SettingsWindow : Window
     private readonly Border _lightThemeCard;
     private readonly WpfRadioButton _closeMinimizeRadio;
     private readonly WpfRadioButton _closeExitRadio;
+    private readonly TextBlock _accentValidationText;
+    private TextBlock? _settingsStatusText;
     private WpfButton? _applyButton;
 
     public SettingsWindow(Window owner, AppSettings currentSettings, Func<AppSettings, bool> apply)
@@ -43,10 +44,10 @@ public sealed class SettingsWindow : Window
 
         Owner = owner;
         Title = "设置";
-        Width = 860;
-        Height = 720;
+        Width = 900;
+        Height = 680;
         MinWidth = 760;
-        MinHeight = 620;
+        MinHeight = 560;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         WindowStyle = WindowStyle.None;
         AllowsTransparency = true;
@@ -82,24 +83,22 @@ public sealed class SettingsWindow : Window
         DockPanel.SetDock(buttonBar, Dock.Bottom);
         layout.Children.Add(buttonBar);
 
-        var contentLayout = new Grid { Margin = new Thickness(14, 12, 14, 14) };
-        contentLayout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(176) });
-        contentLayout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(14) });
+        var contentLayout = new Grid { Margin = new Thickness(16, 12, 16, 14) };
+        contentLayout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(190) });
+        contentLayout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(12) });
         contentLayout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
         var interfacePage = new StackPanel();
-        interfacePage.Children.Add(BuildPageHeader("界面", "主题、强调色和编辑器的视觉层级。"));
+        interfacePage.Children.Add(BuildPageHeader("界面", "主题、强调色与编辑器的视觉层级"));
         var windowPage = new StackPanel();
-        windowPage.Children.Add(BuildPageHeader("窗口行为", "控制关闭按钮和后台运行策略。"));
+        windowPage.Children.Add(BuildPageHeader("窗口行为", "控制关闭窗口后的运行策略"));
 
         var pageHost = new Border
         {
-            CornerRadius = new CornerRadius(12),
-            BorderThickness = new Thickness(1),
-            Padding = new Thickness(18, 14, 18, 10),
+            BorderThickness = new Thickness(0),
+            Padding = new Thickness(0, 0, 0, 0),
         };
-        SetResource(pageHost, Border.BackgroundProperty, "EditorPanelElevatedBrush");
-        SetResource(pageHost, Border.BorderBrushProperty, "EditorPanelBorderBrush");
+        SetResource(pageHost, Border.BackgroundProperty, "EditorPanelBackgroundBrush");
         var pageScroll = new ScrollViewer
         {
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
@@ -114,7 +113,7 @@ public sealed class SettingsWindow : Window
         contentLayout.Children.Add(pageHost);
         layout.Children.Add(contentLayout);
 
-        var themeCard = BuildCard("主题颜色", "暗色采用 UE 风格石墨灰；亮色采用中性灰白。选择后会即时预览，点击应用保存。", out var themeCardBody);
+        var themeCard = BuildCard("主题", "选择编辑器的整体明暗风格，切换后立即预览。", out var themeCardBody);
         var themeRows = new Grid { Margin = new Thickness(0, 12, 0, 0) };
         themeRows.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         themeRows.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(12) });
@@ -142,9 +141,9 @@ public sealed class SettingsWindow : Window
         themeCardBody.Children.Add(themeRows);
         interfacePage.Children.Add(themeCard);
 
-        var accentCard = BuildCard("强调色", "影响选中态、焦点边框、提示框描边和主要按钮色。格式：#RRGGBB；透明度会让颜色更柔和。", out var accentCardBody);
+        var accentCard = BuildCard("强调色", "用于选中态、焦点边框、提示和主要操作按钮。", out var accentCardBody);
         var accentGrid = new Grid { Margin = new Thickness(0, 12, 0, 0) };
-        accentGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        accentGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(72) });
         accentGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         accentGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         accentGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -155,7 +154,7 @@ public sealed class SettingsWindow : Window
         {
             Text = _draft.AccentColor,
             MinWidth = 180,
-            Margin = new Thickness(10, 0, 10, 0),
+            Margin = new Thickness(0, 0, 10, 0),
         };
         Grid.SetColumn(_accentTextBox, 1);
         accentGrid.Children.Add(_accentTextBox);
@@ -178,9 +177,10 @@ public sealed class SettingsWindow : Window
 
         var pickButton = new WpfButton
         {
-            Content = "色盘",
+            Content = "选择颜色",
             Padding = new Thickness(12, 4, 12, 4),
             MinHeight = 30,
+            MinWidth = 84,
             Margin = new Thickness(0, 0, 8, 0),
             ToolTip = "打开自定义颜色选择器",
         };
@@ -190,9 +190,10 @@ public sealed class SettingsWindow : Window
 
         var resetButton = new WpfButton
         {
-            Content = "还原默认",
+            Content = "恢复默认",
             Padding = new Thickness(12, 4, 12, 4),
             MinHeight = 30,
+            MinWidth = 84,
         };
         resetButton.Click += (_, _) =>
         {
@@ -205,6 +206,16 @@ public sealed class SettingsWindow : Window
 
         _accentTextBox.TextChanged += (_, _) => ApplyLivePreviewIfValid();
         accentCardBody.Children.Add(accentGrid);
+
+        _accentValidationText = new TextBlock
+        {
+            Text = "请输入 #RRGGBB 格式的颜色",
+            FontSize = 11,
+            Margin = new Thickness(72, 6, 0, 0),
+            Visibility = Visibility.Collapsed,
+        };
+        SetResource(_accentValidationText, TextBlock.ForegroundProperty, "ValidationErrorBrush");
+        accentCardBody.Children.Add(_accentValidationText);
 
         var opacityGrid = new Grid { Margin = new Thickness(0, 14, 0, 0) };
         opacityGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -235,7 +246,7 @@ public sealed class SettingsWindow : Window
 
         var opacityHint = new TextBlock
         {
-            Text = "18-100，数值越低越柔和",
+            Text = "范围 18-100%，数值越低越柔和",
             Margin = new Thickness(12, 0, 0, 0),
             VerticalAlignment = VerticalAlignment.Center,
         };
@@ -244,9 +255,8 @@ public sealed class SettingsWindow : Window
         opacityGrid.Children.Add(opacityHint);
         accentCardBody.Children.Add(opacityGrid);
 
-        var presetRow = new StackPanel
+        var presetRow = new WrapPanel
         {
-            Orientation = WpfOrientation.Horizontal,
             Margin = new Thickness(0, 12, 0, 0),
         };
         AddPresetButton(presetRow, "雾蓝", "#7C8DFF");
@@ -258,18 +268,18 @@ public sealed class SettingsWindow : Window
         accentCardBody.Children.Add(presetRow);
         interfacePage.Children.Add(accentCard);
 
-        var closeCard = BuildCard("关闭窗口时", "控制点击主窗口右上角 × 时的行为。默认最小化到托盘，不再每次弹窗询问。", out var closeCardBody);
+        var closeSection = BuildFlatSection("关闭窗口时", "选择点击右上角关闭按钮后的行为。", out var closeSectionBody);
         _closeMinimizeRadio = BuildOptionRadio(
-            "最小化到托盘（默认）",
-            "点击关闭按钮时隐藏主窗口，程序仍在托盘运行，脚本热键继续可用。",
+            "最小化到托盘",
+            "窗口隐藏到托盘，程序继续运行，脚本热键仍然有效。",
             _draft.WindowCloseAction == AppWindowCloseAction.MinimizeToTray);
         _closeExitRadio = BuildOptionRadio(
-            "关闭软件",
-            "点击关闭按钮时直接退出程序；如有未保存资产，仍会先询问是否保存。",
+            "退出应用",
+            "退出程序；如果存在未保存内容，关闭前仍会提示保存。",
             _draft.WindowCloseAction == AppWindowCloseAction.ExitApplication);
-        closeCardBody.Children.Add(_closeMinimizeRadio);
-        closeCardBody.Children.Add(_closeExitRadio);
-        windowPage.Children.Add(closeCard);
+        closeSectionBody.Children.Add(_closeMinimizeRadio);
+        closeSectionBody.Children.Add(_closeExitRadio);
+        windowPage.Children.Add(closeSection);
 
         var pageContent = new Grid();
         pageContent.Children.Add(interfacePage);
@@ -412,7 +422,7 @@ public sealed class SettingsWindow : Window
         });
         titleStack.Children.Add(new TextBlock
         {
-            Text = "主题、颜色和界面显示选项",
+            Text = "主题、强调色与窗口行为",
             FontSize = 12,
             Margin = new Thickness(0, 4, 0, 0),
         });
@@ -441,23 +451,31 @@ public sealed class SettingsWindow : Window
     {
         var bar = new Border
         {
-            Padding = new Thickness(18, 12, 18, 16),
+            Padding = new Thickness(18, 10, 18, 14),
             BorderThickness = new Thickness(0, 1, 0, 0),
         };
         SetResource(bar, Border.BackgroundProperty, "EditorChromeBrush");
         SetResource(bar, Border.BorderBrushProperty, "EditorSectionHeaderBrush");
 
-        var buttons = new StackPanel
+        var layout = new Grid();
+        layout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        layout.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        _settingsStatusText = new TextBlock
         {
-            Orientation = WpfOrientation.Horizontal,
-            HorizontalAlignment = WpfHorizontalAlignment.Right,
+            Text = "修改会实时预览，点击应用并关闭保存。",
+            FontSize = 11,
+            VerticalAlignment = VerticalAlignment.Center,
         };
+        SetResource(_settingsStatusText, TextBlock.ForegroundProperty, "EditorMutedTextBrush");
+        layout.Children.Add(_settingsStatusText);
 
         var applyButton = new WpfButton
         {
-            Content = "应用",
-            MinWidth = 96,
+            Content = "应用并关闭",
+            MinWidth = 112,
             Height = 32,
+            Margin = new Thickness(16, 0, 0, 0),
         };
         applyButton.Click += (_, _) =>
         {
@@ -467,9 +485,10 @@ public sealed class SettingsWindow : Window
             }
         };
         _applyButton = applyButton;
-        buttons.Children.Add(applyButton);
+        Grid.SetColumn(applyButton, 1);
+        layout.Children.Add(applyButton);
 
-        bar.Child = buttons;
+        bar.Child = layout;
         return bar;
     }
 
@@ -513,6 +532,36 @@ public sealed class SettingsWindow : Window
         return outer;
     }
 
+    private StackPanel BuildFlatSection(string title, string description, out StackPanel body)
+    {
+        body = new StackPanel
+        {
+            Margin = new Thickness(0, 10, 0, 0),
+        };
+
+        var section = new StackPanel();
+        var titleText = new TextBlock
+        {
+            Text = title,
+            FontSize = 14,
+            FontWeight = FontWeights.SemiBold,
+        };
+        SetResource(titleText, TextBlock.ForegroundProperty, "EditorTextBrightBrush");
+        section.Children.Add(titleText);
+
+        var descriptionText = new TextBlock
+        {
+            Text = description,
+            FontSize = 11,
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 4, 0, 0),
+        };
+        SetResource(descriptionText, TextBlock.ForegroundProperty, "EditorMutedTextBrush");
+        section.Children.Add(descriptionText);
+        section.Children.Add(body);
+        return section;
+    }
+
     private StackPanel BuildPageHeader(string title, string description)
     {
         var header = new StackPanel { Margin = new Thickness(0, 0, 0, 4) };
@@ -541,11 +590,11 @@ public sealed class SettingsWindow : Window
     {
         var border = new Border
         {
-            CornerRadius = new CornerRadius(12),
+            CornerRadius = new CornerRadius(8),
             BorderThickness = new Thickness(1),
-            Padding = new Thickness(8),
+            Padding = new Thickness(4),
         };
-        SetResource(border, Border.BackgroundProperty, "EditorPanelCardBrush");
+        SetResource(border, Border.BackgroundProperty, "EditorPanelBackgroundBrush");
         SetResource(border, Border.BorderBrushProperty, "EditorPanelBorderBrush");
 
         var navigation = new StackPanel();
@@ -554,7 +603,7 @@ public sealed class SettingsWindow : Window
             Text = "设置",
             FontSize = 13,
             FontWeight = FontWeights.SemiBold,
-            Margin = new Thickness(8, 6, 8, 10),
+            Margin = new Thickness(10, 8, 10, 8),
         };
         SetResource(heading, TextBlock.ForegroundProperty, "EditorMutedTextBrush");
         navigation.Children.Add(heading);
@@ -576,26 +625,60 @@ public sealed class SettingsWindow : Window
         };
         SetResource(icon, TextBlock.ForegroundProperty, "AccentBrush");
 
-        var text = new StackPanel();
-        text.Children.Add(new TextBlock { Text = title, FontWeight = FontWeights.SemiBold });
-        text.Children.Add(new TextBlock { Text = description, FontSize = 11, Margin = new Thickness(0, 2, 0, 0) });
-        SetResource(text.Children[0], TextBlock.ForegroundProperty, "EditorTextBrush");
-        SetResource(text.Children[1], TextBlock.ForegroundProperty, "EditorMutedTextBrush");
+        var titleText = new TextBlock
+        {
+            Text = title,
+            FontWeight = FontWeights.SemiBold,
+            TextAlignment = TextAlignment.Left,
+            HorizontalAlignment = WpfHorizontalAlignment.Left,
+        };
+        var descriptionText = new TextBlock
+        {
+            Text = description,
+            FontSize = 11,
+            Margin = new Thickness(0, 2, 0, 0),
+            TextAlignment = TextAlignment.Left,
+            HorizontalAlignment = WpfHorizontalAlignment.Left,
+        };
+        SetResource(titleText, TextBlock.ForegroundProperty, "EditorTextBrush");
+        SetResource(descriptionText, TextBlock.ForegroundProperty, "EditorMutedTextBrush");
 
-        var content = new StackPanel { Orientation = WpfOrientation.Horizontal };
+        var text = new StackPanel
+        {
+            HorizontalAlignment = WpfHorizontalAlignment.Stretch,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        text.Children.Add(titleText);
+        text.Children.Add(descriptionText);
+
+        var content = new Grid { HorizontalAlignment = WpfHorizontalAlignment.Stretch };
+        content.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(3) });
+        content.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(28) });
+        content.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        var indicator = new Border
+        {
+            Width = 3,
+            CornerRadius = new CornerRadius(2),
+            VerticalAlignment = VerticalAlignment.Stretch,
+            Background = WpfBrushes.Transparent,
+        };
+        Grid.SetColumn(indicator, 0);
+        Grid.SetColumn(icon, 1);
+        Grid.SetColumn(text, 2);
+        content.Children.Add(indicator);
         content.Children.Add(icon);
         content.Children.Add(text);
         var button = new WpfButton
         {
             Content = content,
-            HorizontalContentAlignment = WpfHorizontalAlignment.Left,
+            HorizontalContentAlignment = WpfHorizontalAlignment.Stretch,
             MinHeight = 52,
             Padding = new Thickness(10, 7, 8, 7),
             Margin = new Thickness(0, 0, 0, 6),
             Tag = title,
         };
-        SetResource(button, WpfButton.BackgroundProperty, "EditorPanelCardBrush");
-        SetResource(button, WpfButton.BorderBrushProperty, "EditorPanelBorderBrush");
+        SetResource(button, WpfButton.BackgroundProperty, "EditorPanelBackgroundBrush");
+        SetResource(button, WpfButton.BorderBrushProperty, "EditorPanelBackgroundBrush");
         return button;
     }
 
@@ -604,9 +687,23 @@ public sealed class SettingsWindow : Window
         var buttons = (navigation.Child as StackPanel)?.Children.OfType<WpfButton>().ToList() ?? [];
         for (int i = 0; i < buttons.Count; i++)
         {
-            SetResource(buttons[i], WpfButton.BackgroundProperty, i == index ? "EditorSelectedAccentBrush" : "EditorPanelCardBrush");
-            SetResource(buttons[i], WpfButton.BorderBrushProperty, i == index ? "EditorSelectedBorderBrush" : "EditorPanelBorderBrush");
-            SetResource(buttons[i], WpfButton.ForegroundProperty, i == index ? "EditorSelectionTextBrush" : "EditorTextBrush");
+            bool selected = i == index;
+            SetResource(buttons[i], WpfButton.BackgroundProperty, selected ? "EditorListSelectedBrush" : "EditorPanelBackgroundBrush");
+            SetResource(buttons[i], WpfButton.BorderBrushProperty, selected ? "EditorSelectedBorderBrush" : "EditorPanelBackgroundBrush");
+            SetResource(buttons[i], WpfButton.ForegroundProperty, selected ? "EditorSelectionTextBrush" : "EditorTextBrush");
+
+            if (buttons[i].Content is Grid content && content.Children.Count >= 3)
+            {
+                if (content.Children[0] is Border indicator)
+                    SetResource(indicator, Border.BackgroundProperty, selected ? "EditorSelectedBorderBrush" : "EditorPanelBackgroundBrush");
+                if (content.Children[1] is TextBlock icon)
+                    SetResource(icon, TextBlock.ForegroundProperty, selected ? "EditorSelectionTextBrush" : "AccentBrush");
+                if (content.Children[2] is StackPanel text && text.Children.Count >= 2)
+                {
+                    SetResource(text.Children[0], TextBlock.ForegroundProperty, selected ? "EditorSelectionTextBrush" : "EditorTextBrush");
+                    SetResource(text.Children[1], TextBlock.ForegroundProperty, selected ? "EditorSelectionTextBrush" : "EditorMutedTextBrush");
+                }
+            }
         }
 
         interfacePage.Visibility = index == 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -618,8 +715,8 @@ public sealed class SettingsWindow : Window
     {
         SetResource(_darkThemeCard, Border.BorderBrushProperty, _darkThemeRadio.IsChecked == true ? "EditorSelectedAccentBrush" : "EditorPanelBorderBrush");
         SetResource(_lightThemeCard, Border.BorderBrushProperty, _lightThemeRadio.IsChecked == true ? "EditorSelectedAccentBrush" : "EditorPanelBorderBrush");
-        _darkThemeCard.Opacity = _darkThemeRadio.IsChecked == true ? 1 : 0.72;
-        _lightThemeCard.Opacity = _lightThemeRadio.IsChecked == true ? 1 : 0.72;
+        SetResource(_darkThemeCard, Border.BackgroundProperty, _darkThemeRadio.IsChecked == true ? "EditorSectionHeaderAccentBrush" : "EditorFieldCardBrush");
+        SetResource(_lightThemeCard, Border.BackgroundProperty, _lightThemeRadio.IsChecked == true ? "EditorSectionHeaderAccentBrush" : "EditorFieldCardBrush");
     }
 
     private TextBlock BuildLabel(string text)
@@ -629,6 +726,7 @@ public sealed class SettingsWindow : Window
             Text = text,
             VerticalAlignment = VerticalAlignment.Center,
             FontWeight = FontWeights.SemiBold,
+            HorizontalAlignment = WpfHorizontalAlignment.Left,
         };
         SetResource(label, TextBlock.ForegroundProperty, "EditorTextBrush");
         return label;
@@ -636,11 +734,20 @@ public sealed class SettingsWindow : Window
 
     private WpfRadioButton BuildOptionRadio(string title, string description, bool isChecked)
     {
+        var indicator = new Border
+        {
+            Width = 3,
+            CornerRadius = new CornerRadius(2),
+            VerticalAlignment = VerticalAlignment.Stretch,
+            Background = WpfBrushes.Transparent,
+        };
         var stack = new StackPanel();
         var titleText = new TextBlock
         {
             Text = title,
             FontWeight = FontWeights.SemiBold,
+            TextAlignment = TextAlignment.Left,
+            HorizontalAlignment = WpfHorizontalAlignment.Left,
         };
         SetResource(titleText, TextBlock.ForegroundProperty, "EditorTextBrush");
         var descriptionText = new TextBlock
@@ -649,21 +756,57 @@ public sealed class SettingsWindow : Window
             TextWrapping = TextWrapping.Wrap,
             FontSize = 12,
             Margin = new Thickness(0, 3, 0, 0),
+            TextAlignment = TextAlignment.Left,
+            HorizontalAlignment = WpfHorizontalAlignment.Left,
         };
         SetResource(descriptionText, TextBlock.ForegroundProperty, "EditorMutedTextBrush");
         stack.Children.Add(titleText);
         stack.Children.Add(descriptionText);
 
+        var content = new Grid();
+        content.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(3) });
+        content.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(12) });
+        content.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        Grid.SetColumn(indicator, 0);
+        Grid.SetColumn(stack, 2);
+        content.Children.Add(indicator);
+        content.Children.Add(stack);
+
         var radio = new WpfRadioButton
         {
-            Content = stack,
+            Content = content,
             IsChecked = isChecked,
-            Margin = new Thickness(0, 0, 0, 12),
+            Margin = new Thickness(0, 0, 0, 4),
+            Padding = new Thickness(8, 8, 8, 8),
+            MinHeight = 56,
             ToolTip = description,
-            VerticalContentAlignment = VerticalAlignment.Top,
+            HorizontalContentAlignment = WpfHorizontalAlignment.Stretch,
+            VerticalContentAlignment = VerticalAlignment.Center,
+            Tag = indicator,
         };
+        SetResource(radio, WpfRadioButton.BackgroundProperty, "EditorPanelBackgroundBrush");
+        SetResource(radio, WpfRadioButton.BorderBrushProperty, "EditorPanelBackgroundBrush");
         SetResource(radio, System.Windows.Controls.Control.ForegroundProperty, "EditorTextBrush");
+        radio.Checked += (_, _) => UpdateOptionRadioVisual(radio);
+        radio.Unchecked += (_, _) => UpdateOptionRadioVisual(radio);
+        UpdateOptionRadioVisual(radio);
         return radio;
+    }
+
+    private void UpdateOptionRadioVisual(WpfRadioButton radio)
+    {
+        bool selected = radio.IsChecked == true;
+        SetResource(radio, WpfRadioButton.BackgroundProperty, selected ? "EditorListSelectedBrush" : "EditorPanelBackgroundBrush");
+        SetResource(radio, WpfRadioButton.BorderBrushProperty, selected ? "EditorSelectedBorderBrush" : "EditorPanelBackgroundBrush");
+        if (radio.Tag is Border indicator)
+            SetResource(indicator, Border.BackgroundProperty, selected ? "EditorSelectedBorderBrush" : "EditorPanelBackgroundBrush");
+
+        if (radio.Content is Grid content && content.Children.OfType<StackPanel>().FirstOrDefault() is { } text
+            && text.Children.Count >= 2)
+        {
+            SetResource(text.Children[0], TextBlock.ForegroundProperty, selected ? "EditorSelectionTextBrush" : "EditorTextBrush");
+            SetResource(text.Children[1], TextBlock.ForegroundProperty, selected ? "EditorSelectionTextBrush" : "EditorMutedTextBrush");
+        }
     }
 
     private void AddPresetButton(WpfPanel parent, string label, string color)
@@ -688,10 +831,12 @@ public sealed class SettingsWindow : Window
     {
         if (!AppThemeService.TryParseColor(_accentTextBox.Text, out var accent))
         {
-            ThemedDialog.Show(this, "请输入 #RRGGBB 格式的颜色，例如 #4FA3FF。", "颜色格式无效", MessageBoxButton.OK, MessageBoxImage.Warning);
+            SetAccentValidation(true);
+            _accentTextBox.Focus();
             return false;
         }
 
+        SetAccentValidation(false);
         _draft.ThemeMode = _lightThemeRadio.IsChecked == true ? AppThemeMode.Light : AppThemeMode.Dark;
         _draft.AccentColor = AppThemeService.ToHex(accent);
         _draft.AccentOpacity = ReadAccentOpacity();
@@ -708,10 +853,12 @@ public sealed class SettingsWindow : Window
         UpdateThemeCards();
         if (!AppThemeService.TryParseColor(_accentTextBox.Text, out var accent))
         {
+            SetAccentValidation(true);
             UpdateApplyButtonState();
             return;
         }
 
+        SetAccentValidation(false);
         _draft.ThemeMode = _lightThemeRadio.IsChecked == true ? AppThemeMode.Light : AppThemeMode.Dark;
         _draft.AccentColor = AppThemeService.ToHex(accent);
         _draft.AccentOpacity = ReadAccentOpacity();
@@ -726,12 +873,29 @@ public sealed class SettingsWindow : Window
         if (_applyButton is null)
             return;
 
-        _applyButton.IsEnabled = AppThemeService.TryParseColor(_accentTextBox.Text, out _)
+        bool validColor = AppThemeService.TryParseColor(_accentTextBox.Text, out _);
+        bool changed = validColor
             && (_draft.ThemeMode != _baselineSettings.ThemeMode
                 || !string.Equals(_draft.AccentColor, _baselineSettings.AccentColor, StringComparison.OrdinalIgnoreCase)
                 || Math.Abs(_draft.AccentOpacity - _baselineSettings.AccentOpacity) > 0.0001
                 || _draft.WindowCloseAction != _baselineSettings.WindowCloseAction);
-        _applyButton.ToolTip = _applyButton.IsEnabled ? "应用设置并关闭" : "没有待应用的设置变更";
+        _applyButton.IsEnabled = changed;
+        _applyButton.ToolTip = !validColor
+            ? "请先修正强调色格式"
+            : changed ? "应用设置并关闭" : "没有待应用的设置变更";
+        if (_settingsStatusText is not null)
+        {
+            _settingsStatusText.Text = !validColor
+                ? "强调色格式无效，请修正后应用。"
+                : changed ? "修改会实时预览，点击应用并关闭保存。" : "当前设置已保存。";
+            SetResource(_settingsStatusText, TextBlock.ForegroundProperty, !validColor ? "ValidationErrorBrush" : "EditorMutedTextBrush");
+        }
+    }
+
+    private void SetAccentValidation(bool invalid)
+    {
+        _accentValidationText.Visibility = invalid ? Visibility.Visible : Visibility.Collapsed;
+        SetResource(_accentTextBox, System.Windows.Controls.Control.BorderBrushProperty, invalid ? "ValidationErrorBrush" : "InputBorderBrush");
     }
 
     private void RefreshAccentPreview()

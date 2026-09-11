@@ -296,13 +296,6 @@ public partial class MainWindow
         }
 
         var surface = TryGetActiveEditorSurface();
-        if ((Keyboard.Modifiers & ModifierKeys.Alt) != 0 && surface is not null && e.Key is Key.D1 or Key.D2 or Key.D3)
-        {
-            if (e.Key == Key.D1) ToggleSidebar_Click(this, new RoutedEventArgs());
-            else if (e.Key == Key.D2) ToggleInspector_Click(this, new RoutedEventArgs());
-            else ToggleLogPanel_Click(this, new RoutedEventArgs());
-            e.Handled = true; return;
-        }
         if ((Keyboard.Modifiers & ModifierKeys.Control) != 0 && e.Key == Key.F)
         {
             _contentBrowserSearchBox?.Focus(); e.Handled = true; return;

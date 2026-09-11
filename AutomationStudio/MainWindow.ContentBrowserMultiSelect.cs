@@ -429,6 +429,49 @@ public partial class MainWindow
         }
     }
 
+    private void QueueEditorActivationInputReset()
+    {
+        Dispatcher.BeginInvoke(
+            System.Windows.Threading.DispatcherPriority.Input,
+            new Action(ResetTransientPointerStateAfterEditorActivation));
+    }
+
+    private void ResetTransientPointerStateAfterEditorActivation()
+    {
+        if (_isContentBoxSelecting)
+            EndContentBoxSelection();
+
+        _contentDragCandidate = null;
+        _isContentDragActive = false;
+        ContentBrowserListBox.ReleaseMouseCapture();
+        ContentFolderListBox.ReleaseMouseCapture();
+
+        foreach (var session in _editorSessions)
+        {
+            if (session.SurfaceContext is not { IsConfigured: true } context)
+                continue;
+
+            context.NodeDragSelectionController.CancelSelection();
+            context.NodeDragSelectionController.CancelDrag();
+            context.CanvasPanZoomController.EndPan();
+            context.PinConnectionController.Cancel(null);
+            context.CloseNodePalette();
+            context.Surface.GraphViewport.ReleaseMouseCapture();
+        }
+
+        // Asset activation is initiated from a mouse-down route. Release only
+        // after that route completes so the next input can reach GridSplitter.
+        System.Windows.Input.Mouse.Capture(null);
+    }
+
+    private void ContentBrowserListBox_LostMouseCapture(object sender, WpfMouseEventArgs e)
+    {
+        if (_isContentBoxSelecting)
+            EndContentBoxSelection();
+
+        _contentDragCandidate = null;
+    }
+
     private void EnsureContentSelectionAdorner()
     {
         if (_contentSelectionAdorner is not null)

@@ -518,7 +518,10 @@ public partial class MainWindow
             return false;
         }
 
-        OpenOrActivateAsset(target.Asset, target.Graph, kind);
+        EditorSessionViewModel targetSession = OpenOrActivateAsset(target.Asset, target.Graph, kind);
+        // Cross-asset navigation creates/activates a session. Refresh the chrome
+        // before querying the newly active surface so its tab is visible immediately.
+        UpdateEditorSessionChrome();
 
         if (TryGetActiveEditorSurface() is not { } surface)
             return false;
@@ -531,9 +534,25 @@ public partial class MainWindow
         listBox.Focus();
         UpdateGraphSectionVisibility();
         QueueAssetCompileButtonStateUpdate();
+        QueueCallableTargetSessionActivation(targetSession);
 
         SetStatus($"已跳转到函数：{GetContentAssetPath(target.Asset)}/{target.Graph.Name}");
         return true;
+    }
+
+    private void QueueCallableTargetSessionActivation(EditorSessionViewModel targetSession)
+    {
+        Dispatcher.BeginInvoke(new Action(() =>
+        {
+            if (!_editorSessions.Contains(targetSession) || targetSession.DockMode == EditorDockMode.Detached)
+                return;
+
+            // The callable jump starts during PreviewMouseLeftButtonDown. A later
+            // handler in that same input route can promote the source session again.
+            // Re-activate without reloading after the routed event has completed.
+            ActivateEditorSessionFromMainTab(targetSession);
+            UpdateEditorSessionChrome();
+        }), DispatcherPriority.Input);
     }
 
     private CallableGraphLocation? FindCallableGraphLocation(string graphId, GraphAssetKind kind)
