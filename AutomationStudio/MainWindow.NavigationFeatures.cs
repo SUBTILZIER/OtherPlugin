@@ -290,7 +290,7 @@ public partial class MainWindow
             Height = 22,
             Margin = new Thickness(0, 4, 8, 4),
             Padding = new Thickness(6, 2, 6, 2),
-            ToolTip = "支持关键字、模糊匹配、type:script、type:function、type:folder、is:favorite。",
+            ToolTip = "支持关键字、模糊匹配、type:script、type:function、type:folder。",
         };
         _contentBrowserSearchBox.SetValue(System.Windows.Automation.AutomationProperties.NameProperty, "内容搜索");
         _contentBrowserSearchBox.TextChanged += ContentBrowserSearchBox_TextChanged;
@@ -316,10 +316,6 @@ public partial class MainWindow
         _contentTypeFilter.Items.Add("全部"); _contentTypeFilter.Items.Add("脚本"); _contentTypeFilter.Items.Add("函数库"); _contentTypeFilter.Items.Add("文件夹"); _contentTypeFilter.SelectedIndex = _appSettings.ContentBrowserTypeFilter switch { "script" => 1, "function" => 2, "folder" => 3, _ => 0 };
         _contentTypeFilter.SelectionChanged += (_, _) => { _appSettings.ContentBrowserTypeFilter = _contentTypeFilter.SelectedIndex switch { 1=>"script",2=>"function",3=>"folder",_=>null }; try { _appSettingsService.Save(_appSettings); } catch { } if (_contentBrowserSearchBox is null) return; var q = System.Text.RegularExpressions.Regex.Replace(_contentBrowserSearchBox.Text, @"\btype:\S+", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase).Trim(); string? t = _contentTypeFilter.SelectedIndex switch { 1=>"script",2=>"function",3=>"folder",_=>null }; _contentBrowserSearchBox.Text = t is null ? q : (q + " type:" + t).Trim(); };
         ContentBrowserHeaderBar.Children.Add(_contentTypeFilter);
-        var favoriteButton = new System.Windows.Controls.Button { Content = "★", Width = 26, Height = 22, Padding = new Thickness(0), ToolTip = "只显示收藏" };
-        favoriteButton.SetValue(System.Windows.Automation.AutomationProperties.NameProperty, "收藏过滤");
-        favoriteButton.Click += (_, _) => { if (_contentBrowserSearchBox is null) return; string q = _contentBrowserSearchBox.Text; _contentBrowserSearchBox.Text = q.Contains("is:favorite", StringComparison.OrdinalIgnoreCase) ? q.Replace("is:favorite", "", StringComparison.OrdinalIgnoreCase).Trim() : (q + " is:favorite").Trim(); };
-        ContentBrowserHeaderBar.Children.Add(favoriteButton);
     }
 
     private void ContentBrowserSearchBox_TextChanged(object sender, WpfTextChangedEventArgs e)
@@ -367,13 +363,11 @@ public partial class MainWindow
         try
         {
             var tokens = SplitContentSearchTokens(query);
-            bool favoriteOnly = tokens.Any(t => string.Equals(t, "is:favorite", StringComparison.OrdinalIgnoreCase));
             var typeToken = tokens.FirstOrDefault(t => t.StartsWith("type:", StringComparison.OrdinalIgnoreCase));
             ContentAssetKind? typeFilter = typeToken is null ? null : typeToken[5..].ToLowerInvariant() switch { "script" => ContentAssetKind.Script, "function" or "functionlibrary" => ContentAssetKind.FunctionLibrary, "folder" => ContentAssetKind.Folder, _ => null };
             var index = GetContentBrowserIndex();
             var results = index.SearchEntries
                 .Where(entry => index.IsInScope(entry.Asset, _currentContentFolderId))
-                .Where(entry => !favoriteOnly || entry.Asset.IsFavorite)
                 .Where(entry => typeFilter is null || entry.Asset.Kind == typeFilter)
                 .Where(entry => ContentAssetMatchesQuery(entry, tokens))
                 .OrderByDescending(entry => entry.Asset.IsFolder)
@@ -400,7 +394,7 @@ public partial class MainWindow
     private static bool ContentAssetMatchesQuery(ContentAssetSearchEntry entry, IReadOnlyList<string> tokens)
     {
         return tokens.Count == 0 ||
-               tokens.Where(token => !token.StartsWith("type:", StringComparison.OrdinalIgnoreCase) && !string.Equals(token, "is:favorite", StringComparison.OrdinalIgnoreCase)).All(token => ContainsIgnoreCase(entry.SearchableText, token) ||
+               tokens.Where(token => !token.StartsWith("type:", StringComparison.OrdinalIgnoreCase)).All(token => ContainsIgnoreCase(entry.SearchableText, token) ||
                                    IsFuzzyMatch(entry.SearchableText, token));
     }
 

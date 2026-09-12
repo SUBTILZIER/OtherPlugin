@@ -15,7 +15,6 @@ public partial class MainWindow
         ContentBrowserItems.Clear();
         foreach (var item in _graphLibraryService.LoadContentLibrary())
         {
-            item.IsFavorite = _appSettings.FavoriteAssetIds.Contains(item.Id);
             ContentBrowserItems.Add(item);
         }
 

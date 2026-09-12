@@ -161,40 +161,7 @@ public partial class MainWindow
         var targets = GetTopLevelContentAssets(GetSelectedContentAssetList());
         if (targets.Count == 0)
             return false;
-
-        if (!CanDeleteContentAssets(targets))
-            return true;
-
-        string message = targets.Count == 1
-            ? $"是否删除：{targets[0].Name}？"
-            : $"是否删除 {targets.Count} 个资产？\n\n{string.Join("\n", targets.Take(8).Select(item => "- " + item.Name))}{(targets.Count > 8 ? "\n..." : string.Empty)}";
-
-        var result = ThemedDialog.ShowCustom(this, message, "删除资产", MessageBoxImage.Question, new ThemedDialogButton("删除", MessageBoxResult.Yes, true), new ThemedDialogButton("取消", MessageBoxResult.Cancel));
-        if (result != MessageBoxResult.Yes)
-            return true;
-
-        var deletingIds = targets.Select(item => item.Id).ToHashSet();
-
-        foreach (var item in targets)
-        {
-            foreach (var child in ContentBrowserItems.Where(child => child.ParentFolderId == item.Id && !deletingIds.Contains(child.Id)).ToList())
-            {
-                child.ParentFolderId = item.ParentFolderId;
-                child.IsDirty = true;
-            }
-        }
-
-        foreach (var item in targets)
-            ContentBrowserItems.Remove(item);
-
-        CloseEditorSessionsForAssetIds(deletingIds);
-
-        ContentBrowserListBox.SelectedItems.Clear();
-        _contentRangeAnchor = null;
-        RefreshContentBrowserViews();
-        PersistAssetLibrary();
-        SetStatus($"已删除{targets.Count} 个资产。");
-        return true;
+        return DeleteContentAssetsWithPolicy(targets);
     }
 
     private void ContentBrowserThemed_PreviewDrop(object sender, WpfDragEventArgs e)

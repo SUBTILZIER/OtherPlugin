@@ -825,20 +825,11 @@
                                                         </ItemsControl.ItemTemplate>
                                                     </ItemsControl>
                                                 </Grid>
-                                                <Border x:Name="NodeSelectionHalo"
-                                                        Margin="-3"
-                                                        BorderBrush="{DynamicResource EditorSelectionGlowBrush}"
-                                                        BorderThickness="2"
-                                                        CornerRadius="8"
-                                                        IsHitTestVisible="False"
-                                                        Opacity="0" />
                                              </Grid>
                                          </Border>
                                          <DataTemplate.Triggers>
                                              <DataTrigger Binding="{Binding IsSelected}" Value="True">
                                                  <Setter TargetName="NodeCard" Property="BorderBrush" Value="{DynamicResource EditorSelectionGlowBrush}" />
-                                                 <Setter TargetName="NodeCard" Property="BorderThickness" Value="3" />
-                                                 <Setter TargetName="NodeSelectionHalo" Property="Opacity" Value="1" />
                                              </DataTrigger>
                                          </DataTemplate.Triggers>
                                      </DataTemplate>

@@ -545,30 +545,7 @@ public partial class MainWindow
         if ((_contentBrowserContextTargetAsset ?? GetSelectedContentAsset()) is not ContentAssetViewModel item)
             return;
 
-        _contentBrowserContextTargetAsset = null;
-        _contentBrowserContextTargetsAsset = false;
-        if (!CanDeleteContentAssets([item]))
-            return;
-
-        var result = ThemedDialog.ShowCustom(
-            this,
-            $"是否删除：{item.Name}？",
-            "删除资产",
-            MessageBoxImage.Question,
-            new ThemedDialogButton("删除", MessageBoxResult.Yes, true),
-            new ThemedDialogButton("取消", MessageBoxResult.Cancel));
-        if (result != MessageBoxResult.Yes)
-            return;
-
-        var deletingIds = new HashSet<string> { item.Id };
-        foreach (var child in ContentBrowserItems.Where(child => child.ParentFolderId == item.Id).ToList())
-            child.ParentFolderId = item.ParentFolderId;
-        ContentBrowserItems.Remove(item);
-        _appSettings.FavoriteAssetIds.Remove(item.Id);
-        try { _appSettingsService.Save(_appSettings); } catch { }
-        CloseEditorSessionsForAssetIds(deletingIds);
-        RefreshContentBrowserViews();
-        PersistAssetLibrary();
+        DeleteContentAssetsWithPolicy([item]);
     }
 
     private bool CanDeleteContentAssets(IReadOnlyCollection<ContentAssetViewModel> targets)

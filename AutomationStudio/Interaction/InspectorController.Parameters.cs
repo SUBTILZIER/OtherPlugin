@@ -5,6 +5,7 @@ using AutomationStudioWpf.Graph;
 using WpfButton = System.Windows.Controls.Button;
 using WpfComboBox = System.Windows.Controls.ComboBox;
 using WpfComboBoxItem = System.Windows.Controls.ComboBoxItem;
+using WpfBorder = System.Windows.Controls.Border;
 using WpfTextBox = System.Windows.Controls.TextBox;
 
 namespace AutomationStudioWpf.Interaction;
@@ -50,12 +51,7 @@ public sealed partial class InspectorController
     private UIElement CreateParameterRow(ParameterNodeBaseViewModel node, GraphParameterDefinition parameter)
     {
         var row = new Grid { Margin = new Thickness(0, 0, 0, 6) };
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(94) });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(130) });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(24) });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(24) });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(24) });
+        AddParameterColumns(row, includeActions: true);
 
         var nameEdit = new ParameterNameEditContext(node, parameter);
         var nameBox = new WpfTextBox
@@ -178,34 +174,63 @@ public sealed partial class InspectorController
 
     private UIElement CreateCallInputRow(NodeBaseViewModel node, GraphParameterDefinition parameter)
     {
-        var row = new Grid { Margin = new Thickness(0, 0, 0, 6) };
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(94) });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(130) });
+        var row = new Grid { MinHeight = 30, Margin = new Thickness(0, 0, 0, 6) };
+        AddParameterColumns(row, includeActions: false);
 
-        row.Children.Add(new TextBlock
+        var nameText = new TextBlock
         {
             Text = parameter.Name,
-            Foreground = ResourceBrush("EditorTextBrush"),
             VerticalAlignment = VerticalAlignment.Center,
             TextTrimming = TextTrimming.CharacterEllipsis,
-            Margin = new Thickness(0, 0, 4, 0),
-        });
+        };
+        var nameField = CreateReadOnlyParameterField(nameText, "EditorTextBrush");
+        Grid.SetColumn(nameField, 0);
+        row.Children.Add(nameField);
 
         var typeText = new TextBlock
         {
             Text = parameter.Type.ToString(),
-            Foreground = ResourceBrush("EditorMutedTextBrush"),
             VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 4, 0),
         };
-        Grid.SetColumn(typeText, 1);
-        row.Children.Add(typeText);
+        var typeField = CreateReadOnlyParameterField(typeText, "EditorMutedTextBrush");
+        Grid.SetColumn(typeField, 1);
+        row.Children.Add(typeField);
 
         var editor = CreateParameterValueEditor(parameter, IsInputPinConnected(node, parameter.Id), null);
         Grid.SetColumn(editor, 2);
         row.Children.Add(editor);
         return row;
+    }
+
+    private static void AddParameterColumns(Grid row, bool includeActions)
+    {
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(94) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(130) });
+        if (!includeActions)
+            return;
+
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(24) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(24) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(24) });
+    }
+
+    private static WpfBorder CreateReadOnlyParameterField(UIElement content, string foregroundKey)
+    {
+        var field = new WpfBorder
+        {
+            Background = null,
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(5),
+            Padding = new Thickness(8, 4, 8, 4),
+            Margin = new Thickness(0, 0, 4, 0),
+            Child = content,
+        };
+        ThemeResourceHelper.SetResource(field, WpfBorder.BackgroundProperty, "EditorFieldCardBrush");
+        ThemeResourceHelper.SetResource(field, WpfBorder.BorderBrushProperty, "EditorPanelBorderBrush");
+        if (content is TextBlock text)
+            ThemeResourceHelper.SetResource(text, TextBlock.ForegroundProperty, foregroundKey);
+        return field;
     }
 
     private UIElement CreateParameterValueEditor(

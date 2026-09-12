@@ -19,7 +19,6 @@ public enum AppWindowCloseAction
 
 public sealed class AppSettings
 {
-    public List<string> FavoriteAssetIds { get; set; } = [];
     public string ContentBrowserFilter { get; set; } = string.Empty;
     public string? ContentBrowserTypeFilter { get; set; }
     public AppThemeMode ThemeMode { get; set; } = AppThemeMode.Dark;
@@ -38,7 +37,6 @@ public sealed class AppSettings
     public double ContentTreeWidth { get; set; } = 180;
     public AppSettings Clone() => new()
     {
-        FavoriteAssetIds = [.. FavoriteAssetIds],
         ContentBrowserFilter = ContentBrowserFilter,
         ContentBrowserTypeFilter = ContentBrowserTypeFilter,
         ThemeMode = ThemeMode,
@@ -54,8 +52,12 @@ public sealed class AppSettings
 
     public void Normalize()
     {
-        FavoriteAssetIds ??= [];
         ContentBrowserFilter ??= string.Empty;
+        ContentBrowserFilter = string.Join(
+            " ",
+            ContentBrowserFilter
+                .Split([' ', '\t', '/', '\\'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Where(token => !string.Equals(token, "is:favorite", StringComparison.OrdinalIgnoreCase)));
         if (!AppThemeService.TryParseColor(AccentColor, out _))
             AccentColor = "#3E9BB5";
         AccentOpacity = Math.Clamp(AccentOpacity, 0.18, 1.0);
