@@ -218,18 +218,18 @@ Runtime / Nodes / Adapters
 - 后续新增控件必须使用资源 brush，不能硬编码浅底浅字或只适配暗色；亮色主题下 hover 字体不能硬编码白色，除非背景是经过对比度处理的深色强调底。
 - 顶部工具栏的 `设置` 按钮打开 `SettingsWindow`；该窗口必须保持项目自绘窗口样式，不能使用 Windows 原生设置/消息面板。
 - `SettingsWindow` 的主题选择使用可点击预览卡片，不再使用裸 RadioButton 列表；预览卡必须展示主题背景、面板和强调色，让用户点击前就能判断效果。
-- `SettingsWindow` 主题/强调色必须实时预览到全局主界面；底部只保留 `应用` 一个按钮，实时预览会即时写入应用设置，`应用` 负责确认并关闭。不要恢复 `保存设置` / `取消` 双按钮。
+- `SettingsWindow` 主题/强调色必须实时预览到全局主界面；底部只保留 `应用并关闭` 一个按钮，实时预览会即时写入应用设置，`应用并关闭` 负责确认并关闭。不要恢复 `保存设置` / `取消` 双按钮。
 - `ThemedDialog` 需要读取当前主题资源，不能固定暗色；否则亮色主题下会出现视觉割裂。
-- `EditorSurfaceControl.xaml` 的左侧图表栏使用 section card + pill list item：hover、selected、compile dirty 必须分别用 `EditorPanelCardHoverBrush`、`EditorListSelectedBrush`、`EditorDirtyBackgroundBrush`，选中/脏状态用左侧 accent 条辅助识别。
+- `EditorSurfaceControl.xaml` 的左侧图表栏使用扁平 sidebar section（`EditorSidebarSectionStyle`）+ list item：hover、selected、compile dirty 必须分别用 `EditorPanelCardHoverBrush`、`EditorListSelectedBrush`、`EditorDirtyBackgroundBrush`，选中/脏状态用左侧 accent 条辅助识别；不要把整个 section 做成厚重 card。
 - 右侧细节面板的 header、基础节点信息、编号 chip 使用卡片层级；禁用/前置输入态使用 disabled chip/input 颜色，避免看起来像普通可编辑输入。
-- 2026-07-16：主窗口工具栏使用更紧凑的圆角分组，窗口 tab 增大点击命中区并保持活动/脏状态层级；底部内容浏览器和日志 header 使用 accent 竖条区分区域；编辑器细节面板的基础字段收进独立 field card，并对输入/下拉/图标按钮提供键盘焦点反馈。此类视觉调整只改 XAML 样式和布局参数，不改 x:Name、Binding 或事件。
+- 2026-07-16 历史记录：主窗口工具栏曾使用更紧凑的圆角分组，窗口 tab 增大点击命中区并保持活动/脏状态层级；底部内容浏览器和日志 header 使用 accent 竖条区分区域；编辑器细节面板的基础字段收进独立 field card，并对输入/下拉/图标按钮提供键盘焦点反馈。工具栏分组已在后续版本改为透明 command strip，当前规则见 2026-09-12 勘误；此类视觉调整只改 XAML 样式和布局参数，不改 x:Name、Binding 或事件。
 - 2026-07-17：编辑区和底部工作区的 splitter 统一使用 `EditorVerticalSplitterStyle` / `EditorHorizontalSplitterStyle`：常态只显示 1px 分隔线，hover/拖动才显示 accent，命中宽度保持 7px。亮色主题下节点正文必须保持接近不透明，避免网格穿透影响文字；内容资产选中态同时使用边框、柔和底色和底部 accent 条，不只依赖大面积强调色。
 - 左侧 section 的折叠/新增按钮统一用 `EditorSidebarIconButtonStyle`；函数项“公开”开关使用紧凑短文案和 ToolTip，避免挤压函数名。细节面板内 `TextBox` / `ComboBox` 统一最小高度，保持字段节奏一致。
 - `MainWindow.xaml` 的顶部工具栏命令按钮统一用 `TopToolbarButtonStyle`；底部内容浏览器 folder/tree item 和 asset tile 分别用 `ContentFolderListItemBaseStyle`、`ContentAssetTileContainerStyle`。不要在每个 `ListBoxItem` 内重复写 hover/selected 模板。
 - 主窗口 5 个面板分隔条必须使用 WPF 原生 `GridSplitter`，禁止用 `OnMouseLeftButtonDown/Move/Up` 手写替代 `Thumb` 拖拽。分隔列/行使用独立 7px 命中区，模板根节点绑定 `TemplateBinding Background`；视觉指示线不能作为唯一命中区域。
 - 资产或函数双击激活编辑器后，输入路由结束才清理内容框选、资产拖拽、画布平移、节点选择和连线预览捕获；不得在正常 `GridSplitter` 拖拽期间全局释放鼠标。空状态也必须加载、保存底部布局，尺寸只读 `ActualWidth/ActualHeight` 且过滤无效值。
 - 底部内容浏览器/日志和 Inspector 只保留主体背景、标题栏及必要的分隔线；脚本工作台的运行设置和热键设置用间距/层级区分，禁止重复完整 Border/card 嵌套。输入框自身边框保留，不能用大面积容器边框代替层级。
-- 顶部工具栏按钮必须放在圆角分组容器里，并保留 hover、pressed、keyboard focus、disabled 四种状态反馈；不要恢复成透明裸按钮。
+- 顶部工具栏使用透明 command strip 和弱分隔线分组；按钮本身继续使用 `TopToolbarButtonStyle` 提供 hover、pressed、keyboard focus、disabled 状态。不要恢复厚重圆角外层容器，也不要退回无状态的透明裸按钮。
 - 顶部工具栏不再提供“新建图谱”全局入口；资产创建只能从内容浏览器走，避免绕过脚本主图/辅助图规则。“打开图谱”文案统一为“外部导入”。`鼠标拾取` 固定放在 `另存为` 后面。
 - `编译`、`显示最终代码`、`执行脚本` 属于编辑动作组：只有打开脚本或函数库编辑 session 后显示。`执行脚本` 只允许脚本事件图触发；函数库或非事件图下要禁用并给出 ToolTip。
 - 全项目禁止直接调用 `System.Windows.MessageBox.Show` / `WpfMessageBox.Show`。确认、错误、信息弹窗必须走 `ThemedDialog` 或项目自定义窗口；运行时 `ShowMessage` 节点也必须使用同风格弹窗。
@@ -770,7 +770,7 @@ Python 参数规则：
 - 从输入或输出引脚拖线到空白画布并抬起，会打开同一个节点菜单；创建节点后由 `PinConnectionController.TryAutoConnectNewNode()` 自动连接第一个兼容的相反方向引脚。
 - 普通右键打开节点菜单前必须清掉待自动连接状态；连线落空打开菜单时不能清。
 - 引脚释放判定不只依赖 WPF 精确 `InputHitTest`，还会按图空间距离查找最近引脚，当前半径为 24。
-- 连线采用双层渲染且共用同一个 `ConnectionPathViewModel.PathGeometry`：`ZIndex=100` 是 14px 透明交互命中层，位于节点下；`ZIndex=300` 是轮廓、选中高亮和主线视觉层，位于节点上且必须 `IsHitTestVisible=false`。节点固定 `ZIndex=200`，拖线预览/框选/节点菜单分别为 `450/500/1000`。禁止把可命中的视觉线直接抬到节点上，否则经过节点的连线会抢走节点与 pin 操作。
+- 连线采用双层渲染且共用同一个 `ConnectionPathViewModel.PathGeometry`：`ZIndex=100` 是 14px 透明交互命中层，位于节点下；当前视觉层为 `ZIndex=150`，绘制轮廓、选中高亮和主线且必须 `IsHitTestVisible=false`；节点固定 `ZIndex=200`，拖线预览/框选/节点菜单分别为 `450/500/1000`。禁止把可命中的视觉线直接抬到节点上，否则经过节点的连线会抢走节点与 pin 操作。
 - 连接主线普通/选中宽度为 `4.5/6`，轮廓宽度为主线 `+2.5`，选中高亮宽度为主线 `+6`；亮色主题必须使用更深的语义线色和独立轮廓 token，不能依赖暗色主题的白色执行线 fallback。
 
 #### 参数默认值
@@ -1246,7 +1246,7 @@ Python 参数规则：
 - `App.xaml` 是全局主题 token 源。新增 UI 优先使用 `Root/Chrome/Panel/Card/Field/Text/Muted/Border/Hover/Selected/Accent/Warning/Error/Disabled` 语义 brush；不要在页面、控件、C# 构造 UI 里散写 `#RRGGBB`。
 - `AppThemeService` 现在支持 `#RRGGBB` 和 `#AARRGGBB`，半透明遮罩类 token（例如 `EditorExecutionOverlayBrush`）也必须走 palette，而不是写死在 XAML。
 - C# 动态 UI 必须用 `ThemeResourceHelper.SetResource(...)` 或 `ThemeResourceHelper.Brush(...)`：`ScriptPropertiesWindow`、`ScriptPropertiesSummaryControl`、`SettingsWindow`、`TrayMenuWindow`、`ThemedDialog`、拖拽预览、节点菜单等都不能固定 `Brushes.White` / `new SolidColorBrush(#...)`。
-- `SettingsWindow` 的主题/强调色是实时预览：点亮色/暗色、输入合法强调色、点预设色必须立刻刷新主窗口、编辑器、内容浏览器、日志、detached 窗口和已有自绘窗口；当前设置窗只保留 `应用`，实时预览即写入设置，`应用` 只负责关闭窗口。
+- `SettingsWindow` 的主题/强调色是实时预览：点亮色/暗色、输入合法强调色、点预设色必须立刻刷新主窗口、编辑器、内容浏览器、日志、detached 窗口和已有自绘窗口；当前设置窗只保留 `应用并关闭`，实时预览即写入设置，按钮负责确认保存并关闭窗口。
 - 硬编码色白名单只允许：节点类型色、pin/连线语义色、日志 level 语义色、截图/鼠标拾取颜色预览、阴影黑色、透明色、主题 palette 本身。其它 `#[0-9A-Fa-f]{6,8}`、`Brushes.*`、`new SolidColorBrush(...)` 都需要解释或改成 token。
 - 亮色主题验收标准：主窗口上方、内容浏览器、日志、编辑器、属性面板、弹窗、菜单、Tooltip 必须同时切到浅色层级；不能出现“上白下黑”、白底白字、浅灰字贴浅底、按钮文字被背景吃掉。
 - 2026-07-07 根因补充：旧 `MainWindow.ThemeUnifier` 曾在 `OnContentRendered` 后用冻结暗色 brush 直接写内容浏览器、日志和右键菜单本地属性，导致设置窗口切到亮色后主界面仍黑。该类以后只允许安装内容浏览器交互/重命名校验等 hook，不允许再承担“统一暗色上色器”职责。
@@ -1254,8 +1254,8 @@ Python 参数规则：
 - 亮色主题按 Codex 风格使用中性灰白层级（灰背景、近白卡片、中性灰边框），禁止偏黄、偏蓝的大面积底色；`ContentAssetTileContainerStyle` 的资产名必须显式绑定 `EditorTextBrush`，选中态使用 `EditorSelectionTextBrush`，不能固定白字；`ThemedDialog` 按钮必须属于同一视觉族，默认按钮只用强调边框/轻微高亮区分。
 - 2026-07-07 亮色二次修正：亮色不能大面积纯白刺眼，主背景/画布/日志/内容区优先用低亮度冷灰白；正文文字用灰黑，不用纯黑。执行 pin/执行连线必须走 `EditorExecutionPinBrush`，亮色下为深灰，避免白线在浅色画布上不可见；连接命中高亮和预览线分别走 `EditorConnectionHitBrush`、`EditorPreviewConnectionBrush`。
 - 2026-07-14 最终亮色基线：不要用“整体继续压暗”修刺眼问题，那会形成脏蓝灰。应用背景使用中性灰约 `#ECEEED`，主面板约 `#F5F6F5`，卡片约 `#F7F8F7`；节点画布是例外，使用更深的 `#C5CDCA/#D0D7D5`，保证白色节点和深色连线清楚。主窗口用独立 `EditorWindowBorderBrush` 深灰外框。强调色只用于边框、窄 accent 和轻染选中底；选中底最多混入约 17% 强调色，禁止整块高饱和蓝色铺面。
-- `SettingsWindow` 默认尺寸不得太小，当前目标约 `720x620` 且允许 resize；内容多时滚动，不要把设置项挤没。强调色必须支持项目内自绘色盘（`AccentColorPickerWindow`），禁止调用 Windows 原生颜色面板。
-- `SettingsWindow` 底部只保留 `应用` 一个按钮；实时预览仍即时生效，`应用` 只负责确认并关闭。不要再恢复 `保存设置` / `取消` 双按钮和回滚流程，避免交互重复。
+- `SettingsWindow` 默认尺寸不得太小，当前约 `900x680`，最小约 `760x560` 且允许 resize；内容多时滚动，不要把设置项挤没。强调色必须支持项目内自绘色盘（`AccentColorPickerWindow`），禁止调用 Windows 原生颜色面板。
+- `SettingsWindow` 底部只保留 `应用并关闭` 一个按钮；实时预览仍即时生效，按钮负责确认保存并关闭。不要再恢复 `保存设置` / `取消` 双按钮和回滚流程，避免交互重复。
 - 用户自选强调色必须原样写入 `AccentBrush`，不要为了可读性直接暗化用户选择的颜色。需要深一点的选中底色时，单独派生 `EditorListSelectedBrush` / `DropdownSelectedBrush`；按钮文字色通过亮度在深/浅前景间切换。
 - `ScriptPropertiesSummaryControl` 属于 C# 动态 UI，必须用 `SetResourceReference` 绑定主题 token；不要在创建时把 `Brush` 取出来赋给 `Background/Foreground/BorderBrush`，否则亮/暗主题切换后空白画布里的脚本属性摘要会保留旧主题色。
 
@@ -1454,7 +1454,7 @@ This section is the source of truth for packaging and process-lifecycle work. Re
 - 主题 brush 必须保持可变并由 `AppThemeService.ThemeChanged` 同步。节点 pin、连线、选中 glow 等现有对象不得缓存旧主题颜色；浅色选中 glow 跟随 accent，不使用固定黄色。
 - 共享 Button、CheckBox、TextBox、ComboBox 的 hover、pressed、disabled、keyboard focus 状态统一由主题 token 驱动。TextBox 的编辑模板必须保留 `PART_ContentHost`，NumericUpDown 内部编辑框通过应用 TextBox 样式继承统一焦点和校验表现。
 - Inspector 编辑期间不得因 `GraphChanged` 全量重建当前面板。普通 TextBox 支持 Enter 提交、失焦提交、Esc 恢复本次编辑值；NumericUpDown、参数名称编辑器保留各自更严格的提交/取消处理，避免双重提交和焦点竞争。
-- 连线采用双层结构：`Panel.ZIndex=100` 的透明宽命中层负责选择、右键和路由点；节点位于 200；`Panel.ZIndex=300` 的视觉层只绘制轮廓、主线和选中高亮且 `IsHitTestVisible=false`；拖线预览为 450。视觉层上移不得遮挡节点和 pin 操作。
+- 连线采用双层结构：`Panel.ZIndex=100` 的透明宽命中层负责选择、右键和路由点；节点位于 200；`Panel.ZIndex=150` 的视觉层只绘制轮廓、主线和选中高亮且 `IsHitTestVisible=false`；拖线预览为 450。视觉层必须低于节点，不得遮挡节点和 pin 操作。
 - 连线路径继续复用 `ConnectionPathViewModel.PathGeometry` 和现有圆润规划器；禁止在鼠标移动或主题切换中重复计算同一路径。连线视觉厚度和轮廓由 ViewModel 属性提供，不能在 XAML 中复制路径算法。
 - 画布右下角小地图及右上角无效缩放/全览按钮已移除；不得恢复对应 XAML、事件、控制器状态或无效 AutomationProperties。缩放、平移和 `0` 键重置仍由 `CanvasPanZoomController` 保留。
 - 设置窗口采用左侧分类导航、右侧滚动内容区。当前分类为 `界面`（主题/强调色）和 `窗口行为`（关闭策略）；新增设置项必须放入对应分类页，不要恢复单列长表单。
@@ -1522,6 +1522,18 @@ This section is the source of truth for packaging and process-lifecycle work. Re
 
 ## 2026-09-11：Splitter 直接拖拽与布局约束
 
-- 所有编辑区、Inspector、日志和内容浏览器分隔条统一使用 WPF 原生 `GridSplitter`，通过 `Thumb` 的 `DragStarted/DragDelta/DragCompleted` 直接调整相邻行列。所有分隔条显式声明 `ResizeDirection`、`ResizeBehavior="PreviousAndNext"`、`ShowsPreview="False"` 和 7px 命中区；禁止再次用 `OnMouseLeftButtonDown/Move/Up` 手写拖拽链替代原生控件。
+- 所有编辑区、Inspector、日志和内容浏览器分隔条统一使用 WPF 原生 `GridSplitter`。原生 `Thumb` 内部负责 `DragStarted/DragDelta/DragCompleted` 的实时调整；项目代码不接管 `DragStarted/DragDelta`，只在 `DragCompleted` 读取实际尺寸并触发布局保存。所有分隔条显式声明 `ResizeDirection`、`ResizeBehavior="PreviousAndNext"`、`ShowsPreview="False"` 和 7px 命中区；禁止再次用 `OnMouseLeftButtonDown/Move/Up` 手写拖拽链替代原生控件。
 - 布局保存只在原生拖拽完成后读取有效的 `ActualWidth/ActualHeight`，继续使用现有延迟保存；拖拽过程不得触发 Inspector 重建、节点重绘或其他业务刷新。
 - Splitter 视觉指示线只负责 hover/drag 反馈，不能替代原生 `Thumb` 命中区域；不使用额外 `Panel.ZIndex` 覆盖相邻内容，也不把编辑区星号列强制转换为固定像素列。
+
+## 2026-09-12：代码对照勘误与当前基线
+
+- 当前五个分隔条是原生 `GridSplitter`：`GraphSidebarSplitter`、`InspectorSplitter`、`LogPanelSplitter`、`ContentBrowserTreeSplitter`、`ContentLogSplitter`。`LayoutSplitter.cs` 和 `LayoutSplitterMath.cs` 不再是实现入口；不要按旧的自定义鼠标捕获方案排查拖拽问题。
+- 原生 `GridSplitter` 的 `Thumb` 内部负责拖拽过程中的相邻行列调整。项目只绑定 `DragCompleted`：编辑器分隔条转发到 `EditorSurfaceContext.NotifyLayoutChanged()`，主窗口分隔条转发到 `MainWindow.Settings.cs`；布局保存读取实际尺寸，经过有限值/最小值/最大值校验后使用现有延迟保存。
+- 当前连线层级是命中 `100`、视觉 `150`、节点及 Pin `200`、拖线预览 `450`、选择框/浮层 `500+`。旧记录中的视觉层 `300`、位于节点上方的描述已经失效，不能作为实现依据。
+- 当前工具栏是透明 command strip + 弱分隔线；`TopToolbarButtonStyle` 负责按钮自身的背景、边框和交互状态。历史记录中的“厚重圆角分组容器”不代表当前 XAML。
+- 当前左侧图表栏使用 `EditorSidebarSectionStyle` 扁平分组；Inspector 使用 `EditorInspectorSectionStyle` / `EditorInspectorPanelSectionStyle` 分层。`EditorSectionCardStyle` 不应重新跨导航、Inspector、工作台复用。
+- 设置窗口当前底部按钮文字为 `应用并关闭`；主题和合法强调色输入即时预览，非法强调色显示 `请输入 #RRGGBB 格式的颜色` 并禁用该按钮。分类页只有 `界面` 和 `窗口行为`，窗口默认尺寸为约 `900x680`，最小尺寸为约 `760x560`。
+- 事件图与函数列表的活动项由 `SetSessionActiveGraphController` 统一维护；切换控制器必须清理另一侧的 `ActiveItem` / `SelectedItem`。`IsCompileDirty` 只表达逻辑/依赖编译脏，不得复用活动选中背景；Inspector 值未改变时不得点亮编译脏。
+- 节点正文使用带 Alpha 的 `EditorNodeBackgroundBrush`，但节点整体保持不透明；不要通过设置节点整体 `Opacity` 来实现透线，否则会同时降低标题、文字、Pin 和箭头的对比度。
+- 本节是当前代码基线。更早的日期条目保留为变更历史；若与本节冲突，以当前源码和本节为准，并在下一次结构性变更后继续追加勘误记录。
