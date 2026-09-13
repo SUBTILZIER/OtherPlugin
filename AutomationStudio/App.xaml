@@ -248,6 +248,8 @@
             <Setter Property="MinHeight" Value="30" />
             <Setter Property="FontSize" Value="12" />
             <Setter Property="Padding" Value="12,6" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
             <Setter Property="Margin" Value="2" />
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="ToolTipService.ShowOnDisabled" Value="True" />
@@ -260,8 +262,8 @@
                                 BorderThickness="{TemplateBinding BorderThickness}"
                                 CornerRadius="6"
                                 SnapsToDevicePixels="True">
-                            <ContentPresenter HorizontalAlignment="Center"
-                                              VerticalAlignment="Center"
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
                                               Margin="{TemplateBinding Padding}"
                                               RecognizesAccessKey="True" />
                         </Border>

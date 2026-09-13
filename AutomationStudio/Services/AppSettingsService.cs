@@ -35,6 +35,8 @@ public sealed class AppSettings
     public double InspectorWidth { get; set; } = 420;
     public double LogPanelHeight { get; set; } = 280;
     public double ContentTreeWidth { get; set; } = 180;
+    public Dictionary<string, bool> InspectorSectionStates { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+    public Dictionary<string, string> EditorShortcuts { get; set; } = Interaction.ShortcutBindingService.CreateDefaults();
     public AppSettings Clone() => new()
     {
         ContentBrowserFilter = ContentBrowserFilter,
@@ -48,6 +50,12 @@ public sealed class AppSettings
         InspectorWidth = InspectorWidth,
         LogPanelHeight = LogPanelHeight,
         ContentTreeWidth = ContentTreeWidth,
+        InspectorSectionStates = InspectorSectionStates is null
+            ? new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase)
+            : new Dictionary<string, bool>(InspectorSectionStates, StringComparer.OrdinalIgnoreCase),
+        EditorShortcuts = EditorShortcuts is null
+            ? Interaction.ShortcutBindingService.CreateDefaults()
+            : new Dictionary<string, string>(EditorShortcuts, StringComparer.OrdinalIgnoreCase),
     };
 
     public void Normalize()
@@ -56,8 +64,7 @@ public sealed class AppSettings
         ContentBrowserFilter = string.Join(
             " ",
             ContentBrowserFilter
-                .Split([' ', '\t', '/', '\\'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                .Where(token => !string.Equals(token, "is:favorite", StringComparison.OrdinalIgnoreCase)));
+                .Split([' ', '\t', '/', '\\'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
         if (!AppThemeService.TryParseColor(AccentColor, out _))
             AccentColor = "#3E9BB5";
         AccentOpacity = Math.Clamp(AccentOpacity, 0.18, 1.0);
@@ -65,6 +72,9 @@ public sealed class AppSettings
         InspectorWidth = Math.Clamp(InspectorWidth, 420, 720);
         LogPanelHeight = Math.Clamp(LogPanelHeight, 180, 2000);
         ContentTreeWidth = Math.Clamp(ContentTreeWidth, 120, 420);
+        InspectorSectionStates ??= new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+        EditorShortcuts ??= Interaction.ShortcutBindingService.CreateDefaults();
+        Interaction.ShortcutBindingService.Normalize(EditorShortcuts);
     }
 }
 

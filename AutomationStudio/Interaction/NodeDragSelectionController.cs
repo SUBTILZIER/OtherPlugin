@@ -297,7 +297,6 @@ public sealed class NodeDragSelectionController
 
         return false;
     }
-
     private void ApplySelection(Rect selectionBounds)
     {
         var selectedNodes = new List<NodeBaseViewModel>();

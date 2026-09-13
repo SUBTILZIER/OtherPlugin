@@ -31,8 +31,11 @@ internal sealed class NodePaletteController
     private readonly Func<Size> _getViewportSize;
     private readonly Action<NodeBaseViewModel> _selectNode;
     private readonly Func<NodeBaseViewModel, bool> _tryAutoConnectNode;
+    private readonly Action _focusCanvas;
     private readonly List<NodeKind> _recentKinds = [];
+    private readonly List<WpfButton> _paletteButtons = [];
     private CallableNodeCatalog? _cachedCallableCatalog;
+    private int _selectedIndex = -1;
 
     private Point _openViewportPoint;
 
@@ -50,7 +53,8 @@ internal sealed class NodePaletteController
         Func<Point, Point> viewportToGraph,
         Func<Size> getViewportSize,
         Action<NodeBaseViewModel> selectNode,
-        Func<NodeBaseViewModel, bool> tryAutoConnectNode)
+        Func<NodeBaseViewModel, bool> tryAutoConnectNode,
+        Action? focusCanvas = null)
     {
         _palette = palette;
         _searchBox = searchBox;
@@ -66,6 +70,7 @@ internal sealed class NodePaletteController
         _getViewportSize = getViewportSize;
         _selectNode = selectNode;
         _tryAutoConnectNode = tryAutoConnectNode;
+        _focusCanvas = focusCanvas ?? (() => { });
     }
 
     public void Open(Point viewportPoint)
@@ -85,18 +90,25 @@ internal sealed class NodePaletteController
         {
             PositionPalette();
             _searchBox.Focus();
+            ApplySelectionVisual();
         }), DispatcherPriority.Render);
     }
 
     public void Close()
     {
+        bool wasOpen = IsOpen;
         _palette.Visibility = Visibility.Collapsed;
         _cachedCallableCatalog = null;
+        _paletteButtons.Clear();
+        _selectedIndex = -1;
+        if (wasOpen)
+            _focusCanvas();
     }
 
     public void Filter(string filter)
     {
         Build(filter);
+        ApplySelectionVisual();
         if (IsOpen)
             PositionPalette();
     }
@@ -113,19 +125,46 @@ internal sealed class NodePaletteController
 
     public void HandleKeyDown(System.Windows.Input.KeyEventArgs e)
     {
-        var buttons = _content.Children.OfType<WpfButton>().ToList();
+        var buttons = _paletteButtons;
         if (e.Key == Key.Escape) { Close(); e.Handled = true; return; }
         if (buttons.Count == 0) return;
         int current = buttons.FindIndex(b => b.IsKeyboardFocusWithin);
-        if (current < 0) current = e.Key is Key.Up or Key.PageUp ? buttons.Count : -1;
-        int next = e.Key switch { Key.Down => Math.Min(buttons.Count - 1, current + 1), Key.Up => Math.Max(0, current - 1), Key.PageDown => Math.Min(buttons.Count - 1, current + 8), Key.PageUp => Math.Max(0, current - 8), _ => current };
-        if (e.Key is Key.Down or Key.Up or Key.PageDown or Key.PageUp) { buttons[next].Focus(); e.Handled = true; }
-        else if (e.Key == Key.Enter) { buttons[current].RaiseEvent(new RoutedEventArgs(WpfButton.ClickEvent)); e.Handled = true; }
+        if (current < 0)
+            current = Math.Clamp(_selectedIndex, 0, buttons.Count - 1);
+
+        int next = MoveSelection(current, buttons.Count, e.Key);
+        if (e.Key is Key.Down or Key.Up or Key.PageDown or Key.PageUp)
+        {
+            SelectButton(next);
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Enter && current >= 0 && current < buttons.Count)
+        {
+            buttons[current].RaiseEvent(new RoutedEventArgs(WpfButton.ClickEvent));
+            e.Handled = true;
+        }
+    }
+
+    internal static int MoveSelection(int current, int count, Key key, int pageSize = 8)
+    {
+        if (count <= 0)
+            return -1;
+        current = Math.Clamp(current, 0, count - 1);
+        return key switch
+        {
+            Key.Down => (current + 1) % count,
+            Key.Up => (current - 1 + count) % count,
+            Key.PageDown => Math.Min(count - 1, current + Math.Max(1, pageSize)),
+            Key.PageUp => Math.Max(0, current - Math.Max(1, pageSize)),
+            _ => current,
+        };
     }
 
     private void Build(string filter)
     {
         _content.Children.Clear();
+        _paletteButtons.Clear();
+        _selectedIndex = -1;
 
         bool hasAny = false;
         bool isEventGraph = _getActiveGraphKind() == GraphAssetKind.EventGraph;
@@ -149,7 +188,7 @@ internal sealed class NodePaletteController
             {
                 var button = CreateMenuButton(definition.DisplayName, definition.NodeKind);
                 button.Click += NodeButton_Click;
-                _content.Children.Add(button);
+                AddActionButton(button);
             }
         }
 
@@ -216,7 +255,7 @@ internal sealed class NodePaletteController
             {
                 var button = CreateMenuButton(asset.Name, new PaletteAsset(asset));
                 button.Click += AssetButton_Click;
-                _content.Children.Add(button);
+                AddActionButton(button);
             }
         }
 
@@ -244,7 +283,7 @@ internal sealed class NodePaletteController
             {
                 var button = CreateMenuButton(item.Name, new PaletteCustomEvent(item));
                 button.Click += CustomEventButton_Click;
-                _content.Children.Add(button);
+                AddActionButton(button);
             }
         }
 
@@ -274,7 +313,41 @@ internal sealed class NodePaletteController
         HorizontalContentAlignment = System.Windows.HorizontalAlignment.Left,
         Cursor = System.Windows.Input.Cursors.Hand,
         Tag = tag,
+        ToolTip = "创建 " + text,
     };
+
+    private void AddActionButton(WpfButton button)
+    {
+        _paletteButtons.Add(button);
+        _content.Children.Add(button);
+        if (_selectedIndex < 0)
+            _selectedIndex = 0;
+    }
+
+    private void SelectButton(int index)
+    {
+        if (_paletteButtons.Count == 0)
+            return;
+        _selectedIndex = Math.Clamp(index, 0, _paletteButtons.Count - 1);
+        ApplySelectionVisual();
+        _paletteButtons[_selectedIndex].Focus();
+        _paletteButtons[_selectedIndex].BringIntoView();
+    }
+
+    private void ApplySelectionVisual()
+    {
+        for (int i = 0; i < _paletteButtons.Count; i++)
+        {
+            bool selected = i == _selectedIndex;
+            _paletteButtons[i].Background = selected
+                ? ThemeResourceHelper.Brush("EditorListSelectedBrush")
+                : System.Windows.Media.Brushes.Transparent;
+            _paletteButtons[i].BorderBrush = selected
+                ? ThemeResourceHelper.Brush("EditorSelectedAccentBrush")
+                : System.Windows.Media.Brushes.Transparent;
+            _paletteButtons[i].BorderThickness = selected ? new Thickness(1) : new Thickness(0);
+        }
+    }
 
     private void NodeButton_Click(object sender, RoutedEventArgs e)
     {
@@ -354,7 +427,7 @@ internal sealed class NodePaletteController
         {
             var button = CreateMenuButton(definition.DisplayName, definition.NodeKind);
             button.Click += NodeButton_Click;
-            _content.Children.Add(button);
+            AddActionButton(button);
         }
 
         return true;

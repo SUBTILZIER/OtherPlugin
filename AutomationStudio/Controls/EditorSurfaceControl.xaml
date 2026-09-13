@@ -42,6 +42,8 @@
             <Setter Property="FontSize" Value="15" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="TextAlignment" Value="Left" />
         </Style>
 
         <Style x:Key="InspectorFieldLabelStyle" TargetType="{x:Type TextBlock}">
@@ -49,6 +51,8 @@
             <Setter Property="FontSize" Value="12" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="Margin" Value="0,0,0,2" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="TextAlignment" Value="Left" />
         </Style>
 
         <Style x:Key="InspectorHelpTextStyle" TargetType="{x:Type TextBlock}">
@@ -56,12 +60,16 @@
             <Setter Property="FontSize" Value="11" />
             <Setter Property="TextWrapping" Value="Wrap" />
             <Setter Property="Margin" Value="0,3,0,0" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="TextAlignment" Value="Left" />
         </Style>
 
         <Style x:Key="InspectorSectionTitleStyle" TargetType="{x:Type TextBlock}">
             <Setter Property="Foreground" Value="{DynamicResource EditorTextBrightBrush}" />
             <Setter Property="FontSize" Value="13" />
             <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="TextAlignment" Value="Left" />
         </Style>
 
         <Style x:Key="EditorSidebarListBoxItemStyle" TargetType="{x:Type ListBoxItem}">
@@ -191,6 +199,9 @@
                         </Grid>
 
                             <ListBox x:Name="GraphListBox"
+                                     AutomationProperties.Name="事件图列表"
+                                     AutomationProperties.HelpText="使用方向键选择事件图，Enter 打开"
+                                     KeyboardNavigation.TabIndex="10"
                                  DockPanel.Dock="Top"
                                  ItemsSource="{Binding GraphListItems}"
                                  SelectedItem="{Binding SelectedGraphItem, Mode=TwoWay}"
@@ -294,6 +305,9 @@
                             </StackPanel>
                         </Grid>
                         <ListBox x:Name="FunctionListBox"
+                                 AutomationProperties.Name="函数列表"
+                                 AutomationProperties.HelpText="使用方向键选择函数，Enter 打开"
+                                 KeyboardNavigation.TabIndex="11"
                                  DockPanel.Dock="Top"
                                  ItemsSource="{Binding FunctionListItems}"
                                  SelectedItem="{Binding SelectedFunctionItem, Mode=TwoWay}"
@@ -438,6 +452,8 @@
                         BorderThickness="1"
                         CornerRadius="10">
                     <Border x:Name="GraphViewport"
+                            AutomationProperties.Name="图谱画布"
+                            KeyboardNavigation.TabIndex="20"
                             ClipToBounds="True"
                             Focusable="True"
                             PreviewMouseWheel="GraphViewport_PreviewMouseWheel"
@@ -919,6 +935,9 @@
                                         </StackPanel>
                                     </Border>
                                     <TextBox x:Name="NodePaletteSearchBox"
+                                             AutomationProperties.Name="节点搜索"
+                                             AutomationProperties.HelpText="输入节点名称、类别、TypeKey 或标签；上下键选择，Enter 创建，Esc 关闭"
+                                             KeyboardNavigation.TabIndex="22"
                                              Grid.Row="1"
                                              Margin="12,10,12,0"
                                              Padding="10,7"
@@ -972,6 +991,8 @@
                         <Style TargetType="{x:Type CheckBox}" BasedOn="{StaticResource EditorInspectorCheckBoxStyle}" />
                     </Border.Resources>
                     <ScrollViewer x:Name="InspectorScrollViewer"
+                                  AutomationProperties.Name="节点属性检查器"
+                                  KeyboardNavigation.TabIndex="12"
                                   VerticalScrollBarVisibility="Auto"
                                   PreviewGotKeyboardFocus="InspectorEditor_PreviewGotKeyboardFocus"
                                   PreviewLostKeyboardFocus="InspectorEditor_PreviewLostKeyboardFocus"
@@ -1045,6 +1066,10 @@
                                                                             <TextBlock Text="{Binding Label}"
                                                                                        Style="{StaticResource InspectorFieldLabelStyle}" />
                                                                             <controls:NumericUpDown Value="{Binding NumericValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                                                                    Minimum="{Binding Minimum}"
+                                                                                                    Maximum="{Binding Maximum}"
+                                                                                                    Step="{Binding Step}"
+                                                                                                    Unit="{Binding Unit}"
                                                                                                     IsEnabled="{Binding IsEnabled}" Margin="0,4,0,0">
                                                                                 <controls:NumericUpDown.Style>
                                                                                     <Style TargetType="controls:NumericUpDown">

@@ -249,6 +249,11 @@ public sealed class EditorSurfaceContext : IDisposable
             Surface.CommonNumber4Box,
             Surface.CommonFlagCheckBox,
             Surface.CommonHelpTextBlock);
+        InspectorController.StructuredInspector.ConfigureSectionStateStore(
+            services.GetInspectorSectionState,
+            services.SetInspectorSectionState);
+        InspectorController.StructuredInspector.ConfigureSchemaKeyResolver(node =>
+            services.GetInspectorSchemaKey?.Invoke(node) ?? node.NodeKind.ToString());
 
         PinConnectionController = new PinConnectionController(
             Session.EditorService,
@@ -278,7 +283,8 @@ public sealed class EditorSurfaceContext : IDisposable
             ViewportToGraph,
             () => new System.Windows.Size(Surface.GraphViewport.ActualWidth, Surface.GraphViewport.ActualHeight),
             SelectNode,
-            node => PinConnectionController.TryAutoConnectNewNode(node));
+            node => PinConnectionController.TryAutoConnectNewNode(node),
+            () => Surface.GraphViewport.Focus());
 
         GraphImportDropController = new GraphImportDropController(services.Owner, GraphListController);
     }

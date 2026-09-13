@@ -27,10 +27,11 @@ public partial class NumericUpDown : WpfUserControl
     public string ErrorMessage { get=>(string)GetValue(ErrorMessageProperty); private set=>SetValue(ErrorMessageProperty, value); }
     public NumericUpDown(){ InitializeComponent(); }
     private static void OnValueChanged(DependencyObject d, DependencyPropertyChangedEventArgs e){ if(d is NumericUpDown n && n.Input is not null) n.Input.Text=((double)e.NewValue).ToString(n.Format,CultureInfo.CurrentCulture); }
-    private void Input_TextChanged(object s, TextChangedEventArgs e){ if(double.TryParse(Input.Text,out var v)){ IsValid = v >= Minimum && v <= Maximum; ErrorMessage = IsValid ? string.Empty : $"范围 {Minimum:g}–{Maximum:g}"; if(IsValid) Value=v; } else { IsValid=false; ErrorMessage="请输入有效数字"; } }
+    internal static bool TryParseFinite(string text, out double value) => double.TryParse(text, NumberStyles.Float, CultureInfo.CurrentCulture, out value) && double.IsFinite(value);
+    private void Input_TextChanged(object s, TextChangedEventArgs e){ if(TryParseFinite(Input.Text, out var v)){ IsValid = v >= Minimum && v <= Maximum; ErrorMessage = IsValid ? string.Empty : $"范围 {Minimum:g}–{Maximum:g}"; if(IsValid) Value=v; } else { IsValid=false; ErrorMessage="请输入有效数字"; } }
     private void Input_LostFocus(object s,RoutedEventArgs e)=>Commit();
     private void Input_PreviewKeyDown(object s,WpfKeyEventArgs e){ if(e.Key==Key.Enter){Commit(); e.Handled=true;} else if(e.Key==Key.Escape){ Input.Text=Value.ToString(Format); e.Handled=true;} }
-    private void Commit(){ if(double.TryParse(Input.Text,out var v)) Value=Math.Clamp(v,Minimum,Maximum); Input.Text=Value.ToString(Format,CultureInfo.CurrentCulture); }
+    private void Commit(){ if(TryParseFinite(Input.Text, out var v)){ Value=Math.Clamp(v,Minimum,Maximum); Input.Text=Value.ToString(Format,CultureInfo.CurrentCulture); IsValid=true; ErrorMessage=string.Empty; } else { IsValid=false; ErrorMessage="请输入有效数字"; } }
     private void Up_Click(object s,RoutedEventArgs e){ Value=Math.Clamp(Value+Step,Minimum,Maximum); }
     private void Down_Click(object s,RoutedEventArgs e){ Value=Math.Clamp(Value-Step,Minimum,Maximum); }
 }

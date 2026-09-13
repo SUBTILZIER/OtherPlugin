@@ -32,7 +32,8 @@ public partial class MainWindow
     private const int AutoFitMaxRenderFrames = 90;
 
     private WpfTextBox? _contentBrowserSearchBox;
-    private WpfTextBlock? _contentBreadcrumbText;
+    private WpfTextBlock? _contentBrowserHint;
+    private System.Windows.Controls.StackPanel? _contentBreadcrumbBar;
     private WpfComboBox? _contentTypeFilter;
     private readonly DispatcherTimer _contentFilterSaveTimer = new() { Interval = TimeSpan.FromMilliseconds(500) };
     private bool _isApplyingContentBrowserSearch;
@@ -267,6 +268,7 @@ public partial class MainWindow
         ContentBrowserListBox.PreviewKeyDown -= ContentBrowserListBox_NavigationPreviewKeyDown;
         if (_contentBrowserSearchBox is not null)
             _contentBrowserSearchBox.TextChanged -= ContentBrowserSearchBox_TextChanged;
+        ContentBrowserHeaderBar.SizeChanged -= ContentBrowserHeaderBar_SizeChanged;
         _navigationFeaturesInstalled = false;
     }
 
@@ -293,6 +295,7 @@ public partial class MainWindow
             ToolTip = "支持关键字、模糊匹配、type:script、type:function、type:folder。",
         };
         _contentBrowserSearchBox.SetValue(System.Windows.Automation.AutomationProperties.NameProperty, "内容搜索");
+        _contentBrowserSearchBox.TabIndex = 29;
         _contentBrowserSearchBox.TextChanged += ContentBrowserSearchBox_TextChanged;
 
         var hint = new WpfTextBlock
@@ -303,19 +306,82 @@ public partial class MainWindow
             VerticalAlignment = VerticalAlignment.Center,
             FontSize = 11,
         };
+        _contentBrowserHint = hint;
         _contentBrowserSearchBox.Text = _appSettings.ContentBrowserFilter;
-        _contentBreadcrumbText = new WpfTextBlock { Foreground = AppBrush("EditorTextBrightBrush", 0xE6, 0xED, 0xF5), Margin = new Thickness(4,0,8,0), VerticalAlignment = VerticalAlignment.Center, FontSize = 11, ToolTip = "点击返回内容根目录", Cursor = System.Windows.Input.Cursors.Hand };
-        _contentBreadcrumbText.MouseLeftButtonUp += (_, _) => EnterContentFolder(null);
+        _contentBreadcrumbBar = new System.Windows.Controls.StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal, Margin = new Thickness(4, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center };
 
         ContentBrowserHeaderBar.Children.Add(label);
         ContentBrowserHeaderBar.Children.Add(_contentBrowserSearchBox);
         ContentBrowserHeaderBar.Children.Add(hint);
-        ContentBrowserHeaderBar.Children.Add(_contentBreadcrumbText);
+        ContentBrowserHeaderBar.Children.Add(_contentBreadcrumbBar);
         _contentTypeFilter = new WpfComboBox { Width = 90, Height = 22, Margin = new Thickness(0,4,6,4), ToolTip = "按资产类型过滤" };
         _contentTypeFilter.SetValue(System.Windows.Automation.AutomationProperties.NameProperty, "资产类型过滤");
         _contentTypeFilter.Items.Add("全部"); _contentTypeFilter.Items.Add("脚本"); _contentTypeFilter.Items.Add("函数库"); _contentTypeFilter.Items.Add("文件夹"); _contentTypeFilter.SelectedIndex = _appSettings.ContentBrowserTypeFilter switch { "script" => 1, "function" => 2, "folder" => 3, _ => 0 };
         _contentTypeFilter.SelectionChanged += (_, _) => { _appSettings.ContentBrowserTypeFilter = _contentTypeFilter.SelectedIndex switch { 1=>"script",2=>"function",3=>"folder",_=>null }; try { _appSettingsService.Save(_appSettings); } catch { } if (_contentBrowserSearchBox is null) return; var q = System.Text.RegularExpressions.Regex.Replace(_contentBrowserSearchBox.Text, @"\btype:\S+", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase).Trim(); string? t = _contentTypeFilter.SelectedIndex switch { 1=>"script",2=>"function",3=>"folder",_=>null }; _contentBrowserSearchBox.Text = t is null ? q : (q + " type:" + t).Trim(); };
         ContentBrowserHeaderBar.Children.Add(_contentTypeFilter);
+        ContentBrowserHeaderBar.SizeChanged += ContentBrowserHeaderBar_SizeChanged;
+        UpdateContentBreadcrumb();
+    }
+
+    private void ContentBrowserHeaderBar_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (_contentBrowserSearchBox is null || _contentBreadcrumbBar is null)
+            return;
+        double width = e.NewSize.Width;
+        _contentBrowserSearchBox.Width = width < 640 ? 140 : width < 820 ? 180 : 240;
+        if (_contentBrowserHint is not null)
+            _contentBrowserHint.Visibility = width < 720 ? Visibility.Collapsed : Visibility.Visible;
+        _contentBreadcrumbBar.MaxWidth = Math.Max(80, width < 720 ? 120 : width < 960 ? 220 : 360);
+    }
+
+    private void UpdateContentBreadcrumb()
+    {
+        if (_contentBreadcrumbBar is null)
+            return;
+
+        _contentBreadcrumbBar.Children.Clear();
+        var map = ContentBrowserItems.ToDictionary(a => a.Id);
+        var path = new List<ContentAssetViewModel>();
+        var id = _currentContentFolderId;
+        while (id is not null && map.TryGetValue(id, out var item))
+        {
+            path.Add(item);
+            id = item.ParentFolderId;
+        }
+        path.Reverse();
+
+        AddBreadcrumbButton("内容", null, path.Count == 0);
+        for (int i = 0; i < path.Count; i++)
+        {
+            _contentBreadcrumbBar.Children.Add(new WpfTextBlock
+            {
+                Text = " / ",
+                Foreground = AppBrush("StatusMutedBrush", 0x7A, 0x87, 0x97),
+                VerticalAlignment = VerticalAlignment.Center,
+                FontSize = 11,
+            });
+            AddBreadcrumbButton(path[i].Name, path[i], i == path.Count - 1);
+        }
+    }
+
+    private void AddBreadcrumbButton(string text, ContentAssetViewModel? folder, bool isCurrent)
+    {
+        if (_contentBreadcrumbBar is null)
+            return;
+        var button = new System.Windows.Controls.Button
+        {
+            Content = text,
+            Padding = new Thickness(3, 1, 3, 1),
+            Margin = new Thickness(0),
+            Background = WpfBrushes.Transparent,
+            BorderThickness = new Thickness(0),
+            Foreground = AppBrush(isCurrent ? "EditorTextBrightBrush" : "AccentBrush", 0xE6, 0xED, 0xF5),
+            IsEnabled = !isCurrent,
+            ToolTip = isCurrent ? "当前目录" : $"进入{text}",
+        };
+        button.SetValue(System.Windows.Automation.AutomationProperties.NameProperty, $"内容路径 {text}");
+        button.Click += (_, _) => EnterContentFolder(folder);
+        _contentBreadcrumbBar.Children.Add(button);
     }
 
     private void ContentBrowserSearchBox_TextChanged(object sender, WpfTextChangedEventArgs e)

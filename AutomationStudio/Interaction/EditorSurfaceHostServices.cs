@@ -21,4 +21,7 @@ internal sealed record EditorSurfaceHostServices(
     Action MarkLayoutDirty,
     Action EnsureCanvasLargeEnough,
     Action<string> SetStatus,
-    Func<CallableNodeCatalog> GetCallableCatalog);
+    Func<CallableNodeCatalog> GetCallableCatalog,
+    Func<string, bool?>? GetInspectorSectionState = null,
+    Action<string, bool>? SetInspectorSectionState = null,
+    Func<NodeBaseViewModel, string>? GetInspectorSchemaKey = null);

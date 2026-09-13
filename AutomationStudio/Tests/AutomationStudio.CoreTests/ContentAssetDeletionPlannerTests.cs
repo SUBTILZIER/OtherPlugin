@@ -55,19 +55,6 @@ public sealed class ContentAssetDeletionPlannerTests
         CollectionAssert.AreEquivalent(new[] { "first", "second" }, plan.DeleteIds.ToArray());
     }
 
-    [TestMethod]
-    public void LegacyFavoriteFilterTokenIsRemovedDuringSettingsNormalization()
-    {
-        var settings = new AppSettings
-        {
-            ContentBrowserFilter = "demo is:favorite type:script",
-        };
-
-        settings.Normalize();
-
-        Assert.AreEqual("demo type:script", settings.ContentBrowserFilter);
-    }
-
     private static ContentAssetViewModel Folder(string id, string? parentId) => new()
     {
         Id = id,

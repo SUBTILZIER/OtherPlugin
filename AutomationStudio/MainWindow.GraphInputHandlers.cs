@@ -300,21 +300,15 @@ public partial class MainWindow
         {
             _contentBrowserSearchBox?.Focus(); e.Handled = true; return;
         }
-        if ((Keyboard.Modifiers & ModifierKeys.Control) != 0 && e.Key is Key.D1 or Key.D2 or Key.D3 or Key.D4)
+        if (_editorCommandRouter.TryGetFocusTarget(e.Key, Keyboard.Modifiers, out var focusTarget))
         {
-            switch (e.Key)
+            switch (focusTarget)
             {
-                case Key.D1: surface?.FocusInspector(); break;
-                case Key.D2: surface?.GraphListBox.Focus(); break;
-                case Key.D3: ContentBrowserListBox.Focus(); break;
-                case Key.D4: LogRichTextBox.Focus(); break;
+                case Interaction.EditorCommandRouter.FocusTarget.Inspector: surface?.FocusInspector(); break;
+                case Interaction.EditorCommandRouter.FocusTarget.GraphList: surface?.GraphListBox.Focus(); break;
+                case Interaction.EditorCommandRouter.FocusTarget.ContentBrowser: ContentBrowserListBox.Focus(); break;
+                case Interaction.EditorCommandRouter.FocusTarget.Log: LogRichTextBox.Focus(); break;
             }
-            e.Handled = true; return;
-        }
-        if (surface is not null && (e.Key == Key.D0 || e.Key == Key.NumPad0) && IsFocusInside(surface.GraphViewport))
-        {
-            if ((Keyboard.Modifiers & ModifierKeys.Control) != 0) _canvasPanZoomController.ResetView();
-            else _canvasPanZoomController.ResetView();
             e.Handled = true; return;
         }
         if (surface is not null && (IsFocusInside(surface.GraphListBox) || IsFocusInside(surface.FunctionListBox)))
@@ -364,6 +358,7 @@ public partial class MainWindow
         if (_nodeDragSelectionController.HandleKeyDown(e))
             e.Handled = true;
     }
+
 
     private GraphListController? GetFocusedGraphController()
     {

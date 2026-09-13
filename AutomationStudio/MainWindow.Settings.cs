@@ -1,4 +1,5 @@
 using System.Windows;
+using AutomationStudioWpf.Graph;
 using AutomationStudioWpf.Interaction;
 using AutomationStudioWpf.Services;
 using System.Windows.Threading;
@@ -12,50 +13,59 @@ public partial class MainWindow
     private readonly DispatcherTimer _layoutSaveTimer = new() { Interval = TimeSpan.FromMilliseconds(500) };
     private bool _layoutLoaded;
 
-    private void LoadAppSettings()
-    {
-        _appSettings = _appSettingsService.Load();
-        AppThemeService.Apply(_appSettings);
-    }
+    private bool? GetInspectorSectionState(string key) =>
+        _appSettings.InspectorSectionStates.TryGetValue(key, out var value) ? value : null;
 
-    internal void ApplyLayoutSettings(Controls.EditorSurfaceControl surface)
-    {
-        surface.ApplyLayout(
-            ValidLayoutSize(_appSettings.GraphSidebarWidth, 180, 420, 224),
-            ValidLayoutSize(_appSettings.InspectorWidth, 420, 720, 420));
-        ApplyMainLayoutSettings();
-    }
+    private string GetInspectorSchemaKey(NodeBaseViewModel node) =>
+        _nodeRegistry.TryGetDefinition(node.NodeKind, out var definition)
+            ? definition.InspectorSchemaKey
+            : node.NodeKind.ToString();
 
-    internal void ApplyMainLayoutSettings()
+    private void SetInspectorSectionState(string key, bool value)
     {
-        LogRow.Height = new GridLength(ValidLayoutSize(_appSettings.LogPanelHeight, 180, 2000, 280));
-        ContentTreeColumn.Width = new GridLength(ValidLayoutSize(_appSettings.ContentTreeWidth, 120, 420, 180));
-        _layoutLoaded = true;
-    }
-
-    internal void NotifyLayoutChanged(Controls.EditorSurfaceControl? surface = null)
-    {
-        if (!_layoutLoaded) return;
-        if (surface is not null)
-        {
-            var layout = surface.ReadLayout();
-            _appSettings.GraphSidebarWidth = ValidLayoutSize(layout.Sidebar, 180, 420, _appSettings.GraphSidebarWidth);
-            _appSettings.InspectorWidth = ValidLayoutSize(layout.Inspector, 420, 720, _appSettings.InspectorWidth);
-        }
-        _appSettings.LogPanelHeight = ValidLayoutSize(LogRow.ActualHeight, 180, 2000, _appSettings.LogPanelHeight);
-        _appSettings.ContentTreeWidth = ValidLayoutSize(ContentTreeColumn.ActualWidth, 120, 420, _appSettings.ContentTreeWidth);
+        _appSettings.InspectorSectionStates[key] = value;
         _layoutSaveTimer.Stop();
         _layoutSaveTimer.Tick -= LayoutSaveTimer_Tick;
         _layoutSaveTimer.Tick += LayoutSaveTimer_Tick;
         _layoutSaveTimer.Start();
     }
 
-    private static double ValidLayoutSize(double value, double minimum, double maximum, double fallback)
+    private void LoadAppSettings()
     {
-        if (!double.IsFinite(value) || value <= 0)
-            return fallback;
+        _appSettings = _layoutStateService.Normalize(_appSettingsService.Load());
+        AppThemeService.Apply(_appSettings);
+    }
 
-        return Math.Clamp(value, minimum, maximum);
+    internal void ApplyLayoutSettings(Controls.EditorSurfaceControl surface)
+    {
+        _layoutStateService.ApplySnapshot(_appSettings, (sidebar, inspector, log, tree) =>
+        {
+            surface.ApplyLayout(sidebar, inspector);
+            LogRow.Height = new GridLength(log);
+            ContentTreeColumn.Width = new GridLength(tree);
+        });
+        _layoutLoaded = true;
+    }
+
+    internal void ApplyMainLayoutSettings()
+    {
+        _layoutStateService.ApplySnapshot(_appSettings, (_, _, log, tree) =>
+        {
+            LogRow.Height = new GridLength(log);
+            ContentTreeColumn.Width = new GridLength(tree);
+        });
+        _layoutLoaded = true;
+    }
+
+    internal void NotifyLayoutChanged(Controls.EditorSurfaceControl? surface = null)
+    {
+        if (!_layoutLoaded) return;
+        var current = surface?.ReadLayout() ?? (_appSettings.GraphSidebarWidth, _appSettings.InspectorWidth);
+        _layoutStateService.UpdateSettings(_appSettings, _layoutStateService.ReadSnapshot(current.Sidebar, current.Inspector, LogRow.ActualHeight, ContentTreeColumn.ActualWidth));
+        _layoutSaveTimer.Stop();
+        _layoutSaveTimer.Tick -= LayoutSaveTimer_Tick;
+        _layoutSaveTimer.Tick += LayoutSaveTimer_Tick;
+        _layoutSaveTimer.Start();
     }
 
     private void LayoutSaveTimer_Tick(object? sender, EventArgs e)

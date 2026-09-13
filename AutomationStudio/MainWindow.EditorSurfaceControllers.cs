@@ -584,7 +584,10 @@ public partial class MainWindow
         () => MarkSessionLayoutDirty(session),
         EnsureCanvasLargeEnough,
         SetStatus,
-        GetCallableCatalog);
+        GetCallableCatalog,
+        GetInspectorSectionState,
+        SetInspectorSectionState,
+        GetInspectorSchemaKey);
 
     private GraphAssetKind? GetActiveGraphKind() => _activeAssetController?.AssetKind;
 

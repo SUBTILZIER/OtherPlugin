@@ -53,8 +53,8 @@
                                 Background="{TemplateBinding Background}"
                                 CornerRadius="5"
                                 SnapsToDevicePixels="True">
-                            <ContentPresenter HorizontalAlignment="Center"
-                                              VerticalAlignment="Center"
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
                                               RecognizesAccessKey="True" />
                         </Border>
                         <ControlTemplate.Triggers>
@@ -85,6 +85,8 @@
             <Setter Property="Background" Value="{DynamicResource EditorToolbarGroupBrush}" />
             <Setter Property="BorderBrush" Value="{DynamicResource EditorPanelBorderBrush}" />
             <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="{x:Type Button}">
@@ -100,8 +102,8 @@
                                                   Opacity="0"
                                                   Color="#000000" />
                             </Border.Effect>
-                            <ContentPresenter HorizontalAlignment="Center"
-                                              VerticalAlignment="Center"
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
                                               Margin="{TemplateBinding Padding}"
                                               RecognizesAccessKey="True" />
                         </Border>
@@ -414,6 +416,8 @@
             <Setter Property="Margin" Value="10,0,8,0" />
             <Setter Property="VerticalAlignment" Value="Center" />
             <Setter Property="FontSize" Value="12" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="TextAlignment" Value="Left" />
         </Style>
         <Style TargetType="MenuItem">
             <Setter Property="Foreground" Value="{DynamicResource EditorTextBrightBrush}" />
@@ -824,6 +828,8 @@
                                 <ColumnDefinition Width="*" MinWidth="240" />
                             </Grid.ColumnDefinitions>
                             <ListBox x:Name="ContentFolderListBox"
+                                     AutomationProperties.Name="内容文件夹树"
+                                     KeyboardNavigation.TabIndex="30"
                                      ItemsSource="{Binding ContentFolderItems}"
                                       Background="{DynamicResource EditorPanelElevatedBrush}"
                                      BorderThickness="0,0,1,0"
@@ -883,7 +889,7 @@
                                                       Style="{StaticResource ContentFolderToggleIconStyle}" />
                                             </Button>
                                             <Grid Grid.Column="1">
-                                                <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" HorizontalAlignment="Stretch" TextAlignment="Left">
                                                     <TextBlock.Style>
                                                         <Style TargetType="TextBlock">
                                                             <Setter Property="Visibility" Value="Visible" />
@@ -950,6 +956,8 @@
                                           ResizeBehavior="PreviousAndNext"
                                           DragCompleted="GridSplitter_DragCompleted" />
                             <ListBox x:Name="ContentBrowserListBox"
+                                  AutomationProperties.Name="内容资产列表"
+                                  KeyboardNavigation.TabIndex="31"
                                   Grid.Column="2"
                                   ItemsSource="{Binding ContentVisibleItems}"
                                    Background="{DynamicResource EditorPanelBackgroundBrush}"
@@ -1147,6 +1155,7 @@
                     </Border>
 
                     <RichTextBox x:Name="LogRichTextBox"
+                                  KeyboardNavigation.TabIndex="40"
                                   Background="{DynamicResource EditorPanelBackgroundBrush}"
                                  Foreground="{DynamicResource EditorTextBrush}"
                                  BorderThickness="0"

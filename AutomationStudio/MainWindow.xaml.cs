@@ -51,6 +51,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private readonly FinalCodePreviewService _finalCodePreviewService = new();
     private readonly PythonEnvironmentService _pythonEnvironmentService = new();
     private readonly NodeRegistry _nodeRegistry = NodeRegistry.CreateDefault();
+    private readonly Interaction.EditorCommandRouter _editorCommandRouter = new();
+    private readonly LayoutStateService _layoutStateService = new();
     private readonly Adapters.RuntimeAdapters _runtimeAdapters;
     private readonly Runtime.GraphRuntimeExecutor _runtimeExecutor;
     private readonly EditorWorkspace _workspace = new();
